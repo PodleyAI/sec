@@ -94,7 +94,7 @@ let handles: SecJobQueueHandles | undefined;
  * {@link RateLimiter} with {@link PostgresRateLimiterStorage} (scope
  * "cluster"), whose sliding-window reservation is enforced across every process
  * via shared tables — so the aggregate fetch rate stays ≤ {@link SecFetchMaxPerSec}
- * (default 8/s, under EDGAR's 10/s) no matter how many shards run. The
+ * (default 4/s, under EDGAR's 10/s) no matter how many shards run. The
  * per-process {@link EvenlySpacedRateLimiter} only smooths
  * local bursts; the cluster limiter is the authoritative global cap. On
  * sqlite / single-process there is no cluster to coordinate, so an in-memory
@@ -163,11 +163,14 @@ export async function getSecJobQueue(): Promise<SecJobQueueHandles> {
         // cluster limiter first would spend a reserve/release round trip
         // against Postgres on every claim it then has to roll back.
         new ConcurrencyLimiter(SecFetchMaxConcurrent),
-        limiter,
+        // Local pacing: one start every 1000/maxPerSec ms. The cluster
+        // RateLimiter below is a sliding window and will admit a burst of
+        // `maxPerSec` in one tick; this is what actually spaces them.
         new EvenlySpacedRateLimiter({
           maxExecutions: SecFetchMaxPerSec,
           windowSizeInSeconds: 1,
         }),
+        limiter,
       ]),
       pollIntervalMs: 1,
       // Drop each terminal row the moment its result has been handed to the

@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import "workglow";
 import type { FetchUrlTaskInput, RateLimiter, SafeFetchFn } from "workglow";
-import { registerSafeFetch } from "workglow";
+import { registerSafeFetch, RetryableJobError } from "workglow";
 
-import { SecFetchMaxPerSec, SecUserAgent } from "../../config/Constants";
+import { SecFetchMaxConcurrent, SecUserAgent } from "../../config/Constants";
 import { SecFetchJob } from "./SecFetchJob";
 import {
   installEdgarBlockTranslation,
@@ -37,16 +37,25 @@ function bodyFailsMidStream(): Response {
   });
 }
 
-function wholeBody(): Response {
-  return new Response(new Uint8Array([1, 2, 3]), {
-    status: 200,
-    headers: { "content-type": "application/octet-stream", "content-length": "3" },
-  });
+const noopContext = {
+  signal: new AbortController().signal,
+  updateProgress: async () => {},
+};
+
+function expectRetryable(error: unknown): RetryableJobError {
+  expect(error).toBeInstanceOf(RetryableJobError);
+  const retryable = error as RetryableJobError;
+  expect(retryable.retryable).toBe(true);
+  return retryable;
 }
 
-// Retries are spread uniformly over two drain windows:
-// ceil(SEC_FETCH_MAX_CONCURRENT / SEC_FETCH_MAX_PER_SEC) * 2s.
-const DRAIN_WINDOW_MS = 4_000;
+/** `retryDate` is this many ms from now, within slack (execute returns immediately). */
+function expectRetryWaitMs(error: RetryableJobError, expectedMs: number, slackMs = 1_500): void {
+  expect(error.retryDate).toBeInstanceOf(Date);
+  const wait = error.retryDate!.getTime() - Date.now();
+  expect(wait).toBeGreaterThan(expectedMs - slackMs);
+  expect(wait).toBeLessThan(expectedMs + slackMs);
+}
 
 describe("SecFetchJob", () => {
   it("merges SEC User-Agent onto job input", () => {
@@ -105,21 +114,15 @@ describe("SecFetchJob", () => {
   // TODO: retry-behaviour tests use Bun.serve for a loopback listener. Swap for
   // node:http.createServer so both runtimes drive them, then drop the skip.
   describe.skipIf(typeof Bun === "undefined")("retry behavior", () => {
-    it("retries on 429 honoring Retry-After and eventually succeeds", async () => {
+    it("throws RetryableJobError on 429 after one attempt so the queue reschedules", async () => {
       let attempts = 0;
       const server = Bun.serve({
         port: 0,
         fetch() {
           attempts++;
-          if (attempts < 3) {
-            return new Response("rate limited", {
-              status: 429,
-              headers: { "Retry-After": "0" },
-            });
-          }
-          return new Response(JSON.stringify({ ok: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
+          return new Response("rate limited", {
+            status: 429,
+            headers: { "Retry-After": "0" },
           });
         },
       });
@@ -128,18 +131,15 @@ describe("SecFetchJob", () => {
         const job = new SecFetchJob({
           input: { url, response_type: "json" } satisfies FetchUrlTaskInput,
         });
-        const out = await job.execute(job.input, {
-          signal: new AbortController().signal,
-          updateProgress: async () => {},
-        });
-        expect(attempts).toBe(3);
-        expect((out as { json?: { ok?: boolean } }).json?.ok).toBe(true);
+        const error = await job.execute(job.input, noopContext).catch((e: unknown) => e);
+        expect(attempts).toBe(1);
+        expectRetryWaitMs(expectRetryable(error), 0);
       } finally {
         server.stop();
       }
     }, 15_000);
 
-    it("retries on 5xx and ultimately surfaces the error", async () => {
+    it("throws RetryableJobError on 5xx after one attempt so the queue reschedules", async () => {
       let attempts = 0;
       const server = Bun.serve({
         port: 0,
@@ -153,18 +153,13 @@ describe("SecFetchJob", () => {
         const job = new SecFetchJob({
           input: { url, response_type: "json" } satisfies FetchUrlTaskInput,
         });
-        await expect(
-          job.execute(job.input, {
-            signal: new AbortController().signal,
-            updateProgress: async () => {},
-          })
-        ).rejects.toBeDefined();
-        // Retried at least once before giving up.
-        expect(attempts).toBeGreaterThan(1);
+        const error = await job.execute(job.input, noopContext).catch((e: unknown) => e);
+        expect(attempts).toBe(1);
+        expectRetryable(error);
       } finally {
         server.stop();
       }
-    }, 30_000);
+    }, 15_000);
 
     it("does not retry on 404 (non-retriable) and fails fast", async () => {
       let attempts = 0;
@@ -193,38 +188,23 @@ describe("SecFetchJob", () => {
     }, 10_000);
   });
 
-  // A hostile or buggy Retry-After: 86400 used to park this job on a setTimeout
-  // for a day. The cluster pause is already capped; this is the job's OWN sleep.
+  // A hostile Retry-After: 86400 used to park this job on a setTimeout for a
+  // day. FetchUrlJob already puts that date on RetryableJobError.retryDate;
+  // we cap it so the queue cannot hide the job for a day.
   describe("Retry-After cap", () => {
     afterEach(() => {
-      vi.useRealTimers();
-      // This test signals a 600s cluster cooldown, and the ladder is module
-      // state keyed on wall-clock time — which `useRealTimers` rewinds back
-      // inside that window. Without the reset the NEXT test's block coalesces
-      // into this one's cooldown and writes nothing to the limiter, so the
-      // suite only passes on the accident that the following test happens to
-      // be a pure unit test whose own afterEach clears it.
       resetSecFetchThrottleForTesting();
     });
 
-    it("caps a huge Retry-After so a sweep cannot park for a day", async () => {
-      vi.useFakeTimers();
+    it("caps a huge Retry-After on the thrown retryDate, and does not re-issue", async () => {
       let attempts = 0;
       const previous = registerSafeFetch((async () => {
         attempts += 1;
-        if (attempts === 1) {
-          return new Response("rate limited", {
-            status: 429,
-            headers: { "Retry-After": "86400" },
-          });
-        }
-        return new Response(JSON.stringify({ ok: true }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
+        return new Response("rate limited", {
+          status: 429,
+          headers: { "Retry-After": "86400" },
         });
       }) as unknown as SafeFetchFn);
-      const ac = new AbortController();
-      let promise: Promise<unknown> | undefined;
       try {
         const job = new SecFetchJob({
           input: {
@@ -232,37 +212,21 @@ describe("SecFetchJob", () => {
             response_type: "json",
           } satisfies FetchUrlTaskInput,
         });
-        promise = job.execute(job.input, {
-          signal: ac.signal,
-          updateProgress: async () => {},
-        });
-        // EDGAR's own pushback is ~10 minutes; a 30s ceiling would retry
-        // inside that window and keep the block alive. A 86400s header
-        // must still not park a sweep for a day.
-        await vi.advanceTimersByTimeAsync(30_000);
+        const error = await job.execute(job.input, noopContext).catch((e: unknown) => e);
         expect(attempts).toBe(1);
-        // The cap bounds the WAIT; the anti-herd spread is added on top of it,
-        // so a re-issue lands within one drain window after the ceiling.
-        await vi.advanceTimersByTimeAsync(570_000);
-        await vi.advanceTimersByTimeAsync(DRAIN_WINDOW_MS);
-        expect(attempts).toBe(2);
-        const out = await promise;
-        expect((out as { json?: { ok?: boolean } }).json?.ok).toBe(true);
+        expectRetryWaitMs(expectRetryable(error), 600_000, 2_000);
       } finally {
-        ac.abort();
-        await promise?.catch(() => {});
         registerSafeFetch(previous);
       }
     });
   });
 
-  // The in-job loop is the second half of workglow's post-delivery retry ban.
   // Workglow marks a mid-body failure non-retryable once bytes have reached a
   // stream receiver, because the consumer's subscription outlives the attempt
-  // and a re-issue from byte 0 would concatenate onto the partial body. This
-  // loop is a SEPARATE retry path that never sees the queue's policy, so
-  // nothing but `isRetriableError`'s `retryable === false` short-circuit stops
-  // it re-issuing — an assumption with no test on either side of the boundary.
+  // and a re-issue from byte 0 would concatenate onto the partial body. A
+  // timeout abort keeps its own shape through that classification, so this
+  // execute() latches delivery itself and rethrows rather than wrapping as
+  // retryable.
   describe("post-delivery retry ban", () => {
     it("does not re-issue a mid-body failure once bytes reached a receiver", async () => {
       let attempts = 0;
@@ -294,13 +258,12 @@ describe("SecFetchJob", () => {
     }, 20_000);
 
     // The complement: with no stream receiver nothing was delivered, so the
-    // failure stays retryable and this loop absorbs it — the behavior a large
-    // EDGAR download depends on.
-    it("still re-issues a mid-body failure when nothing received the bytes", async () => {
+    // failure stays retryable. execute() does not re-issue; the queue will.
+    it("throws RetryableJobError for a mid-body failure when nothing received the bytes", async () => {
       let attempts = 0;
       const previous = registerSafeFetch((async () => {
         attempts += 1;
-        return attempts === 1 ? bodyFailsMidStream() : wholeBody();
+        return bodyFailsMidStream();
       }) as unknown as SafeFetchFn);
       try {
         const job = new SecFetchJob({
@@ -309,13 +272,10 @@ describe("SecFetchJob", () => {
             response_type: "arraybuffer",
           } satisfies FetchUrlTaskInput,
         });
-        const out = await job.execute(job.input, {
-          signal: new AbortController().signal,
-          updateProgress: async () => {},
-        });
+        const error = await job.execute(job.input, noopContext).catch((e: unknown) => e);
 
-        expect(attempts).toBe(2);
-        expect((out as { metadata?: { status?: number } }).metadata?.status).toBe(200);
+        expect(attempts).toBe(1);
+        expectRetryable(error);
       } finally {
         registerSafeFetch(previous);
       }
@@ -339,7 +299,6 @@ const EDGAR_UNDECLARED_TOOL_PAGE =
 
 describe("EDGAR rate-limit block (403 interstitial)", () => {
   afterEach(() => {
-    vi.useRealTimers();
     setSecFetchLimiter(undefined as unknown as RateLimiter);
     // The escalation ladder is module state shared across callers, so a test
     // that left a cooldown in force would coalesce the next test's block into
@@ -354,8 +313,7 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
     expect(isEdgarRateLimitBody(EDGAR_UNDECLARED_TOOL_PAGE)).toBe(false);
   });
 
-  it("pauses the cluster and waits the block out, instead of failing at once", async () => {
-    vi.useFakeTimers();
+  it("pauses the cluster and throws RetryableJobError instead of re-issuing", async () => {
     const writes: Date[] = [];
     setSecFetchLimiter({
       setNextAvailableTime: async (d: Date) => {
@@ -366,21 +324,13 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
     let attempts = 0;
     const previous = registerSafeFetch((async () => {
       attempts += 1;
-      if (attempts === 1) {
-        return new Response(EDGAR_RATE_LIMIT_PAGE, {
-          status: 403,
-          headers: { "Content-Type": "text/html" },
-        });
-      }
-      return new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
+      return new Response(EDGAR_RATE_LIMIT_PAGE, {
+        status: 403,
+        headers: { "Content-Type": "text/html" },
       });
     }) as unknown as SafeFetchFn);
     installEdgarBlockTranslation();
 
-    const ac = new AbortController();
-    let promise: Promise<unknown> | undefined;
     try {
       const job = new SecFetchJob({
         input: {
@@ -388,39 +338,27 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
           response_type: "json",
         } satisfies FetchUrlTaskInput,
       });
-      promise = job.execute(job.input, { signal: ac.signal, updateProgress: async () => {} });
+      const error = await job.execute(job.input, noopContext).catch((e: unknown) => e);
 
       // Untranslated this is a 403 — a permanent client error — so the job threw
-      // here without ever signalling the cluster, leaving the sweep firing at
-      // full rate and renewing the block. It must now both pause the cluster
-      // and stay retryable.
-      await vi.advanceTimersByTimeAsync(1);
+      // without signalling the cluster. It must now both pause the cluster and
+      // stay retryable, with the first-rung wait on retryDate (the queue sleeps
+      // it; execute does not).
+      expect(attempts).toBe(1);
       expect(writes).toHaveLength(1);
       expect(writes[0].getTime() - Date.now()).toBeGreaterThan(4_000);
-
-      // First trip: seconds, not the full ban.
-      await vi.advanceTimersByTimeAsync(5_000 + DRAIN_WINDOW_MS + 1);
-      expect(attempts).toBe(2);
-      expect((await promise) as { json?: { ok?: boolean } }).toMatchObject({
-        json: { ok: true },
-      });
+      expectRetryWaitMs(expectRetryable(error), 5_000);
     } finally {
-      ac.abort();
-      await promise?.catch(() => {});
       registerSafeFetch(previous);
     }
   });
 
-  it("waits out the cluster cooldown on a bare 429, not the ordinary backoff", async () => {
+  it("puts the first-rung cooldown on retryDate for a bare 429, and does not re-issue", async () => {
     // Modelled on a captured EDGAR 429: no Retry-After, a text/html
     // interstitial, and an empty reason phrase (HTTP/2 carries none). The
     // missing header is the point — nothing but the applied cooldown (the
-    // ladder's first rung) sizes this wait. The cluster sentinel gates DISPATCH and this job is already
-    // dispatched, its retry loop never re-consulting the limiter, so an ~30s
-    // backoff put every in-flight request back on the wire deep inside the
-    // ten-minute penalty window and extended it for everyone — including, as
-    // observed, an ordinary browser sharing the IP.
-    vi.useFakeTimers();
+    // ladder's first rung) sizes retryDate. execute() must not sleep or
+    // re-issue: the next HTTP is a new queue claim through the limiters.
     const writes: Date[] = [];
     setSecFetchLimiter({
       setNextAvailableTime: async (d: Date) => {
@@ -431,21 +369,13 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
     let attempts = 0;
     const previous = registerSafeFetch((async () => {
       attempts += 1;
-      if (attempts === 1) {
-        return new Response(EDGAR_RATE_LIMIT_PAGE, {
-          status: 429,
-          statusText: "",
-          headers: { "Content-Type": "text/html" },
-        });
-      }
-      return new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
+      return new Response(EDGAR_RATE_LIMIT_PAGE, {
+        status: 429,
+        statusText: "",
+        headers: { "Content-Type": "text/html" },
       });
     }) as unknown as SafeFetchFn);
 
-    const ac = new AbortController();
-    let promise: Promise<unknown> | undefined;
     try {
       const job = new SecFetchJob({
         input: {
@@ -453,132 +383,43 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
           response_type: "json",
         } satisfies FetchUrlTaskInput,
       });
-      promise = job.execute(job.input, { signal: ac.signal, updateProgress: async () => {} });
+      const error = await job.execute(job.input, noopContext).catch((e: unknown) => e);
 
-      await vi.advanceTimersByTimeAsync(1);
+      expect(attempts).toBe(1);
       expect(writes).toHaveLength(1);
-
-      // The ordinary first backoff (1s) elapses with no re-issue: the applied
-      // cooldown governs, not the backoff.
-      await vi.advanceTimersByTimeAsync(1_000 + DRAIN_WINDOW_MS);
-      expect(attempts).toBe(1);
-
-      await vi.advanceTimersByTimeAsync(4_001);
-      expect(attempts).toBe(2);
-      expect((await promise) as { json?: { ok?: boolean } }).toMatchObject({ json: { ok: true } });
+      expectRetryWaitMs(expectRetryable(error), 5_000);
     } finally {
-      ac.abort();
-      await promise?.catch(() => {});
       registerSafeFetch(previous);
     }
   });
 
-  it("still spreads when the cooldown already sits at the retry ceiling", async () => {
-    // The default block case exactly: a 600s cooldown against a 600s cap.
-    // Capping the SUM of wait and spread silently ate the spread here — the
-    // one place it matters most, since every blocked job applies the same
-    // cooldown from the same response and would wake in the same tick.
-    vi.useFakeTimers();
-    const realRandom = Math.random;
-    Math.random = () => 0.5; // a spread of exactly half the window
-    setSecFetchLimiter({ setNextAvailableTime: async () => {} } as unknown as RateLimiter);
-
-    let attempts = 0;
-    const previous = registerSafeFetch((async () => {
-      attempts += 1;
-      if (attempts === 1) {
-        return new Response("slow down", {
-          status: 429,
-          headers: { "Retry-After": "86400" },
-        });
-      }
-      return new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    }) as unknown as SafeFetchFn);
-
-    const ac = new AbortController();
-    let promise: Promise<unknown> | undefined;
-    try {
-      const job = new SecFetchJob({
-        input: {
-          url: "https://www.sec.gov/Archives/edgar/x.json",
-          response_type: "json",
-        } satisfies FetchUrlTaskInput,
-      });
-      promise = job.execute(job.input, { signal: ac.signal, updateProgress: async () => {} });
-
-      // At the cap itself the spread must not yet have elapsed.
-      await vi.advanceTimersByTimeAsync(600_000);
-      expect(attempts).toBe(1);
-
-      await vi.advanceTimersByTimeAsync(DRAIN_WINDOW_MS / 2 + 1);
-      expect(attempts).toBe(2);
-    } finally {
-      Math.random = realRandom;
-      ac.abort();
-      await promise?.catch(() => {});
-      registerSafeFetch(previous);
-    }
-  });
-
-  it("spreads a shared 5xx failure's retries wider than one tick", async () => {
-    // The concurrency limiter bounds SIMULTANEITY, not rate, and a retry
-    // re-issues from inside the job where no limiter governs it. Every
-    // in-flight job fails on the same upstream event and computes the same
-    // backoff, so the recovery arrives as a burst: `backoffDelay(0)` alone
-    // spreads the first retry across only 500ms, which for a full set of
-    // in-flight fetches is far over EDGAR's 10/s ceiling.
-    vi.useFakeTimers();
-    const FLEET = 16;
-    // A uniform sweep in place of Math.random, so this asserts the spreading
-    // FORMULA rather than one draw's luck. Each job consumes exactly one
-    // random (the backoff itself is deterministic), so the sweep maps 1:1.
-    let draw = 0;
-    const realRandom = Math.random;
-    Math.random = () => (draw++ % FLEET) / FLEET;
-    // Per-URL timestamps, so the measurement is each job's FIRST retry rather
-    // than whatever attempts happen to fall inside the window — later attempts
-    // back off further and would flatter the result.
-    const attemptsByUrl = new Map<string, number[]>();
+  it("does not re-issue HTTP from execute when a fleet of jobs hit 5xx together", async () => {
+    // execute() used to retry in-process, downstream of every limiter, so a
+    // shared 5xx re-issued the whole in-flight set in one tick. Each execute
+    // now makes one HTTP call and throws; spacing is the worker's job.
+    const FLEET = SecFetchMaxConcurrent;
+    const attemptsByUrl = new Map<string, number>();
     const previous = registerSafeFetch((async (url: string) => {
-      const seen = attemptsByUrl.get(url) ?? [];
-      seen.push(Date.now());
-      attemptsByUrl.set(url, seen);
+      attemptsByUrl.set(url, (attemptsByUrl.get(url) ?? 0) + 1);
       return new Response("upstream blip", { status: 503 });
     }) as unknown as SafeFetchFn);
 
-    const ac = new AbortController();
-    const runs: Array<Promise<unknown>> = [];
     try {
-      for (let i = 0; i < FLEET; i++) {
-        const job = new SecFetchJob({
-          input: {
-            url: `https://www.sec.gov/Archives/edgar/retry-${i}.json`,
-            response_type: "json",
-          } satisfies FetchUrlTaskInput,
-        });
-        runs.push(job.execute(job.input, { signal: ac.signal, updateProgress: async () => {} }));
-      }
-      await vi.advanceTimersByTimeAsync(1);
-      expect(attemptsByUrl.size).toBe(FLEET);
-
-      // Past the first backoff plus one full drain window.
-      await vi.advanceTimersByTimeAsync(1_000 + DRAIN_WINDOW_MS + 1);
-      const firstRetries = [...attemptsByUrl.values()].map((ts) => ts[1]);
-      expect(firstRetries.every((t) => typeof t === "number")).toBe(true);
-
-      // No 1s slice of those re-issues may exceed the configured rate. Without
-      // the spread all 16 land inside 500ms — ~32/s.
-      const worstPerSecond = Math.max(
-        ...firstRetries.map((t) => firstRetries.filter((u) => u >= t && u < t + 1_000).length)
+      const results = await Promise.all(
+        Array.from({ length: FLEET }, (_, i) => {
+          const job = new SecFetchJob({
+            input: {
+              url: `https://www.sec.gov/Archives/edgar/retry-${i}.json`,
+              response_type: "json",
+            } satisfies FetchUrlTaskInput,
+          });
+          return job.execute(job.input, noopContext).catch((e: unknown) => e);
+        })
       );
-      expect(worstPerSecond).toBeLessThanOrEqual(SecFetchMaxPerSec);
+      expect(attemptsByUrl.size).toBe(FLEET);
+      expect([...attemptsByUrl.values()].every((n) => n === 1)).toBe(true);
+      for (const error of results) expectRetryable(error);
     } finally {
-      Math.random = realRandom;
-      ac.abort();
-      await Promise.allSettled(runs);
       registerSafeFetch(previous);
     }
   });

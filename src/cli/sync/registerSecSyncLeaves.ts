@@ -19,7 +19,7 @@ import {
   shardCiks,
   spacUpdatesFiledOnOrAfter,
 } from "./spacSyncCiks";
-import { SYNC_FORM_DOMAINS, formsForExtractorIds } from "./syncFormDomains";
+import { SYNC_FORM_DOMAINS, expandFormTypes, formsForExtractorIds } from "./syncFormDomains";
 import { getSyncLeaf, registerSyncLeaf, type SyncRunContext } from "./syncLeaves";
 
 export function registerSecSyncLeaves(): void {
@@ -144,7 +144,7 @@ export function registerSecSyncLeaves(): void {
           if (!ctx.formTypes?.length) {
             throw new Error("sync forms requires a comma-separated type list");
           }
-          await runFormsSweep({ formTypes: ctx.formTypes, shard: ctx.shard });
+          await runFormsSweep({ formTypes: expandFormTypes(ctx.formTypes), shard: ctx.shard });
         },
       },
     ],

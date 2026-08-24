@@ -4,13 +4,30 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { createHash } from "node:crypto";
 import type { IExecuteContext, ModelConfig, Usage } from "workglow";
 import { StructuredGenerationTask, TaskAbortedError, mergeUsage } from "workglow";
-import { createHash } from "node:crypto";
 import { getExtractionTemperature } from "../../../../config/extractionTemperature";
 import { ensureModelDownloaded } from "../../../../task/model/EnsureModelDownloadedTask";
+import { isOverlongPersonName } from "../../../../util/personNameBounds";
+import { usableDealValue } from "./dealValueScale";
+import {
+  ExecutiveCompensationOutputSchema,
+  type ExecutiveCompensationRow,
+} from "./executiveCompensationSchema";
+import { LockupOutputSchema, type LockupRow } from "./lockupSchema";
+import { LoiOutputSchema, type LoiRow } from "./loiSchema";
+import { MergerDealOutputSchema, type MergerDealRow } from "./mergerDealSchema";
+import { normalizeManagementTitles } from "./normalizeTitle";
+import { OfferingTermsOutputSchema, type OfferingTermsRow } from "./offeringTermsSchema";
+import { RedemptionOutputSchema, type RedemptionRow } from "./redemptionSchema";
+import {
+  chunkRiskFactorText,
+  isRiskCategoryHeading,
+  stripHeadingMarkers,
+} from "./riskFactorChunks";
+import { RiskFactorsOutputSchema, type RiskFactorRow } from "./riskFactorSchema";
 import { resolveModelId } from "./s1Model";
-import { MIN_SPAN_CAP_CHARS } from "./verifySourceSpan";
 import {
   BeneficialOwnershipOutputSchema,
   ManagementOutputSchema,
@@ -20,37 +37,21 @@ import {
   type RelatedPartyRow,
 } from "./sectionSchemas";
 import {
-  ExecutiveCompensationOutputSchema,
-  type ExecutiveCompensationRow,
-} from "./executiveCompensationSchema";
-import { SpacSponsorOutputSchema, type SpacSponsorRow } from "./spacSponsorSchema";
-import {
-  FOCUS_VOCABULARY,
-  SpacProfileOutputSchema,
-  type SpacProfileRow,
-} from "./spacProfileSchema";
-import { OfferingTermsOutputSchema, type OfferingTermsRow } from "./offeringTermsSchema";
-import { SponsorPromoteOutputSchema, type SponsorPromoteRow } from "./sponsorPromoteSchema";
-import { LockupOutputSchema, type LockupRow } from "./lockupSchema";
-import {
   SPAC_ENTITY_KINDS,
   SpacClassificationOutputSchema,
   type SpacClassificationRow,
   type SpacEntityKind,
 } from "./spacClassifierSchema";
+import {
+  FOCUS_VOCABULARY,
+  SpacProfileOutputSchema,
+  type SpacProfileRow,
+} from "./spacProfileSchema";
+import { SpacSponsorOutputSchema, type SpacSponsorRow } from "./spacSponsorSchema";
+import { SponsorPromoteOutputSchema, type SponsorPromoteRow } from "./sponsorPromoteSchema";
 import { UnderwriterOutputSchema, type UnderwriterRowOut } from "./underwriterSchema";
 import { UseOfProceedsOutputSchema, type UseOfProceedsLineRow } from "./useOfProceedsSchema";
-import { RiskFactorsOutputSchema, type RiskFactorRow } from "./riskFactorSchema";
-import {
-  chunkRiskFactorText,
-  isRiskCategoryHeading,
-  stripHeadingMarkers,
-} from "./riskFactorChunks";
-import { MergerDealOutputSchema, type MergerDealRow } from "./mergerDealSchema";
-import { usableDealValue } from "./dealValueScale";
-import { RedemptionOutputSchema, type RedemptionRow } from "./redemptionSchema";
-import { LoiOutputSchema, type LoiRow } from "./loiSchema";
-import { normalizeManagementTitles } from "./normalizeTitle";
+import { MIN_SPAN_CAP_CHARS } from "./verifySourceSpan";
 
 // Re-exported so the extraction knob still reads as part of this module's
 // surface; it lives in `config/` because a malformed value must abort the CLI
@@ -947,7 +948,8 @@ export function managementInstructions(): string {
     "none are stated), relationship (or null), age (integer or null), bio (short summary " +
     "or null), confidence in [0,1], and the verbatim source_span. Include director or " +
     "officer nominees; omit advisors/consultants who are neither. Do not invent roles or " +
-    "assign another person's titles. Return JSON matching the schema."
+    "assign another person's titles. A name longer than 150 characters is a footnote or a " +
+    "sentence, not a person — emit no row for it. Return JSON matching the schema."
   );
 }
 
@@ -978,6 +980,7 @@ export async function extractManagement(
   // filterTitlesSupportedBySpan(..., person.source_span).
   return people
     .filter((person) => !isCollectivePartyName(person?.full_name))
+    .filter((person) => !isOverlongPersonName(person?.full_name))
     .map((person) => ({
       ...person,
       titles: normalizeManagementTitles(person.titles),
@@ -1113,6 +1116,7 @@ export async function extractExecutiveCompensation(
   for (const row of rows) {
     if (typeof row?.person_name !== "string" || row.person_name.trim() === "") continue;
     const name = row.person_name.trim();
+    if (isOverlongPersonName(name)) continue;
     if (isCompensationPositionLabel(name)) {
       if (precedingOfficer === undefined) continue;
       const fiscal_year = normalizeFiscalYear(row.fiscal_year);
@@ -1252,7 +1256,9 @@ export function beneficialOwnershipInstructions(): string {
     "one's shares from the footnote where it states them — never a combined 'X and Y' " +
     "name. Do NOT emit the aggregate subtotal row that totals the officers and " +
     "directors (e.g. 'All officers and directors as a group (9 individuals)'): it is a " +
-    "total of the rows above, not a stockholder. Return JSON matching the schema."
+    "total of the rows above, not a stockholder. A person name longer than 150 " +
+    "characters is a footnote or a sentence, not an owner — emit no row for it. " +
+    "Return JSON matching the schema."
   );
 }
 
@@ -1272,7 +1278,9 @@ export async function extractBeneficialOwnership(
   const owners = (obj.owners as BeneficialOwnerRow[] | undefined) ?? [];
   // Enforce the subtotal exclusion rather than trusting the prompt: a leaked row
   // would be resolved into the canonical company tier by the S-1 persist path.
-  return owners.filter((o) => !isOwnershipGroupSubtotal(o?.name));
+  return owners
+    .filter((o) => !isOwnershipGroupSubtotal(o?.name))
+    .filter((o) => o.owner_kind !== "person" || !isOverlongPersonName(o.name));
 }
 
 export function relatedPartyInstructions(): string {
@@ -1290,6 +1298,8 @@ export function relatedPartyInstructions(): string {
     "sections are written entirely in these terms and name nobody at all; when that is " +
     "true the correct answer is an EMPTY list. Do not turn a role into a party to avoid " +
     "returning nothing. " +
+    "A person name longer than 150 characters is a footnote or a sentence, not a party " +
+    "— emit no row for it. " +
     "`name` must hold EXACTLY ONE party. When a sentence names two ('Stellantis " +
     "Ventures B.V. and Stellantis Europe', '5G Ventures S.A. in its capacity as Manager " +
     "of Phaistos Investment Fund'), emit one row per party — never a combined " +
@@ -1311,7 +1321,9 @@ export async function extractRelatedParty(
     RelatedPartyOutputSchema,
     context
   );
-  return (obj.parties as RelatedPartyRow[] | undefined) ?? [];
+  return ((obj.parties as RelatedPartyRow[] | undefined) ?? []).filter(
+    (party) => party.party_kind !== "person" || !isOverlongPersonName(party.name)
+  );
 }
 
 export function offeringTermsInstructions(): string {

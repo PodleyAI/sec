@@ -19,7 +19,7 @@ import { IssuerTickerRepo } from "../../../../storage/offering/IssuerTickerRepo"
 import type { ObservationProvenanceRepo } from "../../../../storage/provenance/ObservationProvenanceRepo";
 import { UseOfProceedsRepo } from "../../../../storage/use-of-proceeds/UseOfProceedsRepo";
 import { S1_SECTIONS, type S1SectionName } from "./DocumentSegmenter";
-import type { OfferingTermsRow } from "./offeringTermsSchema";
+import type { OfferingTermsRow, OfferingTickerRow } from "./offeringTermsSchema";
 import {
   extractLockups,
   extractOfferingTerms,
@@ -36,6 +36,7 @@ import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
 import { normalizeFamilyName } from "../../../../resolver/FamilyResolver";
 import { isCompanyFamilyPrefixEcho } from "../../../../storage/company/CompanyFamilyName";
 import { isUnnamedCompanyName } from "../../../../storage/company/CompanyNormalization";
+import { normalizeListedTicker } from "../../../../util/listedTicker";
 import {
   parentClauseSourceContext,
   splitParentClause,
@@ -327,6 +328,17 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       const terms = rows[0];
       const model_id = persistModelId(models, meta.modelIndex);
       const now = new Date().toISOString();
+      // A mutable local, not `typeof terms.tickers`: that alias is a
+      // ReadonlyArray, so writing the cleaned rows into it does not compile.
+      const tickers: OfferingTickerRow[] = [];
+      const seenTickers = new Set<string>();
+      for (const t of terms.tickers) {
+        const ticker = normalizeListedTicker(t.ticker);
+        if (ticker === null || seenTickers.has(ticker)) continue;
+        seenTickers.add(ticker);
+        tickers.push({ ...t, ticker });
+      }
+      const primaryTicker = tickers.find((t) => t.is_primary)?.ticker ?? null;
       if (isSpac) {
         await spacUnitTermsRepo.save({
           extractor_id,
@@ -340,7 +352,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
           trust_per_unit: terms.trust_per_unit,
           over_allotment_units: toIntCount(terms.over_allotment_units),
           exchange: terms.exchange,
-          ticker: terms.tickers.find((t) => t.is_primary)?.ticker ?? null,
+          ticker: primaryTicker,
           gross_proceeds: terms.gross_proceeds,
           net_proceeds: terms.net_proceeds,
           confidence: terms.confidence,
@@ -361,7 +373,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
           net_proceeds: terms.net_proceeds,
           over_allotment_shares: toIntCount(terms.over_allotment_shares),
           exchange: terms.exchange,
-          ticker: terms.tickers.find((t) => t.is_primary)?.ticker ?? null,
+          ticker: primaryTicker,
           par_value: terms.par_value,
           confidence: terms.confidence,
           source_span: boundSourceSpan(terms.source_span),
@@ -400,9 +412,8 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
               ["par_value", terms.par_value, "par value"],
             ],
       });
-      for (const t of terms.tickers) {
-        const ticker = t.ticker?.trim() ?? "";
-        if (ticker === "") continue;
+      for (const t of tickers) {
+        const ticker = t.ticker;
         // Each ticker cites the passage naming THAT symbol. Previously every
         // ticker row stored the parent object's span, which mentions none of
         // them — a populated provenance column that pointed at nothing.

@@ -10,8 +10,9 @@ import {
   FetchUrlTaskOutput,
   IJobExecuteContext,
   JobConstructorParam,
+  RetryableJobError,
 } from "workglow";
-import { SecFetchMaxConcurrent, SecFetchMaxPerSec, SecUserAgent } from "../../config/Constants";
+import { SecUserAgent } from "../../config/Constants";
 import { signalSecFetchThrottle } from "./secFetchThrottle";
 
 function readPositiveIntEnv(name: string, fallback: number): number {
@@ -23,11 +24,8 @@ function readPositiveIntEnv(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
-// Retry/timeout knobs are tunable via env so deployers can tighten or loosen
-// behaviour without a rebuild. Invalid values fall back to the defaults.
-const MAX_FETCH_ATTEMPTS = readPositiveIntEnv("SEC_FETCH_MAX_ATTEMPTS", 4);
-const INITIAL_BACKOFF_MS = readPositiveIntEnv("SEC_FETCH_INITIAL_BACKOFF_MS", 1_000);
-const MAX_BACKOFF_MS = readPositiveIntEnv("SEC_FETCH_MAX_BACKOFF_MS", 30_000);
+// Timeout is tunable via env so deployers can tighten or loosen behaviour
+// without a rebuild. Invalid values fall back to the default.
 const DEFAULT_TIMEOUT_MS = readPositiveIntEnv("SEC_FETCH_TIMEOUT_MS", 60_000);
 export const MAX_RETRY_AFTER_MS = 600_000;
 
@@ -161,46 +159,35 @@ function getRetryAfterMs(error: MaybeHttpError): number | undefined {
 }
 
 /**
- * Spread added to EVERY retry, over the window the cluster needs to drain one
- * full set of in-flight fetches.
- *
- * A retry re-issues from inside the job, downstream of all three limiters, so
- * none of them governs it — and the concurrency limiter, which does still hold
- * this job's slot, bounds SIMULTANEITY rather than rate. Up to
- * {@link SecFetchMaxConcurrent} requests are fine spread across the drain
- * window and a violation arriving in one tick, which is exactly what a shared
- * failure produces: every in-flight job fails on the same upstream event and
- * computes the same delay. `backoffDelay`'s own 0.5–1.0x jitter only spreads
- * the first retry across 500 ms — 16 requests in half a second is ~32/s, over
- * EDGAR's ceiling, so the recovery from a transient 5xx tripped the very block
- * it was recovering from.
+ * Queue retries go through {@link RetryableJobError} so the worker releases the
+ * limiter slot and the next HTTP is a new claim. Keep a FetchUrl Retryable
+ * instance (and its `code` / `httpStatus`) when we already have one.
  */
-function retrySpread(): number {
-  return Math.floor(Math.random() * RETRY_SPREAD_MS);
+function toRetryableJobError(error: unknown, retryDate?: Date | undefined): RetryableJobError {
+  if (error instanceof RetryableJobError) {
+    if (retryDate !== undefined) {
+      error.retryDate = retryDate;
+    }
+    return error;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  const wrapped = new RetryableJobError(message, retryDate);
+  if (error instanceof Error) {
+    wrapped.cause = error;
+  }
+  const code = (error as { code?: unknown }).code;
+  if (typeof code === "string") {
+    wrapped.code = code;
+  }
+  return wrapped;
 }
 
-/**
- * How wide to spread retries: two full drain windows.
- *
- * One window is the arithmetic minimum — `SecFetchMaxConcurrent` re-issues
- * spread uniformly across `maxConcurrent / maxPerSec` seconds arrive at exactly
- * `maxPerSec`. Sitting exactly on the ceiling is not a margin, since uniform
- * draws clump; doubling it halves the expected rate and leaves room for the
- * clumping without materially delaying recovery.
- */
-const RETRY_SPREAD_MS = Math.ceil(SecFetchMaxConcurrent / SecFetchMaxPerSec) * 2_000;
-
-/**
- * Deterministic exponential backoff. De-synchronizing concurrent retries is
- * {@link retrySpread}'s job, and doing it in both places is worse than doing it
- * in one: summing two independent jitters CONCENTRATES the result toward the
- * middle instead of spreading it, so a full set of in-flight fetches still
- * cleared EDGAR's ceiling in the densest second. One uniform spread over a
- * known window is the thing that can be reasoned about.
- */
-function backoffDelay(attempt: number): number {
-  const exponent = Math.min(attempt, 10);
-  return Math.min(INITIAL_BACKOFF_MS * 2 ** exponent, MAX_BACKOFF_MS);
+function capRetryDate(error: RetryableJobError): void {
+  if (!(error.retryDate instanceof Date) || Number.isNaN(error.retryDate.getTime())) return;
+  const wait = error.retryDate.getTime() - Date.now();
+  if (wait > MAX_RETRY_AFTER_MS) {
+    error.retryDate = new Date(Date.now() + MAX_RETRY_AFTER_MS);
+  }
 }
 
 /**
@@ -260,7 +247,6 @@ export class SecFetchJob<
   }
 
   async execute(input: Input, context: IJobExecuteContext): Promise<Output> {
-    let lastError: unknown;
     // Latched the moment a chunk is handed to a stream receiver, and before
     // that emit resolves: from there on this job's bytes are unrepeatable. The
     // receiver's subscription outlives an attempt, so a re-issue starts again
@@ -268,9 +254,8 @@ export class SecFetchJob<
     // counts, not just the body port's binary ones — what makes bytes
     // unrepeatable is that something received them.
     let deliveredToReceiver = false;
-    // Rearms the CURRENT attempt's timer. Reassigned per attempt below, and
-    // reset to a no-op when an attempt ends so a late delta from an abandoned
-    // one cannot revive a timer nobody is waiting on.
+    // Rearms the attempt's stall timer. Reset to a no-op when the attempt ends
+    // so a late delta cannot revive a timer nobody is waiting on.
     let rearmTimeout: () => void = () => {};
     const emitStreamEvent = context.emitStreamEvent;
     const watched: IJobExecuteContext = emitStreamEvent
@@ -279,132 +264,96 @@ export class SecFetchJob<
           emitStreamEvent: async (event) => {
             if (event.type.endsWith("-delta")) {
               deliveredToReceiver = true;
-              // Progress, so the attempt is alive: restart the clock.
               rearmTimeout();
             }
             await emitStreamEvent(event);
           },
         }
       : context;
-    for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt++) {
-      // Per-attempt timeout, measured as time WITHOUT PROGRESS rather than
-      // total elapsed time. Use an AbortController + setTimeout so we can
-      // clearTimeout() on success: AbortSignal.timeout() leaves an
-      // uncancellable timer alive, which accumulates in a high-throughput
-      // queue. We still combine with the caller's signal so external aborts
-      // win.
-      //
-      // The stall framing is what makes a streamed body possible at all. As a
-      // wall-clock cap this timer covers the WHOLE download, so whether a fetch
-      // succeeds is a function of file size and bandwidth rather than of the
-      // connection being alive: a healthy ~1.5 GB Feed tarball or a multi-GB
-      // bulk archive cannot finish inside 60s at any realistic rate, and it
-      // aborts mid-body — where `deliveredToReceiver` has latched, so the retry
-      // loop rethrows and the download can never succeed. Nothing catches it in
-      // a small-document sweep, which is why the cap looked fine for years.
-      //
-      // Non-streaming fetches are unaffected: with no deltas nothing rearms, so
-      // a JSON or a document still gets exactly today's fixed window.
-      const timeoutController = DEFAULT_TIMEOUT_MS > 0 ? new AbortController() : undefined;
-      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-      const arm = (): void => {
-        if (timeoutController === undefined) return;
-        if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
-        timeoutHandle = setTimeout(
-          () => timeoutController.abort(new Error("SEC fetch timed out")),
-          DEFAULT_TIMEOUT_MS
-        );
-      };
-      arm();
-      rearmTimeout = arm;
-      const { signal, cleanup } = combineSignals([context.signal, timeoutController?.signal]);
 
-      try {
-        return (await super.execute(input, { ...watched, signal })) as Output;
-      } catch (error) {
-        lastError = error;
-        if (context.signal.aborted) throw error;
-        // A per-attempt timeout is a transient condition the retry loop exists
-        // to absorb, but the abort surfaces as a bare Error/AbortError whose
-        // shape isRetriableError can't recognise — so key off the timeout
-        // controller directly rather than the (lossy) error message.
-        //
-        // That bypass is why the delivery check leads. Every other mid-body
-        // failure arrives already re-classified as a terminal BODY_TRUNCATED
-        // once bytes have gone out, so isRetriableError refuses it; a timeout
-        // arrives as an abort, which keeps its own shape through that
-        // classification and would otherwise drive straight through the ban.
-        const timedOut = timeoutController?.signal.aborted === true;
-        const retryAfter = getRetryAfterMs(error as MaybeHttpError);
-
-        // A 429 means EDGAR is throttling this IP — including the 403
-        // interstitial, which `translateEdgarBlockResponse` re-labels at the
-        // transport seam so this stays one condition. Pause the WHOLE fetch
-        // cluster (every shard process) via the shared limiter's
-        // cluster-visible next-available sentinel, so NEW dispatches back off
-        // together instead of piling on and keeping the block alive.
-        //
-        // Signalled BEFORE the retry decision, not after it. A block that
-        // arrives on this job's last attempt is the same evidence about the
-        // cluster as any other — and under a sustained block that is most of
-        // them, since every in-flight job exhausts its attempts at once.
-        // Deciding this job's fate first meant the cluster learned nothing from
-        // precisely the jobs that saw the block most clearly.
-        const blocked = getHttpErrorStatus(error) === 429;
-        const cooldown = blocked ? await signalSecFetchThrottle(retryAfter) : undefined;
-
-        if (
-          deliveredToReceiver ||
-          (!timedOut && !isRetriableError(error)) ||
-          attempt === MAX_FETCH_ATTEMPTS - 1
-        ) {
-          throw error;
-        }
-
-        // Wait out the cooldown this job just applied to everyone else, rather
-        // than the ordinary backoff. The cluster sentinel gates DISPATCH, and
-        // this job is already dispatched — its retry loop never re-consults
-        // the limiter — so a ~30s backoff put every in-flight request back on
-        // the wire deep inside EDGAR's ten-minute penalty window, extending it
-        // for the whole cluster. Sleeping the full cooldown costs nothing that
-        // was available anyway: no other fetch can start during it.
-        //
-        // Cap the wait FIRST and spread AFTER: capping the sum silently ate the
-        // spread whenever the base was already at the ceiling — which is the
-        // default block case exactly, a 600s cooldown against a 600s cap — so
-        // the herd it exists to disperse woke in one tick anyway.
-        const base = Math.min(cooldown ?? retryAfter ?? backoffDelay(attempt), MAX_RETRY_AFTER_MS);
-        const delay = base + retrySpread();
-        await sleepWithAbort(delay, context.signal);
-      } finally {
-        if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
-        rearmTimeout = () => {};
-        cleanup();
-      }
-    }
-    throw lastError;
-  }
-}
-
-/**
- * Sleep for `ms` or reject if `signal` aborts. Always detaches its abort
- * listener on resolve/reject so we don't leak listeners on long-lived signals.
- */
-function sleepWithAbort(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal.aborted) {
-      reject(signal.reason ?? new Error("aborted"));
-      return;
-    }
-    const onAbort = () => {
-      clearTimeout(timer);
-      signal.removeEventListener("abort", onAbort);
-      reject(signal.reason ?? new Error("aborted"));
+    // Stall timeout, measured as time WITHOUT PROGRESS rather than total
+    // elapsed time. Use an AbortController + setTimeout so we can
+    // clearTimeout() on success: AbortSignal.timeout() leaves an
+    // uncancellable timer alive, which accumulates in a high-throughput
+    // queue. We still combine with the caller's signal so external aborts
+    // win.
+    //
+    // The stall framing is what makes a streamed body possible at all. As a
+    // wall-clock cap this timer covers the WHOLE download, so whether a fetch
+    // succeeds is a function of file size and bandwidth rather than of the
+    // connection being alive: a healthy ~1.5 GB Feed tarball or a multi-GB
+    // bulk archive cannot finish inside 60s at any realistic rate, and it
+    // aborts mid-body — where `deliveredToReceiver` has latched, so we rethrow
+    // rather than wrapping as retryable, and the download can never succeed.
+    // Nothing catches it in a small-document sweep, which is why the cap
+    // looked fine for years.
+    //
+    // Non-streaming fetches are unaffected: with no deltas nothing rearms, so
+    // a JSON or a document still gets exactly today's fixed window.
+    const timeoutController = DEFAULT_TIMEOUT_MS > 0 ? new AbortController() : undefined;
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const arm = (): void => {
+      if (timeoutController === undefined) return;
+      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+      timeoutHandle = setTimeout(
+        () => timeoutController.abort(new Error("SEC fetch timed out")),
+        DEFAULT_TIMEOUT_MS
+      );
     };
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
+    arm();
+    rearmTimeout = arm;
+    const { signal, cleanup } = combineSignals([context.signal, timeoutController?.signal]);
+
+    try {
+      return (await super.execute(input, { ...watched, signal })) as Output;
+    } catch (error) {
+      if (context.signal.aborted) throw error;
+      // A stall timeout is a transient condition the queue should retry, but
+      // the abort surfaces as a bare Error/AbortError whose shape
+      // isRetriableError can't recognise — so key off the timeout controller
+      // directly rather than the (lossy) error message.
+      //
+      // That bypass is why the delivery check leads. Every other mid-body
+      // failure arrives already re-classified as a terminal BODY_TRUNCATED
+      // once bytes have gone out, so isRetriableError refuses it; a timeout
+      // arrives as an abort, which keeps its own shape through that
+      // classification and would otherwise be wrapped as retryable after the
+      // consumer already saw bytes.
+      const timedOut = timeoutController?.signal.aborted === true;
+      const retryAfter = getRetryAfterMs(error as MaybeHttpError);
+
+      // A 429 means EDGAR is throttling this IP — including the 403
+      // interstitial, which `translateEdgarBlockResponse` re-labels at the
+      // transport seam so this stays one condition. Pause the WHOLE fetch
+      // cluster (every shard process) via the shared limiter's
+      // cluster-visible next-available sentinel, so NEW dispatches back off
+      // together instead of piling on and keeping the block alive.
+      //
+      // Signalled BEFORE the retry decision, not after it. A block that
+      // arrives on this job's last queue attempt is the same evidence about
+      // the cluster as any other.
+      const blocked = getHttpErrorStatus(error) === 429;
+      const cooldown = blocked ? await signalSecFetchThrottle(retryAfter) : undefined;
+
+      if (deliveredToReceiver || (!timedOut && !isRetriableError(error))) {
+        throw error;
+      }
+
+      // One HTTP attempt per execute(). Throw RetryableJobError so the worker
+      // reschedules (PENDING, visibleAt) and limiter.complete() frees the
+      // concurrency slot. The next HTTP is a new claim through Concurrency +
+      // EvenlySpaced + the cluster RateLimiter. Sleeping here used to re-issue
+      // while still holding every limiter token — that is the wakeup herd.
+      const retryable = toRetryableJobError(
+        error,
+        blocked ? new Date(Date.now() + Math.min(cooldown ?? 0, MAX_RETRY_AFTER_MS)) : undefined
+      );
+      if (!blocked) capRetryDate(retryable);
+      throw retryable;
+    } finally {
+      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+      rearmTimeout = () => {};
+      cleanup();
+    }
+  }
 }

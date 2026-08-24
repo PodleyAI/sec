@@ -5,79 +5,79 @@
  */
 
 import { globalServiceRegistry, type IExecuteContext, type ModelConfig } from "workglow";
-import { prefetchModel } from "../../../task/model/EnsureModelDownloadedTask";
-import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
-import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
-import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
-import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
-import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
-import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/BeneficialOwnershipRepo";
-import { ExecutiveCompensationRepo } from "../../../storage/executive-compensation/ExecutiveCompensationRepo";
-import { RelatedPartyTransactionRepo } from "../../../storage/related-party/RelatedPartyTransactionRepo";
-import { RelatedPartyTransactionSchema } from "../../../storage/related-party/RelatedPartyTransactionSchema";
-import { assertWithinDeclaredBounds } from "../../../util/declaredBounds";
-import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
-import type { DeadLetterReasonCode } from "../../../storage/dead-letter/ExtractionDeadLetterSchema";
-import { RiskFactorRepo } from "../../../storage/risk-factor/RiskFactorRepo";
-import { S1ClassificationRepo } from "../../../storage/classification/S1ClassificationRepo";
-import { CanonicalSponsorFamilyRepo } from "../../../storage/canonical/CanonicalSponsorFamilyRepo";
-import { CanonicalSponsorFamilyAliasRepo } from "../../../storage/canonical/CanonicalSponsorFamilyAliasRepo";
-import { SponsorFamilyResolver } from "../../../resolver/SponsorFamilyResolver";
-import { SponsorFamilyMembershipRepo } from "../../../storage/canonical/SponsorFamilyMembershipRepo";
-import { SpacSponsorLinkRepo } from "../../../storage/canonical/SpacSponsorLinkRepo";
-import { SpacRepo } from "../../../storage/spac/SpacRepo";
-import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
-import type { FormS1Parsed } from "./Form_S_1";
-import { parseEdgarHtml } from "../../html/parseEdgarHtml";
-import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
-import { SECTIONLESS_REGISTRATION_FORMS } from "../../../storage/versioning/extractorIds";
-import { S1_SECTIONS, type S1SectionName } from "./s1/DocumentSegmenter";
-import { boundSourceSpan, classifySpan, isElided, worstVerdict } from "./s1/verifySourceSpan";
-import {
-  extractBeneficialOwnership,
-  extractExecutiveCompensation,
-  extractManagement,
-  extractRelatedParty,
-  isCollectivePartyName,
-  extractRiskFactors,
-  extractSpacClassification,
-  extractSpacProfile,
-  extractSpacSponsors,
-} from "./s1/sectionExtractors";
-import type { ExecutiveCompensationRow } from "./s1/executiveCompensationSchema";
-import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
-import { parseSummaryCompensationTable } from "./s1/parseSummaryCompensationTable";
-import { ownershipCoverage, parseBeneficialOwnership } from "./s1/parseBeneficialOwnership";
-import { parseManagementRoster } from "./s1/parseManagementRoster";
-import { parseRelatedPartyTables } from "./s1/parseRelatedPartyTables";
-import { parseSpacSponsors } from "./s1/parseSpacSponsors";
-import { parseSpacProfile } from "./s1/parseSpacProfile";
-import { parseSpacClassification } from "./s1/parseSpacClassification";
-import { looksLikePartIIOnlyAmendment } from "./s1/partIIOnlyAmendment";
-import { issuerHasCombinationListing } from "./s1/newcoListing";
-import { MAX_RISK_FACTORS_CHARS } from "./s1/riskFactorChunks";
-import { isCompanyFamilyPrefixEcho } from "../../../storage/company/CompanyFamilyName";
 import { normalizeFamilyName } from "../../../resolver/FamilyResolver";
+import { SponsorFamilyResolver } from "../../../resolver/SponsorFamilyResolver";
+import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
+import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/BeneficialOwnershipRepo";
+import { CanonicalSponsorFamilyAliasRepo } from "../../../storage/canonical/CanonicalSponsorFamilyAliasRepo";
+import { CanonicalSponsorFamilyRepo } from "../../../storage/canonical/CanonicalSponsorFamilyRepo";
+import { SpacSponsorLinkRepo } from "../../../storage/canonical/SpacSponsorLinkRepo";
+import { SponsorFamilyMembershipRepo } from "../../../storage/canonical/SponsorFamilyMembershipRepo";
+import { S1ClassificationRepo } from "../../../storage/classification/S1ClassificationRepo";
+import { isCompanyFamilyPrefixEcho } from "../../../storage/company/CompanyFamilyName";
 import { isUnnamedCompanyName } from "../../../storage/company/CompanyNormalization";
 import {
   parentClauseSourceContext,
   splitParentClause,
 } from "../../../storage/company/splitParentClause";
+import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import type { DeadLetterReasonCode } from "../../../storage/dead-letter/ExtractionDeadLetterSchema";
+import { ExecutiveCompensationRepo } from "../../../storage/executive-compensation/ExecutiveCompensationRepo";
+import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
+import { RelatedPartyTransactionRepo } from "../../../storage/related-party/RelatedPartyTransactionRepo";
+import { RelatedPartyTransactionSchema } from "../../../storage/related-party/RelatedPartyTransactionSchema";
+import { RiskFactorRepo } from "../../../storage/risk-factor/RiskFactorRepo";
+import { SpacRepo } from "../../../storage/spac/SpacRepo";
+import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
+import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
+import { SECTIONLESS_REGISTRATION_FORMS } from "../../../storage/versioning/extractorIds";
+import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
+import { prefetchModel } from "../../../task/model/EnsureModelDownloadedTask";
+import { assertWithinDeclaredBounds } from "../../../util/declaredBounds";
+import { isOverlongPersonName } from "../../../util/personNameBounds";
+import { parseEdgarHtml } from "../../html/parseEdgarHtml";
+import type { FormS1Parsed } from "./Form_S_1";
+import { S1_SECTIONS, type S1SectionName } from "./s1/DocumentSegmenter";
+import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
+import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
+import type { ExecutiveCompensationRow } from "./s1/executiveCompensationSchema";
+import { issuerHasCombinationListing } from "./s1/newcoListing";
+import { offeringSectionNames, runOfferingSections } from "./s1/offeringSections";
+import { ownershipCoverage, parseBeneficialOwnership } from "./s1/parseBeneficialOwnership";
+import { parseManagementRoster } from "./s1/parseManagementRoster";
+import { parseRelatedPartyTables } from "./s1/parseRelatedPartyTables";
+import { parseSpacClassification } from "./s1/parseSpacClassification";
+import { parseSpacProfile } from "./s1/parseSpacProfile";
+import { parseSpacSponsors } from "./s1/parseSpacSponsors";
+import { parseSummaryCompensationTable } from "./s1/parseSummaryCompensationTable";
+import { looksLikePartIIOnlyAmendment } from "./s1/partIIOnlyAmendment";
+import { MAX_RISK_FACTORS_CHARS } from "./s1/riskFactorChunks";
 import type { RiskFactorRow } from "./s1/riskFactorSchema";
 import { getRiskFactorsConfidenceFloor, getRiskFactorsModels } from "./s1/riskFactorsModel";
-import type { SpacClassificationRow } from "./s1/spacClassifierSchema";
-import { looksLikeBlankCheck } from "./s1/spacContentHeuristic";
+import { getS1Models, modelExtractChain, persistModelId, resolveModelId } from "./s1/s1Model";
+import {
+  extractBeneficialOwnership,
+  extractExecutiveCompensation,
+  extractManagement,
+  extractRelatedParty,
+  extractRiskFactors,
+  extractSpacClassification,
+  extractSpacProfile,
+  extractSpacSponsors,
+  isCollectivePartyName,
+} from "./s1/sectionExtractors";
+import { makeRunSection } from "./s1/sectionRunner";
+import type { BeneficialOwnerRow, ManagementPersonRow, RelatedPartyRow } from "./s1/sectionSchemas";
 import {
   getSpacClassifierConfidenceFloor,
   getSpacClassifierModels,
 } from "./s1/spacClassifierModel";
+import type { SpacClassificationRow } from "./s1/spacClassifierSchema";
+import { looksLikeBlankCheck } from "./s1/spacContentHeuristic";
 import type { SpacProfileRow } from "./s1/spacProfileSchema";
-import type { BeneficialOwnerRow, ManagementPersonRow, RelatedPartyRow } from "./s1/sectionSchemas";
-import { makeRunSection } from "./s1/sectionRunner";
-import { offeringSectionNames, runOfferingSections } from "./s1/offeringSections";
-import { getS1Models, modelExtractChain, persistModelId, resolveModelId } from "./s1/s1Model";
 import { splitPersonName } from "./s1/splitName";
+import { boundSourceSpan, classifySpan, isElided, worstVerdict } from "./s1/verifySourceSpan";
 import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
 
 const EXTRACTOR_ID = "S-1";
@@ -819,7 +819,12 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     }),
     persist: async (rows, meta) => {
       const model_id = persistModelId(models, meta.modelIndex);
+      let dropped = 0;
       for (const r of rows) {
+        if (isOverlongPersonName(r.full_name)) {
+          dropped += 1;
+          continue;
+        }
         const name = splitPersonName(r.full_name);
         const { observation_id } = await observer.observePerson({
           ...base,
@@ -856,7 +861,12 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       // by the confidence floor or span verification is still named in the
       // filing, and closing their role from the partial subset would record a
       // false departure.
-      if (meta.complete) {
+      //
+      // `meta.complete` is decided by the section runner BEFORE this loop, so
+      // it cannot see a row this loop itself declined. A name over the leader
+      // slug cap is dropped here, and closing on the remainder would write the
+      // departure of everyone that row still asserts.
+      if (meta.complete && dropped === 0) {
         await observer.closeUnassertedPersonRoles({
           accession_number,
           extractor_id: EXTRACTOR_ID,
@@ -865,7 +875,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           filing_date: args.filing_date,
         });
       }
-      return rows.length;
+      return rows.length - dropped;
     },
   });
 
@@ -923,6 +933,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       const model_id = persistModelId(models, meta.modelIndex);
       for (const r of rows) {
         if (r.owner_kind === "company" && isUnnamedCompanyName(r.name)) continue;
+        if (r.owner_kind === "person" && isOverlongPersonName(r.name)) continue;
         const observation_index = idx++;
         let observation_id: number;
         if (r.owner_kind === "person") {
@@ -1043,7 +1054,8 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         const isCollective =
           trimmedName === "" ||
           (r.party_kind === "company" && isUnnamedCompanyName(trimmedName)) ||
-          (r.party_kind === "person" && isCollectivePartyName(r.name));
+          (r.party_kind === "person" && isCollectivePartyName(r.name)) ||
+          (r.party_kind === "person" && isOverlongPersonName(r.name));
         const partyKind = isCollective ? ("group" as const) : r.party_kind;
         let observation_id: number | null = null;
         if (!isCollective) {
@@ -1186,6 +1198,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         const observed = new Map<string, number>();
         let row_index = 0;
         for (const r of rows) {
+          if (isOverlongPersonName(r.person_name)) continue;
           const personKey = r.person_name.trim().toLowerCase();
           let observation_id = observed.get(personKey);
           if (observation_id === undefined) {

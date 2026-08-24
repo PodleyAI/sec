@@ -47,6 +47,7 @@ interface LeafOpts {
   readonly shard?: string;
   readonly only?: ReturnType<typeof parseSpacProcessOnly>;
   readonly concurrency?: number;
+  readonly simple?: boolean;
 }
 
 /**
@@ -107,12 +108,31 @@ function applyLeafOptions(cmd: Command, leafId: string): Command {
   return cmd;
 }
 
+/** Options for `sync adv form-d` (standalone Form D sweep; replaces removed `sync form-d`). */
+function applyAdvFormDStepOptions(cmd: Command): Command {
+  return cmd
+    .option(
+      "--simple",
+      "Standalone Form D sweep only (formerly sync form-d); required when running this step alone",
+      false
+    )
+    .option(
+      "--shard <i/N>",
+      "Process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"
+    );
+}
+
 /** Runs a leaf, or one step of it, under the options that command declared. */
 async function runLeaf(leaf: SyncLeaf, opts: LeafOpts, stepId: string | undefined): Promise<void> {
   await runCommand(
     async () => {
       const shard = parseShardOption(opts.shard);
-      let ctx: SyncRunContext = { ...EMPTY_SYNC_CONTEXT, shard };
+      let ctx: SyncRunContext = {
+        ...EMPTY_SYNC_CONTEXT,
+        shard,
+        isolatedStep: stepId !== undefined,
+        simple: opts.simple ?? false,
+      };
 
       if (leaf.id === "submissions") {
         ctx = {
@@ -184,6 +204,9 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
     // which part of it is running does not change what `--shard` or `--force`
     // mean.
     applyLeafOptions(stepCmd, leaf.id);
+    if (leaf.id === "adv" && step.id === "form-d") {
+      applyAdvFormDStepOptions(stepCmd);
+    }
     stepCmd.action(async (opts: LeafOpts) => runLeaf(leaf, opts, step.id));
   }
 

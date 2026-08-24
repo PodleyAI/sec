@@ -113,6 +113,167 @@ describe("processFormS1 offering terms", () => {
     expect(history.map((t) => t.ticker)).toEqual(["ACME"]);
   });
 
+  it("stores a cleaned primary ticker on offering terms and issuer_ticker", async () => {
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        security_type: "Common Stock",
+        shares_offered: 5000000,
+        price: null,
+        price_low: 14,
+        price_high: 16,
+        gross_proceeds: 75000000,
+        net_proceeds: 69000000,
+        over_allotment_shares: 750000,
+        units_offered: null,
+        price_per_unit: null,
+        unit_composition: null,
+        warrant_fraction_per_unit: null,
+        right_fraction_per_unit: null,
+        trust_per_unit: null,
+        over_allotment_units: null,
+        exchange: "NASDAQ",
+        par_value: 0.0001,
+        confidence: 0.9,
+        source_span: "5,000,000 shares",
+        tickers: [
+          { ticker: "(CMAQ)", exchange: "NASDAQ", security_type: "Common Stock", is_primary: true },
+        ],
+      },
+      { underwriters: [] },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-1",
+      accession_number: "0000000000-26-000011",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: NULL_HEADER,
+        html: OFFERING_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    const terms = await new OfferingTermsRepo().get("S-1", "0000000000-26-000011");
+    expect(terms?.ticker).toBe("CMAQ");
+    const history = await new IssuerTickerRepo().history(1018724);
+    expect(history.map((t) => t.ticker)).toEqual(["CMAQ"]);
+  });
+
+  it("writes a null scalar and no issuer_ticker row when the primary is a placeholder", async () => {
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        security_type: "Common Stock",
+        shares_offered: 5000000,
+        price: null,
+        price_low: 14,
+        price_high: 16,
+        gross_proceeds: 75000000,
+        net_proceeds: 69000000,
+        over_allotment_shares: 750000,
+        units_offered: null,
+        price_per_unit: null,
+        unit_composition: null,
+        warrant_fraction_per_unit: null,
+        right_fraction_per_unit: null,
+        trust_per_unit: null,
+        over_allotment_units: null,
+        exchange: "NASDAQ",
+        par_value: 0.0001,
+        confidence: 0.9,
+        source_span: "5,000,000 shares",
+        tickers: [
+          { ticker: "NONE", exchange: "NASDAQ", security_type: "Common Stock", is_primary: true },
+        ],
+      },
+      { underwriters: [] },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-1",
+      accession_number: "0000000000-26-000012",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: NULL_HEADER,
+        html: OFFERING_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    const terms = await new OfferingTermsRepo().get("S-1", "0000000000-26-000012");
+    expect(terms?.ticker).toBeNull();
+    expect(await new IssuerTickerRepo().history(1018724)).toEqual([]);
+  });
+
+  it("dedupes issuer_ticker rows that clean to the same symbol", async () => {
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        security_type: "Common Stock",
+        shares_offered: 5000000,
+        price: null,
+        price_low: 14,
+        price_high: 16,
+        gross_proceeds: 75000000,
+        net_proceeds: 69000000,
+        over_allotment_shares: 750000,
+        units_offered: null,
+        price_per_unit: null,
+        unit_composition: null,
+        warrant_fraction_per_unit: null,
+        right_fraction_per_unit: null,
+        trust_per_unit: null,
+        over_allotment_units: null,
+        exchange: "NASDAQ",
+        par_value: 0.0001,
+        confidence: 0.9,
+        source_span: "5,000,000 shares",
+        tickers: [
+          { ticker: "(CMAQ)", exchange: "NASDAQ", security_type: "Common Stock", is_primary: true },
+          {
+            ticker: "NASDAQ:CMAQ",
+            exchange: "NASDAQ",
+            security_type: "Common Stock",
+            is_primary: false,
+          },
+        ],
+      },
+      { underwriters: [] },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-1",
+      accession_number: "0000000000-26-000013",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: NULL_HEADER,
+        html: OFFERING_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    const terms = await new OfferingTermsRepo().get("S-1", "0000000000-26-000013");
+    expect(terms?.ticker).toBe("CMAQ");
+    const history = await new IssuerTickerRepo().history(1018724);
+    expect(history.map((t) => t.ticker)).toEqual(["CMAQ"]);
+  });
+
   it("writes SPAC unit terms + multiple tickers for a SPAC filing", async () => {
     const { unregister } = registerFakeStructuredProvider([
       {

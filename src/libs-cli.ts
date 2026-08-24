@@ -31,32 +31,46 @@ import {
   terminateWorkers,
 } from "./index";
 
-await runWorkglowCli({
-  name: "sec-base",
-  description: "Workglow CLI carrying @workglow/sec's tasks",
-  // sec's tasks read the database and fetch through the rate-limited queue, so
-  // the runtime comes up before any of them can be listed or run.
-  registerTasks: async () => {
-    await bootstrapSecRuntime();
-    registerSecTasks();
-    // The console's contributed UI. `task run` reads a task's input schema, and
-    // every sec CIK port carries `format: "cik"` — so the pickers and the
-    // operator rail apply here too, even though this binary carries none of
-    // sec's own commands for the panels to attach to.
-    registerSecWebUi();
-  },
-  exitOnComplete: false,
-});
-
-// Mirror the `sec` CLI's shutdown: allSettled so a crashing step cannot mask
-// another or skip it. runWorkglowCli is told not to exit so this can run.
-const cleanups = await Promise.allSettled([
-  getTaskQueueRegistry().stopQueues(),
-  Promise.resolve().then(() => closeDb()),
-  closePgPool(),
-  terminateWorkers(),
-]);
-for (const result of cleanups) {
-  if (result.status === "rejected") console.error("Cleanup error:", result.reason);
+// The command's own failure, kept across the shutdown below. `sec.ts` does the
+// same, and for the same two reasons: a `process.exit(0)` in the success path
+// reports a failed command as a success — `sec-base task run` is scripted, and
+// a caller that cannot see a non-zero status cannot see a failure at all — and
+// a throw that escapes this block skips the cleanup entirely, leaving the fetch
+// queue's workers running so the process never exits.
+let primaryError: unknown;
+try {
+  await runWorkglowCli({
+    name: "sec-base",
+    description: "Workglow CLI carrying @workglow/sec's tasks",
+    // sec's tasks read the database and fetch through the rate-limited queue, so
+    // the runtime comes up before any of them can be listed or run.
+    registerTasks: async () => {
+      await bootstrapSecRuntime();
+      registerSecTasks();
+      // The console's contributed UI. `task run` reads a task's input schema, and
+      // every sec CIK port carries `format: "cik"` — so the pickers and the
+      // operator rail apply here too, even though this binary carries none of
+      // sec's own commands for the panels to attach to.
+      registerSecWebUi();
+    },
+    exitOnComplete: false,
+  });
+} catch (err) {
+  primaryError = err;
+  process.exitCode = 1;
+} finally {
+  // Mirror the `sec` CLI's shutdown: allSettled so a crashing step cannot mask
+  // another or skip it. runWorkglowCli is told not to exit so this can run.
+  const cleanups = await Promise.allSettled([
+    getTaskQueueRegistry().stopQueues(),
+    Promise.resolve().then(() => closeDb()),
+    closePgPool(),
+    terminateWorkers(),
+  ]);
+  for (const result of cleanups) {
+    if (result.status === "rejected") console.error("Cleanup error:", result.reason);
+  }
 }
-process.exit(0);
+
+if (primaryError !== undefined) throw primaryError;
+process.exit(process.exitCode ?? 0);

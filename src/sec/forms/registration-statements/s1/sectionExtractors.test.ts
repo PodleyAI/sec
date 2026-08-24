@@ -7,10 +7,12 @@
 import type { IExecuteContext, TaskOutput } from "workglow";
 import { Task } from "workglow";
 import { afterEach, describe, expect, it } from "vitest";
+import { MAX_PERSON_NAME_CHARS } from "../../../../util/personNameBounds";
 import {
   extractManagement,
   extractBeneficialOwnership,
   extractRelatedParty,
+  extractExecutiveCompensation,
   extractSpacSponsors,
   extractOfferingTerms,
   extractUnderwriters,
@@ -104,6 +106,33 @@ describe("section extractors", () => {
     expect(people[0].full_name).toBe("Jane Roe");
   });
 
+  it("extractManagement drops a name longer than the leader-slug cap", async () => {
+    const longName = "a".repeat(MAX_PERSON_NAME_CHARS + 1);
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        people: [
+          {
+            full_name: longName,
+            titles: ["Director"],
+            relationship: null,
+            confidence: 0.9,
+            source_span: longName,
+          },
+          {
+            full_name: "Jane Roe",
+            titles: ["Director"],
+            relationship: null,
+            confidence: 0.9,
+            source_span: "Jane Roe",
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+    const people = await extractManagement(`${longName}\nJane Roe`, fakeS1Model());
+    expect(people.map((p) => p.full_name)).toEqual(["Jane Roe"]);
+  });
+
   it("extractBeneficialOwnership returns owners with figures", async () => {
     const { unregister } = registerFakeStructuredProvider([
       {
@@ -128,6 +157,48 @@ describe("section extractors", () => {
     cleanup = unregister;
     const owners = await extractBeneficialOwnership("ACME Fund\t1,000,000\t12.5%", fakeS1Model());
     expect(owners[0].percent_owned).toBe(12.5);
+  });
+
+  it("extractBeneficialOwnership drops an overlong person name and keeps a company", async () => {
+    const longName =
+      "Assumes the sale of the maximum amount of this Offering (2,500,000 shares of common stock). The aggregate amount of shares to be issued and outst assumption.";
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        owners: [
+          {
+            name: longName,
+            owner_kind: "person",
+            security_class: null,
+            shares_owned: null,
+            percent_owned: null,
+            shares_offered: null,
+            shares_after: null,
+            percent_after: null,
+            is_selling_stockholder: false,
+            footnote: null,
+            confidence: 0.9,
+            source_span: longName,
+          },
+          {
+            name: "ACME Fund",
+            owner_kind: "company",
+            security_class: "Common",
+            shares_owned: 1,
+            percent_owned: 1,
+            shares_offered: null,
+            shares_after: null,
+            percent_after: null,
+            is_selling_stockholder: false,
+            footnote: null,
+            confidence: 0.9,
+            source_span: "ACME Fund",
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+    const owners = await extractBeneficialOwnership(longName, fakeS1Model());
+    expect(owners.map((o) => o.name)).toEqual(["ACME Fund"]);
   });
 
   it("extractRelatedParty returns parties with transactions", async () => {
@@ -155,6 +226,78 @@ describe("section extractors", () => {
     cleanup = unregister;
     const parties = await extractRelatedParty("We pay rent...", fakeS1Model());
     expect(parties[0].transactions[0].amount).toBe(120000);
+  });
+
+  it("extractRelatedParty drops an overlong person name", async () => {
+    const longName = "a".repeat(MAX_PERSON_NAME_CHARS + 1);
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        parties: [
+          {
+            name: longName,
+            party_kind: "person",
+            confidence: 0.9,
+            source_span: longName,
+            transactions: [],
+          },
+          {
+            name: "John Doe",
+            party_kind: "person",
+            confidence: 0.9,
+            source_span: "John Doe",
+            transactions: [],
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+    const parties = await extractRelatedParty(longName, fakeS1Model());
+    expect(parties.map((p) => p.name)).toEqual(["John Doe"]);
+  });
+
+  it("extractExecutiveCompensation drops an overlong person name", async () => {
+    const longName = "a".repeat(MAX_PERSON_NAME_CHARS + 1);
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        rows: [
+          {
+            person_name: longName,
+            principal_position: "CEO",
+            fiscal_year: 2024,
+            salary: 1,
+            bonus: null,
+            stock_awards: null,
+            option_awards: null,
+            non_equity_incentive: null,
+            pension_and_nqdc: null,
+            all_other_compensation: null,
+            total: 1,
+            footnote: null,
+            confidence: 0.9,
+            source_span: longName,
+          },
+          {
+            person_name: "Jane Roe",
+            principal_position: "CFO",
+            fiscal_year: 2024,
+            salary: 1,
+            bonus: null,
+            stock_awards: null,
+            option_awards: null,
+            non_equity_incentive: null,
+            pension_and_nqdc: null,
+            all_other_compensation: null,
+            total: 1,
+            footnote: null,
+            confidence: 0.9,
+            source_span: "Jane Roe",
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+    const rows = await extractExecutiveCompensation(longName, fakeS1Model());
+    expect(rows.map((r) => r.person_name)).toEqual(["Jane Roe"]);
   });
 });
 

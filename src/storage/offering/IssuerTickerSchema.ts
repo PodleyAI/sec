@@ -13,8 +13,10 @@ import { TypeNullable } from "../../util/TypeBoxUtil";
 /**
  * Point-in-time ticker mention read from an immutable filing. Distinct from the
  * mutable `EntityTicker` current-snapshot table: this is the longitudinal series
- * keyed by issuer CIK + filing date. `ticker` is stored EXACT (never normalized);
- * maxLength 16 preserves suffixed symbols like "GSAH.U" / "GSAH WS".
+ * keyed by issuer CIK + filing date. Wrappers, placeholders, and delimited
+ * exchange prefixes are stripped; the listed symbol is not rewritten (`GSAH.U`
+ * stays `GSAH.U`). maxLength 16 preserves suffixed symbols like "GSAH.U" /
+ * "GSAH WS".
  */
 export const IssuerTickerSchema = Type.Object({
   extractor_id: Type.String({ maxLength: 16 }),

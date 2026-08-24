@@ -189,7 +189,7 @@ Bring local SEC data forward to today. `sync` is a **command group** — bare `s
 | `portals`       | (single)               | Forms sweep: CFPORTAL family                                                                                      |
 | `crowdfunding`  | (single)               | Forms sweep: Form C family                                                                                        |
 | `reg-a`         | (single)               | Forms sweep: Reg A family                                                                                         |
-| `forms <types>` | (single)               | Generic forms sweep (comma-separated types). Not in `all`                                                         |
+| `forms <types>` | (single)               | Generic forms sweep (comma-separated types). Not in `all`. Extractor ids expand (`D` → `D,D/A`)                   |
 | `spacs`         | `identify`, `process`  | SPAC candidate identification, then SPAC-chain forms for known SPACs ∪ high/medium candidates                     |
 | `all`           | (none)                 | Every leaf with `inAll: true`, in order: `submissions` → `facts` → `portals` → `crowdfunding` → `reg-a` → `spacs` |
 
