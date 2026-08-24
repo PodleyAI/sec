@@ -3005,7 +3005,7 @@ Set in `.env.local` (see `.env.test` for test defaults):
   every process via the cluster rate limiter (default 8, clamped to 1–8 so a
   stray value cannot approach EDGAR's 10/s ceiling)
 - `SEC_FETCH_MAX_CONCURRENT` — EDGAR fetches IN FLIGHT at once, per process
-  (default 16, clamped to 1–64). The two are independent limits and both are
+  (default 8, clamped to 1–64). The two are independent limits and both are
   needed: the rate limiter meters STARTS over a one-second window and its
   reservations age out rather than being held until completion, so on its own it
   admits `rate x latency` requests — a slow EDGAR serving multi-MB
@@ -3013,8 +3013,10 @@ Set in `.env.local` (see `.env.test` for test defaults):
   at roughly two file descriptors apiece that exhausts the process's descriptor
   table (macOS's default `ulimit -n` of 256 goes first). The concurrency
   limiter holds its slot until the job reaches a terminal state, which is what
-  bounds the peak. At the default pair it binds only once a fetch averages over
-  two seconds, so a healthy sweep is unaffected
+  bounds the peak. The default MATCHES `SEC_FETCH_MAX_PER_SEC`, so a
+  synchronized retry of every in-flight job — retries sit inside the job,
+  downstream of the limiter — cannot exceed the start cap even if they all fire
+  in one tick; the cap binds once a fetch averages over one second
 - `SEC_FIXTURES_DIR` — root under which `sec fetch fixtures` / `sec fetch s1-fixtures` write their gitignored cache (default: cwd). Written output goes to `<SEC_FIXTURES_DIR>/.sec-fixtures/exempt-offerings/` and `<SEC_FIXTURES_DIR>/.sec-fixtures/s1/.cache/` — never into the source tree or the bundled `dist/`.
 - `SEC_S1_MOCK_DIR` — override the committed S-1 fixtures directory read by `sec eval s1` and `loadRealS1Sections`. Falls back to the built-tree copy, then the source-tree copy.
 - `SEC_UNIT_TERMS_REF` — override the embarc unit-terms reference CSV read by `sec eval unit-terms` and `loadEmbarcUnitTermsReference` (mirrors `SEC_S1_MOCK_DIR`). A downstream package consuming the published tarball (which ships no `mock_data/`) points this at its own vendored copy. Fail-fast semantics: when the env var is set, a missing file throws (naming the env var and the path) instead of silently falling through to the package-relative default, so a typo cannot masquerade as "fixture missing, using default". When unset, resolves the package-shipped CSV (dist copy in the built tarball, src copy in dev).
