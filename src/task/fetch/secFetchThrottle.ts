@@ -100,8 +100,9 @@ export async function readSecFetchPauseUntil(): Promise<number> {
  * its own — a thundering herd that keeps EDGAR's IP block alive. Honors a
  * server-provided Retry-After when present; otherwise walks
  * {@link COOLDOWN_LADDER_MS}, so a first overshoot costs seconds rather than
- * the full penalty. Returns the applied cooldown (ms) so the caller can sleep
- * its own in-flight retry for the same duration.
+ * the full penalty. Returns the applied cooldown (ms) so the caller can put
+ * that wait on `RetryableJobError.retryDate` — the worker reschedules through
+ * the limiters; this job does not sleep the wait itself.
  */
 export async function signalSecFetchThrottle(retryAfterMs?: number): Promise<number> {
   const now = Date.now();
@@ -162,7 +163,8 @@ export async function signalSecFetchThrottle(retryAfterMs?: number): Promise<num
       await sharedLimiter.setNextAvailableTime(new Date(targetMs));
     } catch {
       // Best-effort: a cooldown-write failure must not mask the fetch error
-      // that triggered it. The per-job sleep below still applies locally.
+      // that triggered it. The job still throws RetryableJobError with this
+      // local cooldown on retryDate.
     }
   }
   return applied;

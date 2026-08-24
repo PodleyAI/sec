@@ -17,7 +17,7 @@ export const SecJobQueueName = "sec_job_queue";
 
 /**
  * Steady-state SEC fetch cap in requests/second, shared across ALL processes
- * via the cluster rate limiter. Held at 8 — deliberately below EDGAR's
+ * via the cluster rate limiter. Held at 4 — deliberately below EDGAR's
  * documented 10 req/s ceiling — so startup bursts and clock skew across shards
  * don't trip a ~10-minute IP block; a real 429 escalates to the cluster
  * cooldown. Override DOWN via SEC_FETCH_MAX_PER_SEC (1–8); the ceiling is
@@ -26,7 +26,7 @@ export const SecJobQueueName = "sec_job_queue";
  */
 export const SecFetchMaxPerSec = ((): number => {
   const raw = process.env.SEC_FETCH_MAX_PER_SEC?.trim();
-  const parsed = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : 8;
+  const parsed = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : 4;
   return parsed >= 1 && parsed <= 8 ? parsed : 8;
 })();
 
@@ -39,7 +39,7 @@ export const SecFetchMaxPerSec = ((): number => {
  * rate limiter's window is pruned by AGE rather than by completion, so a slot
  * frees one second after a fetch begins no matter how long it takes. In-flight
  * work is therefore `rate x latency`: while EDGAR is healthy (sub-second) that
- * is ~8, but a slow spell serving multi-MB full-submission `.txt` documents at
+ * is ~4, but a slow spell serving multi-MB full-submission `.txt` documents at
  * 30s each admits ~240 concurrent requests.
  *
  * Each in-flight fetch holds roughly two file descriptors, and the pool only
@@ -49,18 +49,19 @@ export const SecFetchMaxPerSec = ((): number => {
  * fixed concurrency the descriptor count is flat and returns to baseline once
  * the pool goes idle. It is the unbounded PEAK that has to be capped.
  *
- * 8 matches {@link SecFetchMaxPerSec} so a synchronized retry of every
- * in-flight job (retries sit inside the job, downstream of the limiter) cannot
- * exceed the start cap even if they all fire in one tick. At 8 starts/second
- * the cap is reached as soon as a fetch averages over one second. Override via
- * SEC_FETCH_MAX_CONCURRENT, clamped to 1..64 — an unclamped override would
- * restore the unbounded behavior this constant exists to prevent, and 64
- * in-flight (~128 descriptors) still fits inside the smallest default limit.
+ * 4 matches {@link SecFetchMaxPerSec} so a process cannot hold more in-flight
+ * fetches than it is allowed to start in a second. Retries go back through the
+ * queue (Concurrency + EvenlySpaced + cluster RateLimiter), so they cannot
+ * bypass that cap. At 4 starts/second the cap is reached as soon as a fetch
+ * averages over one second. Override via SEC_FETCH_MAX_CONCURRENT, clamped to
+ * 1..64 — an unclamped override would restore the unbounded behavior this
+ * constant exists to prevent, and 64 in-flight (~128 descriptors) still fits
+ * inside the smallest default limit.
  */
 export const SecFetchMaxConcurrent = ((): number => {
   const raw = process.env.SEC_FETCH_MAX_CONCURRENT?.trim();
-  const parsed = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : 8;
-  return Math.min(64, Math.max(1, parsed || 8));
+  const parsed = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : 4;
+  return Math.min(64, Math.max(1, parsed || 4));
 })();
 
 /**

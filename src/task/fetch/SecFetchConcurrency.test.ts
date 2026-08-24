@@ -37,7 +37,7 @@ describe("SEC fetch queue concurrency", () => {
     server = createServer((_req, res) => {
       inFlight += 1;
       peakInFlight = Math.max(peakInFlight, inFlight);
-      // Held open long enough that the queue's 8 starts/second would overlap
+      // Held open long enough that the queue's default starts/second would overlap
       // several requests — the whole point is to make the pile-up reachable.
       setTimeout(() => {
         res.writeHead(200, { "Content-Type": "text/plain" });
@@ -59,8 +59,8 @@ describe("SEC fetch queue concurrency", () => {
     const { server: queueServer, client } = await getSecJobQueue();
     await queueServer.start();
 
-    // More jobs than the cap by enough that the rate limiter alone (8/s
-    // against a 400ms handler) would otherwise stack ~8 of them concurrently.
+    // More jobs than the cap by enough that the rate limiter alone (against a
+    // 400ms handler) would otherwise stack several of them concurrently.
     const handles = await Promise.all(
       Array.from({ length: 10 }, (_, i) =>
         client.send({ url: `${url}?n=${i}`, method: "GET", response_type: "text" })

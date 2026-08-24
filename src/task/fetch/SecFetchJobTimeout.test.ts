@@ -7,15 +7,13 @@
 import { describe, expect, it, vi } from "vitest";
 import "workglow";
 import type { FetchUrlTaskInput, SafeFetchFn } from "workglow";
-import { registerSafeFetch } from "workglow";
+import { registerSafeFetch, RetryableJobError } from "workglow";
 
 // The retry/timeout knobs are read once at module load, so they are set before
 // SecFetchJob is imported — which is why these tests live in their own file:
 // the rest of the suite must keep the production defaults.
 vi.hoisted(() => {
   process.env.SEC_FETCH_TIMEOUT_MS = "80";
-  process.env.SEC_FETCH_INITIAL_BACKOFF_MS = "1";
-  process.env.SEC_FETCH_MAX_BACKOFF_MS = "1";
 });
 
 import { SecFetchJob } from "./SecFetchJob";
@@ -127,22 +125,20 @@ describe("SecFetchJob per-attempt timeout", () => {
     }
   }, 20_000);
 
-  // The complement, through the same error: a timeout that fires before the
-  // body loop reads anything delivers nothing, so there is nothing to
-  // concatenate onto and the retry a slow EDGAR endpoint depends on still runs.
-  // The receiver is attached here too — what lifts the ban is that no byte
-  // reached it, not the absence of a subscription.
+  // The complement: a timeout before any byte reached the receiver stays
+  // retryable. execute() does not re-issue — the worker reschedules through
+  // the limiters. The receiver is attached here too; what lifts the ban is
+  // that no byte reached it, not the absence of a subscription.
   //
   // This also pins the half of the timer the stall framing does NOT change: no
   // progress means nothing rearms, so a fetch that stalls before its first byte
   // still gets exactly the fixed window it always had.
-  it("still re-issues a timed-out attempt when no bytes reached the receiver", async () => {
+  it("throws RetryableJobError when a timeout fires before any byte reached the receiver", async () => {
     let attempts = 0;
     const delivered: number[] = [];
     const previous = registerSafeFetch((async () => {
       attempts += 1;
-      // Past the deadline before a single byte is read on the first attempt.
-      if (attempts === 1) await sleep(150);
+      await sleep(150);
       return wholeBody();
     }) as unknown as SafeFetchFn);
     try {
@@ -152,18 +148,21 @@ describe("SecFetchJob per-attempt timeout", () => {
           response_type: "stream",
         } satisfies FetchUrlTaskInput,
       });
-      const out = await job.execute(job.input, {
-        signal: new AbortController().signal,
-        updateProgress: async () => {},
-        emitStreamEvent: async (event) => {
-          if (event.type !== "binary-delta") return;
-          delivered.push(...(event.binaryDelta as Uint8Array));
-        },
-      });
+      const error = await job
+        .execute(job.input, {
+          signal: new AbortController().signal,
+          updateProgress: async () => {},
+          emitStreamEvent: async (event) => {
+            if (event.type !== "binary-delta") return;
+            delivered.push(...(event.binaryDelta as Uint8Array));
+          },
+        })
+        .catch((e: unknown) => e);
 
-      expect(attempts).toBe(2);
-      expect((out as { metadata?: { status?: number } }).metadata?.status).toBe(200);
-      expect(delivered).toEqual([1, 2, 3]);
+      expect(attempts).toBe(1);
+      expect(error).toBeInstanceOf(RetryableJobError);
+      expect((error as RetryableJobError).retryable).toBe(true);
+      expect(delivered).toEqual([]);
     } finally {
       registerSafeFetch(previous);
     }

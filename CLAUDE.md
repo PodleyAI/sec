@@ -2886,10 +2886,11 @@ Two properties that policy depends on:
   the sentinel is cluster state, and the storage write is last-writer-wins, so a
   second shard meeting the same block at rung 0 would otherwise replace another
   shard's 600s pause with its own 5s one and resume the whole cluster nine
-  minutes inside a live ban. `signalSecFetchThrottle` reads the current
+  minutes inside a live ban.   `signalSecFetchThrottle` reads the current
   next-available time first, skips the write when it is already later, and
-  returns that longer remaining time as this job's own wait — a shard that
-  re-fires early is the ban-renewing behavior, whichever shard's ladder set it.
+  returns that longer remaining time so the job can set `RetryableJobError.retryDate`
+  to the same instant — a shard that re-fires early is the ban-renewing
+  behavior, whichever shard's ladder set it.
   A `Retry-After: 0` ("retry now") is not a block: it climbs no rung and arms no
   window, which also keeps a fleet handed one from climbing a rung per job.
 
@@ -2913,49 +2914,36 @@ Three things close the loop, separate fixes for separate halves:
   User-Agent rejection — shares a headline with it but not the rate sentence, and
   must keep failing fast, since no cooldown fixes a misconfigured `SEC_USER_AGENT`.
 - **The cooldown is signalled before the retry decision, not after it.** A block
-  landing on a job's last attempt is the same evidence about the cluster as any
-  other, and under a sustained block that is most of them — every in-flight job
-  exhausts its attempts at once. Deciding the job's own fate first meant the
-  cluster learned nothing from precisely the jobs that saw the block most clearly.
-- **A blocked job sleeps the applied cooldown.** The cluster sentinel gates
-  DISPATCH, and a job that already started never re-consults the limiter, so the
-  ordinary backoff put all `SEC_FETCH_MAX_CONCURRENT` in-flight requests back on
-  the wire inside the penalty window. Sleeping it out costs nothing
-  that was available anyway: no other fetch can start during the cooldown.
+  landing on a job's last queue attempt is the same evidence about the cluster
+  as any other, and under a sustained block that is most of them.
+- **A blocked job throws `RetryableJobError` with `retryDate` set to the applied
+  cooldown.** `execute()` makes one HTTP attempt. The worker's
+  `rescheduleJob` moves the row back to PENDING (visible at `retryDate`, else
+  the limiter's next-available time) and `limiter.complete()` frees the
+  concurrency slot. The next HTTP is a new claim through Concurrency +
+  EvenlySpaced + the cluster RateLimiter — the same path as a first attempt.
+  Sleeping and re-issuing inside `execute()` kept every limiter token held, so
+  after a 10-minute cooldown the in-flight set woke in one tick and renewed the
+  ban.
 
-**A concurrency bound is not a rate bound**, and that is the other half.
+**Retries are queue claims, not a second HTTP path.**
 `ConcurrencyLimiter(SecFetchMaxConcurrent)` sits first in the composite and holds
-its token until the job reaches a terminal state, so simultaneity really is
-capped — retries included. But 16 requests are fine spread over two seconds and a
-violation arriving in one tick, and a retry re-issues from inside the job,
-downstream of every limiter. A shared upstream failure is exactly the case that
-produces the tick: every in-flight job fails on the same event and computes the
-same delay. So `retrySpread()` adds a uniform spread over
-`ceil(maxConcurrent / maxPerSec) * 2` seconds to **every** retry, not just a
-blocked one — a transient 5xx burst otherwise re-issued 16 requests inside 500 ms
-(~32/s) and tripped the very block it was recovering from.
+its token until the job reaches a terminal state. An in-job retry would re-issue
+while still holding that token, downstream of every limiter — which is why the
+inner loop is gone. A shared 5xx or a cooldown expiry therefore cannot dump
+`SEC_FETCH_MAX_CONCURRENT` requests onto the wire in one tick: each retry waits
+its turn at `tryAcquire`.
 
-Two details that pass a casual reading and were both wrong at first:
-
-- **`backoffDelay` is deterministic.** Jittering there _and_ in `retrySpread`
-  sums two independent uniforms, which concentrates the result toward the middle
-  instead of spreading it — measurably still over the ceiling in the densest
-  second. One uniform spread over a known window is the thing that can be
-  reasoned about.
-- **The cap is applied to the wait, then the spread is added** — never to the
-  sum. Capping the sum silently eats the spread whenever the base is already at
-  the ceiling, which is the default block case exactly (a 600s cooldown against a
-  600s cap), so the herd it exists to disperse woke in one tick anyway.
-
-`SecFetchJob` retries on 429/5xx/DNS/connect and per-attempt timeouts, but
-**only before the first byte reaches a stream receiver**. Past that point the
-receiver's subscription outlives the attempt, so a re-issue starts again at byte
-0 and concatenates a second body onto the first with nothing marking the seam.
-Nearly every retryable condition lands before any body byte, so the loop keeps
-its value. The ban is enforced twice over: upstream re-classifies a mid-body
-failure as a non-retryable `BODY_TRUNCATED`, and this loop latches its own
+`SecFetchJob` classifies 429/5xx/DNS/connect and per-attempt timeouts as
+retryable, but **only before the first byte reaches a stream receiver**. Past
+that point the receiver's subscription outlives the attempt, so a re-issue
+starts again at byte 0 and concatenates a second body onto the first with
+nothing marking the seam. Nearly every retryable condition lands before any
+body byte. The ban is enforced twice over: upstream re-classifies a mid-body
+failure as a non-retryable `BODY_TRUNCATED`, and this execute() latches its own
 delivery flag because a per-attempt timeout arrives as a bare abort that keeps
-its shape through that classification and would otherwise drive straight through.
+its shape through that classification and would otherwise be wrapped as
+retryable after the consumer already saw bytes.
 
 ### SQLite initialization
 
@@ -3002,21 +2990,21 @@ Set in `.env.local` (see `.env.test` for test defaults):
 - `SEC_PG_PASSWORD` — PostgreSQL password
 - `SEC_PG_DATABASE` — PostgreSQL database name (default: `edgar`)
 - `SEC_FETCH_MAX_PER_SEC` — EDGAR fetch RATE, in requests/second, shared across
-  every process via the cluster rate limiter (default 8, clamped to 1–8 so a
+  every process via the cluster rate limiter (default 4, clamped to 1–8 so a
   stray value cannot approach EDGAR's 10/s ceiling)
 - `SEC_FETCH_MAX_CONCURRENT` — EDGAR fetches IN FLIGHT at once, per process
-  (default 8, clamped to 1–64). The two are independent limits and both are
+  (default 4, clamped to 1–64). The two are independent limits and both are
   needed: the rate limiter meters STARTS over a one-second window and its
   reservations age out rather than being held until completion, so on its own it
   admits `rate x latency` requests — a slow EDGAR serving multi-MB
-  full-submission `.txt` documents at 30s each puts ~240 fetches in flight, and
+  full-submission `.txt` documents at 30s each puts ~120 fetches in flight, and
   at roughly two file descriptors apiece that exhausts the process's descriptor
   table (macOS's default `ulimit -n` of 256 goes first). The concurrency
   limiter holds its slot until the job reaches a terminal state, which is what
-  bounds the peak. The default MATCHES `SEC_FETCH_MAX_PER_SEC`, so a
-  synchronized retry of every in-flight job — retries sit inside the job,
-  downstream of the limiter — cannot exceed the start cap even if they all fire
-  in one tick; the cap binds once a fetch averages over one second
+  bounds the peak. A retry throws `RetryableJobError` so that slot is released
+  and the next HTTP is a new claim through the same composite. At the default
+  pair the cap binds once a fetch averages over one second, so a healthy sweep
+  is unaffected
 - `SEC_FIXTURES_DIR` — root under which `sec fetch fixtures` / `sec fetch s1-fixtures` write their gitignored cache (default: cwd). Written output goes to `<SEC_FIXTURES_DIR>/.sec-fixtures/exempt-offerings/` and `<SEC_FIXTURES_DIR>/.sec-fixtures/s1/.cache/` — never into the source tree or the bundled `dist/`.
 - `SEC_S1_MOCK_DIR` — override the committed S-1 fixtures directory read by `sec eval s1` and `loadRealS1Sections`. Falls back to the built-tree copy, then the source-tree copy.
 - `SEC_UNIT_TERMS_REF` — override the embarc unit-terms reference CSV read by `sec eval unit-terms` and `loadEmbarcUnitTermsReference` (mirrors `SEC_S1_MOCK_DIR`). A downstream package consuming the published tarball (which ships no `mock_data/`) points this at its own vendored copy. Fail-fast semantics: when the env var is set, a missing file throws (naming the env var and the path) instead of silently falling through to the package-relative default, so a typo cannot masquerade as "fixture missing, using default". When unset, resolves the package-shipped CSV (dist copy in the built tarball, src copy in dev).

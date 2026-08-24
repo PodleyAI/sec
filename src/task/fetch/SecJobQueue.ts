@@ -94,7 +94,7 @@ let handles: SecJobQueueHandles | undefined;
  * {@link RateLimiter} with {@link PostgresRateLimiterStorage} (scope
  * "cluster"), whose sliding-window reservation is enforced across every process
  * via shared tables — so the aggregate fetch rate stays ≤ {@link SecFetchMaxPerSec}
- * (default 8/s, under EDGAR's 10/s) no matter how many shards run. The
+ * (default 4/s, under EDGAR's 10/s) no matter how many shards run. The
  * per-process {@link EvenlySpacedRateLimiter} only smooths
  * local bursts; the cluster limiter is the authoritative global cap. On
  * sqlite / single-process there is no cluster to coordinate, so an in-memory
