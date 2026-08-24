@@ -7,6 +7,7 @@
 import { mkdirSync } from "fs";
 import path from "path";
 import { globalServiceRegistry, Sqlite } from "workglow";
+import { SecSqliteCacheMb } from "../config/Constants";
 import { SecCliConfigurationError } from "../config/EnvToDI";
 import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../config/tokens";
 
@@ -37,7 +38,11 @@ export function getDb(): Sqlite.Database {
     // crash mid-write could leave the database irrecoverable.
     db.exec("PRAGMA journal_mode = WAL");
     db.exec("PRAGMA synchronous = NORMAL");
-    db.exec("PRAGMA cache_size = 1000000");
+    // NEGATIVE, so the argument is read as KiB rather than as a page count.
+    // See {@link SecSqliteCacheMb}: the positive form names pages, and the
+    // million-page value this replaced was a ~4 GB ceiling on a cache that
+    // grows with everything the process touches and never shrinks.
+    db.exec(`PRAGMA cache_size = -${SecSqliteCacheMb * 1024}`);
     db.exec("PRAGMA temp_store = MEMORY");
   }
   return db;
