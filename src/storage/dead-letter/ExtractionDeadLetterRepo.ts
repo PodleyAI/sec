@@ -181,8 +181,18 @@ export class ExtractionDeadLetterRepo {
     return (await this.storage.query({ extractor_id })) ?? [];
   }
 
+  /**
+   * Pending entries for one extractor.
+   *
+   * The status is pushed down rather than filtered in memory: an extractor's
+   * resolved history grows without bound and is the majority of its rows, so
+   * reading all of them to discard most is work proportional to everything the
+   * extractor has ever recovered from. That was tolerable when the only caller
+   * was `extractor dead-letters`, run by hand; the web console's status rail
+   * re-reads this on a timer for every extractor id at once.
+   */
   async listPending(extractor_id: string): Promise<ExtractionDeadLetter[]> {
-    return (await this.listAll(extractor_id)).filter((r) => r.status === "pending");
+    return (await this.storage.query({ extractor_id, status: "pending" })) ?? [];
   }
 
   /**

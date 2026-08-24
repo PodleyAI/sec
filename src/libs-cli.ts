@@ -27,6 +27,7 @@ import {
   closePgPool,
   getTaskQueueRegistry,
   registerSecTasks,
+  registerSecWebUi,
   terminateWorkers,
 } from "./index";
 
@@ -46,6 +47,11 @@ try {
     registerTasks: async () => {
       await bootstrapSecRuntime();
       registerSecTasks();
+      // The console's contributed UI. `task run` reads a task's input schema, and
+      // every sec CIK port carries `format: "cik"` — so the pickers and the
+      // operator rail apply here too, even though this binary carries none of
+      // sec's own commands for the panels to attach to.
+      registerSecWebUi();
     },
     exitOnComplete: false,
   });

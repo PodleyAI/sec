@@ -235,3 +235,24 @@ export {
   clearEnvDerivedTokensForTesting,
   resetDependencyInjectionsForTesting,
 } from "./config/TestingDI";
+
+// The web console's contributed UI (pickers, panels, status rail, cost badges).
+// `AddCommands` already calls this; exported so a superset can compose its own
+// registrations beside sec's without importing the module path.
+export { registerSecWebUi } from "./web/registerSecWebUi";
+// A superset re-runs this once its own commands are on the program: the pass
+// reads the tree, so it covers only what was registered when it ran.
+export { registerFormatChoiceAnnotations } from "./web/secAnnotations";
+// The panel formatting a superset's panels should share rather than re-derive:
+// a report that renders `—` for one absence and `null` for another is a report
+// nobody trusts to mean anything by either.
+export {
+  count,
+  field,
+  isRecord,
+  jsonList,
+  money,
+  recordArray,
+  tableFromRecords,
+  text,
+} from "./web/secPanelFormat";
