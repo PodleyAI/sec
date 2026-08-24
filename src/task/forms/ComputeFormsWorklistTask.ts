@@ -196,9 +196,6 @@ export class ComputeFormsWorklistTask extends Task<
   /** Last filing emitted for the current form; the resume point within it. */
   private lastCik: number | undefined;
   private lastAccession: string | undefined;
-  /** Successful-run keys for the current form, rebuilt when the form advances. */
-  private successfulKeys: Set<string> | undefined;
-  private extractorVersion: string | undefined;
 
   /** True once every requested form has been drained. Read by the loop condition. */
   public exhausted = false;
@@ -232,6 +229,7 @@ export class ComputeFormsWorklistTask extends Task<
     const allowCiks =
       cikAllowList !== undefined ? [...cikAllowList].sort((a, b) => a - b) : undefined;
     const filedOnOrAfter = input.filedOnOrAfter;
+    const cheapTestOpts = { sharding, shardIndex, shardCount, cikAllowList, filedOnOrAfter };
     const dryRun = isDryRun();
     const batchSize = input.batchSize ?? WORKLIST_BATCH_SIZE;
 
@@ -287,19 +285,19 @@ export class ComputeFormsWorklistTask extends Task<
       let total = 0;
       for (const form of this.forms) {
         const extractorId = formToExtractorId(form)!;
-        const keys = await runRepo.successfulRunKeys(
-          extractorId,
-          await resolveVersion(extractorId),
-          form
-        );
+        const extractorVersion = await resolveVersion(extractorId);
         let from: number | undefined;
         let seen: string | undefined;
         for (;;) {
           const { rows, full } = await this.readPage(filingRepo, form, from, seen, allowCiks);
-          for (const f of rows) {
-            if (sharding && accessionShard(f.accession_number, shardCount) !== shardIndex) continue;
-            if (cikAllowList !== undefined && !cikAllowList.has(f.cik)) continue;
-            if (skipFiledBefore(f.filing_date, filedOnOrAfter)) continue;
+          const eligible = rows.filter((f) => this.passesCheapTests(f, cheapTestOpts));
+          const keys = await runRepo.successfulRunKeysForFilings(
+            eligible,
+            extractorId,
+            extractorVersion,
+            form
+          );
+          for (const f of eligible) {
             if (keys.has(filingRunKey(f))) continue;
             total++;
           }
@@ -340,14 +338,7 @@ export class ComputeFormsWorklistTask extends Task<
       const form = this.forms[this.formPos]!;
       const extractorId = formToExtractorId(form)!;
 
-      if (this.successfulKeys === undefined) {
-        this.extractorVersion = await resolveVersion(extractorId);
-        this.successfulKeys = await runRepo.successfulRunKeys(
-          extractorId,
-          this.extractorVersion,
-          form
-        );
-      }
+      const extractorVersion = await resolveVersion(extractorId);
 
       const { rows, full } = await this.readPage(
         filingRepo,
@@ -361,9 +352,22 @@ export class ComputeFormsWorklistTask extends Task<
         this.formPos++;
         this.lastCik = undefined;
         this.lastAccession = undefined;
-        this.successfulKeys = undefined;
         continue;
       }
+
+      // One chunked `extractor_runs` lookup per PAGE, over the rows that pass
+      // the cheap in-memory tests. The corpus-wide Set this replaced was built
+      // once per form and held for its whole scan; at Form D's size that is
+      // hundreds of MB resident before the first filing is fetched, and every
+      // `--shard` process paid it in full. See
+      // {@link ExtractorRunRepo.successfulRunKeysForFilings}.
+      const eligible = rows.filter((f) => this.passesCheapTests(f, cheapTestOpts));
+      const successfulKeys = await runRepo.successfulRunKeysForFilings(
+        eligible,
+        extractorId,
+        extractorVersion,
+        form
+      );
 
       // Resume must advance past every row EXAMINED, not every row emitted —
       // rows dropped by the shard or already-processed tests are consumed too
@@ -377,12 +381,11 @@ export class ComputeFormsWorklistTask extends Task<
           break;
         }
         lastExamined = f;
-        // Shard first: a pure hash over a field already in hand, discarding
-        // (shardCount-1)/shardCount of candidates before any other test.
-        if (sharding && accessionShard(f.accession_number, shardCount) !== shardIndex) continue;
-        if (cikAllowList !== undefined && !cikAllowList.has(f.cik)) continue;
-        if (skipFiledBefore(f.filing_date, filedOnOrAfter)) continue;
-        if (this.successfulKeys.has(filingRunKey(f))) continue;
+        // Re-tested rather than iterating `eligible`: resume must advance past
+        // every row EXAMINED, so the loop has to walk rows the cheap tests
+        // drop. One predicate, so the two cannot drift.
+        if (!this.passesCheapTests(f, cheapTestOpts)) continue;
+        if (successfulKeys.has(filingRunKey(f))) continue;
         accessionNumber.push(f.accession_number);
         cik.push(f.cik);
         formOut.push(f.form!);
@@ -402,7 +405,6 @@ export class ComputeFormsWorklistTask extends Task<
         this.formPos++;
         this.lastCik = undefined;
         this.lastAccession = undefined;
-        this.successfulKeys = undefined;
       }
     }
 
@@ -413,6 +415,33 @@ export class ComputeFormsWorklistTask extends Task<
     if (this.formPos >= this.forms.length) this.exhausted = true;
 
     return { accessionNumber, cik, form: formOut, fileName, count: accessionNumber.length };
+  }
+
+  /**
+   * The tests that need no database round trip — shard, CIK allow-list, filing
+   * date. Applied before the `extractor_runs` lookup so the chunked query is
+   * asked only about rows this process could actually emit: under `--shard 1/6`
+   * that is a sixth of the page.
+   *
+   * Shard first: a pure hash over a field already in hand, discarding
+   * (shardCount-1)/shardCount of candidates before any other test.
+   */
+  private passesCheapTests(
+    f: Filing,
+    opts: {
+      readonly sharding: boolean;
+      readonly shardIndex: number;
+      readonly shardCount: number;
+      readonly cikAllowList: Set<number> | undefined;
+      readonly filedOnOrAfter: string | undefined;
+    }
+  ): boolean {
+    if (opts.sharding && accessionShard(f.accession_number, opts.shardCount) !== opts.shardIndex) {
+      return false;
+    }
+    if (opts.cikAllowList !== undefined && !opts.cikAllowList.has(f.cik)) return false;
+    if (skipFiledBefore(f.filing_date, opts.filedOnOrAfter)) return false;
+    return true;
   }
 
   /**

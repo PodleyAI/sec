@@ -22,6 +22,16 @@ function inferOutcome(row: ExtractorRun): ExtractorRunOutcome {
   return row.success ? "success" : "failure";
 }
 
+/**
+ * CIKs per `in` list in {@link ExtractorRunRepo.successfulRunKeysForFilings}.
+ * SQLite binds one parameter per value and stays subject to
+ * `SQLITE_MAX_VARIABLE_NUMBER` (999 on older builds); Postgres binds the list as
+ * one array. 900 matches the other `in`-list callers (observation titles, the
+ * forms worklist, SPAC download); the other binds in these queries are
+ * `extractor_id`, `success` and optionally `form`.
+ */
+const RUN_CIK_CHUNK = 900;
+
 export interface FilingKey {
   readonly cik: number;
   readonly accession_number: string;
@@ -119,8 +129,8 @@ export class ExtractorRunRepo {
   /**
    * Deletes one issuer's runs for the named extractors only, and only at the
    * version generation each is active at (major.minor prefix, the same rule
-   * {@link successfulRunKeys} reads by). Rows for any other extractor id, and
-   * rows from an older or newer generation, survive.
+   * {@link successfulRunKeysForFilings} reads by). Rows for any other extractor
+   * id, and rows from an older or newer generation, survive.
    *
    * The scope is the point. `extractor_runs` is the production ledger the
    * major-promote coverage gate counts, and nothing can rebuild it: an
@@ -172,18 +182,7 @@ export class ExtractorRunRepo {
    *
    * When `form` is provided, the successful-runs query is narrowed to that
    * exact form symbol. Recommended when the caller is iterating one form
-   * variant at a time — keeps the in-memory result set bounded.
-   *
-   * Scale note: this method materializes the full set of successful runs
-   * for the requested (extractor_id, extractor_version[, form]) tuple into
-   * an in-memory Set. At Form D's projected size (hundreds of thousands of
-   * filings), the result set can reach ~100-200 MB. This is
-   * acceptable while the data set is small in absolute terms; a future
-   * migration should switch to a streaming or anti-join (WHERE NOT EXISTS) query
-   * once the data set grows.
-   *
-   * ComputeFormsWorklistTask always passes `form`. The no-form path is retained
-   * for coverage queries that may need to count across an extractor's variants.
+   * variant at a time — it narrows the rows each chunk reads.
    */
   async listFilingsWithoutSuccessfulRun<T extends FilingKey>(
     filings: ReadonlyArray<T>,
@@ -191,66 +190,91 @@ export class ExtractorRunRepo {
     extractor_version: string,
     form?: string
   ): Promise<T[]> {
-    const successfulKeys = await this.successfulRunKeys(extractor_id, extractor_version, form);
+    const successfulKeys = await this.successfulRunKeysForFilings(
+      filings,
+      extractor_id,
+      extractor_version,
+      form
+    );
     return filings.filter((f) => !successfulKeys.has(filingRunKey(f)));
   }
 
   /**
-   * The `cik::accession_number` keys of every filing already processed
-   * successfully at (extractor_id, major.minor of extractor_version[, form]).
+   * The `cik::accession_number` keys of the CANDIDATE filings that have already
+   * been processed successfully at (extractor_id, major.minor of
+   * extractor_version[, form]). Test membership with {@link filingRunKey} so
+   * both sides agree on the key format.
    *
-   * Split out of {@link listFilingsWithoutSuccessfulRun} so a caller streaming
-   * a large candidate set can build this set ONCE and test each page against
-   * it, rather than re-running the query per page. Test membership with
-   * {@link filingRunKey} so both sides agree on the key format.
+   * Scoping to the candidates is what keeps a sweep's memory bounded by its
+   * page rather than by the corpus. The whole-table variant this replaced read
+   * every successful run for the extractor in one un-LIMITed `SELECT *` and
+   * held the resulting Set for the life of the form: measured at 289 bytes per
+   * key retained and ~484 bytes per row transient, Form D's ~1M successful runs
+   * cost ~300 MB held plus a ~500 MB spike — paid in full by a nightly sweep
+   * with two new filings to do, and paid again by every `--shard` process,
+   * since each one built the same set. On Postgres the spike is worse than the
+   * arithmetic suggests: the driver buffers the whole result set before any JS
+   * Set exists.
    *
-   * Sized by the extractor's successful-run count, not by the candidate
-   * filings — bounded by the extractor_runs table, so it stays modest even
-   * when the candidate set runs to millions of filings.
+   * The query keys on `cik` because it leads the primary key
+   * `(cik, accession_number, extractor_id, extractor_version)`, so each chunk
+   * is an index seek rather than a scan. It is chunked because SQLite binds one
+   * parameter per value and stays subject to `SQLITE_MAX_VARIABLE_NUMBER`;
+   * Postgres binds the list as one array. There is no two-column `in`, so a
+   * chunk also returns that CIK's OTHER accessions — the result is therefore
+   * filtered against the candidates' own keys, and a filer with tens of
+   * thousands of filings cannot inflate the Set beyond the page that asked
+   * for it.
+   *
+   * Reading per page rather than once per form also closes a staleness window:
+   * a multi-hour sweep used to test every batch against a snapshot taken before
+   * its first filing was processed.
    */
-  async successfulRunKeys(
+  async successfulRunKeysForFilings<T extends FilingKey>(
+    filings: ReadonlyArray<T>,
     extractor_id: string,
     extractor_version: string,
     form?: string
   ): Promise<Set<string>> {
-    // Patch-ceremony reading-side gating: match on major.minor
-    // prefix so a row at "1.0.0" satisfies the gate for any "1.0.x" current.
-    // A row at "1.1.0" or "2.0.0" does NOT satisfy a "1.0.x" gate.
-    const prefix = semverMajorMinorPrefix(extractor_version);
+    const wanted = new Set(filings.map((f) => filingRunKey(f)));
+    const found = new Set<string>();
+    if (wanted.size === 0) return found;
 
+    // Patch-ceremony reading-side gating: match on major.minor prefix so a row
+    // at "1.0.0" satisfies the gate for any "1.0.x" current. A row at "1.1.0"
+    // or "2.0.0" does NOT satisfy a "1.0.x" gate.
+    //
     // Workglow's tabular query doesn't expose LIKE/prefix matching today, so
-    // we narrow with the available criteria (extractor_id, success, optionally
-    // form) and post-filter on extractor_version in memory. Note: with patch
-    // patch ceremony, the criteria no longer constrains extractor_version,
-    // so the worst-case successful-set spans ALL versions for this extractor
-    // (1.0.0, 1.0.1, 1.1.0, 2.0.0, ...). For a long-lived extractor with many
-    // versions and many filings, this set can grow substantially. See the
-    // scale-note JSDoc above; a streaming/anti-join migration is the
-    // documented long-term fix.
-    const successful =
-      form === undefined
-        ? await this.storage.query({
-            extractor_id,
-            success: true,
-          })
-        : await this.storage.query({
-            extractor_id,
-            success: true,
-            form,
-          });
+    // the criteria narrow by (cik, extractor_id, success, optionally form) and
+    // `extractor_version` is post-filtered here.
+    const prefix = semverMajorMinorPrefix(extractor_version);
+    const ciks = [...new Set(filings.map((f) => f.cik))];
 
-    return new Set(
-      (successful ?? [])
-        .filter((r) => r.extractor_version.startsWith(prefix))
+    for (let start = 0; start < ciks.length; start += RUN_CIK_CHUNK) {
+      const chunk = ciks.slice(start, start + RUN_CIK_CHUNK);
+      const criteria = {
+        cik: { value: chunk, operator: "in" as const },
+        extractor_id,
+        success: true,
+      };
+      const rows =
+        (await this.storage.query(
+          (form === undefined ? criteria : { ...criteria, form }) as never
+        )) ?? [];
+      for (const r of rows) {
+        if (!r.extractor_version.startsWith(prefix)) continue;
         // Partial rows have success=true but outcome="partial"; they are NOT
         // "successful enough" — retry-dead-letters should still pick them up.
-        .filter((r) => inferOutcome(r) === "success")
-        .map((r) => filingRunKey(r))
-    );
+        if (inferOutcome(r) !== "success") continue;
+        const key = filingRunKey(r);
+        if (wanted.has(key)) found.add(key);
+      }
+    }
+    return found;
   }
 }
 
-/** Key format shared by {@link ExtractorRunRepo.successfulRunKeys} and its callers. */
+/** Key format shared by {@link ExtractorRunRepo.successfulRunKeysForFilings} and its callers. */
 export function filingRunKey(f: FilingKey): string {
   return `${f.cik}::${f.accession_number}`;
 }
