@@ -227,7 +227,7 @@ export class ProcessSpacTimelineTask extends Task<
     const lastDate = timeline[timeline.length - 1]!.filing_date ?? "";
 
     const activeVersions = await loadActiveExtractorVersions(timeline);
-    const successfulKeys = await loadSuccessfulKeys(activeVersions);
+    const successfulKeys = await loadSuccessfulKeys(timeline, activeVersions);
     const gatedNoOpAccessions = await loadGatedNoOpAccessions(cik, timeline);
     // Gated extractors (8-K, merger-proxy, 25-15) no-op — and warn — when the
     // `spac` row is missing. `sync spacs` worklist *is* high/medium candidates,
@@ -437,13 +437,27 @@ async function loadActiveExtractorVersions(
   return versions;
 }
 
+/**
+ * Which of THIS issuer's filings already have a successful run, per extractor id.
+ *
+ * Scoped to the timeline, which is what makes it proportional to the one CIK
+ * being replayed. It previously asked for every successful run of each
+ * extractor across the whole corpus — form-unscoped, so the widest variant of
+ * that query — and held one such Set per extractor id simultaneously, to answer
+ * a question about a single issuer's handful of filings. `sec sync spacs` walks
+ * thousands of CIKs and paid it again for each one.
+ */
 async function loadSuccessfulKeys(
+  timeline: readonly Filing[],
   activeVersionByExtractorId: ReadonlyMap<string, string>
 ): Promise<ReadonlyMap<string, ReadonlySet<string>>> {
   const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
   const successfulKeys = new Map<string, ReadonlySet<string>>();
   for (const [id, semver] of activeVersionByExtractorId) {
-    successfulKeys.set(id, await runRepo.successfulRunKeys(id, semver));
+    // Only the filings this extractor actually routes: asking about the whole
+    // timeline would read every other extractor's rows for the CIK too.
+    const candidates = timeline.filter((f) => f.form !== null && formToExtractorId(f.form) === id);
+    successfulKeys.set(id, await runRepo.successfulRunKeysForFilings(candidates, id, semver));
   }
   return successfulKeys;
 }

@@ -90,14 +90,90 @@ export function formsForExtractor(extractorId: string): string[] {
     .map(([form]) => form);
 }
 
-/** Candidates = every filing of the given forms (bulk per-form queries). */
-async function selectFilingsByForms(forms: readonly string[]): Promise<BackfillCandidate[]> {
+/**
+ * Rows read per page while scanning a form's filings for backfill candidates.
+ *
+ * The candidate LIST is a slim `{cik, accession_number}` per filing and is
+ * materialized in full by design — `selected` / `skipped` are counts over it and
+ * a descriptor's `filterTodo` is handed the whole set. The full `Filing` ROWS
+ * are not: at a measured ~460 bytes per 15-column row, `query({form})` over Form
+ * D's corpus is several hundred MB held only to read two or three columns off
+ * each row. Paging keeps that at ~5 MB while the slim list still ends up
+ * complete.
+ */
+const BACKFILL_PAGE_SIZE = 10_000;
+
+/** The columns a candidate selector reads off a filing row. */
+interface FilingPageRow {
+  readonly cik: number;
+  readonly accession_number: string;
+  readonly items?: string | null;
+}
+
+/**
+ * Every filing of one form, one page at a time, in primary-key order.
+ *
+ * Keyset resume over `(cik, accession_number)`, in two queries per page for the
+ * same reason {@link ComputeFormsWorklistTask.readPage} needs two:
+ * `SearchCriteria` allows one condition per column and has no OR, so the exact
+ * predicate `(cik, accession) > (lastCik, lastAccession)` is "the rest of this
+ * CIK" followed by "later CIKs". That is what lets one filer hold more filings
+ * of a form than the page size — a serial 8-K filer, a shelf issuer's 424B2s —
+ * without the scan stalling on it.
+ */
+async function* pageFilingsOfForm(form: string): AsyncGenerator<FilingPageRow[]> {
   const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+  const orderBy = [
+    { column: "cik" as const, direction: "ASC" as const },
+    { column: "accession_number" as const, direction: "ASC" as const },
+  ];
+  let lastCik: number | undefined;
+  let lastAccession: string | undefined;
+
+  for (;;) {
+    let rows: FilingPageRow[];
+    if (lastCik === undefined || lastAccession === undefined) {
+      rows = ((await filingRepo.query({ form } as never, {
+        orderBy,
+        limit: BACKFILL_PAGE_SIZE,
+      })) ?? []) as FilingPageRow[];
+    } else {
+      const restOfCik = ((await filingRepo.query(
+        {
+          form,
+          cik: lastCik,
+          accession_number: { value: lastAccession, operator: ">" as const },
+        } as never,
+        { orderBy: [{ column: "accession_number", direction: "ASC" }], limit: BACKFILL_PAGE_SIZE }
+      )) ?? []) as FilingPageRow[];
+      const remaining = BACKFILL_PAGE_SIZE - restOfCik.length;
+      const laterCiks =
+        remaining > 0
+          ? (((await filingRepo.query(
+              { form, cik: { value: lastCik, operator: ">" as const } } as never,
+              { orderBy, limit: remaining }
+            )) ?? []) as FilingPageRow[])
+          : [];
+      rows = restOfCik.length === 0 ? laterCiks : [...restOfCik, ...laterCiks];
+    }
+
+    if (rows.length === 0) return;
+    const last = rows[rows.length - 1]!;
+    lastCik = last.cik;
+    lastAccession = last.accession_number;
+    yield rows;
+    if (rows.length < BACKFILL_PAGE_SIZE) return;
+  }
+}
+
+/** Candidates = every filing of the given forms, read a page at a time. */
+async function selectFilingsByForms(forms: readonly string[]): Promise<BackfillCandidate[]> {
   const out: BackfillCandidate[] = [];
   for (const form of forms) {
-    const filings = (await filingRepo.query({ form })) ?? [];
-    for (const f of filings) {
-      out.push({ cik: f.cik, accession_number: f.accession_number });
+    for await (const page of pageFilingsOfForm(form)) {
+      for (const f of page) {
+        out.push({ cik: f.cik, accession_number: f.accession_number });
+      }
     }
   }
   return out;
@@ -129,24 +205,27 @@ async function selectKnownSpacFilings(extractorId: string): Promise<BackfillCand
 
 /**
  * Candidates for a known-SPAC 8-K sub-extractor: 8-K / 8-K/A filings of a CIK
- * with a spac row whose items string passes the trigger predicate. Loads the
- * full 8-K sets in two bulk queries and filters in memory (cheaper than
- * `2 × NUM_SPACS` `(form, cik)` queries as the SPAC count grows).
+ * with a spac row whose items string passes the trigger predicate. Scans the
+ * two 8-K forms and filters in memory (cheaper than `2 × NUM_SPACS`
+ * `(form, cik)` queries as the SPAC count grows), a page at a time.
  */
 function spacTrigger8KSelector(
   hasTriggerItem: (items: string | null | undefined) => boolean
 ): () => Promise<BackfillCandidate[]> {
   return async () => {
-    const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
     const spacs = await new SpacRepo().getAllSpacs();
     const spacCiks = new Set(spacs.map((s) => s.cik));
     const out: BackfillCandidate[] = [];
     for (const form of ["8-K", "8-K/A"]) {
-      const filings = (await filingRepo.query({ form })) ?? [];
-      for (const f of filings) {
-        if (!spacCiks.has(f.cik)) continue;
-        if (hasTriggerItem(f.items)) {
-          out.push({ cik: f.cik, accession_number: f.accession_number });
+      // Paged for the same reason as `selectFilingsByForms`, and it matters most
+      // here: 8-K is the largest corpus any descriptor scans, and only the rows
+      // surviving BOTH filters are worth holding.
+      for await (const page of pageFilingsOfForm(form)) {
+        for (const f of page) {
+          if (!spacCiks.has(f.cik)) continue;
+          if (hasTriggerItem(f.items)) {
+            out.push({ cik: f.cik, accession_number: f.accession_number });
+          }
         }
       }
     }

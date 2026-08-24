@@ -156,6 +156,89 @@ describe("ExtractorRunRepo", () => {
     expect(unprocessed.map((f) => f.cik).sort((a, b) => a - b)).toEqual([2000000, 3000000]);
   });
 
+  it("successfulRunKeysForFilings reads only the candidates' CIKs, not the corpus", async () => {
+    // The whole-table variant this replaced loaded every successful run for the
+    // extractor. Scoping to the candidates is what bounds a sweep's memory by
+    // its page, so a run belonging to a CIK nobody asked about must not appear.
+    const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    for (const cik of [1000000, 2000000, 9000000]) {
+      await repo.recordRun({
+        cik,
+        accession_number: `000${cik}-25-000001`,
+        form: "D",
+        extractor_id: "D",
+        extractor_version: "1.0.0",
+        slot_at_run: "current",
+        success: true,
+        error: null,
+      });
+    }
+
+    const keys = await repo.successfulRunKeysForFilings(
+      [
+        { cik: 1000000, accession_number: "0001000000-25-000001" },
+        { cik: 3000000, accession_number: "0003000000-25-000001" },
+      ],
+      "D",
+      "1.0.0"
+    );
+
+    expect([...keys]).toEqual(["1000000::0001000000-25-000001"]);
+  });
+
+  it("successfulRunKeysForFilings drops a CIK's other accessions", async () => {
+    // There is no two-column `in`, so a chunk comes back with every run row for
+    // the CIKs it named. A filer with tens of thousands of filings must not
+    // inflate the Set beyond the page that asked for it.
+    const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    for (let i = 1; i <= 3; i++) {
+      await repo.recordRun({
+        cik: 1000000,
+        accession_number: `0001000000-25-00000${i}`,
+        form: "D",
+        extractor_id: "D",
+        extractor_version: "1.0.0",
+        slot_at_run: "current",
+        success: true,
+        error: null,
+      });
+    }
+
+    const keys = await repo.successfulRunKeysForFilings(
+      [{ cik: 1000000, accession_number: "0001000000-25-000002" }],
+      "D",
+      "1.0.0"
+    );
+
+    expect([...keys]).toEqual(["1000000::0001000000-25-000002"]);
+  });
+
+  it("successfulRunKeysForFilings chunks past the SQLite bind cap", async () => {
+    // 900 CIKs per `in` list; a page wider than that must still be answered in
+    // full rather than silently truncated to the first chunk.
+    const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    const filings = [];
+    for (let i = 0; i < 1000; i++) {
+      const cik = 4000000 + i;
+      const accession_number = `000${cik}-25-000001`;
+      await repo.recordRun({
+        cik,
+        accession_number,
+        form: "D",
+        extractor_id: "D",
+        extractor_version: "1.0.0",
+        slot_at_run: "current",
+        success: true,
+        error: null,
+      });
+      filings.push({ cik, accession_number });
+    }
+
+    const keys = await repo.successfulRunKeysForFilings(filings, "D", "1.0.0");
+
+    expect(keys.size).toBe(1000);
+  });
+
   it("listFilingsWithoutSuccessfulRun returns empty when all filings are done", async () => {
     const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
     await repo.recordRun({

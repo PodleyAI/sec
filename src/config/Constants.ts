@@ -65,6 +65,40 @@ export const SecFetchMaxConcurrent = ((): number => {
 })();
 
 /**
+ * Page-cache ceiling, in MEGABYTES, for the one SQLite connection every sec
+ * table shares (`getDb()` — `createStorage` hands it to every
+ * `SqliteTabularStorage`). Override via SEC_SQLITE_CACHE_MB, clamped to
+ * 2..4096.
+ *
+ * Stated in MB because `PRAGMA cache_size` is stated in PAGES when its
+ * argument is positive and in KiB when it is negative, and the two read
+ * identically at the call site. The previous `cache_size = 1000000` was the
+ * positive form: one million pages at the 4 KiB `page_size` these databases
+ * use is a **~4 GB** ceiling on a cache that fills as the sweep touches pages
+ * and never shrinks. A long forms sweep therefore looks like a slow leak —
+ * RSS climbing for hours while the JS heap stays flat — because the growth is
+ * in the pager, not the heap. Measured scanning a 271 MB database: +31 MB RSS
+ * at the old setting versus +3 MB at 2 MB of cache, with the gap bounded only
+ * by `min(database size, ceiling)`.
+ *
+ * 256 MB keeps the hot b-tree interior pages of the tables a sweep hammers
+ * (`filings`, `extractor_runs`) resident, which is where the cache earns its
+ * keep; the leaf pages of a multi-GB scan are read once and evicting them
+ * costs nothing. Raise it on a machine with memory to spare.
+ *
+ * `temp_store = MEMORY` is deliberately left alone: it holds transient sort
+ * and temp-index b-trees for the duration of one statement, so it is a
+ * per-query peak rather than a monotonically growing cache, and moving it to
+ * disk would slow every ORDER BY in the CLI for a bound this pragma does not
+ * actually provide.
+ */
+export const SecSqliteCacheMb = ((): number => {
+  const raw = process.env.SEC_SQLITE_CACHE_MB?.trim();
+  const parsed = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : 256;
+  return Math.min(4096, Math.max(2, parsed || 256));
+})();
+
+/**
  * General default model id shared by every SEC AI extractor (S-1, merger-proxy,
  * redemption) when its own env override (e.g. SEC_S1_MODEL) is unset. Override
  * for all extractors at once via the SEC_MODEL_DEFAULT environment variable.
