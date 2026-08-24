@@ -6,13 +6,11 @@
 
 import { Static, Type } from "typebox";
 import {
-  FetchUrlTaskOutput,
   globalServiceRegistry,
   IExecuteContext,
   Task,
   TaskAbortedError,
   TaskError,
-  Workflow,
 } from "workglow";
 import { SecCliConfigurationError } from "../../config/EnvToDI";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
@@ -197,47 +195,33 @@ export class ProcessAccessionDocFormTask extends Task<
       return cached;
     }
 
-    const wf = context.own(new Workflow(), { title: `Fetch ${accessionNumber} ${fileName}` });
-    let text: string | undefined;
-    wf.pipe(
-      new SecFetchAccessionDocTask({ cik, accessionNumber, fileName }),
-      async function capture(fetchOutput: FetchUrlTaskOutput) {
-        text = fetchOutput.text ?? undefined;
-        return { success: true };
-      }
+    // Own the fetch task itself rather than a one-task Workflow around it: the
+    // wrapper bought nothing here (a single task, run once, its output read
+    // straight back) and cost a second copy of the document body on the
+    // dataflow edge and a third on the consumer's input port, each needing its
+    // own teardown.
+    const fetchTask = context.own(
+      new SecFetchAccessionDocTask(
+        { cik, accessionNumber, fileName },
+        { title: `Fetch ${accessionNumber} ${fileName}` }
+      )
     );
+    let text: string | undefined;
     try {
-      await wf.run();
+      text = (await fetchTask.run()).text;
     } finally {
-      // The document body — a whole SEC submission, often multi-MB — lands in
-      // four places: the `text` local above, the fetch task's output port, the
-      // dataflow edge carrying it to `capture`, and (because the edge is an
-      // all-ports edge whose value the runner copies onto the consumer) the
-      // `capture` task's own input port. Only the local is still needed. The
-      // rest are cleared solely by the next run of this graph, which never
-      // comes: the workflow is built fresh per filing and run once, so without
-      // this the body stays reachable for the whole sweep — once per filing,
-      // unbounded.
-      //
-      // Deliberately not `resetGraph()`: that also flips every node's status
-      // back to PENDING, which makes the CLI progress rows flicker.
-      for (const dataflow of wf.graph.getDataflows()) {
-        dataflow.reset();
-      }
-      for (const task of wf.graph.getTasks()) {
-        task.resetInputData();
-        task.runOutputData = {};
-        task.error = undefined;
-      }
-      // `own` is add-only, and a task's subgraph is cleared only between runs
-      // of that task — so a caller that processes many filings under one
-      // running task accumulates one wrapper per filing. Releasing it detaches
-      // this branch regardless of what the caller does, and this task is also
-      // driven by callers that never disown (`FetchAndStoreFormsTask`,
-      // `sec fetch form`). In the `finally` because a failed fetch — a 404, a
-      // network error, an abort — is the common case in an unbounded sweep,
-      // and it retains the wrapper just the same.
-      context.disown(wf);
+      // The document body — a whole SEC submission, often multi-MB — stays on
+      // the fetch task's output port, and `own` is add-only: a task's subgraph
+      // is cleared only between runs of that task, so a caller that processes
+      // many filings under one running task accumulates one fetch task, body
+      // and all, per filing. Releasing it detaches this branch regardless of
+      // what the caller does, and this task is also driven by callers that
+      // never disown (`FetchAndStoreFormsTask`, `sec fetch form`). Nothing else
+      // holds the task once it leaves the subgraph, so `text` is all that
+      // survives this frame. In the `finally` because a failed fetch — a 404, a
+      // network error, an abort — is the common case in an unbounded sweep, and
+      // it retains the task just the same.
+      context.disown(fetchTask);
     }
     if (!text) {
       throw new TaskError(`Fetch returned no text for ${cik}/${accessionNumber}/${fileName}`);
