@@ -7,6 +7,7 @@
 import { globalServiceRegistry } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { PortalRepo } from "../../../storage/portal/PortalRepo";
+import { recordSuccessions } from "./portalSuccession";
 import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
 import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
 import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
@@ -135,8 +136,21 @@ export async function processFormCFPORTAL({
     brand: brand ?? existing?.brand ?? null,
     url: url ?? existing?.url ?? null,
     live: !isWithdrawal,
+    // Carried, never recomputed here: this row is the SUCCESSOR's, and the
+    // pointer belongs to whichever predecessor a succession block names.
+    succeeded_by_cik: existing?.succeeded_by_cik ?? null,
     as_of: filing_date || existing?.as_of || null,
   }));
+
+  // Successions run after the portal row so a filing that both registers a
+  // portal and succeeds another has its own row in place first. Failures are
+  // contained: a filer's succession claim is worth less than its registration,
+  // and losing the whole filing over one is the wrong trade.
+  try {
+    await recordSuccessions({ cik, accession_number, filing_date, formCfportal });
+  } catch (error) {
+    console.warn(`Failed to record successions for portal ${cik}:`, error);
+  }
 
   // Observation tier. Index layout: 0 = the portal company itself,
   // 1 = contact employee, 100+ = Schedule A direct/indirect owners.

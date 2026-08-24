@@ -147,10 +147,33 @@ const INVESTOR_FUNDS_CONTACT_TYPE = Type.Object({
   investorFundsContactPhone: Type.Optional(PHONE_NUMBER_TYPE),
 });
 
+/**
+ * One acquired-portal entry from the Item 1 successions block. The file number
+ * is the usable half: it resolves to a filer, where `acquiredFundingPortal` is
+ * free text.
+ */
+const ACQUIRED_HISTORY_DETAILS_TYPE = Type.Object({
+  acquiredFundingPortal: Type.Optional(ENTITY_NAME_TYPE),
+  acquiredPortalFileNumber: Type.Optional(FILE_NUMBER_TYPE),
+  acquiredDesc: Type.Optional(Type.String()),
+});
+
 const FORM_DATA = Type.Object({
   identifyingInformation: Type.Optional(IDENTIFYING_INFORMATION_TYPE),
   formOfOrganization: Type.Optional(FORM_OF_ORGANIZATION_TYPE),
-  successions: Type.Optional(Type.Unknown()),
+  // Item 1 successions: EDGAR's own record of one funding portal taking over
+  // another's registration. Typed rather than passed through as `unknown`
+  // because the parser derives array-ness FROM the schema — as `unknown` a lone
+  // `acquiredHistoryDetails` arrives as an object, so the shape a consumer sees
+  // would depend on how many successions the filer declared.
+  successions: Type.Optional(
+    Type.Object({
+      isSucceedingBusiness: Type.Optional(YES_NO_TYPE),
+      acquiredHistoryDetails: Type.Optional(
+        Type.Array(ACQUIRED_HISTORY_DETAILS_TYPE, { maxItems: 5 })
+      ),
+    })
+  ),
   // The XSD repeats the <fullLegalNames> wrapper (maxOccurs 50), each holding
   // one <fullLegalName> — the wrapper is the array, not the leaf.
   controlRelationships: Type.Optional(

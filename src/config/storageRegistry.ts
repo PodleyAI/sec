@@ -110,6 +110,11 @@ import {
   PortalSchema,
 } from "../storage/portal/PortalSchema";
 import {
+  PORTAL_SUCCESSION_REPOSITORY_TOKEN,
+  PortalSuccessionPrimaryKeyNames,
+  PortalSuccessionSchema,
+} from "../storage/portal/PortalSuccessionSchema";
+import {
   SECTION16_FILING_REPOSITORY_TOKEN,
   SECTION16_HOLDING_REPOSITORY_TOKEN,
   SECTION16_TRANSACTION_REPOSITORY_TOKEN,
@@ -673,6 +678,13 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     schema: PortalSchema,
     primaryKeyNames: PortalPrimaryKeyNames,
     indexes: [["name"], ["brand"], ["live"]],
+  }),
+  defineStorage({
+    token: PORTAL_SUCCESSION_REPOSITORY_TOKEN,
+    table: "portal_succession",
+    schema: PortalSuccessionSchema,
+    primaryKeyNames: PortalSuccessionPrimaryKeyNames,
+    indexes: [["cik"], ["predecessor_cik"], ["predecessor_file_number"]],
   }),
   // ------------------------------ Processing Tracking --------------------------------
   defineStorage({
