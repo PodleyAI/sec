@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+### Chores
+
+- update tsconfig.json to remove comments from emitted files
+
 ## 0.1.0
 
 ### Chores
