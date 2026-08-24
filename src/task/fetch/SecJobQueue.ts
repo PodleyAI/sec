@@ -163,11 +163,14 @@ export async function getSecJobQueue(): Promise<SecJobQueueHandles> {
         // cluster limiter first would spend a reserve/release round trip
         // against Postgres on every claim it then has to roll back.
         new ConcurrencyLimiter(SecFetchMaxConcurrent),
-        limiter,
+        // Local pacing: one start every 1000/maxPerSec ms. The cluster
+        // RateLimiter below is a sliding window and will admit a burst of
+        // `maxPerSec` in one tick; this is what actually spaces them.
         new EvenlySpacedRateLimiter({
           maxExecutions: SecFetchMaxPerSec,
           windowSizeInSeconds: 1,
         }),
+        limiter,
       ]),
       pollIntervalMs: 1,
       // Drop each terminal row the moment its result has been handed to the

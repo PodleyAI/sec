@@ -9,7 +9,7 @@ import "workglow";
 import type { FetchUrlTaskInput, RateLimiter, SafeFetchFn } from "workglow";
 import { registerSafeFetch } from "workglow";
 
-import { SecFetchMaxPerSec, SecUserAgent } from "../../config/Constants";
+import { SecFetchMaxConcurrent, SecFetchMaxPerSec, SecUserAgent } from "../../config/Constants";
 import { SecFetchJob } from "./SecFetchJob";
 import {
   installEdgarBlockTranslation,
@@ -46,7 +46,7 @@ function wholeBody(): Response {
 
 // Retries are spread uniformly over two drain windows:
 // ceil(SEC_FETCH_MAX_CONCURRENT / SEC_FETCH_MAX_PER_SEC) * 2s.
-const DRAIN_WINDOW_MS = 4_000;
+const DRAIN_WINDOW_MS = Math.ceil(SecFetchMaxConcurrent / SecFetchMaxPerSec) * 2_000;
 
 describe("SecFetchJob", () => {
   it("merges SEC User-Agent onto job input", () => {
@@ -531,7 +531,7 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
     // spreads the first retry across only 500ms, which for a full set of
     // in-flight fetches is far over EDGAR's 10/s ceiling.
     vi.useFakeTimers();
-    const FLEET = 16;
+    const FLEET = SecFetchMaxConcurrent;
     // A uniform sweep in place of Math.random, so this asserts the spreading
     // FORMULA rather than one draw's luck. Each job consumes exactly one
     // random (the backoff itself is deterministic), so the sweep maps 1:1.
@@ -570,7 +570,7 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
       expect(firstRetries.every((t) => typeof t === "number")).toBe(true);
 
       // No 1s slice of those re-issues may exceed the configured rate. Without
-      // the spread all 16 land inside 500ms — ~32/s.
+      // the spread the whole fleet lands inside 500ms.
       const worstPerSecond = Math.max(
         ...firstRetries.map((t) => firstRetries.filter((u) => u >= t && u < t + 1_000).length)
       );

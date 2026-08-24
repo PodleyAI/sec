@@ -49,18 +49,18 @@ export const SecFetchMaxPerSec = ((): number => {
  * fixed concurrency the descriptor count is flat and returns to baseline once
  * the pool goes idle. It is the unbounded PEAK that has to be capped.
  *
- * 16 is chosen so the cap binds only in the slow case it exists for: at 8
- * starts/second it is not reached until a fetch averages over two seconds, so
- * a healthy sweep runs at exactly the speed it does today, while a degraded
- * EDGAR costs throughput instead of the whole process. Override via
+ * 8 matches {@link SecFetchMaxPerSec} so a synchronized retry of every
+ * in-flight job (retries sit inside the job, downstream of the limiter) cannot
+ * exceed the start cap even if they all fire in one tick. At 8 starts/second
+ * the cap is reached as soon as a fetch averages over one second. Override via
  * SEC_FETCH_MAX_CONCURRENT, clamped to 1..64 — an unclamped override would
  * restore the unbounded behavior this constant exists to prevent, and 64
  * in-flight (~128 descriptors) still fits inside the smallest default limit.
  */
 export const SecFetchMaxConcurrent = ((): number => {
   const raw = process.env.SEC_FETCH_MAX_CONCURRENT?.trim();
-  const parsed = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : 16;
-  return Math.min(64, Math.max(1, parsed || 16));
+  const parsed = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : 8;
+  return Math.min(64, Math.max(1, parsed || 8));
 })();
 
 /**
