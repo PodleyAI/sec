@@ -138,7 +138,6 @@ describe("CLI v2 integration", () => {
       "portals",
       "crowdfunding",
       "reg-a",
-      "form-d",
       "forms",
       "spacs",
     ]) {
@@ -158,11 +157,6 @@ describe("CLI v2 integration", () => {
 
   it("should show sync forms shard option", async () => {
     const output = await runCli("sync", "forms", "--help");
-    expect(output).toContain("--shard");
-  });
-
-  it("should show sync form-d shard option", async () => {
-    const output = await runCli("sync", "form-d", "--help");
     expect(output).toContain("--shard");
   });
 

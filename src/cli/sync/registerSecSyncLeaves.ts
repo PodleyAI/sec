@@ -131,26 +131,6 @@ export function registerSecSyncLeaves(): void {
     ],
   });
 
-
-  registerSyncLeaf({
-    id: "form-d",
-    description: "Process Form D family filings",
-    order: 52,
-    inAll: true,
-    steps: [
-      {
-        id: "form-d",
-        title: "Process Form D filings",
-        run: async (ctx: SyncRunContext) => {
-          await runFormsSweep({
-            formTypes: formsForExtractorIds([...SYNC_FORM_DOMAINS["form-d"]]),
-            shard: ctx.shard,
-          });
-        },
-      },
-    ],
-  });
-
   registerSyncLeaf({
     id: "forms",
     description: "Process specific form types (comma-separated)",

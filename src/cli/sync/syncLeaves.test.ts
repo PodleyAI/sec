@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { registerSecSyncLeaves } from "./registerSecSyncLeaves";
 import {
   clearSyncLeavesForTesting,
   EMPTY_SYNC_CONTEXT,
@@ -16,7 +17,6 @@ import {
   type SyncRunContext,
   type SyncStep,
 } from "./syncLeaves";
-import { registerSecSyncLeaves } from "./registerSecSyncLeaves";
 
 function makeStep(id: string, run: SyncStep["run"] = async () => {}): SyncStep {
   return { id, title: id, run };
@@ -75,7 +75,7 @@ describe("syncLeaves registry", () => {
       listSyncLeaves()
         .filter((l) => l.inAll)
         .map((l) => l.id)
-    ).toEqual(["submissions", "facts", "portals", "crowdfunding", "reg-a", "form-d", "spacs"]);
+    ).toEqual(["submissions", "facts", "portals", "crowdfunding", "reg-a", "spacs"]);
   });
 });
 

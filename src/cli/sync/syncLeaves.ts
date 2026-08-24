@@ -20,6 +20,16 @@ export interface SyncRunContext {
   readonly only: SpacProcessOnly | undefined;
   /** How many SPAC issuers to replay at once. Filings within an issuer stay serial. */
   readonly concurrency: number;
+  /**
+   * True when a multi-step leaf is invoked as `sync <leaf> <step>` rather than
+   * `sync <leaf> all` or as one step inside `sync all`.
+   */
+  readonly isolatedStep: boolean;
+  /**
+   * Standalone Form D sweep (`sync adv form-d --simple`). Required when
+   * {@link isolatedStep} targets the adv `form-d` step; ignored elsewhere.
+   */
+  readonly simple: boolean;
 }
 
 export interface SyncStep {
@@ -57,6 +67,8 @@ export const EMPTY_SYNC_CONTEXT: SyncRunContext = {
   formTypes: undefined,
   only: undefined,
   concurrency: DEFAULT_SPAC_ISSUER_CONCURRENCY,
+  isolatedStep: false,
+  simple: false,
 };
 
 const syncLeaves = new Map<string, SyncLeaf>();

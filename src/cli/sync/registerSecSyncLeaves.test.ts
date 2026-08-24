@@ -14,9 +14,10 @@ describe("registerSecSyncLeaves form domains", () => {
     clearSyncLeavesForTesting();
   });
 
-  it("registers an inAll leaf for every form domain so amendments are not left to `sync forms D`", () => {
+  it("registers an inAll leaf for every sec form domain (Form D is embarc-data adv only)", () => {
     registerSecSyncLeaves();
     for (const domain of Object.keys(SYNC_FORM_DOMAINS)) {
+      if (domain === "form-d") continue;
       const leaf = getSyncLeaf(domain);
       expect(leaf, `missing sync leaf for domain ${domain}`).toBeDefined();
       expect(leaf!.inAll, `${domain} should run as part of sync all`).toBe(true);
