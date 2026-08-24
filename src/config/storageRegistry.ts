@@ -889,7 +889,14 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     table: "company_observations",
     schema: CompanyObservationSchema,
     primaryKeyNames: CompanyObservationPrimaryKeyNames,
-    indexes: [["accession_number"]],
+    // `cik` is the OBSERVED company's own number, and "what has this company
+    // been called" is the read every name-fallback issues — a company whose
+    // canonical name is missing is looked up by CIK, one company at a time.
+    // Unmatched by an index that is a sequential scan of one row per company
+    // mention in every filing, so a single-company lookup costs the whole
+    // table; `accession_number` indexes the other direction (the companies one
+    // filing named) and cannot serve it.
+    indexes: [["accession_number"], ["cik"]],
     // The natural key is UNIQUE — see person_observations above.
     uniqueIndexes: [["accession_number", "extractor_id", "observation_index"]],
   }),
