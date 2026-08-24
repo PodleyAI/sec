@@ -39,16 +39,33 @@ a truncated file into place. Two consequences:
 the more faithful of the two: `"text"` serializes a UTF-8 decode, lossy on invalid
 sequences (`U+FFFD`), while `"stream"` writes the origin's bytes verbatim.
 
-### Retries stop at the first delivered byte
+### Retries are queue claims, not a second HTTP path
 
-`SecFetchJob` retries on 429/5xx/DNS/connect and per-attempt timeouts, but **only before
-the first byte reaches a stream receiver**. Past that point the receiver's subscription
-outlives the attempt, so a re-issue starts again at byte 0 and concatenates a second body
-onto the first with nothing marking the seam. Nearly every retryable condition lands before
-any body byte, so the loop keeps its value. The ban is enforced twice: upstream
-re-classifies a mid-body failure as a non-retryable `BODY_TRUNCATED`, and the loop latches
-its own delivery flag because a per-attempt timeout arrives as a bare abort that would
-otherwise drive straight through.
+`execute()` makes **one** HTTP attempt. A retryable failure throws `RetryableJobError` with
+`retryDate` set; the worker's `rescheduleJob` moves the row back to PENDING (visible at
+`retryDate`, else the limiter's next-available time) and `limiter.complete()` frees the
+concurrency slot. The next HTTP is a fresh claim through the same composite — Concurrency +
+EvenlySpaced + the cluster RateLimiter — exactly like a first attempt.
+
+There is **no in-job retry loop, and re-adding one would reintroduce the bug it replaced.**
+`ConcurrencyLimiter(SecFetchMaxConcurrent)` holds its token until the job is terminal, so a
+retry issued from inside `execute()` re-fires while still holding that token, downstream of
+every limiter: after a 10-minute cooldown the whole in-flight set woke in one tick and
+renewed the ban. Going back through the queue is what makes each retry wait its turn at
+`tryAcquire`. (The old `retrySpread()` jitter existed only to disperse that herd, and is
+gone with it.)
+
+### Retryable, but only before the first delivered byte
+
+`SecFetchJob` classifies 429/5xx/DNS/connect and per-attempt timeouts as retryable, but
+**only before the first byte reaches a stream receiver**. Past that point the receiver's
+subscription outlives the attempt, so a re-issue starts again at byte 0 and concatenates a
+second body onto the first with nothing marking the seam. Nearly every retryable condition
+lands before any body byte, so the classification keeps its value. The ban is enforced
+twice: upstream re-classifies a mid-body failure as a non-retryable `BODY_TRUNCATED`, and
+`execute()` latches its own delivery flag because a per-attempt timeout arrives as a bare
+abort that keeps its shape through that classification and would otherwise be wrapped as
+retryable after the consumer already saw bytes.
 
 ### The per-attempt timeout measures time without progress
 
@@ -72,8 +89,8 @@ on the same IP being refused mid-sweep.
 
 The **429 path alone was sufficient** to sustain it: a 429 was already retryable and did arm
 the cluster cooldown, but the cooldown was 60s against a 600-second penalty, and each of the
-up-to-`SEC_FETCH_MAX_CONCURRENT` in-flight jobs then retried on its own ≤30s backoff — every
-one a fresh violation inside a live window. Captured 429s carry **no `Retry-After`** and an
+up-to-`SEC_FETCH_MAX_CONCURRENT` in-flight jobs then retried on its own ≤30s backoff from
+inside the job — every one a fresh violation inside a live window. Captured 429s carry **no `Retry-After`** and an
 empty reason phrase, so the cooldown policy is the only thing sizing the wait.
 
 ### The first trip is not a ban
@@ -98,8 +115,9 @@ Three properties the ladder depends on:
 - **The cluster pause only ever moves FORWARD.** The rung is process state, the sentinel is
   cluster state, and the storage write is last-writer-wins.
   `signalSecFetchThrottle` reads the current next-available time first, skips the write when
-  it is already later, and returns that longer remaining time as this job's own wait — a
-  shard re-firing early is the ban-renewing behavior, whichever shard's ladder set it. A
+  it is already later, and returns that longer remaining time so the job can set
+  `RetryableJobError.retryDate` to the same instant — a shard re-firing early is the
+  ban-renewing behavior, whichever shard's ladder set it. A
   `Retry-After: 0` is not a block: it climbs no rung and arms no window.
 
 `translateEdgarBlockResponse` deliberately synthesizes **no** `Retry-After` — EDGAR's
@@ -118,27 +136,33 @@ ten-minute figure describes the escalated ban, not the first overshoot.
 - **The cooldown is signalled before the retry decision, not after.** A block landing on a
   job's last attempt is the same evidence about the cluster as any other, and under a
   sustained block that is most of them.
-- **A blocked job sleeps the applied cooldown.** The cluster sentinel gates DISPATCH, and a
-  job that already started never re-consults the limiter, so the ordinary backoff put every
-  in-flight request back on the wire inside the penalty window. Sleeping costs nothing that
-  was available anyway.
+- **A blocked job throws `RetryableJobError` with `retryDate` set to the applied cooldown**,
+  rather than sleeping inside `execute()`. The cluster sentinel gates DISPATCH, and a job
+  that already started never re-consults the limiter — so both the old backoff and a plain
+  sleep put every in-flight request back on the wire inside the penalty window, holding
+  their limiter tokens throughout. Throwing releases the slot and makes the retry a new
+  claim.
 
-### A concurrency bound is not a rate bound
+### The two limits are independent, and both are needed
 
-`ConcurrencyLimiter(SecFetchMaxConcurrent)` sits first in the composite and holds its token
-until the job is terminal, so simultaneity is capped. But 16 requests are fine spread over
-two seconds and a violation arriving in one tick, and a retry re-issues from inside the job,
-downstream of every limiter. A shared upstream failure produces exactly that tick. So
-`retrySpread()` adds a uniform spread over `ceil(maxConcurrent / maxPerSec) * 2` seconds to
-**every** retry — a transient 5xx burst otherwise re-issued 16 requests inside 500 ms.
+`SecFetchMaxPerSec` (default **4**, clamped 1–8) caps how many fetches may START each
+second, cluster-wide. It does **not** cap how many are still running: the queue worker
+dispatches each claimed job in the background and immediately loops for the next, and the
+rate limiter's window is pruned by AGE rather than by completion, so a slot frees one second
+after a fetch begins however long it takes. In-flight work is therefore `rate × latency` —
+sub-second while EDGAR is healthy, but a slow spell serving multi-MB full-submission `.txt`
+documents at 30s each admits hundreds of concurrent requests.
 
-Two details that pass a casual reading and were wrong at first:
+Each in-flight fetch holds roughly two file descriptors and the pool releases them only
+after an idle period, so that pile-up is what exhausts the descriptor table — reliably on
+macOS, whose default `ulimit -n` of 256 is crossed at ~128 concurrent fetches. It is not a
+leak: at a fixed concurrency the count is flat and returns to baseline once the pool goes
+idle. It is the unbounded PEAK that has to be capped, which is `SecFetchMaxConcurrent`
+(default **4**, clamped 1–64).
 
-- **`backoffDelay` is deterministic.** Jittering there _and_ in `retrySpread` sums two
-  independent uniforms, which concentrates toward the middle instead of spreading.
-- **The cap is applied to the wait, then the spread is added** — never to the sum. Capping
-  the sum eats the spread whenever the base is already at the ceiling, which is the default
-  block case exactly.
+The default 4 matches the rate cap so a process cannot hold more in flight than it may start
+in a second, and at 4 starts/second the cap binds as soon as a fetch averages over one
+second. Because retries go back through the queue, they cannot bypass either cap.
 
 ---
 

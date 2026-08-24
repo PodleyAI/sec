@@ -244,8 +244,8 @@ Set in `.env.local` (see `.env.test` for test defaults).
 | `SEC_DB_TYPE`                                                                     | `"sqlite"` (default) or `"postgres"`                                                |
 | `SEC_PG_URL`                                                                      | Postgres connection string (takes precedence over the individual vars)              |
 | `SEC_PG_HOST`, `SEC_PG_PORT`, `SEC_PG_USER`, `SEC_PG_PASSWORD`, `SEC_PG_DATABASE` | Individual Postgres settings (defaults `localhost`, `5432`, `edgar`)                |
-| `SEC_FETCH_MAX_PER_SEC`                                                           | EDGAR fetch **rate**, req/s, shared cluster-wide (default 8, clamped 1–8)           |
-| `SEC_FETCH_MAX_CONCURRENT`                                                        | EDGAR fetches **in flight**, per process (default 16, clamped 1–64)                 |
+| `SEC_FETCH_MAX_PER_SEC`                                                           | EDGAR fetch **rate**, req/s, shared cluster-wide (default 4, clamped 1–8)           |
+| `SEC_FETCH_MAX_CONCURRENT`                                                        | EDGAR fetches **in flight**, per process (default 4, clamped 1–64)                  |
 | `SEC_FIXTURES_DIR`                                                                | Root for the gitignored fixture cache (default cwd)                                 |
 | `SEC_S1_MOCK_DIR`                                                                 | Override the committed S-1 fixtures directory                                       |
 | `SEC_UNIT_TERMS_REF`                                                              | Override the embarc unit-terms reference CSV                                        |
@@ -253,11 +253,15 @@ Set in `.env.local` (see `.env.test` for test defaults).
 | `SEC_MODEL_DEFAULT` + per-extractor overrides                                     | Extraction models (built-in default `DEFAULT_SEC_MODEL`) — see `docs/extraction.md` |
 
 The two fetch limits are **independent and both needed**: the rate limiter meters starts
-over a one-second window and its reservations age out, so on its own it admits
-`rate × latency` requests — a slow EDGAR serving multi-MB documents at 30s each puts ~240
-fetches in flight, exhausting the process's descriptor table. The concurrency limiter holds
-its slot until the job is terminal. At the defaults it binds only once a fetch averages over
-two seconds, so a healthy sweep is unaffected.
+over a one-second window and its reservations age out rather than being held to completion,
+so on its own it admits `rate × latency` requests — a slow EDGAR serving multi-MB documents
+at 30s each puts fetches in flight in the hundreds, and at roughly two descriptors apiece
+that exhausts the process's descriptor table (macOS's default `ulimit -n` of 256 goes
+first). The concurrency limiter holds its slot until the job is terminal, which is what
+bounds the peak. The default 4 matches the rate cap, so a process cannot hold more in flight
+than it may start in a second, and the cap binds once a fetch averages over one second — a
+healthy sweep is unaffected. Retries re-enter through the queue rather than re-issuing
+in-job, so they cannot bypass either cap; see `docs/fetch-and-storage.md`.
 
 ## TypeScript conventions
 
