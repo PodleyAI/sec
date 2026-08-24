@@ -27,6 +27,8 @@ export class QueryRegATask extends Task<QueryRegATaskInput, TaskPorts<QueryResul
   static readonly type = "QueryRegATask";
   static readonly category = "SEC";
   static readonly title = "Query Reg A offerings";
+  static readonly description =
+    "Queries stored Reg A offerings by issuer, tier, status, or jurisdiction";
   static readonly cacheable = false;
 
   public static inputSchema() {

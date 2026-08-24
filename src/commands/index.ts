@@ -6,7 +6,7 @@
 
 import type { Command } from "commander";
 import { registerWebCommand } from "@workglow/cli";
-import { getTaskQueueRegistry, globalServiceRegistry, Sqlite } from "workglow";
+import { globalServiceRegistry } from "workglow";
 import { parseGlobalOptions } from "../cli/GlobalOptions";
 import { addBootstrapCommands } from "../cli/groups/bootstrap";
 import { addDbCommands } from "../cli/groups/db";
@@ -23,14 +23,8 @@ import { registerSponsorFamilyCommands } from "./sponsorFamily";
 import { registerUnderwriterFamilyCommands } from "./underwriterFamily";
 import { registerSpacCommands } from "./spac";
 import { registerEditorialCommands } from "./editorial";
-import { DefaultDI } from "../config/DefaultDI";
-import { EnvToDI } from "../config/EnvToDI";
-import { getExtractionTemperature } from "../config/extractionTemperature";
-import { registerSecModels } from "../config/registerModels";
-import { registerSecProviders } from "../config/registerProviders";
-import { registerSecResolvers } from "../config/registerResolvers";
+import { bootstrapSecRuntime } from "../config/bootstrapSecRuntime";
 import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../config/tokens";
-import { getSecJobQueue } from "../task/fetch/SecJobQueue";
 
 /**
  * Commands that touch neither the database nor the job queue, so requiring a
@@ -64,38 +58,7 @@ export const AddCommands = (program: Command): void => {
     if (DI_EXEMPT_COMMANDS.has(commandName)) return;
     diInitialized = true;
 
-    // Load the SQLite native binding only for commands that may open the DB,
-    // not for `init`, `--help`, `--version`, or any pure-CLI invocation.
-    const secDbType = process.env.SEC_DB_TYPE ?? "sqlite";
-    if (secDbType === "sqlite" && typeof Sqlite.init === "function") {
-      await Sqlite.init();
-    }
-
-    EnvToDI();
-    // Validate the extraction sampling knob at startup. Its only other caller
-    // is inside the per-section handler that turns any throw into a
-    // version-gated dead letter, so a malformed SEC_EXTRACTION_TEMPERATURE
-    // would otherwise be recorded once per section per filing as an extraction
-    // failure no version bump can fix, instead of aborting here naming the
-    // variable.
-    getExtractionTemperature();
-    DefaultDI();
-    registerSecResolvers();
-    await registerSecModels();
-    await registerSecProviders();
-
-    // Built lazily (after DI/env) so the Postgres-backed shared rate limiter
-    // can read the pool + SEC_DB_TYPE from the registry.
-    const secJobQueue = await getSecJobQueue();
-    getTaskQueueRegistry().registerQueue({
-      server: secJobQueue.server,
-      client: secJobQueue.client,
-      storage: secJobQueue.storage,
-    });
-    // Must await: otherwise a fast command can finish and stopQueues() while start() is
-    // still in fixupJobs(); stop() then completes before workers start, and start()
-    // resumes and leaves workers running — process never exits (e.g. `sec db status`).
-    await secJobQueue.server.start();
+    await bootstrapSecRuntime();
   });
 
   addBootstrapCommands(program);

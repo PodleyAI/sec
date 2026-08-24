@@ -33,6 +33,8 @@ export class QueryRegASummaryTask extends Task<
   static readonly type = "QueryRegASummaryTask";
   static readonly category = "SEC";
   static readonly title = "Summarize Reg A offerings";
+  static readonly description =
+    "Summarizes one issuer's Reg A offerings by status and tier, with the latest aggregate";
   static readonly cacheable = false;
 
   public static inputSchema() {

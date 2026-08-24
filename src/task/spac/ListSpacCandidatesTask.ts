@@ -33,6 +33,8 @@ export class ListSpacCandidatesTask extends Task<
   static readonly type = "ListSpacCandidatesTask";
   static readonly category = "SEC";
   static readonly title = "List SPAC candidates";
+  static readonly description =
+    "Lists SPAC candidates found by the submissions-metadata screen, by confidence";
   static readonly cacheable = false;
 
   public static inputSchema() {

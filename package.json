@@ -18,11 +18,13 @@
     "dev": "concurrently -c 'auto' -n 'sec:' 'bun:dev-*'",
     "dev-js": "bun build --watch --target=bun --sourcemap=external --packages=external --outdir ./dist ./src/index.ts",
     "dev-sec": "bun build --watch --target=bun --no-bundle --outfile ./dist/sec.js ./src/sec.ts",
+    "dev-sec-base": "bun build --watch --target=bun --no-bundle --outfile ./dist/libs-cli.js ./src/libs-cli.ts",
     "dev-types": "tsc --watch --preserveWatchOutput",
     "build": "bun run build-clean && bun run build-js && bun run build-types",
     "build-clean": "rm -fr dist/*",
     "build-js": "bun build --target=bun --packages=external --outdir ./dist ./src/index.ts && bun run build-sec",
-    "build-sec": "bun build --target=bun --no-bundle --outfile ./dist/sec.js ./src/sec.ts && bun ./scripts/shebang-bin.ts ./dist/sec.js",
+    "build-sec": "bun build --target=bun --no-bundle --outfile ./dist/sec.js ./src/sec.ts && bun ./scripts/shebang-bin.ts ./dist/sec.js && bun run build-sec-base",
+    "build-sec-base": "bun build --target=bun --no-bundle --outfile ./dist/libs-cli.js ./src/libs-cli.ts && bun ./scripts/shebang-bin.ts ./dist/libs-cli.js",
     "build-types": "rm -f tsconfig.tsbuildinfo && tsc",
     "use-source": "bun ./scripts/bunsrc.ts source",
     "use-dist": "bun ./scripts/bunsrc.ts dist",
@@ -33,7 +35,10 @@
     "format": "prettier --write .",
     "format-check": "prettier --check ."
   },
-  "bin": "./dist/sec.js",
+  "bin": {
+    "sec": "./dist/sec.js",
+    "sec-base": "./dist/libs-cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

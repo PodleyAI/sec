@@ -26,6 +26,8 @@ export class QueryXbrlTask extends Task<QueryXbrlTaskInput, TaskPorts<QueryResul
   static readonly type = "QueryXbrlTask";
   static readonly category = "SEC";
   static readonly title = "Query XBRL facts";
+  static readonly description =
+    "Queries stored XBRL facts for one filing, or one concept across an issuer's filings";
   static readonly cacheable = false;
 
   public static inputSchema() {

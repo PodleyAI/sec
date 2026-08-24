@@ -26,6 +26,8 @@ export class QueryFactsTask extends Task<QueryFactsTaskInput, TaskPorts<QueryRes
   static readonly type = "QueryFactsTask";
   static readonly category = "SEC";
   static readonly title = "Query company facts";
+  static readonly description =
+    "Queries stored XBRL company facts by CIK, concept name, taxonomy, or year";
   static readonly cacheable = false;
 
   public static inputSchema() {

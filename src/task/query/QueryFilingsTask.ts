@@ -27,6 +27,7 @@ export class QueryFilingsTask extends Task<QueryFilingsTaskInput, TaskPorts<Quer
   static readonly type = "QueryFilingsTask";
   static readonly category = "SEC";
   static readonly title = "Query filings";
+  static readonly description = "Queries stored filings by issuer, form type, or filing date range";
   static readonly cacheable = false;
 
   public static inputSchema() {

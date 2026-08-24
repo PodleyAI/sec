@@ -32,6 +32,8 @@ export class ListFormTypesTask extends Task<ListFormTypesTaskInput, ListFormType
   static readonly type = "ListFormTypesTask";
   static readonly category = "SEC";
   static readonly title = "List stored form types";
+  static readonly description =
+    "Lists the distinct filing form types stored, optionally for one CIK";
   static readonly cacheable = false;
 
   public static inputSchema() {
