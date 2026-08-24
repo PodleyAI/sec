@@ -19,6 +19,7 @@
  * that package.
  */
 import { runWorkglowCli } from "@workglow/cli";
+import { commandNeedsSecRuntime } from "./config/cliRuntimeGate";
 // Through the barrel, like `sec.ts`: it is what pins every consumer to one
 // `workglow` instance, so the DI container this boots is the one the tasks read.
 import {
@@ -33,11 +34,13 @@ import {
 await runWorkglowCli({
   name: "sec-base",
   description: "Workglow CLI carrying @workglow/sec's tasks",
-  // sec's tasks read the database and fetch through the rate-limited queue, so
-  // the runtime comes up before any of them can be listed or run.
-  registerTasks: async () => {
-    await bootstrapSecRuntime();
-    registerSecTasks();
+  // Registration alone touches no DI — it only puts the classes in the
+  // registry, so `task list` works with nothing configured.
+  registerTasks: () => registerSecTasks(),
+  registerCommands: (program) => {
+    program.hook("preAction", async (_thisCommand, actionCommand) => {
+      if (commandNeedsSecRuntime(actionCommand)) await bootstrapSecRuntime();
+    });
   },
   exitOnComplete: false,
 });
