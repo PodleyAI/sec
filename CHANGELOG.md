@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.1.3
+
+### Features
+
+- add support for Form D in sync commands
+- clean listed tickers at persist boundaries
+- add listed-ticker normalizer
+
+### Bug Fixes
+
+- four defects found reviewing the ticker-cleaning branch
+
+### Refactors
+
+- adjust SEC fetch rate limits and related configurations
+- adjust concurrency settings for fetch jobs
+- remove form-d from sync commands and update related tests
+
+### Documentation
+
+- format CLAUDE.md
+- track the removed form-d leaf and the concurrency default; format
+
+### Chores
+
+- update deps
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.4.2
+- `workglow`: 0.4.2
+
 ## 0.1.2
 
 ### Features
