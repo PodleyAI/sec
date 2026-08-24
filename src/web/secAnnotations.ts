@@ -417,12 +417,17 @@ export const SEC_COMMAND_ANNOTATION_PATHS: readonly string[] = COMMAND_ANNOTATIO
   entry.path.join(" ")
 );
 
-export function registerSecFieldAnnotations(program?: Command): void {
-  for (const annotations of FIELD_ANNOTATIONS) registerCommandFieldAnnotations(annotations);
-  if (!program) return;
-  // `--format` is annotated per command from the command's own help text rather
-  // than from a stated list, because this CLI declares six different format
-  // vocabularies and no single list is right for all of them.
+/**
+ * Annotates every command's `--format` from its own help text.
+ *
+ * Separate from the stated tables, and separately callable, because it reads
+ * the PROGRAM: it can only cover commands registered before it runs. A superset
+ * adds its groups after `AddCommands` returns, so it calls this again once its
+ * own commands are on the program — otherwise its `--format` flags are the only
+ * ones left as bare text boxes. Re-running is safe: annotations are keyed by
+ * path, so a second pass replaces rather than duplicates.
+ */
+export function registerFormatChoiceAnnotations(program: Command): void {
   for (const [path, choices] of formatChoicesByPath(buildCommandTree(program))) {
     registerCommandFieldAnnotations({
       path: path.split(" "),
@@ -430,6 +435,11 @@ export function registerSecFieldAnnotations(program?: Command): void {
       fields: { format: { choices, description: "Output format" } },
     });
   }
+}
+
+export function registerSecFieldAnnotations(program?: Command): void {
+  for (const annotations of FIELD_ANNOTATIONS) registerCommandFieldAnnotations(annotations);
+  if (program) registerFormatChoiceAnnotations(program);
 }
 
 export function registerSecCommandAnnotations(): void {
