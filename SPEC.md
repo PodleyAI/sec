@@ -189,9 +189,10 @@ Bring local SEC data forward to today. `sync` is a **command group** — bare `s
 | `portals`       | (single)               | Forms sweep: CFPORTAL family                                                                                      |
 | `crowdfunding`  | (single)               | Forms sweep: Form C family                                                                                        |
 | `reg-a`         | (single)               | Forms sweep: Reg A family                                                                                         |
-| `forms <types>` | (single)               | Generic forms sweep (comma-separated types). Not in `all`                                                         |
+| `form-d`        | (single)               | Forms sweep: Form D family (`D` and `D/A`)                                                                        |
+| `forms <types>` | (single)               | Generic forms sweep (comma-separated types). Not in `all`. Extractor ids expand (`D` → `D,D/A`)                   |
 | `spacs`         | `identify`, `process`  | SPAC candidate identification, then SPAC-chain forms for known SPACs ∪ high/medium candidates                     |
-| `all`           | (none)                 | Every leaf with `inAll: true`, in order: `submissions` → `facts` → `portals` → `crowdfunding` → `reg-a` → `spacs` |
+| `all`           | (none)                 | Every leaf with `inAll: true`, in order: `submissions` → `facts` → `portals` → `crowdfunding` → `reg-a` → `form-d` → `spacs` |
 
 **Common flags:**
 
@@ -203,7 +204,7 @@ Bring local SEC data forward to today. `sync` is a **command group** — bare `s
 | `--force`        | `submissions`, `facts`, `all`                        | Reprocess submissions/facts, ignoring processed state (`--force` on `submissions` applies to the `submissions` step)                |
 | `--retry-failed` | `facts`, `all`                                       | Also re-fetch CIKs whose last facts processing failed                                                                               |
 | `--full`         | `spacs`                                              | Rescan every entity on the `identify` step (default is incremental)                                                                 |
-| `--shard <i/N>`  | `portals`, `crowdfunding`, `reg-a`, `spacs`, `forms` | Process shard _i_ of _N_ (1-based)                                                                                                  |
+| `--shard <i/N>`  | `portals`, `crowdfunding`, `reg-a`, `form-d`, `spacs`, `forms` | Process shard _i_ of _N_ (1-based)                                                                                                  |
 
 **Daily path:** `sec sync all` (or `sec sync submissions` then other leaves as needed).
 

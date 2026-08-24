@@ -87,6 +87,7 @@ describe("CLI command graph", () => {
       "portals",
       "crowdfunding",
       "reg-a",
+      "form-d",
       "forms",
       "spacs",
     ]) {

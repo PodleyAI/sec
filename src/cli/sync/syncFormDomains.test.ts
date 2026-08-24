@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { FORM_TO_EXTRACTOR_ID } from "../../storage/versioning/extractorIds";
-import { SYNC_FORM_DOMAINS, formsForExtractorIds } from "./syncFormDomains";
+import { SYNC_FORM_DOMAINS, expandFormTypes, formsForExtractorIds } from "./syncFormDomains";
 
 type SyncFormDomain = keyof typeof SYNC_FORM_DOMAINS;
 
@@ -67,5 +67,23 @@ describe("SYNC_FORM_DOMAINS", () => {
     );
 
     expect(allForms.length).toBe(new Set(allForms).size);
+  });
+});
+
+describe("expandFormTypes", () => {
+  it("expands an extractor id to every form that extractor handles", () => {
+    const forms = expandFormTypes(["D"]);
+    expect(forms).toContain("D");
+    expect(forms).toContain("D/A");
+  });
+
+  it("leaves a specific form code alone so D/A does not pull in original D filings", () => {
+    expect(expandFormTypes(["D/A"])).toEqual(["D/A"]);
+  });
+
+  it("does not duplicate when the extractor and one of its forms are both named", () => {
+    const forms = expandFormTypes(["D", "D/A"]);
+    expect(forms.filter((form) => form === "D/A")).toHaveLength(1);
+    expect(forms).toContain("D");
   });
 });

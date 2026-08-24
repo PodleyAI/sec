@@ -75,7 +75,7 @@ describe("syncLeaves registry", () => {
       listSyncLeaves()
         .filter((l) => l.inAll)
         .map((l) => l.id)
-    ).toEqual(["submissions", "facts", "portals", "crowdfunding", "reg-a", "spacs"]);
+    ).toEqual(["submissions", "facts", "portals", "crowdfunding", "reg-a", "form-d", "spacs"]);
   });
 });
 

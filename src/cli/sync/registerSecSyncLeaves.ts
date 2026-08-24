@@ -19,7 +19,7 @@ import {
   shardCiks,
   spacUpdatesFiledOnOrAfter,
 } from "./spacSyncCiks";
-import { SYNC_FORM_DOMAINS, formsForExtractorIds } from "./syncFormDomains";
+import { SYNC_FORM_DOMAINS, expandFormTypes, formsForExtractorIds } from "./syncFormDomains";
 import { getSyncLeaf, registerSyncLeaf, type SyncRunContext } from "./syncLeaves";
 
 export function registerSecSyncLeaves(): void {
@@ -131,6 +131,26 @@ export function registerSecSyncLeaves(): void {
     ],
   });
 
+
+  registerSyncLeaf({
+    id: "form-d",
+    description: "Process Form D family filings",
+    order: 52,
+    inAll: true,
+    steps: [
+      {
+        id: "form-d",
+        title: "Process Form D filings",
+        run: async (ctx: SyncRunContext) => {
+          await runFormsSweep({
+            formTypes: formsForExtractorIds([...SYNC_FORM_DOMAINS["form-d"]]),
+            shard: ctx.shard,
+          });
+        },
+      },
+    ],
+  });
+
   registerSyncLeaf({
     id: "forms",
     description: "Process specific form types (comma-separated)",
@@ -144,7 +164,7 @@ export function registerSecSyncLeaves(): void {
           if (!ctx.formTypes?.length) {
             throw new Error("sync forms requires a comma-separated type list");
           }
-          await runFormsSweep({ formTypes: ctx.formTypes, shard: ctx.shard });
+          await runFormsSweep({ formTypes: expandFormTypes(ctx.formTypes), shard: ctx.shard });
         },
       },
     ],

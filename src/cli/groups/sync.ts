@@ -97,7 +97,7 @@ function applyLeafOptions(cmd: Command, leafId: string): Command {
       );
   }
 
-  if (leafId === "portals" || leafId === "crowdfunding" || leafId === "reg-a") {
+  if (leafId === "portals" || leafId === "crowdfunding" || leafId === "reg-a" || leafId === "form-d") {
     cmd.option(
       "--shard <i/N>",
       "Process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"

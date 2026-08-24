@@ -44,7 +44,7 @@ export { AddCommands, DI_EXEMPT_COMMANDS } from "./commands";
 
 export { addSyncLeafCommands } from "./cli/groups/sync";
 export { runFormsSweep } from "./cli/sync/runFormsSweep";
-export { formsForExtractorIds, SYNC_FORM_DOMAINS } from "./cli/sync/syncFormDomains";
+export { expandFormTypes, formsForExtractorIds, SYNC_FORM_DOMAINS } from "./cli/sync/syncFormDomains";
 export {
   clearSyncLeavesForTesting,
   EMPTY_SYNC_CONTEXT,
