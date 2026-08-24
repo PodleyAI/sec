@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.1.2
+
+### Features
+
+#### web
+
+- let a superset re-run the format pass and share the panel formatting
+- contribute sec's pickers, panels, status rail and cost badges
+
+### Bug Fixes
+
+#### web
+
+- address review — form vocabulary, dead-letter tone, and a scanning read
+
+### Chores
+
+- update deps to pull new api
+- remove protobufjs
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.4.1
+- `typebox`: 1.3.18
+- `workglow`: 0.4.1
+
 ## 0.1.1
 
 ### Chores

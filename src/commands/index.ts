@@ -24,6 +24,7 @@ import { registerUnderwriterFamilyCommands } from "./underwriterFamily";
 import { registerSpacCommands } from "./spac";
 import { registerEditorialCommands } from "./editorial";
 import { bootstrapSecRuntime } from "../config/bootstrapSecRuntime";
+import { registerSecWebUi } from "../web/registerSecWebUi";
 import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../config/tokens";
 
 /**
@@ -76,6 +77,11 @@ export const AddCommands = (program: Command): void => {
   registerEditorialCommands(program);
   addExtractorCommands(program);
   addEvalCommands(program);
+  // What the console shows for those commands: pickers for the identifiers
+  // (CIK, accession, extractor id), panels over their output, the operator
+  // rail, and the cost/safety badges. Registration is inert — it reads nothing
+  // — so it is safe here, ahead of any runtime.
+  registerSecWebUi(program);
   // The console over sec's own tree: `registerWebCommand` reads the commands
   // registered above off the live program, so nothing here has to be restated.
   //
