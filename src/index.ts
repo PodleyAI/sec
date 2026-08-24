@@ -230,3 +230,8 @@ export {
   clearEnvDerivedTokensForTesting,
   resetDependencyInjectionsForTesting,
 } from "./config/TestingDI";
+
+// The web console's contributed UI (pickers, panels, status rail, cost badges).
+// `AddCommands` already calls this; exported so a superset can compose its own
+// registrations beside sec's without importing the module path.
+export { registerSecWebUi } from "./web/registerSecWebUi";

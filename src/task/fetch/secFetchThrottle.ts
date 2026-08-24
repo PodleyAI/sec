@@ -74,6 +74,24 @@ export function setSecFetchLimiter(limiter: RateLimiter, reader?: ExternalPauseR
 }
 
 /**
+ * When the fetch cluster may next dispatch, in epoch ms (0 when nothing is
+ * pausing it). A reporting read: it takes no rung and arms no window.
+ *
+ * Reads the same sentinel {@link signalSecFetchThrottle} writes rather than
+ * this process's `cooldownUntil`, because the process asking is usually not the
+ * one that was blocked — the web console runs each command as a child, so the
+ * server's own module state is always empty. That also bounds what it can answer:
+ * under Postgres the sentinel is a shared table and the reading is the
+ * cluster's, while under SQLite the limiter storage is in-memory and per
+ * process, so a caller outside the fetching process learns nothing and should
+ * say so rather than report "clear".
+ */
+export async function readSecFetchPauseUntil(): Promise<number> {
+  const external = readExternalPause ? await readExternalPause().catch(() => 0) : 0;
+  return Math.max(external, cooldownUntil);
+}
+
+/**
  * On an EDGAR rate-limit block (a 429, or the 403 interstitial — see
  * `isEdgarRateLimitBlock`), pause the ENTIRE fetch cluster — every shard process — for a
  * cooldown by pushing the rate limiter's cluster-visible next-available-time
