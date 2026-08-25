@@ -47,6 +47,8 @@ export interface ParseSummary {
   readonly depaginatedChars: number;
   readonly lostChars: number;
   readonly lostRuns: number;
+  readonly ignoredChars: number;
+  readonly ignoredRuns: number;
   readonly coverage: number;
   readonly drops: readonly DropCount[];
   /** The largest losses, with what contained them — the ranked bug list. */
@@ -202,6 +204,8 @@ export class VerifyFilingTask extends Task<
         depaginatedChars: c.depaginatedChars,
         lostChars: c.lostChars,
         lostRuns: c.lostRuns,
+        ignoredChars: c.ignoredChars,
+        ignoredRuns: c.ignoredRuns,
         coverage: c.ratio,
         drops: [...drops].map(([reason, v]) => ({ reason, ...v })),
         worstLost: c.worstLost.slice(0, MAX_SUMMARY_LOSSES).map((l) => ({

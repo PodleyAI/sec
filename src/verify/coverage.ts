@@ -30,7 +30,7 @@ export function alphanumeric(s: string): string {
 }
 
 /** What became of one run of visible text. */
-export const RUN_VERDICTS = ["emitted", "depaginated", "lost"] as const;
+export const RUN_VERDICTS = ["emitted", "depaginated", "lost", "ignored"] as const;
 export type RunVerdict = (typeof RUN_VERDICTS)[number];
 
 export interface LostRun {
@@ -52,6 +52,19 @@ export interface CoverageReport {
   readonly emittedChars: number;
   readonly depaginatedChars: number;
   readonly lostChars: number;
+  /**
+   * Runs carrying no letter or digit — a rule of underscores, a cell of
+   * zero-width spaces, a lone bullet. Excluded from the ratio entirely rather
+   * than counted as loss: the comparison is on alphanumerics, so such a run can
+   * never be matched and would be reported lost forever however well the parser
+   * did. They are 22.4% of all runs across the committed corpus, and reporting
+   * them as loss put a permanent 65,304-character floor under the number.
+   *
+   * Counted here rather than dropped silently, so the denominator stays
+   * auditable.
+   */
+  readonly ignoredRuns: number;
+  readonly ignoredChars: number;
   /** Emitted / visible. De-paginated text counts against it: it is content the filing carried. */
   readonly ratio: number;
   readonly lostRuns: number;
@@ -112,7 +125,10 @@ export function measureCoverage(
   depaginated: readonly Container[]
 ): CoverageReport {
   const runs = visibleTextRuns(html);
-  const verdicts: RunVerdict[] = new Array(runs.length).fill("lost");
+  const needles = runs.map((run) => alphanumeric(run.text));
+  const verdicts: RunVerdict[] = needles.map((needle) =>
+    needle.length === 0 ? "ignored" : "lost"
+  );
   const containers: (Container | undefined)[] = new Array(runs.length).fill(undefined);
 
   const claim = (pool: readonly Container[], verdict: RunVerdict, record: boolean): void => {
@@ -126,8 +142,7 @@ export function measureCoverage(
         haystack = alphanumeric(container.text);
         texts.set(container, haystack);
       }
-      const needle = alphanumeric(runs[index]!.text);
-      if (needle.length > 0 && haystack.includes(needle)) verdicts[index] = verdict;
+      if (haystack.includes(needles[index]!)) verdicts[index] = verdict;
     });
   };
 
@@ -138,9 +153,16 @@ export function measureCoverage(
   let emittedChars = 0;
   let depaginatedChars = 0;
   let lostChars = 0;
+  let ignoredRuns = 0;
+  let ignoredChars = 0;
   const lost: LostRun[] = [];
   runs.forEach((run, index) => {
     const n = run.text.length;
+    if (verdicts[index] === "ignored") {
+      ignoredRuns += 1;
+      ignoredChars += n;
+      return;
+    }
     visibleChars += n;
     if (verdicts[index] === "emitted") emittedChars += n;
     else if (verdicts[index] === "depaginated") depaginatedChars += n;
@@ -158,11 +180,13 @@ export function measureCoverage(
   });
 
   return {
-    visibleRuns: runs.length,
+    visibleRuns: runs.length - ignoredRuns,
     visibleChars,
     emittedChars,
     depaginatedChars,
     lostChars,
+    ignoredRuns,
+    ignoredChars,
     ratio: visibleChars === 0 ? 1 : emittedChars / visibleChars,
     lostRuns: lost.length,
     worstLost: [...lost].sort((a, b) => b.text.length - a.text.length).slice(0, MAX_REPORTED_LOST),

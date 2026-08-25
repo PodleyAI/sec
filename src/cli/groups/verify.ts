@@ -61,8 +61,12 @@ function renderParse(result: VerifyFilingResult): void {
     `  ${parse.blocks} blocks (${parse.tables} tables, ${parse.headings} headings) from ${parse.htmlChars} chars of HTML`
   );
   console.log(
-    `  visible text ${parse.visibleChars} chars: ${percent(parse.coverage)} emitted, ` +
-      `${parse.depaginatedChars} de-paginated, ${parse.lostChars} LOST in ${parse.lostRuns} runs`
+    `  ${parse.visibleChars} chars of content: ${percent(parse.coverage)} emitted, ` +
+      `${parse.depaginatedChars} de-paginated as furniture, ` +
+      `${parse.lostChars === 0 ? "none lost" : `${parse.lostChars} LOST in ${parse.lostRuns} runs`}`
+  );
+  console.log(
+    `  ${parse.ignoredChars} chars ignored (${parse.ignoredRuns} runs carrying no letter or digit)`
   );
   if (parse.drops.length > 0) {
     console.log(

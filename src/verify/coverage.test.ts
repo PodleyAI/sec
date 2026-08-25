@@ -83,23 +83,48 @@ describe("buildParseTrace", () => {
   });
 
   /**
-   * A floor, never an equality.
+   * Zero loss, not a ratio floor.
    *
-   * Coverage on this corpus is short of 100% today — colspan two-column tables
-   * lose their value column — and the point of the number is to move up. An
-   * equality assertion would fail on the fix; a floor fails only on a
-   * regression, and is raised deliberately when a fix lands.
+   * The ratio mixes two different things — content that reached a block, and
+   * content the de-paginator deliberately removed as furniture — so tuning the
+   * furniture rules moves it without anything being lost. `lostChars` is the
+   * defect signal on its own, and it is 0 across all 44 committed fixtures, so
+   * the assertion can be the property rather than a number to maintain.
    */
-  it("holds the measured coverage floor on committed fixtures", () => {
-    const floors: ReadonlyArray<readonly [string, number]> = [
-      ["s1_1563568_000143774926013504.htm", 0.994],
-      ["s1_1849470_000110465921035696.htm", 0.998],
-      ["s1_1925283_000162828026027260.htm", 0.966],
+  it("loses no content on committed fixtures", () => {
+    const fixtures = [
+      "s1_1563568_000143774926013504.htm",
+      "s1_1849470_000110465921035696.htm",
+      "s1_1925283_000162828026027260.htm",
+      "s1_2049662_000110465926079324.htm",
     ];
-    const below = floors.flatMap(([name, floor]) => {
+    const losses = fixtures.flatMap((name) => {
       const { coverage } = buildParseTrace(readFileSync(join(fixtureRoot, name), "utf8"), name);
-      return coverage.ratio >= floor ? [] : [`${name}: ${coverage.ratio.toFixed(4)} < ${floor}`];
+      return coverage.lostChars === 0
+        ? []
+        : [`${name}: ${coverage.lostChars} chars in ${coverage.lostRuns} runs`];
     });
-    expect(below).toEqual([]);
+    expect(losses).toEqual([]);
+  });
+
+  /**
+   * Runs with no letter or digit are excluded from the measure, not counted as
+   * loss. They cannot be matched by a comparison made on alphanumerics, so
+   * counting them put a permanent 65,304-character floor under the corpus
+   * number — which is precisely the whole of what the measure reported as lost
+   * once the colspan defect was fixed.
+   */
+  it("ignores runs carrying no letter or digit rather than calling them lost", () => {
+    const html = "<html><body><p>Real content</p><p>_______________</p></body></html>";
+    const span = { start: html.indexOf("<p>Real"), end: html.indexOf("</p>") + 4 };
+    const report = measureCoverage(
+      html,
+      [{ type: "paragraph", source: span, text: "Real content" }],
+      []
+    );
+    expect(report.lostChars).toBe(0);
+    expect(report.ignoredRuns).toBe(1);
+    expect(report.ignoredChars).toBe(15);
+    expect(report.ratio).toBe(1);
   });
 });
