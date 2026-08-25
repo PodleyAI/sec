@@ -21,6 +21,7 @@ Companion docs in this repo:
 | `docs/identity.md`          | Observations, resolvers, normalizers, versioning, re-key ceremonies |
 | `docs/spac.md`              | SPAC lifecycle model, candidate screen, backfills                   |
 | `docs/eval.md`              | Model comparison harnesses and golden truth                         |
+| `docs/verification.md`      | `sec verify`, block source spans, the coverage measure              |
 
 Workglow-wide design specs and plans live in the sibling **PRD repo**
 (`prd/docs/superpowers/specs/` and `.../plans/`). Do not reference them from source
