@@ -377,7 +377,8 @@ const FORMD_AMENDMENT_TYPE = Type.Object({
 
 const FILING_TYPE = Type.Object({
   newOrAmendment: FORMD_AMENDMENT_TYPE,
-  dateOfFirstSale: FIRST_SALE_DATE_TYPE,
+  // Current XSD marks this required; many 2008 electronic filings omit it.
+  dateOfFirstSale: Type.Optional(FIRST_SALE_DATE_TYPE),
 });
 
 const OFFERING_DURATION_TYPE = Type.Object({

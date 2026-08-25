@@ -68,6 +68,12 @@ function parseIntegerOrNull(raw: string | number | undefined | null): number | n
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function firstSaleDate(
+  firstSale: OfferingData["typeOfFiling"]["dateOfFirstSale"]
+): string | null {
+  return firstSale !== undefined && "value" in firstSale ? firstSale.value : null;
+}
+
 async function safeCall<T>(fn: () => Promise<T>, context: string): Promise<T | null> {
   try {
     return await fn();
@@ -98,10 +104,7 @@ async function processOffering(
     file_number,
     industry_group: industryGroup.industryGroupType,
     industry_subgroup: industryGroup.investmentFundInfo?.investmentFundType || null,
-    date_of_first_sale:
-      "value" in offering.typeOfFiling.dateOfFirstSale
-        ? offering.typeOfFiling.dateOfFirstSale.value
-        : null,
+    date_of_first_sale: firstSaleDate(offering.typeOfFiling.dateOfFirstSale),
     exemptions: federalExemptionsExclusions,
     is_debt_type: typesOfSecOff.isDebtType === "true" ? true : null,
     is_equity_type: typesOfSecOff.isEquityType === "true" ? true : null,

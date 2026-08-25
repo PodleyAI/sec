@@ -155,6 +155,37 @@ describe("Form_D comprehensive storage test", () => {
       expect(jordanParkObs).toBeDefined();
     });
 
+    it("stores a Form D whose typeOfFiling omits dateOfFirstSale", async () => {
+      // 2008 electronic Form D XML commonly has <typeOfFiling> with only
+      // <newOrAmendment> and no <dateOfFirstSale>, despite the current XSD
+      // marking that element required. Persist used to throw STORE_ERROR on
+      // `"value" in undefined`.
+      const xmlContent = readFileSync(
+        join(__dirname, "mock_data", "form-d", "000192959422000001-primary_doc.xml"),
+        "utf-8"
+      ).replace(/<dateOfFirstSale>[\s\S]*?<\/dateOfFirstSale>/, "");
+
+      const formD = await Form_D.parse("D", xmlContent);
+      expect(formD.offeringData.typeOfFiling.dateOfFirstSale).toBeUndefined();
+
+      const accessionNumber = "000192959422000001";
+      const cik = parseInt(formD.primaryIssuer.cik);
+      const fileNumber = `file-${accessionNumber}`;
+
+      await processFormD({
+        cik,
+        file_number: fileNumber,
+        accession_number: accessionNumber,
+        filing_date: "",
+        primary_doc: "000192959422000001-primary_doc.xml",
+        formD,
+      });
+
+      const offering = await investmentOfferingRepo.getInvestmentOffering(cik, fileNumber);
+      expect(offering).toBeDefined();
+      expect(offering?.date_of_first_sale).toBeNull();
+    });
+
     it("should store investment offering data correctly", async () => {
       const xmlContent = readFileSync(
         join(__dirname, "mock_data", "form-d", "000192959422000001-primary_doc.xml"),
