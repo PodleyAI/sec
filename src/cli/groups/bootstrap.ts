@@ -96,10 +96,9 @@ export function addBootstrapCommands(program: Command): void {
             );
           }
 
-          // The forms producer is NOT a member of the flat task list: it is the
-          // body of the sweep's `while` loop, re-run once per batch. The loop
-          // nodes live in the outer workflow, so the CLI renders live
-          // per-iteration progress.
+          // The forms producer is NOT a member of the flat task list: it is
+          // piped by formsSweepLoop into the outer workflow (compute worklist,
+          // then forEach), so the CLI renders live per-iteration progress.
           const producer = options.skipForms
             ? undefined
             : newFormsWorklistTask(undefined, parseShardOption(options.shard));

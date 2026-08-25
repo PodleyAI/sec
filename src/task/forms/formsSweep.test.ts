@@ -128,11 +128,8 @@ describe("forms sweep wiring", () => {
     });
 
     const producer = new ComputeFormsWorklistTask({ defaults: {} });
-    const emitted: string[] = [];
-    while (!producer.exhausted) {
-      const out = await producer.run({});
-      emitted.push(...out.form);
-    }
+    const out = await producer.run({});
+    const emitted = out.form;
 
     expect(emitted).toContain("S-1");
     expect(emitted).toContain("25");
@@ -154,13 +151,10 @@ describe("forms sweep wiring", () => {
     });
 
     const producer = new ComputeFormsWorklistTask({
-      defaults: { form: ["D"], ciks: [1], batchSize: 10 },
+      defaults: { form: ["D"], ciks: [1] },
     });
-    const emittedCiks: number[] = [];
-    while (!producer.exhausted) {
-      const out = await producer.run({});
-      emittedCiks.push(...out.cik);
-    }
+    const out = await producer.run({});
+    const emittedCiks = out.cik;
 
     expect(emittedCiks).toEqual([1]);
   });
@@ -193,13 +187,10 @@ describe("forms sweep wiring", () => {
 
     try {
       const producer = new ComputeFormsWorklistTask({
-        defaults: { form: ["D"], ciks: [1], batchSize: 10 },
+        defaults: { form: ["D"], ciks: [1] },
       });
-      const emittedCiks: number[] = [];
-      while (!producer.exhausted) {
-        const out = await producer.run({});
-        emittedCiks.push(...out.cik);
-      }
+      const out = await producer.run({});
+      const emittedCiks = out.cik;
       expect(emittedCiks).toEqual([1]);
     } finally {
       repo.query = realQuery;
@@ -247,13 +238,10 @@ describe("forms sweep wiring", () => {
     });
 
     const producer = new ComputeFormsWorklistTask({
-      defaults: { form: ["8-K"], filedOnOrAfter: "2026-08-19", batchSize: 10 },
+      defaults: { form: ["8-K"], filedOnOrAfter: "2026-08-19" },
     });
-    const emitted: string[] = [];
-    while (!producer.exhausted) {
-      const out = await producer.run({});
-      emitted.push(...out.accessionNumber);
-    }
+    const out = await producer.run({});
+    const emitted = out.accessionNumber;
 
     expect(emitted).toEqual(["0000000001-26-000002"]);
   });
@@ -273,13 +261,10 @@ describe("forms sweep wiring", () => {
     });
 
     const producer = new ComputeFormsWorklistTask({
-      defaults: { form: ["D"], batchSize: 10 },
+      defaults: { form: ["D"] },
     });
-    const emittedCiks: number[] = [];
-    while (!producer.exhausted) {
-      const out = await producer.run({});
-      emittedCiks.push(...out.cik);
-    }
+    const out = await producer.run({});
+    const emittedCiks = out.cik;
 
     expect(emittedCiks.sort((a, b) => a - b)).toEqual([1, 2]);
   });
@@ -424,10 +409,10 @@ describe("forms sweep wiring", () => {
     expect(logs.some((line) => line.includes(`Would process ${groupSize + 1}`))).toBe(true);
   });
 
-  it("emits bounded batches and resumes across them, covering every filing once", async () => {
-    // The batch ceiling is what keeps the producer's memory independent of the
-    // corpus: it must hand out at most `batchSize` per call and pick up exactly
-    // where it left off, with no filing dropped or repeated across batches.
+  it("emits the full worklist in one run, covering every filing once", async () => {
+    // The producer used to yield 5k-item batches for a while-loop fan-out.
+    // The worklist size is known after the scan, so one run returns every
+    // filing and the downstream forEach maps i/N.
     const accessions: string[] = [];
     for (let i = 1; i <= 7; i++) {
       const acc = `0000000${String(i).padStart(3, "0")}-26-000001`;
@@ -435,20 +420,10 @@ describe("forms sweep wiring", () => {
       await seed({ cik: 100 + i, accession_number: acc, form: "3", primary_doc: "a.xml" });
     }
 
-    const producer = new ComputeFormsWorklistTask({ defaults: { form: ["3"], batchSize: 3 } });
-    const batches: string[][] = [];
-    while (!producer.exhausted) {
-      const out = await producer.run({});
-      batches.push(out.accessionNumber);
-      expect(out.accessionNumber.length).toBeLessThanOrEqual(3);
-      expect(out.count).toBe(out.accessionNumber.length);
-      expect(batches.length).toBeLessThanOrEqual(10); // guard against a non-advancing loop
-    }
-
-    expect(batches.length).toBeGreaterThan(1); // actually batched, not one big list
-    const emitted = batches.flat();
-    expect(emitted.length).toBe(accessions.length); // no duplicates across batches
-    expect(new Set(emitted)).toEqual(new Set(accessions)); // and none dropped
+    const out = await new ComputeFormsWorklistTask({ defaults: { form: ["3"] } }).run({});
+    expect(out.count).toBe(accessions.length);
+    expect(out.accessionNumber.length).toBe(accessions.length);
+    expect(new Set(out.accessionNumber)).toEqual(new Set(accessions));
   });
 
   it("parseShardOption converts 1-based i/N to a 0-based shard and rejects bad input", () => {
@@ -560,12 +535,24 @@ describe("forms sweep wiring", () => {
     expect(messages).toContain("3 0000000001-26-000001 · working");
   });
 
-  it("formsSweepLoop builds a runnable while+forEach sweep over the batches", async () => {
+  it("formsSweepLoop is compute-then-forEach, not a while over batches", () => {
+    // The worklist size is known after one producer run, so the outer graph is
+    // ComputeFormsWorklistTask → ForEachTask. A WhileTask over 5k-item maps
+    // showed "Iteration 8/Infinity: Map 408/5000" on a sweep whose N was known.
+    const wf = new Workflow();
+    formsSweepLoop(new ComputeFormsWorklistTask({ defaults: { form: ["3"] } }))(wf);
+    const types = wf.graph.getTasks().map((t) => (t as { type?: string }).type);
+    expect(types).not.toContain("WhileTask");
+    expect(types).toContain("ComputeFormsWorklistTask");
+    expect(types).toContain("ForEachTask");
+  });
+
+  it("formsSweepLoop builds a runnable forEach sweep over the computed worklist", async () => {
     // Exercises the exact production helper (not a hand-rolled copy) end to end.
     // ProcessAccessionDocFormTask has no primary_doc match here, so it
     // dead-letters PRIMARY_DOC_UNRESOLVED and returns {success:false} per
     // filing — the point is that the loop runs one iteration per filing without
-    // throwing, proving addFormsSweepLoop wires the outer graph correctly.
+    // throwing, proving formsSweepLoop wires the outer graph correctly.
     await seed({ cik: 111, accession_number: "0000000001-26-000001", form: "3", primary_doc: "" });
     await seed({ cik: 222, accession_number: "0000000002-26-000002", form: "3", primary_doc: "" });
 

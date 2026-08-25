@@ -49,12 +49,6 @@ export type ComputeFormsWorklistTaskInput = {
    * SPACs. An empty filing_date is kept.
    */
   readonly filedOnOrAfter?: string;
-  /**
-   * Filings emitted per batch. Defaults to {@link WORKLIST_BATCH_SIZE}; exposed
-   * mainly so tests can drive the batching/resume path with a handful of rows
-   * instead of thousands.
-   */
-  readonly batchSize?: number;
 };
 
 /**
@@ -81,22 +75,6 @@ const FILING_PAGE_SIZE = 10_000;
  * titles, SPAC download). The other bind in these queries is `form`.
  */
 const WORKLIST_CIK_CHUNK = 900;
-
-/**
- * Filings emitted per batch — the ceiling on what the producer holds and hands
- * to one fan-out iteration.
- *
- * The sweep processes FORMS_SWEEP_CONCURRENCY_LIMIT (10) filings at a time, so
- * the worklist never needed to exist in full: it previously materialized every
- * matching filing before the first fetch, ~1M entries and 158 MB for one shard
- * of today's corpus, and growing without bound. Batching caps that at ~5k
- * entries (~0.8 MB) and, more importantly, starts real work immediately
- * instead of after a multi-minute scan.
- *
- * Large enough to amortize the batch barrier: at 10-way concurrency a batch is
- * ~500 waves, so the workers draining at each batch tail cost well under 1%.
- */
-const WORKLIST_BATCH_SIZE = 5_000;
 
 /**
  * Deterministic 32-bit FNV-1a hash of the accession number, used only to
@@ -163,7 +141,6 @@ export class ComputeFormsWorklistTask extends Task<
       shardCount: Type.Optional(Type.Integer({ minimum: 1 })),
       ciks: Type.Optional(Type.Array(TypeSecCik())),
       filedOnOrAfter: Type.Optional(Type.String()),
-      batchSize: Type.Optional(Type.Integer({ minimum: 1 })),
     });
   }
 
@@ -181,24 +158,6 @@ export class ComputeFormsWorklistTask extends Task<
       count: Type.Integer(),
     });
   }
-
-  /**
-   * Resume state, held on the instance rather than chained through output
-   * ports. The `while` loop's body ends in the `forEach` fan-out, so the
-   * merged body output the loop chains forward is the fan-out's, not this
-   * task's — a resume key routed through ports would silently arrive stale
-   * and the loop would never advance. The loop condition instead closes over
-   * {@link exhausted} directly (see `formsSweepLoop`), and the subgraph is
-   * built once so this instance survives every iteration.
-   */
-  private forms: string[] | undefined;
-  private formPos = 0;
-  /** Last filing emitted for the current form; the resume point within it. */
-  private lastCik: number | undefined;
-  private lastAccession: string | undefined;
-
-  /** True once every requested form has been drained. Read by the loop condition. */
-  public exhausted = false;
 
   async execute(
     input: ComputeFormsWorklistTaskInput,
@@ -231,11 +190,10 @@ export class ComputeFormsWorklistTask extends Task<
     const filedOnOrAfter = input.filedOnOrAfter;
     const cheapTestOpts = { sharding, shardIndex, shardCount, cikAllowList, filedOnOrAfter };
     const dryRun = isDryRun();
-    const batchSize = input.batchSize ?? WORKLIST_BATCH_SIZE;
 
-    // One batch's worth of worklist — four scalars per filing, never an
-    // intermediate Filing[]. Bounded by WORKLIST_BATCH_SIZE regardless of how
-    // large the corpus grows, which is the whole point of the batching.
+    // Four scalars per filing, never an intermediate Filing[]. Paging keeps the
+    // query itself bounded ({@link FILING_PAGE_SIZE}); the arrays are the
+    // worklist the fan-out maps over, so their length is the known N.
     const accessionNumber: string[] = [];
     const cik: number[] = [];
     const formOut: string[] = [];
@@ -260,159 +218,79 @@ export class ComputeFormsWorklistTask extends Task<
       return active.semver;
     };
 
-    // Forms with a registered extractor, in a stable order so the resume
-    // position (formPos) means the same thing on every iteration.
-    //
     // The order is the SWEEP order, not the caller's: registration statements
     // mint the `spac` row that the 8-K / proxy / 25-15 handlers are gated on,
     // and each of those records a successful run when the row is missing, so
     // reaching them first drops their events with nothing to re-select them.
     // Applied to an explicit `--form` list too, so a multi-form request is
     // ordered correctly without the operator knowing to do it.
-    if (this.forms === undefined) {
-      this.forms = sortFormsForSweep(
-        [...formSet].filter((form) => {
-          if (formToExtractorId(form)) return true;
-          console.warn(`update-forms: form '${form}' has no registered extractor; skipping`);
-          return false;
-        })
-      );
+    const forms = sortFormsForSweep(
+      [...formSet].filter((form) => {
+        if (formToExtractorId(form)) return true;
+        console.warn(`update-forms: form '${form}' has no registered extractor; skipping`);
+        return false;
+      })
+    );
+
+    let total = 0;
+    for (const form of forms) {
+      const extractorId = formToExtractorId(form)!;
+      const extractorVersion = await resolveVersion(extractorId);
+      let from: number | undefined;
+      let seen: string | undefined;
+      for (;;) {
+        const { rows, full } = await this.readPage(filingRepo, form, from, seen, allowCiks);
+        if (rows.length === 0) break;
+
+        // One chunked `extractor_runs` lookup per PAGE, over the rows that pass
+        // the cheap in-memory tests. The corpus-wide Set this replaced was built
+        // once per form and held for its whole scan; at Form D's size that is
+        // hundreds of MB resident before the first filing is fetched, and every
+        // `--shard` process paid it in full. See
+        // {@link ExtractorRunRepo.successfulRunKeysForFilings}.
+        const eligible = rows.filter((f) => this.passesCheapTests(f, cheapTestOpts));
+        const successfulKeys = await runRepo.successfulRunKeysForFilings(
+          eligible,
+          extractorId,
+          extractorVersion,
+          form
+        );
+        for (const f of eligible) {
+          if (successfulKeys.has(filingRunKey(f))) continue;
+          total++;
+          if (dryRun) continue;
+          accessionNumber.push(f.accession_number);
+          cik.push(f.cik);
+          formOut.push(f.form!);
+          // "" when the filing names no primary document: the port is a parallel
+          // array, so the row has to keep its slot. `ProcessAccessionDocFormTask`
+          // reads it as absent and dead-letters that one filing.
+          fileName.push(resolvePrimaryDocName(f.primary_doc) ?? "");
+        }
+        if (!full) break;
+        const last = rows[rows.length - 1]!;
+        from = last.cik;
+        seen = last.accession_number;
+      }
     }
 
-    // Dry run reports the full total, so it scans everything in one pass and
-    // retains nothing — there is no fan-out to feed and no reason to batch.
+    const shardNote = sharding ? ` · shard ${shardIndex + 1}/${shardCount}` : "";
+    const sinceNote = filedOnOrAfter !== undefined ? ` (filed on or after ${filedOnOrAfter})` : "";
     if (dryRun) {
-      let total = 0;
-      for (const form of this.forms) {
-        const extractorId = formToExtractorId(form)!;
-        const extractorVersion = await resolveVersion(extractorId);
-        let from: number | undefined;
-        let seen: string | undefined;
-        for (;;) {
-          const { rows, full } = await this.readPage(filingRepo, form, from, seen, allowCiks);
-          const eligible = rows.filter((f) => this.passesCheapTests(f, cheapTestOpts));
-          const keys = await runRepo.successfulRunKeysForFilings(
-            eligible,
-            extractorId,
-            extractorVersion,
-            form
-          );
-          for (const f of eligible) {
-            if (keys.has(filingRunKey(f))) continue;
-            total++;
-          }
-          if (!full) break;
-          const last = rows[rows.length - 1]!;
-          from = last.cik;
-          seen = last.accession_number;
-        }
-      }
-      this.exhausted = true;
-      const shardNote = sharding ? ` (shard ${shardIndex + 1}/${shardCount})` : "";
-      const sinceNote =
-        filedOnOrAfter !== undefined ? ` (filed on or after ${filedOnOrAfter})` : "";
       console.log(
         `Would process ${total} unprocessed filings for forms: ${[...formSet].join(", ")}${shardNote}${sinceNote}`
       );
       return { accessionNumber: [], cik: [], form: [], fileName: [], count: 0 };
     }
 
-    if (this.formPos === 0 && this.lastCik === undefined) {
-      // Startup banner — one line per process so each shard's terminal shows
-      // what it is doing: the forms, its shard, and the shared fetch ceiling
-      // (the fetch budget is cluster-wide across all shards, not per-process).
-      // The worklist size is deliberately absent: it is no longer computed up
-      // front, which is what removes the multi-minute stall before any work.
-      const shardNote = sharding ? ` · shard ${shardIndex + 1}/${shardCount}` : "";
-      console.log(
-        `▶ forms sweep · form(s): ${[...formSet].join(",")}${shardNote} · ` +
-          `batches of ≤${batchSize} · ` +
-          `fetch ≤${SecFetchMaxPerSec} req/s (shared across shards)`
-      );
-    }
-
-    // Fill one batch, advancing through forms as each drains. Filings that
-    // fall outside this shard or already have a successful run are skipped
-    // here, so a batch always arrives at the fan-out full of real work.
-    while (accessionNumber.length < batchSize && this.formPos < this.forms.length) {
-      const form = this.forms[this.formPos]!;
-      const extractorId = formToExtractorId(form)!;
-
-      const extractorVersion = await resolveVersion(extractorId);
-
-      const { rows, full } = await this.readPage(
-        filingRepo,
-        form,
-        this.lastCik,
-        this.lastAccession,
-        allowCiks
-      );
-      if (rows.length === 0 && !full) {
-        // Form drained — advance and reset its per-form resume state.
-        this.formPos++;
-        this.lastCik = undefined;
-        this.lastAccession = undefined;
-        continue;
-      }
-
-      // One chunked `extractor_runs` lookup per PAGE, over the rows that pass
-      // the cheap in-memory tests. The corpus-wide Set this replaced was built
-      // once per form and held for its whole scan; at Form D's size that is
-      // hundreds of MB resident before the first filing is fetched, and every
-      // `--shard` process paid it in full. See
-      // {@link ExtractorRunRepo.successfulRunKeysForFilings}.
-      const eligible = rows.filter((f) => this.passesCheapTests(f, cheapTestOpts));
-      const successfulKeys = await runRepo.successfulRunKeysForFilings(
-        eligible,
-        extractorId,
-        extractorVersion,
-        form
-      );
-
-      // Resume must advance past every row EXAMINED, not every row emitted —
-      // rows dropped by the shard or already-processed tests are consumed too
-      // and must not be re-read. Rows left unexamined because the batch filled
-      // are deliberately not covered, so the next batch re-reads them.
-      let lastExamined: Filing | undefined;
-      let examinedAll = true;
-      for (const f of rows) {
-        if (accessionNumber.length >= batchSize) {
-          examinedAll = false;
-          break;
-        }
-        lastExamined = f;
-        // Re-tested rather than iterating `eligible`: resume must advance past
-        // every row EXAMINED, so the loop has to walk rows the cheap tests
-        // drop. One predicate, so the two cannot drift.
-        if (!this.passesCheapTests(f, cheapTestOpts)) continue;
-        if (successfulKeys.has(filingRunKey(f))) continue;
-        accessionNumber.push(f.accession_number);
-        cik.push(f.cik);
-        formOut.push(f.form!);
-        // "" when the filing names no primary document: the port is a parallel
-        // array, so the row has to keep its slot. `ProcessAccessionDocFormTask`
-        // reads it as absent and dead-letters that one filing.
-        fileName.push(resolvePrimaryDocName(f.primary_doc) ?? "");
-      }
-
-      if (lastExamined !== undefined) {
-        this.lastCik = lastExamined.cik;
-        this.lastAccession = lastExamined.accession_number;
-      }
-      // A short page means the form has no more rows — but only once this
-      // batch actually reached the end of it.
-      if (examinedAll && !full) {
-        this.formPos++;
-        this.lastCik = undefined;
-        this.lastAccession = undefined;
-      }
-    }
-
-    // Setting this on the batch that drains the last form (rather than on a
-    // subsequent empty one) lets the loop stop without a wasted iteration —
-    // WhileTask evaluates the condition after running the body, so this final
-    // partial batch is still fanned out.
-    if (this.formPos >= this.forms.length) this.exhausted = true;
+    // One line per process so each shard's terminal shows what it is doing:
+    // the forms, its shard, the known worklist size, and the shared fetch
+    // ceiling (the fetch budget is cluster-wide across all shards).
+    console.log(
+      `▶ forms sweep · form(s): ${[...formSet].join(",")}${shardNote} · ` +
+        `${total} filing${total === 1 ? "" : "s"} · ` +
+        `fetch ≤${SecFetchMaxPerSec} req/s (shared across shards)`
+    );
 
     return { accessionNumber, cik, form: formOut, fileName, count: accessionNumber.length };
   }

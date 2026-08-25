@@ -4,57 +4,55 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { readFile } from "node:fs/promises";
 import { Static, Type } from "typebox";
 import {
-  FetchUrlTaskOutput,
-  globalServiceRegistry,
-  IExecuteContext,
-  Task,
-  TaskAbortedError,
-  TaskError,
-  Workflow,
+    globalServiceRegistry,
+    IExecuteContext,
+    Task,
+    TaskAbortedError,
+    TaskError
 } from "workglow";
 import { SecCliConfigurationError } from "../../config/EnvToDI";
+import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import {
+    hasBlockingSectionFailure,
+    reapStaleObservations,
+} from "../../resolver/reapStaleObservations";
+import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
-import type { ParsedFormDocument } from "../../sec/forms/parsedFormDocument";
+import { processDeregistration } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
 import { processForm1A } from "../../sec/forms/exempt-offerings/Form_1_A.storage";
 import { processForm1K } from "../../sec/forms/exempt-offerings/Form_1_K.storage";
 import { processForm1SA } from "../../sec/forms/exempt-offerings/Form_1_SA.storage";
+import { processForm1U } from "../../sec/forms/exempt-offerings/Form_1_U.storage";
 import { processForm1Z } from "../../sec/forms/exempt-offerings/Form_1_Z.storage";
 import { processFormC } from "../../sec/forms/exempt-offerings/Form_C.storage";
-import { processForm1U } from "../../sec/forms/exempt-offerings/Form_1_U.storage";
-import { processRegAOfferingEvent } from "../../sec/forms/exempt-offerings/RegAOfferingEvent.storage";
-import { processFormQualif } from "../../sec/forms/exempt-offerings/Form_QUALIF.storage";
 import { processFormD } from "../../sec/forms/exempt-offerings/Form_D.storage";
-import { processFormCFPORTAL } from "../../sec/forms/portal/Form_CFPORTAL.storage";
-import { processOwnershipForm } from "../../sec/forms/insider-trading/OwnershipDocument.storage";
+import { processFormQualif } from "../../sec/forms/exempt-offerings/Form_QUALIF.storage";
+import { processRegAOfferingEvent } from "../../sec/forms/exempt-offerings/RegAOfferingEvent.storage";
 import { processForm144 } from "../../sec/forms/insider-trading/Form_144.storage";
-import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.storage";
-import { processForm424 } from "../../sec/forms/registration-statements/Form_424.storage";
+import { processOwnershipForm } from "../../sec/forms/insider-trading/OwnershipDocument.storage";
 import { processForm8K } from "../../sec/forms/miscellaneous-filings/Form_8_K.storage";
-import { processDeregistration } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
-import { processWithdrawal } from "../../sec/forms/registration-withdrawal-termination/processWithdrawal";
-import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
-import { processMergerProxy } from "../../sec/forms/proxies-information-statements/Form_DEFM14A.storage";
-import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
+import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
+import type { ParsedFormDocument } from "../../sec/forms/parsedFormDocument";
+import { processFormCFPORTAL } from "../../sec/forms/portal/Form_CFPORTAL.storage";
+import { processMergerProxy } from "../../sec/forms/proxies-information-statements/Form_DEFM14A.storage";
+import { processForm424 } from "../../sec/forms/registration-statements/Form_424.storage";
+import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.storage";
+import { processWithdrawal } from "../../sec/forms/registration-withdrawal-termination/processWithdrawal";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
-import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import type { DeadLetterReasonCode } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
+import { formToExtractorId } from "../../storage/versioning/extractorIds";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { formToExtractorId } from "../../storage/versioning/extractorIds";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
-import {
-  hasBlockingSectionFailure,
-  reapStaleObservations,
-} from "../../resolver/reapStaleObservations";
-import { readFile } from "node:fs/promises";
-import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { cachedAccessionDocPath, stripXslPrefix } from "../../util/accessionDocPath";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 
@@ -197,47 +195,17 @@ export class ProcessAccessionDocFormTask extends Task<
       return cached;
     }
 
-    const wf = context.own(new Workflow(), { title: `Fetch ${accessionNumber} ${fileName}` });
-    let text: string | undefined;
-    wf.pipe(
-      new SecFetchAccessionDocTask({ cik, accessionNumber, fileName }),
-      async function capture(fetchOutput: FetchUrlTaskOutput) {
-        text = fetchOutput.text ?? undefined;
-        return { success: true };
-      }
+    const fetchTask = context.own(
+      new SecFetchAccessionDocTask(
+        { cik, accessionNumber, fileName },
+        { title: `Fetch ${accessionNumber} ${fileName}` }
+      )
     );
+    let text: string | undefined;
     try {
-      await wf.run();
+      text = (await fetchTask.run()).text;
     } finally {
-      // The document body — a whole SEC submission, often multi-MB — lands in
-      // four places: the `text` local above, the fetch task's output port, the
-      // dataflow edge carrying it to `capture`, and (because the edge is an
-      // all-ports edge whose value the runner copies onto the consumer) the
-      // `capture` task's own input port. Only the local is still needed. The
-      // rest are cleared solely by the next run of this graph, which never
-      // comes: the workflow is built fresh per filing and run once, so without
-      // this the body stays reachable for the whole sweep — once per filing,
-      // unbounded.
-      //
-      // Deliberately not `resetGraph()`: that also flips every node's status
-      // back to PENDING, which makes the CLI progress rows flicker.
-      for (const dataflow of wf.graph.getDataflows()) {
-        dataflow.reset();
-      }
-      for (const task of wf.graph.getTasks()) {
-        task.resetInputData();
-        task.runOutputData = {};
-        task.error = undefined;
-      }
-      // `own` is add-only, and a task's subgraph is cleared only between runs
-      // of that task — so a caller that processes many filings under one
-      // running task accumulates one wrapper per filing. Releasing it detaches
-      // this branch regardless of what the caller does, and this task is also
-      // driven by callers that never disown (`FetchAndStoreFormsTask`,
-      // `sec fetch form`). In the `finally` because a failed fetch — a 404, a
-      // network error, an abort — is the common case in an unbounded sweep,
-      // and it retains the wrapper just the same.
-      context.disown(wf);
+      context.disown(fetchTask);
     }
     if (!text) {
       throw new TaskError(`Fetch returned no text for ${cik}/${accessionNumber}/${fileName}`);
