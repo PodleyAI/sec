@@ -99,7 +99,8 @@ That is the layout filers use for **"The Offering"** — the section `offering-t
 `spac-unit-terms`, `sponsor-promote` and the lock-up extractor all read, so the loss landed on
 trust amounts, unit structure, tickers and lock-up terms.
 
-Fixed in `@workglow/knowledge-base` by removing the second expansion. Measured across this
+Fixed in `@workglow/knowledge-base`, shipped in **workglow 0.4.3**, by removing the second
+expansion. Measured across this
 repo's 44 committed fixtures: 1,577 of 11,679 tables render differently, 41 fixtures recover
 text, **116,330 characters of disclosure come back**, and content loss goes from 116,330 to
 **zero**.
