@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
+import { globalServiceRegistry, TaskAbortedError } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { PortalRepo } from "../../../storage/portal/PortalRepo";
 import { recordSuccessions } from "./portalSuccession";
@@ -149,6 +149,9 @@ export async function processFormCFPORTAL({
   try {
     await recordSuccessions({ cik, accession_number, filing_date, formCfportal });
   } catch (error) {
+    // A cooperative cancellation is not a per-claim failure: it must stop the
+    // sweep rather than be logged and passed over.
+    if (error instanceof TaskAbortedError) throw error;
     console.warn(`Failed to record successions for portal ${cik}:`, error);
   }
 

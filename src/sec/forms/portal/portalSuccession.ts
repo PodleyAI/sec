@@ -22,6 +22,8 @@ export interface ResolvedSuccession {
   readonly predecessor_name: string | null;
   readonly predecessor_file_number: string | null;
   readonly predecessor_cik: number | null;
+  /** The filer's own free-text explanation (`acquiredDesc`). */
+  readonly detail: string | null;
 }
 
 /**
@@ -36,10 +38,10 @@ export interface ResolvedSuccession {
  * that has no CIK in the funding-portal index at all — and a name match would
  * have to guess. An unresolved claim is kept with a null `predecessor_cik`.
  */
-export async function resolveSuccessions(
+export function resolveSuccessions(
   formCfportal: FormCfportal,
   fileNumberIndex: Map<string, number>
-): Promise<ResolvedSuccession[]> {
+): ResolvedSuccession[] {
   const successions = formCfportal.formData?.successions;
   if (successions?.isSucceedingBusiness !== "Y") return [];
   const details = successions.acquiredHistoryDetails ?? [];
@@ -54,6 +56,7 @@ export async function resolveSuccessions(
       predecessor_name: detail.acquiredFundingPortal?.trim() || null,
       predecessor_file_number: fileNumber,
       predecessor_cik: (key === undefined ? undefined : fileNumberIndex.get(key)) ?? null,
+      detail: detail.acquiredDesc?.trim() || null,
     });
   }
   return out;
@@ -74,8 +77,11 @@ export async function resolveSuccessions(
  * and it leaves the surviving row untouched.
  *
  * A missing predecessor row is not an error: the acquired portal's own
- * CFPORTAL filings may not be ingested yet. The claim is stored either way, so
- * a later sweep can re-derive the pointer.
+ * CFPORTAL filings may not be ingested yet, and a `--shard` run can reach the
+ * successor's filing in a different process from the one that will register the
+ * predecessor. The claim is stored either way, so the pointer stays derivable —
+ * but nothing re-derives it today (`sec portal continuations` is not wired), so
+ * the gap is logged rather than passed over silently.
  */
 export async function recordSuccessions({
   cik,
@@ -94,12 +100,11 @@ export async function recordSuccessions({
   if (successions?.isSucceedingBusiness !== "Y") return [];
 
   const index = fileNumberIndex ?? (await buildPortalFileNumberIndex());
-  const resolved = await resolveSuccessions(formCfportal, index);
+  const resolved = resolveSuccessions(formCfportal, index);
   if (resolved.length === 0) return [];
 
   const repo = globalServiceRegistry.get(PORTAL_SUCCESSION_REPOSITORY_TOKEN);
   const now = new Date().toISOString();
-  const details = successions.acquiredHistoryDetails ?? [];
   const rows: PortalSuccession[] = resolved.map((entry) => ({
     accession_number,
     detail_index: entry.detail_index,
@@ -107,7 +112,7 @@ export async function recordSuccessions({
     predecessor_name: entry.predecessor_name,
     predecessor_file_number: entry.predecessor_file_number,
     predecessor_cik: entry.predecessor_cik,
-    detail: details[entry.detail_index]?.acquiredDesc?.trim() || null,
+    detail: entry.detail,
     filing_date: filing_date || null,
     created_at: now,
   }));
@@ -117,10 +122,18 @@ export async function recordSuccessions({
   for (const entry of resolved) {
     const predecessor = entry.predecessor_cik;
     if (predecessor === null || predecessor === cik) continue;
-    const existing = await portalRepo.getPortal(predecessor);
-    if (existing === undefined) continue;
-    if (existing.succeeded_by_cik === cik) continue;
-    await portalRepo.savePortal({ ...existing, succeeded_by_cik: cik });
+    // Locked read-modify-write of the pointer column alone. The predecessor's
+    // own filings are being processed by the same sweep, so a plain
+    // read-then-save here would race them.
+    if (await portalRepo.setSucceededBy(predecessor, cik)) continue;
+    // Said out loud rather than skipped in silence. The claim row is stored, so
+    // the pointer is recoverable — but nothing re-derives it today, and with
+    // `--shard` the successor's filing can be processed by a different process
+    // than the one that will register the predecessor.
+    console.warn(
+      `portal succession ${accession_number}: predecessor CIK ${predecessor} has no portal row yet; ` +
+        `the claim is recorded but succeeded_by_cik was not set`
+    );
   }
 
   return resolved;

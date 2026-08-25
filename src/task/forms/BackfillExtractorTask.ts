@@ -68,10 +68,6 @@ export async function runExtractorBackfill(
   }
   const skipped = candidates.length - todo.length;
 
-  if (opts.dryRun) {
-    return { selected: candidates.length, processed: 0, skipped };
-  }
-
   // Every candidate is either skipped or attempted, so the sweep is complete
   // when `resolved` reaches `candidates.length` — which is what makes the bar
   // reach 100% on a run that skipped most of its candidates, and what keeps a
@@ -85,8 +81,21 @@ export async function runExtractorBackfill(
     const tally =
       `Processed ${processed}, skipped ${skipped}, total ${total}` +
       (failed > 0 ? ` (${failed} failed)` : "");
-    opts.onProgress?.(Math.floor((resolved / Math.max(total, 1)) * 100), tally);
+    // A sweep with no candidates is finished, not stalled at 0%.
+    opts.onProgress?.(total === 0 ? 100 : Math.floor((resolved / total) * 100), tally);
   };
+
+  if (opts.dryRun) {
+    // A dry run is COMPLETE when it returns — it just processed nothing — so it
+    // reports its counts through the same channel rather than leaving the bar
+    // at 0% and the piped log empty.
+    opts.onProgress?.(
+      100,
+      `Dry run: ${todo.length} to process, skipped ${skipped}, total ${total}`
+    );
+    return { selected: candidates.length, processed: 0, skipped };
+  }
+
   // Emit once before the first filing so a sweep that skipped most of its
   // candidates opens at that baseline rather than at 0%.
   report();
@@ -157,12 +166,24 @@ export class BackfillExtractorTask extends Task<
     input: BackfillExtractorTaskInput,
     context: IExecuteContext
   ): Promise<BackfillExtractorTaskOutput> {
+    // The live progress UI only renders on a TTY — `runWorkflowCli` runs plainly
+    // when piped — so progress EVENTS alone leave an unattended backfill
+    // (nohup, CI, `> backfill.log`) silent for hours, which is what the
+    // per-hundred `console.log` these events replaced was for. Echoed at whole
+    // percents so a corpus-sized sweep costs at most 100 lines, and only where
+    // nothing is drawing over them.
+    let echoedPercent = -1;
     return runExtractorBackfill({
       extractorId: input.extractorId,
       force: input.force === true,
       dryRun: input.dryRun === true,
       signal: context.signal,
-      onProgress: (percent, message) => context.updateProgress(percent, message),
+      onProgress: (percent, message) => {
+        context.updateProgress(percent, message);
+        if (process.stdout.isTTY || percent === echoedPercent) return;
+        echoedPercent = percent;
+        console.log(`backfill ${input.extractorId}: ${percent}% — ${message}`);
+      },
       processFiling: async (accessionNumber, cik) => {
         const ft = context.own(
           new ProcessAccessionDocFormTask({ title: `Backfill ${accessionNumber}` })
