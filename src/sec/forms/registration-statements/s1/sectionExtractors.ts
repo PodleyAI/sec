@@ -882,7 +882,7 @@ async function runGuardedExtraction(
     : buildExtractionPrompt({ instructions, sectionText });
   let lastError: unknown;
   let rateLimitWaits = 0;
-  for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS; ) {
+  for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS;) {
     // Local grammar/ONNX providers cannot reliably echo a 16-hex token, and the
     // nonce is off by default besides; either way the schema must drop
     // `nonce_seen` or the model is asked to echo something it was never given.

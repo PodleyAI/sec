@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { MAX_FUZZY_MATCHES, collectPage } from "./_streamMatches";
+import { MAX_FUZZY_MATCHES, collectPage, streamMatchingRows } from "./_streamMatches";
 
 async function* gen(count: number): AsyncGenerator<number, void, undefined> {
   for (let i = 0; i < count; i++) yield i;
@@ -56,5 +56,80 @@ describe("collectPage", () => {
     expect(result.total).toBe(MAX_FUZZY_MATCHES);
     expect(result.exhausted).toBe(false);
     expect(result.rows).toEqual([0, 1]);
+  });
+});
+
+/**
+ * A repo whose `queryPage` pages an array by keyset, encoding the position as
+ * the index after the last row returned — the same shape as a real opaque
+ * cursor, small enough to assert on.
+ */
+function pagedRepo(rows: readonly number[], pageCalls: string[] = []) {
+  return {
+    queryPage: async (
+      _criteria: unknown,
+      request: { limit: number; cursor?: string }
+    ): Promise<{ items: number[]; nextCursor: string | undefined }> => {
+      pageCalls.push(request.cursor ?? "<start>");
+      const from = request.cursor === undefined ? 0 : Number(request.cursor);
+      const items = rows.slice(from, from + request.limit);
+      const end = from + items.length;
+      return { items, nextCursor: end >= rows.length ? undefined : String(end) };
+    },
+  } as never;
+}
+
+describe("streamMatchingRows", () => {
+  it("pages through the whole set, yielding only predicate survivors", async () => {
+    const seen = [];
+    for await (const row of streamMatchingRows(
+      pagedRepo([1, 2, 3, 4, 5]),
+      {},
+      (n) => n % 2 === 1,
+      2
+    )) {
+      seen.push(row);
+    }
+    expect(seen).toEqual([1, 3, 5]);
+  });
+
+  it("resumes nothing and re-reads nothing: each page is requested once", async () => {
+    const calls: string[] = [];
+    const seen = [];
+    for await (const row of streamMatchingRows(
+      pagedRepo([1, 2, 3, 4, 5], calls),
+      {},
+      () => true,
+      2
+    )) {
+      seen.push(row);
+    }
+    expect(seen).toEqual([1, 2, 3, 4, 5]);
+    expect(calls).toEqual(["<start>", "2", "4"]);
+  });
+
+  it("terminates on an empty page that still advertises a cursor", async () => {
+    // The termination contract, and the case it exists for: a concurrent delete
+    // can empty a page while the backend keeps handing back a position. Breaking
+    // on `!cursor` alone would spin here forever.
+    const calls: string[] = [];
+    const repo = {
+      queryPage: async (_criteria: unknown, request: { limit: number; cursor?: string }) => {
+        calls.push(request.cursor ?? "<start>");
+        return { items: [], nextCursor: "always-more" };
+      },
+    } as never;
+    const seen = [];
+    for await (const row of streamMatchingRows(repo, {}, () => true, 2)) seen.push(row);
+    expect(seen).toEqual([]);
+    expect(calls).toEqual(["<start>"]);
+  });
+
+  it("keeps going past a page whose rows all fail the predicate", async () => {
+    const seen = [];
+    for await (const row of streamMatchingRows(pagedRepo([1, 2, 3, 4]), {}, (n) => n > 3, 2)) {
+      seen.push(row);
+    }
+    expect(seen).toEqual([4]);
   });
 });
