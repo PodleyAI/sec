@@ -40,7 +40,7 @@ export {
 } from "./cli/queries/DbStatus";
 export { runCommand } from "./cli/runCommand";
 export { runWorkflowCli } from "./cli/runWorkflow";
-export { AddCommands, DI_EXEMPT_COMMANDS } from "./commands";
+export { AddCommands, DI_EXEMPT_COMMANDS, DI_EXEMPT_COMMAND_PATHS } from "./commands";
 
 export { addSyncLeafCommands } from "./cli/groups/sync";
 export { runFormsSweep } from "./cli/sync/runFormsSweep";
