@@ -588,7 +588,7 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     table: "filings",
     schema: FilingSchema,
     primaryKeyNames: FilingPrimaryKeyNames,
-    indexes: [["form", "cik"], ["filing_date"], ["accession_number"]],
+    indexes: [["form", "cik"], ["filing_date"], ["accession_number"], ["file_number"]],
   }),
   // ------------------------------ Crowdfunding --------------------------------
   defineStorage({
