@@ -130,6 +130,70 @@ describe("goldenS1Labels", () => {
     }
   }, 120_000);
 
+  /**
+   * Name fields whose value is transcribed from the section, so it can be
+   * looked for there. Keyed by the extractor's own `keyField`, so an extractor
+   * keyed on something that is not a name (`headline`, `purpose`,
+   * `holder_class`) is skipped rather than listed as an exception.
+   */
+  const TRANSCRIBED_NAME_FIELDS: ReadonlySet<string> = new Set(["full_name", "name", "legal_name"]);
+
+  /**
+   * Fold the punctuation the same document renders inconsistently: a filer's
+   * typographic apostrophe against a plain one, NFKD-separable accents, and the
+   * dash family. Case is folded too — a roster table shouting "JON NELSON" is
+   * the same label as the bio's "Jon Nelson".
+   */
+  const foldForLookup = (value: string): string =>
+    value
+      .normalize("NFKD")
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2010-\u2015]/g, "-")
+      .replace(/\s+/g, " ")
+      .toLowerCase()
+      .trim();
+
+  it("labels only names that appear in the section they were read from", () => {
+    // A label the section does not contain cannot be produced by an extractor
+    // that only ever sees that section, so it scores a COMPLIANT model wrong —
+    // the same failure the nickname carve-out above exists to prevent, and one
+    // no other guard here catches.
+    //
+    // This is the guard that makes the short names below safe to leave alone.
+    // The related-party section refers to counterparties by the defined term the
+    // filing set up elsewhere ("BTIG", "CCM", "Fund III") and to people by
+    // surname ("Mr. Green"; "Messrs. Lawson, Barr and Brown"). Those read like
+    // sloppy labels and are not: the full legal names live in the underwriting
+    // section and the defined-terms list, which this extractor is never handed.
+    // Every attempt to "correct" one to its legal name — verified against all 21
+    // such labels in the committed corpus — produces a string the section does
+    // not contain, and this assertion is what says so.
+    //
+    // That those shorthands then reach the canonical tier through
+    // `observeCompany` is a real problem, and it is a problem with the section
+    // the extractor is given, not with the label.
+    const { sections } = loadRealS1Sections([...LABELED_EXTRACTORS]);
+    const byKey = new Map(
+      sections.map((s) => [goldenLabelKey(s.filing, s.extractor), foldForLookup(s.text)])
+    );
+    for (const [key, rows] of Object.entries(GOLDEN_S1_LABELS)) {
+      const extractor = extractorOf(key);
+      const keyField = EVAL_EXTRACTORS[extractor]?.keyField;
+      if (keyField === undefined || !TRANSCRIBED_NAME_FIELDS.has(keyField)) continue;
+      const haystack = byKey.get(key);
+      if (haystack === undefined) continue; // covered by the section-existence guard
+      for (const row of rows) {
+        const name = String((row as Record<string, unknown>)[keyField] ?? "");
+        expect(name, `${key}: empty ${keyField}`).not.toBe("");
+        expect(
+          haystack.includes(foldForLookup(name)),
+          `${key}: ${JSON.stringify(name)} does not appear in the ${extractor} section`
+        ).toBe(true);
+      }
+    }
+  }, 120_000);
+
   it.each(LABELED_EXTRACTORS)(
     "covers every committed %s section (so --reference golden scores them all)",
     (extractor) => {

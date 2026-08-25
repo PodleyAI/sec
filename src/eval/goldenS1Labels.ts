@@ -63,6 +63,23 @@ export interface GoldenOwnerRow {
  * entity-kind discriminator, so a golden row carrying one would be an unscored
  * field the label guard rejects — and inventing a kind for a party the prose
  * names only in passing would be a judgement the filing does not support.
+ *
+ * **A short name here is usually correct, and is not a label to tidy up.** This
+ * section refers to counterparties by the defined term the filing set up
+ * elsewhere ("BTIG", "CCM", "EBC", "Fund III") and to people by surname
+ * ("Mr. Green"; "Messrs. Lawson, Barr and Brown"). The full legal names —
+ * BTIG, LLC; Cohen & Company Capital Markets; EarlyBirdCapital, Inc.;
+ * TCG Crossover Fund III, LP — live in the underwriting section and the
+ * defined-terms list, neither of which this extractor is ever handed. Every one
+ * of the 21 such labels in the committed corpus was checked against its section:
+ * the legal name appears in **none** of them, so labelling it would score a
+ * compliant extractor wrong. `goldenS1Labels.test.ts` asserts a label appears in
+ * its own section, which is what stops that correction being made by mistake.
+ *
+ * The consequence downstream is real and is NOT the label's fault: these names
+ * reach the canonical tier through `observeCompany` / `observePerson`, so a
+ * canonical company can end up named "CCM". Fixing that means giving the
+ * extractor the filing's defined-terms mapping, not rewriting ground truth.
  */
 export interface GoldenPartyRow {
   readonly name: string;
