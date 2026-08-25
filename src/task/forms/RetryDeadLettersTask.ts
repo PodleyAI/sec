@@ -6,15 +6,15 @@
 
 import { Static, Type } from "typebox";
 import {
-    globalServiceRegistry,
-    IExecuteContext,
-    Task,
-    TaskAbortedError,
-    TaskError
+  globalServiceRegistry,
+  IExecuteContext,
+  Task,
+  TaskAbortedError,
+  TaskError,
 } from "workglow";
 import {
-    ExtractionDeadLetterRepo,
-    isExpectedNegativeDeadLetter,
+  ExtractionDeadLetterRepo,
+  isExpectedNegativeDeadLetter,
 } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
@@ -101,7 +101,9 @@ export class RetryDeadLettersTask extends Task<
       // must grind through the whole worklist rather than abandon every later
       // accession on one bad filing.
       try {
-        const ft = context.own(new ProcessAccessionDocFormTask({ title: `Reprocess ${accessionNumber}` })); 
+        const ft = context.own(
+          new ProcessAccessionDocFormTask({ title: `Reprocess ${accessionNumber}` })
+        );
         try {
           await ft.run({ accessionNumber });
         } finally {

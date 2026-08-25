@@ -7,10 +7,10 @@ import { Static, Type } from "typebox";
 import { IExecuteContext, Task, TaskAbortedError } from "workglow";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 import {
-    defaultFilterTodo,
-    getBackfillDescriptor,
-    listBackfillableExtractorIds,
-    type BackfillCandidate,
+  defaultFilterTodo,
+  getBackfillDescriptor,
+  listBackfillableExtractorIds,
+  type BackfillCandidate,
 } from "./backfillDescriptors";
 
 export interface RunExtractorBackfillOptions {
@@ -137,7 +137,9 @@ export class BackfillExtractorTask extends Task<
       dryRun: input.dryRun === true,
       signal: context.signal,
       processFiling: async (accessionNumber, cik) => {
-        const ft = context.own(new ProcessAccessionDocFormTask({ title: `Backfill ${accessionNumber}` }));
+        const ft = context.own(
+          new ProcessAccessionDocFormTask({ title: `Backfill ${accessionNumber}` })
+        );
         try {
           await ft.run({ accessionNumber, cik });
         } finally {
