@@ -108,6 +108,29 @@ text, **116,330 characters of disclosure come back**, and content loss goes from
 Data extracted before that fix was extracted from tables missing their value column. Anything
 sourced from an offering table wants re-extraction.
 
+## Table rendering is pinned by snapshot
+
+`TableExtractor.test.ts` asserts the **grid** — `columnCount`, a cell's text, a rowspan
+filled down. Nothing downstream consumes the grid. Extraction is handed `TableNode.text`, the
+GFM rendering, and throughout the colspan defect the grid was correct while the rendering
+deleted the value column. Every property assertion passed.
+
+`TableExtractor.render.test.ts` pins the rendering instead, as **inline** snapshots sitting
+next to the markup that produced them. Inline rather than a `.snap` file on purpose: the
+failure mode of a snapshot suite is a diff nobody reads, and an external file of whole-filing
+output is exactly that. Each case is a shape real filers emit, cut to the smallest markup that
+still produces it — colspan label/value, rowspan fill-down, spacer pruning, header
+partitioning, the empty GFM header most EDGAR tables get, pipe/newline escaping, short-row
+padding, a page-break stitch, and the peeled offering caption.
+
+Checked against the defect it exists for: run this suite with `workglow@0.4.2` installed and
+**one** case fails — the colspan one — with the value column visibly replaced by a repeated
+label. The other ten pass, so a real regression surfaces as one readable diff rather than a
+wall of churn.
+
+When one of these changes, the diff **is** the review. Read the table, not the test name, and
+re-accept only if the new rendering is the better answer.
+
 ## Why the golden tests did not catch it
 
 `parseEdgarHtml.golden.test.ts` is property-based: node-count thresholds, expected section-name
