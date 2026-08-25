@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/crowdfunding" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>CFPORTAL</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001751525</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <flags>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <identifyingInformation>
+      <nameOfPortal>OpenDeal Portal LLC</nameOfPortal>
+      <otherNamesAndWebsiteUrls>
+        <otherNamesUsedPortal>Republic</otherNamesUsedPortal>
+        <webSiteOfPortal>https://republic.co</webSiteOfPortal>
+      </otherNamesAndWebsiteUrls>
+      <irsEmployerIdNumber>83-1617266</irsEmployerIdNumber>
+      <portalAddress>
+        <com:street1>335 MADISON AVE 16TH FLOOR</com:street1>
+        <com:city>NEW YORK</com:city>
+        <com:stateOrCountry>NY</com:stateOrCountry>
+        <com:zipCode>10017</com:zipCode>
+      </portalAddress>
+      <mailingAddressDifferent>true</mailingAddressDifferent>
+      <portalMailingAddress>
+        <com:street1>335 MADISON AVE 16TH FLOOR</com:street1>
+        <com:city>NEW YORK</com:city>
+        <com:stateOrCountry>NY</com:stateOrCountry>
+        <com:zipCode>10017</com:zipCode>
+      </portalMailingAddress>
+      <portalContact>
+        <portalContactPhone>2124016930</portalContactPhone>
+        <portalContactEmail>compliance@republic.co</portalContactEmail>
+      </portalContact>
+      <contactEmployeeName>
+        <com:prefix>Mrs.</com:prefix>
+        <com:firstName>Caroline</com:firstName>
+        <com:middleName>Sophie</com:middleName>
+        <com:lastName>Hofmann</com:lastName>
+      </contactEmployeeName>
+      <contactEmployeeTitle>COO</contactEmployeeTitle>
+      <fiscalYearEnd>December</fiscalYearEnd>
+      <anyPreviousRegistrations>N</anyPreviousRegistrations>
+      <anyForeignRegistrations>N</anyForeignRegistrations>
+    </identifyingInformation>
+    <formOfOrganization>
+      <legalStatusForm>Limited Liability Company</legalStatusForm>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <dateIncorporation>08-16-2018</dateIncorporation>
+    </formOfOrganization>
+    <successions>
+      <isSucceedingBusiness>Y</isSucceedingBusiness>
+      <acquiredHistoryDetails>
+        <acquiredFundingPortal>OpenDeal Inc.</acquiredFundingPortal>
+        <acquiredPortalFileNumber>007-00046</acquiredPortalFileNumber>
+        <acquiredDesc>As a result of an internal reorganization, the funding portal operations and license will shift from OpenDeal Inc., to its wholly owned subsidiary, OpenDeal Portal LLC. As a result, OpenDeal Inc., will become the direct owner of the funding portal and the current direct owners of the funding portal will become indirect owners. No other changes to the owners or control persons of the funding portal member will result from the contemplated reorganization. The successor will receive a license to the software and other intellectual property supporting the operations of the funding portal, however, ownership of the relevant intellectual property will remain with the parent, OpenDeal Inc. Employees, relationships with vendors, and other resources not directly supporting the funding portal's operations may remain with OpenDeal Inc.</acquiredDesc>
+      </acquiredHistoryDetails>
+    </successions>
+    <controlRelationships>
+      <fullLegalNames>
+        <fullLegalName>OpenDeal Inc.</fullLegalName>
+      </fullLegalNames>
+      <fullLegalNames>
+        <fullLegalName>Kendrick Nguyen</fullLegalName>
+      </fullLegalNames>
+      <fullLegalNames>
+        <fullLegalName>Caroline Hofmann</fullLegalName>
+      </fullLegalNames>
+      <fullLegalNames>
+        <fullLegalName>Peter Green</fullLegalName>
+      </fullLegalNames>
+    </controlRelationships>
+    <disclosureAnswers>
+      <criminalDisclosure>
+        <isConvictedOfFelony>N</isConvictedOfFelony>
+        <isChargedWithFelony>N</isChargedWithFelony>
+        <isConvictedMisdemeanor>N</isConvictedMisdemeanor>
+        <isChargedMisdemeanor>N</isChargedMisdemeanor>
+      </criminalDisclosure>
+      <regulatoryActionDisclosure>
+        <isMadeFalseStatement>N</isMadeFalseStatement>
+        <isViolatedRegulation>N</isViolatedRegulation>
+        <isCauseOfDenial>N</isCauseOfDenial>
+        <isOrderAgainst>N</isOrderAgainst>
+        <isImposedPenalty>N</isImposedPenalty>
+        <isUnEthical>N</isUnEthical>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isFoundInCauseOfDenial>N</isFoundInCauseOfDenial>
+        <isOrderAgainstActivity>N</isOrderAgainstActivity>
+        <isDeniedLicense>N</isDeniedLicense>
+        <isFoundMadeFalseStatement>N</isFoundMadeFalseStatement>
+        <isFoundInViolationOfRules>N</isFoundInViolationOfRules>
+        <isFoundInCauseOfSuspension>N</isFoundInCauseOfSuspension>
+        <isDisciplined>N</isDisciplined>
+        <isAuthorizedToActAttorney>N</isAuthorizedToActAttorney>
+        <isRegulatoryComplaint>N</isRegulatoryComplaint>
+      </regulatoryActionDisclosure>
+      <civilJudicialActionDisclosure>
+        <isEnjoined>N</isEnjoined>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isDismissed>N</isDismissed>
+        <isNamedInCivilProceeding>N</isNamedInCivilProceeding>
+      </civilJudicialActionDisclosure>
+      <financialDisclosure>
+        <hasSubjectOfBankruptcy>N</hasSubjectOfBankruptcy>
+        <hasTrusteeAppointed>N</hasTrusteeAppointed>
+        <hasBondDenied>N</hasBondDenied>
+        <doesAppHaveLiens>N</doesAppHaveLiens>
+      </financialDisclosure>
+    </disclosureAnswers>
+    <nonSecuritiesRelatedBusiness>
+      <isEngagedInNonSecurities>N</isEngagedInNonSecurities>
+    </nonSecuritiesRelatedBusiness>
+    <escrowArrangements>
+      <investorFundsContacts>
+        <investorFundsContactName>Prime Trust LLC</investorFundsContactName>
+        <investorFundsAddress>
+          <com:street1>10890 S. Eastern Ave. Suite 114</com:street1>
+          <com:city>Henderson</com:city>
+          <com:stateOrCountry>NV</com:stateOrCountry>
+          <com:zipCode>89052</com:zipCode>
+        </investorFundsAddress>
+        <investorFundsContactPhone>702-840-4000</investorFundsContactPhone>
+      </investorFundsContacts>
+      <compensationDesc>OpenDeal Portal LLC, may charge commissions and other fees payable in cash and/or securities of an issuer.</compensationDesc>
+    </escrowArrangements>
+    <execution>
+      <executionDate>09-04-2018</executionDate>
+      <fullLegalNameFundingPortal>OpenDeal Portal LLC</fullLegalNameFundingPortal>
+      <personSignature>Kendrick Nguyen</personSignature>
+      <personTitle>CEO of OpenDeal Inc., sole member of OpenDeal Portal LLC</personTitle>
+    </execution>
+    <scheduleA>
+      <entityOrNaturalPerson>
+        <fullLegalName>OpenDeal Inc.</fullLegalName>
+        <entityType>DE</entityType>
+        <titleStatus>Member</titleStatus>
+        <dateOfTitleStatusAcquired>08/2018</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>000283874</crdNumber>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Nguyen, Kendrick</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>CEO</titleStatus>
+        <dateOfTitleStatusAcquired>09/2018</dateOfTitleStatusAcquired>
+        <ownershipCode>C</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>006647102</crdNumber>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Hofmann, Caroline S.</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>COO/CCO</titleStatus>
+        <dateOfTitleStatusAcquired>09/2018</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>000676827</crdNumber>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Green, Peter</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>Vice President</titleStatus>
+        <dateOfTitleStatusAcquired>09/2018</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>006832617</crdNumber>
+      </entityOrNaturalPerson>
+    </scheduleA>
+  </formData>
+</edgarSubmission>

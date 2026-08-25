@@ -214,6 +214,7 @@ describe("BackfillExtractorTask", () => {
       signal: undefined,
       own: (x: unknown) => x,
       disown: () => {},
+      updateProgress: async () => {},
     } as never);
     expect(out).toEqual({ selected: 1, processed: 0, skipped: 0 });
   });

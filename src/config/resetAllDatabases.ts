@@ -42,6 +42,7 @@ import {
   CROWDFUNDING_REPOSITORY_TOKEN,
 } from "../storage/portal/CrowdfundingSchema";
 import { PORTAL_REPOSITORY_TOKEN } from "../storage/portal/PortalSchema";
+import { PORTAL_SUCCESSION_REPOSITORY_TOKEN } from "../storage/portal/PortalSuccessionSchema";
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../storage/processing/CikLastUpdateSchema";
 import { DAILY_INDEX_CURSOR_REPOSITORY_TOKEN } from "../storage/processing/DailyIndexCursorSchema";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFactsSchema";
@@ -419,6 +420,7 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(CROWDFUNDING_HISTORY_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CHANGE_LOG_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(PORTAL_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(PORTAL_SUCCESSION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_OFFERING_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_OFFERING_HISTORY_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN).deleteAll();

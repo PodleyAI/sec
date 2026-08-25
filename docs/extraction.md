@@ -592,3 +592,45 @@ committed ones were sourced from EDGAR daily indexes because the quarterly `form
 may 403 from cloud containers. CFPORTAL fixtures live under
 `src/sec/forms/portal/mock_data/cfportal/`. `isFormParsingSupported` and
 `FORM_TO_EXTRACTOR_ID` are kept consistent by `src/sec/forms/form-wiring.test.ts`.
+
+### Portal continuation (`portal_succession` / `portals.succeeded_by_cik`)
+
+Form CFPORTAL Item 1 carries a **Successions** block — `isSucceedingBusiness` plus up to
+five `acquiredHistoryDetails`, each naming the acquired portal, its SEC file number and a
+free-text explanation. It is EDGAR's own record of one funding portal taking over another's
+registration, and it is what makes Republic one portal rather than two: `OpenDeal Portal LLC`
+(CIK 1751525) declares `007-00046`, which is `OpenDeal Inc.` (CIK 1672732).
+
+Each `Y` filing writes one `portal_succession` row per detail, keyed
+`(accession_number, detail_index)` and append-only. A filing answering `N` writes nothing —
+the row exists to state a succession, and every other filing already says there was none.
+
+Resolution is by **file number only**. `buildPortalFileNumberIndex` maps every CFPORTAL-family
+filing's `file_number` to its CIK; measured over the whole funding-portal universe (137 filers
+harvested from EDGAR) the mapping is 1:1 — 137 distinct numbers, none shared — which is what
+makes a succession's `acquiredPortalFileNumber` a join key rather than a hint. A number two
+filers share is dropped from the index instead of resolved to an arbitrary one of them.
+`normalizePortalFileNumber` compares both halves as integers, since filers type `7-00065` and
+`007-000012` as readily as the padded form, and refuses a value with no `-` (a bare `7` would
+otherwise match every portal at once). `acquiredFundingPortal` is never used to resolve: it is
+free text, and one committed filing names a predecessor ("Silicon Prairie Holdings Inc.") that
+has no CIK in the index at all. An unresolved claim is kept with a null `predecessor_cik`.
+
+`portals.succeeded_by_cik` is set on the **predecessor**, pointing forward to the filer, and
+only when the resolved CIK **differs** from the filer's own. Three of the four `Y` answers in
+the entire universe are self-referential — a rename EDGAR handled by keeping the CIK (Silicon
+Prairie, Wunderfund) — and those produce no duplicate registration, so treating one as a
+continuation would retire a filer that is still the same live portal.
+
+That column is the only thing that says an older registration stopped. `live` means "did not
+file CFPORTAL-W", and a predecessor commonly never files one: OpenDeal Inc.'s last filing is
+2018-12-11 and it never withdrew, so both Republic rows read `live` and a consumer reading
+`live` alone shows two live portals where there is one.
+
+⚠️ **The claim is made once, in the filing that carries the handover** — not carried forward.
+OpenDeal Portal LLC's 2018 registration answers `Y`; its 2025 amendment answers `N`. A sweep
+that reads only the latest filing per portal finds nothing, which is why the fixture is the
+original 2018 document.
+
+Not yet wired: the family tier, `sec portal continuations` / `suggest-families`. The
+embarc-side fold reads `succeeded_by_cik` directly.

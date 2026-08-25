@@ -7,10 +7,10 @@ import { Static, Type } from "typebox";
 import { IExecuteContext, Task, TaskAbortedError } from "workglow";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 import {
-    defaultFilterTodo,
-    getBackfillDescriptor,
-    listBackfillableExtractorIds,
-    type BackfillCandidate,
+  defaultFilterTodo,
+  getBackfillDescriptor,
+  listBackfillableExtractorIds,
+  type BackfillCandidate,
 } from "./backfillDescriptors";
 
 export interface RunExtractorBackfillOptions {
@@ -20,6 +20,14 @@ export interface RunExtractorBackfillOptions {
   readonly signal?: AbortSignal;
   /** Reprocess one filing. The task wires ProcessAccessionDocFormTask; tests inject a counter. */
   readonly processFiling: (accessionNumber: string, cik: number) => Promise<void>;
+  /**
+   * Sweep progress, as a percentage and a human-readable tally.
+   *
+   * A callback rather than an {@link IExecuteContext} so this function stays
+   * runnable from a test with an injected counter and no task graph — the same
+   * separation {@link RunExtractorBackfillOptions.processFiling} keeps.
+   */
+  readonly onProgress?: (percent: number, message: string) => void;
 }
 
 export interface ExtractorBackfillResult {
@@ -60,11 +68,38 @@ export async function runExtractorBackfill(
   }
   const skipped = candidates.length - todo.length;
 
+  // Every candidate is either skipped or attempted, so the sweep is complete
+  // when `resolved` reaches `candidates.length` — which is what makes the bar
+  // reach 100% on a run that skipped most of its candidates, and what keeps a
+  // failed filing from stalling it forever (a failure resolves the candidate;
+  // it just does not process it).
+  let processed = 0;
+  let failed = 0;
+  const total = candidates.length;
+  const report = (): void => {
+    const resolved = processed + failed + skipped;
+    const tally =
+      `Processed ${processed}, skipped ${skipped}, total ${total}` +
+      (failed > 0 ? ` (${failed} failed)` : "");
+    // A sweep with no candidates is finished, not stalled at 0%.
+    opts.onProgress?.(total === 0 ? 100 : Math.floor((resolved / total) * 100), tally);
+  };
+
   if (opts.dryRun) {
+    // A dry run is COMPLETE when it returns — it just processed nothing — so it
+    // reports its counts through the same channel rather than leaving the bar
+    // at 0% and the piped log empty.
+    opts.onProgress?.(
+      100,
+      `Dry run: ${todo.length} to process, skipped ${skipped}, total ${total}`
+    );
     return { selected: candidates.length, processed: 0, skipped };
   }
 
-  let processed = 0;
+  // Emit once before the first filing so a sweep that skipped most of its
+  // candidates opens at that baseline rather than at 0%.
+  report();
+
   for (const c of todo) {
     if (opts.signal?.aborted) throw new TaskAbortedError();
     try {
@@ -74,16 +109,16 @@ export async function runExtractorBackfill(
       // A cooperative cancellation must stop the sweep, not be swallowed as a
       // per-filing failure like a fetch/parse error.
       if (err instanceof TaskAbortedError) throw err;
+      failed++;
       console.error(
         `backfill ${opts.extractorId}: failed to reprocess ${c.accession_number}:`,
         err
       );
     }
-    if (processed % 100 === 0 && processed > 0) {
-      console.log(
-        `backfill ${opts.extractorId}: progress — processed=${processed}, skipped=${skipped}, total=${candidates.length}`
-      );
-    }
+    // Per filing, not per hundred: each one is a fetch plus a parse, so the
+    // events are far apart in wall-clock terms and this is what makes the bar
+    // advance instead of jumping in blocks.
+    report();
   }
   return { selected: candidates.length, processed, skipped };
 }
@@ -131,13 +166,28 @@ export class BackfillExtractorTask extends Task<
     input: BackfillExtractorTaskInput,
     context: IExecuteContext
   ): Promise<BackfillExtractorTaskOutput> {
+    // The live progress UI only renders on a TTY — `runWorkflowCli` runs plainly
+    // when piped — so progress EVENTS alone leave an unattended backfill
+    // (nohup, CI, `> backfill.log`) silent for hours, which is what the
+    // per-hundred `console.log` these events replaced was for. Echoed at whole
+    // percents so a corpus-sized sweep costs at most 100 lines, and only where
+    // nothing is drawing over them.
+    let echoedPercent = -1;
     return runExtractorBackfill({
       extractorId: input.extractorId,
       force: input.force === true,
       dryRun: input.dryRun === true,
       signal: context.signal,
+      onProgress: (percent, message) => {
+        context.updateProgress(percent, message);
+        if (process.stdout.isTTY || percent === echoedPercent) return;
+        echoedPercent = percent;
+        console.log(`backfill ${input.extractorId}: ${percent}% — ${message}`);
+      },
       processFiling: async (accessionNumber, cik) => {
-        const ft = context.own(new ProcessAccessionDocFormTask({ title: `Backfill ${accessionNumber}` }));
+        const ft = context.own(
+          new ProcessAccessionDocFormTask({ title: `Backfill ${accessionNumber}` })
+        );
         try {
           await ft.run({ accessionNumber, cik });
         } finally {

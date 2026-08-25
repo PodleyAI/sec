@@ -64,6 +64,38 @@ export class PortalRepo implements PortalRepoOptions {
     });
   }
 
+  /**
+   * Points a portal's row forward to the filer that took over its registration.
+   *
+   * Under the same per-CIK lock as {@link savePortalAsOf}, and it re-reads
+   * inside the lock. This write targets a row whose OWN filings the sweep is
+   * processing concurrently (10 at a time), so a read-merge-write outside the
+   * lock would lost-update whatever landed in between — writing back a stale
+   * `live: true` over a withdrawal is the case that costs, and it is the exact
+   * hazard {@link portalWriteLock} was introduced for.
+   *
+   * No `as_of` guard, unlike {@link savePortalAsOf}. The evidence is the
+   * SUCCESSOR's filing, which is normally OLDER than the predecessor's last one
+   * — OpenDeal Inc. kept filing until 2018-12-11, after the September handover —
+   * so a staleness check would reject precisely the writes this exists for.
+   * Only the pointer column is touched, so an older successor filing cannot roll
+   * any other field back.
+   *
+   * Returns false when the portal has no row yet, which is not an error: the
+   * acquired portal's own CFPORTAL filings may not be ingested.
+   */
+  async setSucceededBy(cik: number, succeeded_by_cik: number): Promise<boolean> {
+    let linked = false;
+    await portalWriteLock.lock(cik, async () => {
+      const existing = await this.getPortal(cik);
+      if (existing === undefined) return;
+      linked = true;
+      if (existing.succeeded_by_cik === succeeded_by_cik) return;
+      await this.savePortal({ ...existing, succeeded_by_cik });
+    });
+    return linked;
+  }
+
   async deletePortal(cik: number): Promise<void> {
     await this.portalRepository.delete({ cik });
   }

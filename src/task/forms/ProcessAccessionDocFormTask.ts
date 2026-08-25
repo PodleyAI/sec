@@ -7,17 +7,17 @@
 import { readFile } from "node:fs/promises";
 import { Static, Type } from "typebox";
 import {
-    globalServiceRegistry,
-    IExecuteContext,
-    Task,
-    TaskAbortedError,
-    TaskError
+  globalServiceRegistry,
+  IExecuteContext,
+  Task,
+  TaskAbortedError,
+  TaskError,
 } from "workglow";
 import { SecCliConfigurationError } from "../../config/EnvToDI";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import {
-    hasBlockingSectionFailure,
-    reapStaleObservations,
+  hasBlockingSectionFailure,
+  reapStaleObservations,
 } from "../../resolver/reapStaleObservations";
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";

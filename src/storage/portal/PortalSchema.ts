@@ -45,6 +45,21 @@ export const PortalSchema = Type.Object({
       })
     )
   ),
+  /**
+   * The portal that took over this registration, when a later CFPORTAL filing
+   * says so — set on the PREDECESSOR, pointing forward to the surviving filer.
+   *
+   * Derived, never curated: it comes from a succession block whose
+   * `acquiredPortalFileNumber` resolves to a DIFFERENT CIK. A self-referential
+   * succession is a rename EDGAR handled by keeping the CIK, which produces no
+   * duplicate registration and must not set this.
+   *
+   * It is the only thing that says an older registration stopped. `live` means
+   * "did not file CFPORTAL-W", and a predecessor commonly never files one — its
+   * successor's filing is the whole of the evidence — so a consumer reading
+   * `live` alone shows two live portals where there is one.
+   */
+  succeeded_by_cik: Type.Optional(TypeNullable(TypeSecCik())),
   as_of: Type.Optional(
     TypeNullable(
       Type.String({
