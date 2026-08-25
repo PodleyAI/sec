@@ -14,7 +14,7 @@ import {
   type GoldenRow,
 } from "./goldenS1Labels";
 import { EVAL_EXTRACTORS } from "./fixtures";
-import { loadRealS1Sections } from "./realSections";
+import { loadRealS1Documents, loadRealS1Sections } from "./realSections";
 import { isOwnershipGroupSubtotal } from "../sec/forms/registration-statements/s1/sectionExtractors";
 import { normalizeManagementTitles } from "../sec/forms/registration-statements/s1/normalizeTitle";
 
@@ -154,41 +154,38 @@ describe("goldenS1Labels", () => {
       .toLowerCase()
       .trim();
 
-  it("labels only names that appear in the section they were read from", () => {
-    // A label the section does not contain cannot be produced by an extractor
-    // that only ever sees that section, so it scores a COMPLIANT model wrong —
-    // the same failure the nickname carve-out above exists to prevent, and one
-    // no other guard here catches.
+  it("labels only names that appear somewhere in the filing", () => {
+    // Grounding, not achievability. A label must be traceable to the document —
+    // that is what stops a fabricated or mis-transcribed name — but it is
+    // deliberately checked against the WHOLE filing, not the one section the
+    // extractor is currently handed.
     //
-    // This is the guard that makes the short names below safe to leave alone.
-    // The related-party section refers to counterparties by the defined term the
-    // filing set up elsewhere ("BTIG", "CCM", "Fund III") and to people by
-    // surname ("Mr. Green"; "Messrs. Lawson, Barr and Brown"). Those read like
-    // sloppy labels and are not: the full legal names live in the underwriting
-    // section and the defined-terms list, which this extractor is never handed.
-    // Every attempt to "correct" one to its legal name — verified against all 21
-    // such labels in the committed corpus — produces a string the section does
-    // not contain, and this assertion is what says so.
+    // The distinction is the point. The related-party section names
+    // counterparties by the defined term set up elsewhere ("BTIG", "CCM") and
+    // people by surname ("Mr. Green"). Ground truth here records the entity, so
+    // the labels carry the identifying names — BTIG, LLC; Cohen & Company
+    // Capital Markets; Aaron Green — which live in the underwriting section, the
+    // defined-terms list and the roster. A section-scoped assertion would reject
+    // every one of them.
     //
-    // That those shorthands then reach the canonical tier through
-    // `observeCompany` is a real problem, and it is a problem with the section
-    // the extractor is given, not with the label.
-    const { sections } = loadRealS1Sections([...LABELED_EXTRACTORS]);
-    const byKey = new Map(
-      sections.map((s) => [goldenLabelKey(s.filing, s.extractor), foldForLookup(s.text)])
-    );
+    // That today's section-scoped extractor cannot produce these is the gap this
+    // corpus now measures, and closing it is the pipeline's job: resolution has
+    // to see the whole document. Scoring against what a section happens to
+    // contain measures transcription; scoring against the entity measures what
+    // the data is for.
+    const byFiling = new Map(loadRealS1Documents().map((d) => [d.filing, foldForLookup(d.text)]));
     for (const [key, rows] of Object.entries(GOLDEN_S1_LABELS)) {
       const extractor = extractorOf(key);
       const keyField = EVAL_EXTRACTORS[extractor]?.keyField;
       if (keyField === undefined || !TRANSCRIBED_NAME_FIELDS.has(keyField)) continue;
-      const haystack = byKey.get(key);
-      if (haystack === undefined) continue; // covered by the section-existence guard
+      const haystack = byFiling.get(key.split("::")[0] ?? "");
+      expect(haystack, `no committed fixture for ${key}`).toBeDefined();
       for (const row of rows) {
         const name = String((row as Record<string, unknown>)[keyField] ?? "");
         expect(name, `${key}: empty ${keyField}`).not.toBe("");
         expect(
-          haystack.includes(foldForLookup(name)),
-          `${key}: ${JSON.stringify(name)} does not appear in the ${extractor} section`
+          haystack!.includes(foldForLookup(name)),
+          `${key}: ${JSON.stringify(name)} does not appear anywhere in the filing`
         ).toBe(true);
       }
     }

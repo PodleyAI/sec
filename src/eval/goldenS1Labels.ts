@@ -385,7 +385,11 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // is the cell as printed, marker dropped.
   [goldenLabelKey("s1_1507957_000143774926010088", "beneficial-ownership")]: [
     O("AWM Investment Company, Inc.", "company"),
-    O("AIGH", "company"),
+    // The table prints one row, "AIGH (2)"; footnote 2 names the three parties it
+    // collects. Identity is the point of the label, so each is its own row.
+    O("AIGH Capital Management, LLC", "company"),
+    O("AIGH Investment Partners, LLC", "company"),
+    O("Orin Hirschman", "person"),
     O("Laurence W. Lytton", "person"),
     O("David Somo", "person"),
     O("Timothy Burns", "person"),
@@ -592,8 +596,8 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     O("WAVE Equity Fund, L.P.", "company"),
     O("Mercedes-Benz Corporate Investments LLC", "company"),
     O("Stellantis Europe S.p.A", "company"),
-    O("Sponsor", "company"),
-    O("DirectorCo", "company"),
+    O("CGC III Sponsor LLC", "company"),
+    O("CGC III Sponsor DirectorCo LLC", "company"),
     O("Pangaea Three-B, LP", "company"),
   ],
   [goldenLabelKey("s1_2075109_000121390026073335", "management")]: [
@@ -653,7 +657,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   [goldenLabelKey("s1_1848507_000119312521066104", "related-party")]: [],
   [goldenLabelKey("s1_1849470_000110465921035696", "related-party")]: [],
   [goldenLabelKey("s1_1880613_000162828026005423", "related-party")]: [
-    R("DDM"),
+    R("Direct Digital Management, LLC"),
     R("DDH LLC"),
   ],
   [goldenLabelKey("s1_1918102_000110465926016226", "related-party")]: [
@@ -665,11 +669,11 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   ],
   [goldenLabelKey("s1_2049662_000110465926079324", "related-party")]: [
     R("Stellantis Ventures B.V."),
-    R("Stellantis Europe"),
+    R("Stellantis Europe S.p.A"),
     R("FCA US LLC"),
     R("Michael Bly"),
     R("Mercedes-Benz Corporate Investments LLC"),
-    R("Mercedes-Benz"),
+    R("Mercedes-Benz AG"),
     R("Uwe Keller"),
     R("GVP Climate Series SVP LP - Series 3"),
     R("GVP Climate Fund I LP"),
@@ -686,7 +690,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     R("Kevin Gold"),
     R("Sanford Litvack"),
     R("CGC III Sponsor DirectorCo LLC"),
-    R("Cantor"),
+    R("Cantor Fitzgerald & Co."),
   ],
   [goldenLabelKey("s1_2075109_000121390026073335", "related-party")]: [
     R("Mark Tompkins"),
@@ -705,7 +709,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     R("Emmanuel Raptopoulos"),
   ],
   [goldenLabelKey("s1_2105318_000149315226031978", "related-party")]: [
-    R("EBC"),
+    R("EarlyBirdCapital, Inc."),
   ],
   [goldenLabelKey("s1_2114227_000121390026039320", "related-party")]: [
     R("M. Klein Associates Inc."),
@@ -721,10 +725,10 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   ],
   [goldenLabelKey("s1_2135163_000182912626006553", "related-party")]: [],
   [goldenLabelKey("s1_2136360_000213636026000003", "related-party")]: [
-    R("Lucid"),
+    R("Lucid Capital Markets, LLC"),
   ],
   [goldenLabelKey("s1_2147219_000110465926092088", "related-party")]: [
-    R("Chardan"),
+    R("Chardan Capital Markets LLC"),
   ],
   [goldenLabelKey("s1_95572_000121390026086369", "related-party")]: [
     R("Ron Pickett"),
@@ -3298,7 +3302,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   ],
   // doubling set — related-party
   [goldenLabelKey("s1_1083743_000149315226025047", "related-party")]: [
-    { name: "Cleveland" },
+    { name: "Cleveland Capital Management, L.L.C." },
     { name: "Krishna Vanka" },
     { name: "Kevin Royal" },
     { name: "Jeffrey Mason" },
@@ -3341,18 +3345,18 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   ],
   [goldenLabelKey("s1_1602409_000152013826000232", "related-party")]: [],
   [goldenLabelKey("s1_1849380_000149315226031598", "related-party")]: [
-    { name: "Green" },
+    { name: "Aaron Green" },
     { name: "Jeffrey Yu" },
     { name: "Thomas Kosasa" },
   ],
   [goldenLabelKey("s1_1925283_000162828026027260", "related-party")]: [
-    { name: "Lawson" },
-    { name: "Barr" },
-    { name: "Brown" },
+    { name: "Lawrence James Lawson III" },
+    { name: "Robert B. Barr" },
+    { name: "Robert T. Brown" },
   ],
   [goldenLabelKey("s1_2091349_000119312526214778", "related-party")]: [
     { name: "AnaptysBio, Inc." },
-    { name: "EcoR1" },
+    { name: "EcoR1 Capital, LLC" },
   ],
   [goldenLabelKey("s1_2093507_000182912626003406", "related-party")]: [
     { name: "D. Kyle Cerminara" },
@@ -3364,23 +3368,23 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     { name: "ThinkEquity LLC" },
   ],
   [goldenLabelKey("s1_2098410_000110465926086682", "related-party")]: [
-    { name: "BTIG" },
-    { name: "JBAAM" },
+    { name: "BTIG, LLC" },
+    { name: "JBA Asset Management LLC" },
     { name: "Bluerock Capital Markets, LLC" },
   ],
   [goldenLabelKey("s1_2110105_000162828026032836", "related-party")]: [
-    { name: "Honeywell" },
+    { name: "Honeywell International Inc." },
     { name: "Vimal Kapur" },
     { name: "Michal Stepniak" },
     { name: "Honeywell Aerospace Inc." },
     { name: "Honeywell Performance Materials & Technologies" },
     { name: "National Technology and Engineering Solutions of Sandia" },
     { name: "Honeywell Aerospace Technologies" },
-    { name: "HHII" },
+    { name: "Honeywell Holdings International Inc." },
     { name: "CQ Invest I LLC" },
   ],
   [goldenLabelKey("s1_2110119_000121390026072712", "related-party")]: [
-    { name: "BTIG" },
+    { name: "BTIG, LLC" },
   ],
   [goldenLabelKey("s1_2113481_000121390026068811", "related-party")]: [
     { name: "Cantor Fitzgerald & Co." },
@@ -3418,17 +3422,17 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     R("Zhiqiang Du"),
   ],
   [goldenLabelKey("s1_2128045_000121390026070217", "related-party")]: [
-    { name: "CCM" },
-    { name: "MJP Advisory" },
+    { name: "Cohen & Company Capital Markets" },
+    { name: "MJP Advisory Group LLC" },
   ],
   [goldenLabelKey("s1_2131350_000119312526294964", "related-party")]: [
     { name: "Jess Enterprises, Inc." },
-    { name: "Authentic" },
+    { name: "Authentic Holdings, LLC" },
   ],
   [goldenLabelKey("s1_2137679_000182912626006500", "related-party")]: [],
   [goldenLabelKey("s1_2137965_000119312526308950", "related-party")]: [
     { name: "TCGX Sponsor, LLC" },
-    { name: "Fund III" },
+    { name: "TCG Crossover Fund III, LP" },
   ],
   // doubling set — use-of-proceeds
   [goldenLabelKey("s1_1083743_000149315226025047", "use-of-proceeds")]: [],
