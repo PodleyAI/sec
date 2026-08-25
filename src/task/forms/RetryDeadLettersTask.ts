@@ -6,16 +6,15 @@
 
 import { Static, Type } from "typebox";
 import {
-  globalServiceRegistry,
-  IExecuteContext,
-  Task,
-  TaskAbortedError,
-  TaskError,
-  Workflow,
+    globalServiceRegistry,
+    IExecuteContext,
+    Task,
+    TaskAbortedError,
+    TaskError
 } from "workglow";
 import {
-  ExtractionDeadLetterRepo,
-  isExpectedNegativeDeadLetter,
+    ExtractionDeadLetterRepo,
+    isExpectedNegativeDeadLetter,
 } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
@@ -102,18 +101,11 @@ export class RetryDeadLettersTask extends Task<
       // must grind through the whole worklist rather than abandon every later
       // accession on one bad filing.
       try {
-        const wf = context.own(new Workflow(), { title: `Reprocess ${accessionNumber}` });
-        wf.pipe(new ProcessAccessionDocFormTask());
+        const ft = context.own(new ProcessAccessionDocFormTask({ title: `Reprocess ${accessionNumber}` })); 
         try {
-          await wf.run({ accessionNumber });
+          await ft.run({ accessionNumber });
         } finally {
-          // `own` is add-only and the subgraph is cleared only between runs of
-          // THIS task, which does not return until the whole worklist is done —
-          // so without releasing each accession's wrapper the sweep retains one
-          // per accession, with whatever each one accumulated. Nested rather
-          // than hoisted out of the outer try so a throw from `own` itself
-          // still counts as one failure instead of abandoning the sweep.
-          context.disown(wf);
+          context.disown(ft);
         }
         reprocessed++;
       } catch (e) {

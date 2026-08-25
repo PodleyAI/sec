@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { Static, Type } from "typebox";
-import { IExecuteContext, Task, TaskAbortedError, Workflow } from "workglow";
+import { IExecuteContext, Task, TaskAbortedError } from "workglow";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 import {
-  defaultFilterTodo,
-  getBackfillDescriptor,
-  listBackfillableExtractorIds,
-  type BackfillCandidate,
+    defaultFilterTodo,
+    getBackfillDescriptor,
+    listBackfillableExtractorIds,
+    type BackfillCandidate,
 } from "./backfillDescriptors";
 
 export interface RunExtractorBackfillOptions {
@@ -137,16 +137,11 @@ export class BackfillExtractorTask extends Task<
       dryRun: input.dryRun === true,
       signal: context.signal,
       processFiling: async (accessionNumber, cik) => {
-        const wf = context.own(new Workflow(), { title: `Backfill ${accessionNumber}` });
-        wf.pipe(new ProcessAccessionDocFormTask());
+        const ft = context.own(new ProcessAccessionDocFormTask({ title: `Backfill ${accessionNumber}` }));
         try {
-          await wf.run({ accessionNumber, cik });
+          await ft.run({ accessionNumber, cik });
         } finally {
-          // `own` is add-only and the subgraph is cleared only between runs of
-          // THIS task, which does not return until the whole sweep is done —
-          // so without releasing each filing's wrapper the sweep retains one
-          // per filing, with whatever each one accumulated.
-          context.disown(wf);
+          context.disown(ft);
         }
       },
     });
