@@ -128,13 +128,10 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
    * before the run, or overwritten in place.
    *
    * This is the set a {@link deterministic} pass must cover before it may stand
-   * in for the model, and it is declared HERE because this is the side that
-   * knows what `persist` writes. It used to be stated twice — once here and
-   * once on `modelExtractChain` — with only the chain's copy read, so a section
-   * could describe two different sets of destinations and the one that gated
-   * preemption was the one nobody was reading. Undeclared means no pass may
-   * preempt: a caller that has not said what the section rewrites has not shown
-   * a parse can supply it.
+   * in for the model, and it is declared HERE, not on `modelExtractChain`,
+   * because this is the side that knows what `persist` writes. Undeclared
+   * means no pass may preempt: a caller that has not said what the section
+   * rewrites has not shown a parse can supply it.
    */
   readonly clears?: ReadonlySet<string>;
   /**

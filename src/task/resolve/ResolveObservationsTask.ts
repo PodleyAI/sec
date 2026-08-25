@@ -80,8 +80,8 @@ export type ResolveObservationsTaskOutput = {
  * Without this, a change to `normalizePerson` reaches the database only by
  * re-extracting every person-observing filing: the columns are written on the
  * extraction path, and this task otherwise resolves FROM them rather than
- * recomputing them. That made every normalizer fix a full re-extraction and its
- * AI cost, which is why several sat unfixed.
+ * recomputing them. A normalizer change would otherwise cost a full
+ * re-extraction and its AI bill per filing.
  *
  * Off by default. A resolve pass that silently rewrote its own input would give
  * the operator who asked to re-partition a generation something they did not

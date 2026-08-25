@@ -112,8 +112,9 @@ export class FetchAndStoreFormsTask extends Task<
 
     if (filings.length === 0) {
       // A selector that matches nothing is the single most likely operator
-      // mistake here (wrong form string, an accession not ingested yet), and it
-      // used to return `success: true` — indistinguishable from a clean run.
+      // mistake here (wrong form string, an accession not ingested yet), so
+      // this returns `success: false` to keep a no-match run distinguishable
+      // from a clean run of zero matches.
       return { success: false, matched: 0, succeeded: 0, partial: 0, failed: 0, triage: 0 };
     }
 

@@ -69,9 +69,8 @@ export const MAX_SPAN_CHARS = 2000;
 export const MAX_STORED_SPAN_CHARS = 2000;
 
 /**
- * Floor on the per-section cap. The cap never drops below the historical flat
- * 1000, so no section becomes *stricter* than it was before the cap went
- * relative — this change can only admit spans that used to be rejected.
+ * Floor on the per-section cap. The cap never drops below this flat value, so
+ * the relative (quarter-of-section) cap is never stricter than this baseline.
  */
 export const MIN_SPAN_CAP_CHARS = 1000;
 

@@ -17,13 +17,12 @@ import { isUniqueConstraintError } from "../util/isUniqueConstraintError";
  * family by name (resolver, CLI query, alias commands) MUST use this so keys
  * line up. Returns "" when the name yields nothing.
  *
- * Deriving it from the LEGAL name is what makes a family rebuildable. The key
- * previously came from `normalizeCompanyName`, which keeps the legal form, so
- * `Churchill Sponsor XIII LLC` and `Churchill Sponsor XIV LLC` were two
- * families and only the model's own "common name" could join them — which is
- * why batch `sec resolve` had to refuse family kinds. With the key computed
- * from a name every observation already carries, a re-partition is a
- * re-computation.
+ * Deriving it from the LEGAL name (not `normalizeCompanyName`, which keeps
+ * the legal form) is what makes a family rebuildable and lets share-classes
+ * of the same sponsor collapse into one family: `Churchill Sponsor XIII LLC`
+ * and `Churchill Sponsor XIV LLC` fold to the same key without needing the
+ * model's own "common name" to join them. With the key computed from a name
+ * every observation already carries, a re-partition is a re-computation.
  *
  * What it deliberately does NOT do is fold business-line words: `Acme Capital`
  * and `Acme Ventures` stay two families, because they can be two firms. The
@@ -64,8 +63,8 @@ interface FamilyResolverOptions {
  * caller that queues behind us cannot observe the freshly-minted candidate
  * before the alias rewrite is applied. Without this, two parallel resolves on
  * the same family name could split: one returns the alias target, the other
- * returns the pre-alias id. Mirrors the {@link PersonResolver} /
- * {@link CompanyResolver} fix.
+ * returns the pre-alias id. Mirrors the same mutex-then-alias-resolve pattern
+ * in {@link PersonResolver}/{@link CompanyResolver}.
  *
  * The mutex map is instance-scoped (well, static-instance-scoped here): it
  * collapses intra-process contention on a shared key. Multi-process /

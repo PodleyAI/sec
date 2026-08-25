@@ -119,8 +119,7 @@ export type ComputeFormsWorklistTaskOutput = {
  * arrays by port name (`accessionNumber` / `cik` / `form` / `fileName`) and
  * fans each filing out to a {@link ProcessAccessionDocFormTask} iteration, so
  * the loop is a first-class node in the outer workflow and the CLI renders live
- * per-iteration progress. (Previously the map ran inside a private nested
- * `Workflow` here, so its iterations were invisible to the run renderer.)
+ * per-iteration progress.
  *
  * Re-processing existing rows requires a version bump (`sec version
  * start-dev` / `promote`); there is no --force escape hatch.
@@ -439,7 +438,7 @@ export class ComputeFormsWorklistTask extends Task<
 
     const remaining = fromCik === undefined ? allowCiks : allowCiks.filter((cik) => cik > fromCik);
 
-    for (let i = 0; i < remaining.length;) {
+    for (let i = 0; i < remaining.length; ) {
       const need = FILING_PAGE_SIZE - rows.length;
       const chunk = remaining.slice(i, i + WORKLIST_CIK_CHUNK);
       const part = ((await filingRepo.query(

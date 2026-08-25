@@ -141,9 +141,9 @@ export function buildScanSql(
   // submissions refresh.
   //
   // One pre-aggregated pass over the table, joined once — the SELECT-list
-  // projection and the WHERE predicate both read the same column. As two
-  // correlated subqueries this was two full passes over `s1_classification`
-  // PER candidate entity.
+  // projection and the WHERE predicate both read the same column, instead of
+  // two correlated subqueries each scanning `s1_classification` separately
+  // per candidate entity.
   //
   // `classified_as_spac` is the `is_spac` of the latest registration (filing
   // date, then created_at, then accession). Packed into a sortable string so

@@ -440,12 +440,10 @@ async function loadActiveExtractorVersions(
 /**
  * Which of THIS issuer's filings already have a successful run, per extractor id.
  *
- * Scoped to the timeline, which is what makes it proportional to the one CIK
- * being replayed. It previously asked for every successful run of each
- * extractor across the whole corpus — form-unscoped, so the widest variant of
- * that query — and held one such Set per extractor id simultaneously, to answer
- * a question about a single issuer's handful of filings. `sec sync spacs` walks
- * thousands of CIKs and paid it again for each one.
+ * Scoped to the timeline rather than the whole corpus, so the cost is
+ * proportional to the one CIK being replayed — `sec sync spacs` walks
+ * thousands of CIKs and would otherwise pay a corpus-wide query, held as one
+ * Set per extractor id, again for each one.
  */
 async function loadSuccessfulKeys(
   timeline: readonly Filing[],

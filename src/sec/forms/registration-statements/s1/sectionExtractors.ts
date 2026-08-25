@@ -882,7 +882,7 @@ async function runGuardedExtraction(
     : buildExtractionPrompt({ instructions, sectionText });
   let lastError: unknown;
   let rateLimitWaits = 0;
-  for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS;) {
+  for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS; ) {
     // Local grammar/ONNX providers cannot reliably echo a 16-hex token, and the
     // nonce is off by default besides; either way the schema must drop
     // `nonce_seen` or the model is asked to echo something it was never given.
@@ -905,11 +905,10 @@ async function runGuardedExtraction(
       // (see {@link deriveVerifyNonce}), so a reply to the previous prompt does
       // not satisfy the current one and a genuine attack still fails every
       // attempt and still dead-letters as NONCE_MISMATCH (the last error is
-      // what propagates, preserving the reason code). What it does fix is
-      // transcription noise — a real run saw the model return the expected
-      // token shifted one place with a leading zero, and another return it one
-      // hex character short. Neither is an attack, and neither should cost a
-      // section.
+      // what propagates, preserving the reason code). Retrying absorbs
+      // transcription noise instead — the model shifting the expected token one
+      // place with a leading zero, or dropping a hex character — which isn't an
+      // attack and shouldn't cost a section.
       lastError = e;
       // A throttle is not the model's fault: wait it out and retry WITHOUT
       // spending an attempt, so the section is not dead-lettered for being

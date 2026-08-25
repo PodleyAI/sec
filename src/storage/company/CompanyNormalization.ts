@@ -276,9 +276,9 @@ export function isUnnamedCompanyName(name: string | null | undefined): boolean {
  * ```
  *
  * Closing it means folding inside {@link normalizeCompanyName}, which is a
- * **re-key** of every company observation ever written. The prerequisite for
- * that has since shipped: `ResolveObservationsTask` re-normalizes as it
- * re-partitions, so `sec resolve --kind company --all --renormalize` recomputes
+ * **re-key** of every company observation ever written. That is possible
+ * because `ResolveObservationsTask` re-normalizes as it re-partitions, so
+ * `sec resolve --kind company --all --renormalize` recomputes
  * `normalized_name` from the `name` each observation already carries and then
  * resolves — no re-extraction, no AI bill.
  *
@@ -292,8 +292,8 @@ export function isUnnamedCompanyName(name: string | null | undefined): boolean {
  */
 export function generateCompanyHash(company_name: string): string {
   // `foldDiacritics` rather than a bare NFD pass: NFD leaves `ø` and `ł`
-  // untouched (their mark is inside the glyph, not a combining character), so
-  // the old code slugged `Søren` and `Soren` differently.
+  // untouched (their mark is inside the glyph, not a combining character),
+  // which would otherwise slug `Søren` and `Soren` differently.
   const hashString = foldDiacritics(company_name)
     .trim()
     .toLowerCase()

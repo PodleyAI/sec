@@ -21,9 +21,8 @@ const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$
  *
  * `importMetaDir` points at `src/eval/` in dev and `dist/eval/` after
  * bundling, so (3) and (4) cover both layouts without depending on cwd.
- * The old code used a cwd literal ("src/sec/html/mock_data/s1"), which
- * broke the moment the binary ran from a different directory or was
- * bundled — this is Fix 2's whole point.
+ * A cwd literal ("src/sec/html/mock_data/s1") breaks the moment the binary
+ * runs from a different directory or is bundled.
  */
 function s1MockDirCandidates(dir: string | undefined): string[] {
   const candidates: string[] = [];
@@ -51,9 +50,8 @@ const EXTRACTOR_TO_SECTION: Record<string, string> = {
   "sponsor-promote": S1_SECTIONS.THE_OFFERING,
   "spac-profile": S1_SECTIONS.PROSPECTUS_SUMMARY,
   "spac-sponsors": S1_SECTIONS.THE_SPONSOR,
-  // Only resolvable since the segmenter learned to rescue a compensation
-  // heading nested inside MANAGEMENT — three of the four SPAC fixtures carry it
-  // that way and previously yielded no section at all.
+  // The segmenter rescues a compensation heading nested inside MANAGEMENT —
+  // three of the four SPAC fixtures carry it that way.
   "executive-compensation": S1_SECTIONS.EXECUTIVE_COMPENSATION,
   "spac-classification": S1_SECTIONS.PROSPECTUS_SUMMARY,
 };

@@ -671,11 +671,9 @@ export function modelApiKeyEnvVar(modelId: string): string | undefined {
 export function secModelRecord(modelId: string): ModelRecord {
   const record = trySecModelRecord(modelId);
   if (record) return record;
-  // A bare `org/name` used to route to the local ONNX provider and now needs an
-  // explicit prefix. Without this hint the message lists every legal shape and
-  // leaves the operator to notice that one of them is their id plus five
-  // characters — the single most likely reason a previously working
-  // `SEC_HFT_MODEL` / `--models` value stopped resolving.
+  // A bare `org/name` id needs an explicit provider prefix — without this hint
+  // the message lists every legal shape and leaves the operator to notice that
+  // one of them is their id plus five characters.
   const hint = modelId.includes("/")
     ? ` A bare "org/name" id no longer routes anywhere: prefix it with the provider you mean — ` +
       `"${ONNX_ID_PREFIX}${modelId}" (local ONNX), "${HFI_ID_PREFIX}${modelId}" ` +

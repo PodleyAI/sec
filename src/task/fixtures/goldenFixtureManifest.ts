@@ -493,9 +493,8 @@ export const GOLDEN_FIXTURES: readonly GoldenFixtureEntry[] = [
   },
   {
     // Gold Mountain Acquisition Corp. — 2026 SPAC filed through M2 Compliance
-    // (`forms-1.htm`). Added for filing-agent diversity: the corpus previously
-    // covered only three agents, so the segmenter was only ever exercised
-    // against three HTML generators.
+    // (`forms-1.htm`). Added for filing-agent diversity, so the segmenter is
+    // exercised against a fourth HTML generator.
     file: "s1_2105318_000149315226031978.htm",
     dir: "s1",
     cik: "2105318",

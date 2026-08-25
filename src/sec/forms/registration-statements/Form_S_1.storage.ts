@@ -1042,8 +1042,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         // subject would be worse than either. The model is never asked for
         // "group": it classifies person/company, and this derives the third
         // kind, so a model that has never heard of the distinction cannot get
-        // it wrong. On one live filing this was every single related-party
-        // person: four rows, no actual individuals.
+        // it wrong.
         // A blank name is the same class of degenerate model output the
         // sponsor persist already skips. A name that is only a legal-form
         // ending ("Company") or an issuer self-reference ("the Company")

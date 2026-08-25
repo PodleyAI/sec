@@ -161,10 +161,9 @@ const BARE_YEAR = /^(?:19|20)\d{2}$/;
  *
  * Neither row is a date on its own, so joining cells within a row (which is
  * what {@link readDates} does) finds nothing. Worse, the `31` of
- * "December 31," reads as a figure, so the row was taken for DATA and the
- * header block ended before it began — leaving `June 30,` and `2024` as line
- * items with values. 654 such labels and 10,356 stray year labels reached
- * storage across 3,148 of 5,695 filings before this was handled.
+ * "December 31," reads as a figure, which would take the row for DATA and end
+ * the header block before it began — leaving `June 30,` and `2024` as line
+ * items with values.
  */
 const MONTH_DAY =
   /^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?$/;

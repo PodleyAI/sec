@@ -414,9 +414,9 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       });
       for (const t of tickers) {
         const ticker = t.ticker;
-        // Each ticker cites the passage naming THAT symbol. Previously every
-        // ticker row stored the parent object's span, which mentions none of
-        // them — a populated provenance column that pointed at nothing.
+        // Each ticker cites the passage naming THAT symbol, rather than the
+        // parent object's span — which mentions none of them and would leave
+        // a populated provenance column pointing at nothing.
         await citeFields({
           repo: fieldProvenanceRepo,
           extractor_id,
@@ -667,12 +667,11 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       const model_id = persistModelId(models, meta.modelIndex);
       let wrote = 0;
       // One underwriter, one link row. The model repeats an underwriter across
-      // rows more often than not — a sole-underwriter filing came back with the
-      // same bank once, twice, and three times on three consecutive runs — and
-      // every duplicate previously minted its own observation, family
-      // membership and link row, inflating `sec underwriter by-family` counts by
-      // however many times the model stuttered. Deduped on the LEGAL name, not
-      // the common name: "Citigroup Global Markets Inc." and "Citigroup Global
+      // rows more often than not, so dedupe before minting an observation,
+      // family membership and link row per underwriter — otherwise a repeated
+      // name would mint a duplicate row per repetition and inflate
+      // `sec underwriter by-family` counts. Deduped on the LEGAL name, not the
+      // common name: "Citigroup Global Markets Inc." and "Citigroup Global
       // Markets Limited" are two entities that share one family, and collapsing
       // on the family would silently drop the second.
       const seenLegalNames = new Set<string>();

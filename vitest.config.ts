@@ -3,11 +3,10 @@ import { resolve } from "node:path";
 import { defineConfig } from "vitest/config";
 
 /**
- * Test runner config. The suite was authored for vitest (the vast majority of
- * test files import from "vitest") but historically executed under `bun test`,
- * which runs every file in one shared process — letting module singletons like
- * `globalServiceRegistry` leak state across files. Vitest isolates each test
- * file, which removes that whole class of cross-file pollution.
+ * Test runner config. The suite is authored for vitest (the vast majority of
+ * test files import from "vitest"), which isolates each test file. `bun test`
+ * runs every file in one shared process instead, letting module singletons
+ * like `globalServiceRegistry` leak state across files.
  */
 
 /** Minimal .env parser — avoids a direct `vite`/`dotenv` dependency. */

@@ -27,11 +27,9 @@ export interface CikNameBulkWriter {
  * the ~1M rows in `cik-lookup-data.txt`). The in-memory fallback covers
  * tests where `SEC_DB_TYPE` is unregistered.
  *
- * The previous implementation always reached into `getDb()`, which silently
- * wrote ~1M rows into a SQLite file even when `SEC_DB_TYPE=postgres`
- * because `getDb()` ignored the type token. `getDb()` now throws when
- * dbType isn't sqlite, so this dispatch is also the safety net for that
- * regression.
+ * `getDb()` throws when `dbType` isn't sqlite, so this dispatch is also the
+ * safety net for that guard: it keeps a bulk write from reaching for a
+ * SQLite-only path under a non-sqlite backend.
  */
 export function createCikNameBulkWriter(): CikNameBulkWriter {
   // Resolved once: the repo is both the durability signal for the dispatch (a

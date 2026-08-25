@@ -262,10 +262,10 @@ export class BootstrapDownloadTask extends Task<
     console.log(`Downloading ${input.url} ...`);
 
     // SEC bulk archives (submissions.zip, companyfacts.zip) are multi-GB, so
-    // this streams to disk. It used to be a raw fetch() for that reason —
-    // FetchUrlTask materialised the body regardless of response_type — which
-    // cost the rate limiter, the retry/backoff and the 429 throttle signal.
-    // With a streaming producer none of that has to be traded away.
+    // this streams to disk via a producer rather than FetchUrlTask, which
+    // materializes the whole body regardless of response_type. Streaming
+    // keeps the rate limiter, the retry/backoff and the 429 throttle signal
+    // intact instead of trading them away for a raw fetch().
     let lastReportedMb = -1;
     const response = await this.downloadArchive(
       input.url,

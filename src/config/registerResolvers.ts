@@ -22,9 +22,8 @@ import { UnderwriterLinkRepo } from "../storage/canonical/UnderwriterLinkRepo";
  * Register sec's built-in resolver kinds into the ResolverExtensionRegistry.
  * Called from the CLI bootstrap (and in tests that touch the version system).
  *
- * The per-kind coverage + drop-previous logic moves here from the previously
- * hardcoded branches in `cli/queries/ResolverCoverage.ts` and
- * `storage/versioning/ceremonies.ts`.
+ * Centralizes the per-kind coverage + drop-previous logic in one place so
+ * callers read it here instead of duplicating it per call site.
  */
 export function registerSecResolvers(): void {
   registerResolverExtension({

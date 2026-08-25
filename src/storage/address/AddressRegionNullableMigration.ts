@@ -94,9 +94,10 @@ type SqliteDb = ReturnType<typeof getDb>;
 
 function tableExists(db: SqliteDb, name: string): boolean {
   const row = db
-    .prepare<[], { name: string }>(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name='${name}'`
-    )
+    .prepare<
+      [],
+      { name: string }
+    >(`SELECT name FROM sqlite_master WHERE type='table' AND name='${name}'`)
     .get();
   return Boolean(row);
 }
@@ -178,16 +179,15 @@ function assertCopyableColumns(db: SqliteDb, table: string): void {
  * rebuild path the live table was just recreated and is empty, so that is every
  * legacy row and the count check below is exactly as strict as a blind copy.
  * The distinction matters on the resume path, where the live table can already
- * be populated: the older, non-transactional build's LAST step was
+ * be populated: a non-transactional build's LAST step is
  * `DROP TABLE addresses__legacy_region`, so a crash immediately before it —
- * SIGINT, OOM, power loss — left the rows in BOTH tables. That state is not
- * hypothetical: the old code then reported success on every subsequent run (it
- * probed a nullable column and returned early), so a database can have been
- * serving traffic in it for months, accumulating live rows the legacy snapshot
- * has never seen. A blind copy would fail the primary key and roll back,
- * turning a database the old build tolerated into one where `db setup` fails
- * forever; dropping the live table instead would discard everything written
- * since. Merging keeps both.
+ * SIGINT, OOM, power loss — leaves the rows in BOTH tables, and a subsequent
+ * run that only probes a nullable column and returns early reports success
+ * without noticing — so a database can go on serving traffic in that state for
+ * months, accumulating live rows the legacy snapshot never sees. A blind copy
+ * would fail the primary key and roll back, turning that database into one
+ * where `db setup` fails forever; dropping the live table instead would
+ * discard everything written since. Merging keeps both.
  *
  * The live row wins a primary-key collision: it is the current state, while the
  * legacy table is a pre-rebuild snapshot. Legacy's own primary key is unique,
@@ -272,14 +272,12 @@ async function rebuildSqlite(db: SqliteDb): Promise<void> {
       // recreates it at the current schema straight away.
       //
       // A POPULATED one is kept and merged into, even though its shape is
-      // stale. It used to be refused as "a state no build in this file
-      // produces" — true when this relaxed a single column, and no longer:
-      // a database that completed the region-only migration carries a live
-      // table with a nullable region and a NOT NULL `city`, which is exactly
-      // this shape. Dropping it would discard rows and refusing would strand a
-      // database that is merely one release behind, so the merge runs and the
-      // fall-through below performs the ordinary rebuild that relaxes whatever
-      // is still pending.
+      // stale: a database that completed the region-only migration carries a
+      // live table with a nullable region and a NOT NULL `city`, which is
+      // exactly this shape. Dropping it would discard rows and refusing would
+      // strand a database that is merely one release behind, so the merge
+      // runs and the fall-through below performs the ordinary rebuild that
+      // relaxes whatever is still pending.
       const live = tableExists(db, TABLE) ? columnsOf(db, TABLE) : undefined;
       if (live !== undefined && stillNotNull(live).length > 0 && rowCount(db, TABLE) === 0) {
         db.exec(`DROP TABLE ${TABLE}`);

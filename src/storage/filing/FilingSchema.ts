@@ -61,13 +61,12 @@ export const FilingSchema = Type.Object({
   // per contract. It is a structural property of that filer type, not a freak
   // value, which is why the seven affected CIKs are all the same kind of entity.
   //
-  // The cost was not a truncated column but SEVEN MISSING COMPANIES. One
-  // over-long filing aborts the whole StoreSubmissionsTask graph, so the CIK's
-  // entire filing history, entity row, tickers and addresses are never written —
-  // and `fetchAndStoreSubmission` catches the throw, warns, and marks the CIK
-  // failed, so the sweep continues and nothing surfaces in `db stats` or a dead
-  // letter. Those seven had been absent from a 27M-row corpus since the original
-  // bootstrap.
+  // An over-long value here is not a truncated column but a whole CIK lost
+  // silently: it aborts the whole StoreSubmissionsTask graph, so the CIK's
+  // entire filing history, entity row, tickers and addresses are never
+  // written — and `fetchAndStoreSubmission` catches the throw, warns, and
+  // marks the CIK failed, so the sweep continues with nothing surfacing in
+  // `db stats` or a dead letter. That is why this column stays unbounded.
   //
   // Dropping maxLength is enough to fix existing deployments: unlike an array
   // conversion, `alignPostgresColumnTypes` DOES widen varchar -> unbounded text

@@ -30,17 +30,13 @@ export interface S1CorpusFiling {
  * `parseEdgarHtml` plus a tree walk each, which is genuinely tens of seconds —
  * it is the work, not a hang. The suite-wide `testTimeout` is 30s, tuned for
  * the CLI integration tests that spawn `sec` subprocesses, and a slower CI
- * runner crosses it: the corpus build used to be charged lazily to whichever
- * `it()` touched it first, so CI failed on an assertion reading
- * `expect(cases().length).toBeGreaterThan(0)` — a test that does no work and
- * named nothing about what was slow.
- *
- * Doing it in `beforeAll` with its own budget puts the cost where it belongs
- * and leaves each test's own timeout tight enough to still catch a real hang.
+ * runner crosses it, so the cost is charged explicitly here rather than
+ * lazily to whichever `it()` touches the corpus first: a slow build then
+ * fails on this named budget, and each test's own timeout stays tight enough
+ * to still catch a real hang.
  *
  * 120s matches the `CORPUS_PARSE_TIMEOUT_MS` the older corpus-reading tests in
- * `src/eval` already use for the same reason — those were written with an
- * explicit budget; these ten were not, which is the whole of this bug.
+ * `src/eval` use for the same reason.
  */
 export const S1_CORPUS_TIMEOUT_MS = 120_000;
 

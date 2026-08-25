@@ -156,16 +156,16 @@ export abstract class SecCachedFetchTask<
   }
 
   /**
-   * FetchUrlTask's real output schema, not the `{}` this used to return.
+   * FetchUrlTask's real output schema.
    *
    * Which schema is declared here decides whether a cached fetch can stream at
    * all: the runner reads the OUTPUT schema to find the `x-stream: "binary"`
-   * port, so an empty one meant `getBinaryRefSinksByPolicy` built no sink and
-   * the cache file was written only by `saveOutput`, off the materialized
-   * derived value. That was harmless while every fetch materialized
+   * port, so an empty one means `getBinaryRefSinksByPolicy` builds no sink and
+   * the cache file is written only by `saveOutput`, off the materialized
+   * derived value. That is harmless while every fetch materializes
    * something — and silently fatal for `response_type: "stream"`, which
    * materializes nothing: no sink AND no derived value is no bytes anywhere,
-   * so the download reported success and wrote no cache entry.
+   * so the download would report success and write no cache entry.
    *
    * ⚠️ A subclass that narrows this to its own port shape (as
    * `SecFetchSubmissionsTask` does, to publish the typed JSON it returns) drops
@@ -173,11 +173,10 @@ export abstract class SecCachedFetchTask<
    * `response_type` materializes a value — `saveOutput` still writes it — but
    * such a subclass must not ask for `"stream"`.
    *
-   * The return type stays `any`, as it was: FetchUrlTask declares its schema as
-   * a literal, so TypeScript's static-side variance rejects any narrowing
+   * The return type stays `any`: FetchUrlTask declares its schema as a
+   * literal, so TypeScript's static-side variance rejects any narrowing
    * override outright, and that escape hatch is the only reason those
-   * subclasses compile. What changed is the runtime value — the schema the
-   * runner actually reads — not the typing.
+   * subclasses compile.
    */
   static outputSchema(): any {
     return SecFetchTask.outputSchema();
@@ -208,9 +207,9 @@ export abstract class SecCachedFetchTask<
     // materializes no derived port, so the streaming sink is the ONLY writer —
     // and the runner only builds one for a schema declaring a binary `body`
     // port. A subclass that narrowed the schema away would report success and
-    // write no cache entry, which is precisely the silent failure the schema
-    // fix exists to remove. Checked only on the `"stream"` path, so nothing
-    // else pays for evaluating the schema at construction time.
+    // write no cache entry, which is precisely the silent-failure mode this
+    // check prevents. Checked only on the `"stream"` path, so nothing else
+    // pays for evaluating the schema at construction time.
     if (fetchInput.response_type === "stream") {
       const ctor = this.constructor as typeof SecCachedFetchTask;
       if (!declaresBinaryBodyPort(ctor.outputSchema())) {

@@ -635,13 +635,13 @@ export class ProcessAccessionDocFormTask extends Task<
     // The storage handlers below are the single dispatch boundary for every
     // form, so containment lives here rather than in each `.storage.ts`. A
     // throw is a filing-level STORE_ERROR dead-letter plus a failed run, and
-    // the filing is abandoned — never rethrown. Rethrowing aborted the whole
-    // sweep on one bad filing: the `forEach` fan-out in `formsSweepLoop` has no
-    // per-iteration guard, so the rejection propagated out of the outer
-    // workflow and every filing after it went unprocessed. The failure is now
-    // visible to `sec extractor dead-letters` and recoverable by
-    // `retry-dead-letters` once the storage code is fixed and the version
-    // bumped, which is exactly the treatment fetch and parse already get.
+    // the filing is abandoned — never rethrown, because the `forEach` fan-out
+    // in `formsSweepLoop` has no per-iteration guard: a rethrow would
+    // propagate out of the outer workflow and leave every filing after it
+    // unprocessed. The failure is visible to `sec extractor dead-letters` and
+    // recoverable by `retry-dead-letters` once the storage code is fixed and
+    // the version bumped, which is exactly the treatment fetch and parse
+    // already get.
     await context.updateProgress(80, `${label} · storing`);
     let storeError: unknown = undefined;
     try {
