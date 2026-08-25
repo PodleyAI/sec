@@ -9,25 +9,25 @@ import { mkdir, readFile, rename, rm, unlink, writeFile } from "node:fs/promises
 import path from "node:path";
 import { Type } from "typebox";
 import {
-    globalServiceRegistry,
-    IExecuteContext,
-    type PageCursor,
-    type SearchCriteria,
-    Task,
-    TaskAbortedError,
-    TaskError,
+  globalServiceRegistry,
+  IExecuteContext,
+  type PageCursor,
+  type SearchCriteria,
+  Task,
+  TaskAbortedError,
+  TaskError,
 } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import {
-    SPAC_CANDIDATE_REPOSITORY_TOKEN,
-    type SpacCandidateConfidence,
+  SPAC_CANDIDATE_REPOSITORY_TOKEN,
+  type SpacCandidateConfidence,
 } from "../../storage/spac/SpacCandidateSchema";
 import {
-    assertInsideDir,
-    resolvePrimaryDocName,
-    sanitizePrimaryDoc,
+  assertInsideDir,
+  resolvePrimaryDocName,
+  sanitizePrimaryDoc,
 } from "../../util/accessionDocPath";
 import { tmpPathFor } from "../../util/atomicFileWrite";
 import { describeFailureReason } from "../../util/describeFailure";
@@ -36,13 +36,13 @@ import { extractPrimaryDocFromSubmission } from "../bootstrap/feedTarball";
 import { FORMS_SWEEP_CONCURRENCY_LIMIT } from "../forms/formsSweep";
 import { SecFetchAccessionDocTask } from "../forms/SecFetchAccessionDocTask";
 import {
-    accessionDocCacheRelative,
-    DEFAULT_SPAC_DOWNLOAD_CONFIDENCE,
-    formsForDownloadSet,
-    SPAC_DOWNLOAD_FILING_PAGE_SIZE,
-    spacDocFetchFileName,
-    spacDownloadCikChunkSize,
-    type SpacDownloadSet,
+  accessionDocCacheRelative,
+  DEFAULT_SPAC_DOWNLOAD_CONFIDENCE,
+  formsForDownloadSet,
+  SPAC_DOWNLOAD_FILING_PAGE_SIZE,
+  spacDocFetchFileName,
+  spacDownloadCikChunkSize,
+  type SpacDownloadSet,
 } from "./spacCandidateDownload";
 
 export type DownloadSpacCandidateDocsTaskInput = {

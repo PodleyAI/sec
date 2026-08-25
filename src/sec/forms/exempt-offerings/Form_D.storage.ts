@@ -68,9 +68,7 @@ function parseIntegerOrNull(raw: string | number | undefined | null): number | n
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function firstSaleDate(
-  firstSale: OfferingData["typeOfFiling"]["dateOfFirstSale"]
-): string | null {
+function firstSaleDate(firstSale: OfferingData["typeOfFiling"]["dateOfFirstSale"]): string | null {
   return firstSale !== undefined && "value" in firstSale ? firstSale.value : null;
 }
 
