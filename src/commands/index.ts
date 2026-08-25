@@ -18,6 +18,7 @@ import { addVersionCommands } from "../cli/groups/version";
 import { addResolveCommands } from "../cli/groups/resolve";
 import { addCanonicalCommands } from "../cli/groups/canonical";
 import { addExtractorCommands } from "../cli/groups/extractor";
+import { addVerifyCommands } from "../cli/groups/verify";
 import { addEvalCommands } from "../cli/groups/eval";
 import { registerSponsorFamilyCommands } from "./sponsorFamily";
 import { registerUnderwriterFamilyCommands } from "./underwriterFamily";
@@ -43,6 +44,38 @@ import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../config/tokens";
  */
 export const DI_EXEMPT_COMMANDS: ReadonlySet<string> = new Set(["init", "golden-fixtures"]);
 
+/**
+ * The same exemption, keyed by FULL command path.
+ *
+ * `verify`'s leaves are named for stages — `parse`, `all`, `fixtures` — and
+ * exempting those by leaf name would exempt `sync all` with them, which needs
+ * a database and would fail late and confusingly instead of at the gate. A
+ * path cannot collide.
+ *
+ * These read a committed fixture or a local file and touch nothing else. The
+ * accession form of the same commands does need the database, and says so:
+ * `loadFilingHtml` checks the repository token before using it rather than
+ * letting an unregistered token surface as an internal error.
+ */
+export const DI_EXEMPT_COMMAND_PATHS: ReadonlySet<string> = new Set([
+  "verify parse",
+  "verify sections",
+  "verify chunks",
+  "verify all",
+  "verify fixtures",
+]);
+
+/** A command's path from the program root, e.g. `verify parse`. */
+function commandPath(command: Command): string {
+  const parts: string[] = [];
+  let node: Command | null = command;
+  while (node?.parent != null) {
+    parts.unshift(node.name());
+    node = node.parent;
+  }
+  return parts.join(" ");
+}
+
 export const AddCommands = (program: Command): void => {
   let diInitialized = false;
 
@@ -57,6 +90,7 @@ export const AddCommands = (program: Command): void => {
     globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, globalOpts.json);
 
     if (DI_EXEMPT_COMMANDS.has(commandName)) return;
+    if (DI_EXEMPT_COMMAND_PATHS.has(commandPath(actionCommand))) return;
     diInitialized = true;
 
     await bootstrapSecRuntime();
@@ -76,6 +110,7 @@ export const AddCommands = (program: Command): void => {
   registerSpacCommands(program);
   registerEditorialCommands(program);
   addExtractorCommands(program);
+  addVerifyCommands(program);
   addEvalCommands(program);
   // What the console shows for those commands: pickers for the identifiers
   // (CIK, accession, extractor id), panels over their output, the operator

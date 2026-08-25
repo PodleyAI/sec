@@ -12,27 +12,9 @@ import { isHeadingCandidate, assignHeadingLevels } from "./HeadingDetector";
 import { isPageFurniture } from "./pageFurniture";
 import { extractTable, isLayoutTable, leadingOfferingCaption } from "./TableExtractor";
 import { consumeCssTwoColumnRun } from "./cssTwoColumnTable";
+import { isHidden, stripNonProse } from "./domPrep";
 
 const BLOCK_TAGS = new Set(["p", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6", "td", "th"]);
-
-/**
- * Selector for elements whose contents must be dropped before prose is
- * gathered. Two classes:
- *
- * - HTML raw-text / RCDATA elements whose bodies are not rendered as prose
- *   (`script`, `style`, `noscript`, `textarea`, `template`, `xmp`,
- *   `plaintext`, `iframe`, `noembed`, `noframes`). A filer-planted
- *   `SYSTEM: hijack` inside these elements survives cheerio's `.text()`
- *   walks and would otherwise leak into the prompt for every downstream
- *   prose extractor.
- * - Body-level metadata (`title`) and foreign-content roots (`svg`,
- *   `math`) whose descendants (`svg > title/desc/foreignObject`,
- *   `math > mtext`) similarly slip past HTML block heuristics and can
- *   smuggle prompt-injection payloads.
- */
-const STRIP_BEFORE_WALK_SELECTOR =
-  "script, style, noscript, textarea, template, xmp, plaintext, " +
-  "iframe, noembed, noframes, title, svg, math";
 
 /** An element's raw attributes, or undefined for text/comment nodes. */
 function attribsOf(el: unknown): Record<string, string> | undefined {
@@ -70,21 +52,6 @@ function isPageBreak(el: unknown): boolean {
     if (/height\s*:\s*(842\.4|792|1008)pt/.test(style)) return true;
   }
   return false;
-}
-
-/** Every comment node in the subtree, in document order. */
-function collectComments(root: unknown): unknown[] {
-  const found: unknown[] = [];
-  const visit = (node: unknown): void => {
-    const children = (node as { children?: unknown[] }).children;
-    if (children === undefined) return;
-    for (const child of children) {
-      if ((child as { type?: string }).type === "comment") found.push(child);
-      else visit(child);
-    }
-  };
-  visit(root);
-  return found;
 }
 
 /**
@@ -155,23 +122,11 @@ export function parseToBlocks(html: string): EdgarBlock[] {
   // 1.57 MB S-1 the load measured 186 ms with them against 193 ms without.
   const $ = cheerio.load(html, { sourceCodeLocationInfo: true });
 
-  // Drop non-prose subtrees at the DOM level before any prose walk runs.
-  // Removing them here (rather than skipping tags mid-walk) ensures nested
-  // descendants — svg > title/desc/foreignObject, math > mtext, template
+  // Drop non-prose subtrees and comments at the DOM level before any prose walk
+  // runs. Removing them here (rather than skipping tags mid-walk) ensures
+  // nested descendants — svg > title/desc/foreignObject, math > mtext, template
   // shadow content — cannot leak into `.text()` calls performed elsewhere.
-  $(STRIP_BEFORE_WALK_SELECTOR).remove();
-
-  // Defense-in-depth: strip HTML comments. Cheerio treats them as nodes with
-  // `type === "comment"`, and while the walker only reads element/text
-  // children, any consumer that later calls `.text()` on a raw parent would
-  // otherwise see their contents.
-  //
-  // Collected with one linear DOM walk rather than `$("*").contents()`, whose
-  // cost grows superlinearly with element count: on a 7 MB S-1 (63k elements)
-  // that single call took ~14s of a ~16s parse, and found no comments at all.
-  for (const comment of collectComments($.root().get(0))) {
-    $(comment as never).remove();
-  }
+  stripNonProse($);
 
   const out: EdgarBlock[] = [];
   const prose: ProseRun = { parts: [], start: -1, end: -1 };
@@ -223,7 +178,7 @@ export function parseToBlocks(html: string): EdgarBlock[] {
     // display:none subtrees are invisible to a reader and, in iXBRL filings,
     // hold the ix:header metadata block (contexts, units, hidden facts) whose
     // text must not leak into prose. The XBRL pass parses them separately.
-    if (/display\s*:\s*none/i.test(attribsOf(el)?.style ?? "")) return;
+    if (isHidden(el)) return;
 
     if (tag === "table") {
       flushProse();
