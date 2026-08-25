@@ -438,7 +438,7 @@ export class ComputeFormsWorklistTask extends Task<
 
     const remaining = fromCik === undefined ? allowCiks : allowCiks.filter((cik) => cik > fromCik);
 
-    for (let i = 0; i < remaining.length; ) {
+    for (let i = 0; i < remaining.length;) {
       const need = FILING_PAGE_SIZE - rows.length;
       const chunk = remaining.slice(i, i + WORKLIST_CIK_CHUNK);
       const part = ((await filingRepo.query(
