@@ -214,7 +214,10 @@ export async function selectFilingsToConvert(
   for (const filing of matches) {
     if (selected.length >= options.limit) break;
     if (options.force !== true) {
-      const existing = await documents.get([filing.cik, filing.accession_number] as never);
+      const existing = await documents.get({
+        cik: filing.cik,
+        accession_number: filing.accession_number,
+      });
       if (existing !== undefined && existing.converter_version === options.converterVersion) {
         continue;
       }

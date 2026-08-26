@@ -11,6 +11,7 @@ import type {
   ModelConfig,
 } from "workglow";
 import { AiProvider, getAiProviderRegistry } from "workglow";
+import { suspendExtractionCache } from "../extractionCache";
 import { deterministicModelConfig } from "../s1Model";
 
 const JSON_MODE = ["text.generation", "json-mode"] as const satisfies Capability[];
@@ -91,12 +92,28 @@ export function extractVerifyNonce(prompt: string): string | null {
  */
 export function registerFakeStructuredProvider(
   attempts: ReadonlyArray<Record<string, unknown> | Error>,
-  options?: { readonly provider?: string }
+  options?: {
+    readonly provider?: string;
+    /**
+     * Leave the extraction cache ON.
+     *
+     * For the one test that is ABOUT the cache and needs the seam to consult
+     * it. Everywhere else the queue and the cache contradict each other, which
+     * is why suspending is the default rather than the flag.
+     */
+    readonly allowCache?: boolean;
+  }
 ): {
   calls: ReadonlyArray<string>;
   unregister: () => void;
 } {
   const providerName = options?.provider ?? FAKE_PROVIDER;
+  // This provider answers a QUEUE, so it returns a different object for the
+  // same section on the second call — which the extraction cache, quite
+  // correctly, would not. Suspended for the double's lifetime so a test that
+  // scripts two answers gets two, and so the constraint lives with the thing
+  // that violates it rather than in each test's memory.
+  const resumeCache = options?.allowCache === true ? () => {} : suspendExtractionCache();
   const calls: string[] = [];
   let index = 0;
   const runFn: AiProviderRunFn<any, any, ModelConfig> = async (input, _model, _signal, emit) => {
@@ -122,5 +139,11 @@ export function registerFakeStructuredProvider(
     new FakeStructuredProvider(providerName, [{ serves: JSON_MODE, runFn }])
   );
   registry.registerRunFn(providerName, { serves: JSON_MODE, runFn });
-  return { calls, unregister: () => registry.unregisterProvider(providerName) };
+  return {
+    calls,
+    unregister: () => {
+      resumeCache();
+      registry.unregisterProvider(providerName);
+    },
+  };
 }

@@ -381,6 +381,11 @@ import {
   ExtractionDeadLetterSchema,
 } from "../storage/dead-letter/ExtractionDeadLetterSchema";
 import {
+  EXTRACTION_CACHE_REPOSITORY_TOKEN,
+  ExtractionCachePrimaryKeyNames,
+  ExtractionCacheSchema,
+} from "../storage/extraction/ExtractionCacheSchema";
+import {
   S1_CLASSIFICATION_REPOSITORY_TOKEN,
   S1ClassificationPrimaryKeyNames,
   S1ClassificationSchema,
@@ -977,6 +982,15 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     schema: RelatedPartyTransactionSchema,
     primaryKeyNames: RelatedPartyTransactionPrimaryKeyNames,
     indexes: [["accession_number"]],
+  }),
+  defineStorage({
+    token: EXTRACTION_CACHE_REPOSITORY_TOKEN,
+    table: "extraction_cache",
+    schema: ExtractionCacheSchema,
+    primaryKeyNames: ExtractionCachePrimaryKeyNames,
+    // Every read is by primary key, which the key already serves. These are for
+    // the operator: "what is this table full of" and "what can be pruned".
+    indexes: [["label"], ["created_at"]],
   }),
   defineStorage({
     token: EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN,

@@ -234,6 +234,19 @@ DDL, drops, catalog probes and row-count estimates alike.
 filing — and unpinned sampling made re-processing one filing yield 138/138/109 risk factors
 whose contents differed all three times.
 
+**That is also what makes the extraction cache sound**, and the cache turns itself off
+whenever it stops being true. `runGuardedExtraction` is fronted by `extraction_cache`, keyed
+on a hash of every input to the call — label, model, instructions, output schema, and the
+section text VERBATIM — so nothing in it can go stale and a prompt edit misses rather than
+serving an old answer. It is a cache and not storage: results are still written per
+accession, so the temporal model is untouched and truncating the table costs money, not
+information. It stands down under `SEC_EXTRACTION_CACHE=0`, under a dry run, and
+automatically whenever the temperature is not 0 — above 0 the second call would legitimately
+differ, and serving the first would re-impose the determinism the operator just lifted. A
+stateful test double suspends it with `suspendExtractionCache()` for the same reason.
+Measured worth: ~21% of section-granularity calls across 25 real amendment families
+(`scripts/measureSectionReuse.ts`).
+
 ## Environment variables
 
 Set in `.env.local` (see `.env.test` for test defaults).
@@ -251,6 +264,7 @@ Set in `.env.local` (see `.env.test` for test defaults).
 | `SEC_S1_MOCK_DIR`                                                                 | Override the committed S-1 fixtures directory                                       |
 | `SEC_UNIT_TERMS_REF`                                                              | Override the embarc unit-terms reference CSV                                        |
 | `SEC_EXTRACTION_TEMPERATURE`                                                      | Sampling temperature for every extraction call (default `0`)                        |
+| `SEC_EXTRACTION_CACHE`                                                            | `0` disables the extraction cache (default on; auto-off when temperature is not 0)  |
 | `SEC_MODEL_DEFAULT` + per-extractor overrides                                     | Extraction models (built-in default `DEFAULT_SEC_MODEL`) — see `docs/extraction.md` |
 
 The two fetch limits are **independent and both needed**: the rate limiter meters starts
