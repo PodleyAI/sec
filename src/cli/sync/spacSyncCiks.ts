@@ -73,18 +73,41 @@ export function dayBeforeUtc(isoTimestamp: string): string {
 }
 
 /**
+ * Newest-first rows read per extractor when looking for its latest successful
+ * run. One would do if `success: true` were the whole predicate, but a legacy
+ * or partial row can carry `success: true` with a non-success `outcome`, so the
+ * post-filter needs a few rows to walk. Bounded because these tables are
+ * corpus-wide.
+ */
+const LATEST_RUN_SCAN_LIMIT = 20;
+
+/**
  * Inclusive filing-date floor for `--only updates`: the day before the latest
  * successful SPAC extractor run. Matches identify's "take the watermark back
  * one day" so a CIK processed later on the same date is not skipped.
+ *
+ * The max is pushed into the query. `SYNC_FORM_DOMAINS.spacs` includes 8-K,
+ * S-1 and 424, whose `extractor_runs` rows are written by the general
+ * `sync forms` sweep for every issuer rather than only for SPACs — millions of
+ * them. Scanning that in JS to find one timestamp is a multi-hundred-MB spike
+ * before a single issuer is touched, paid independently by every `--shard`
+ * process, and on Postgres the driver buffers the whole result set first.
  */
 export async function spacUpdatesFiledOnOrAfter(): Promise<string | undefined> {
   const storage = globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN);
   let latest: string | undefined;
   for (const extractor_id of SPAC_EXTRACTOR_IDS) {
-    const rows = (await storage.query({ extractor_id, success: true })) ?? [];
+    const rows =
+      (await storage.query(
+        { extractor_id, success: true },
+        { orderBy: [{ column: "ran_at", direction: "DESC" }], limit: LATEST_RUN_SCAN_LIMIT }
+      )) ?? [];
     for (const row of rows) {
       if (!isSuccessfulSpacRun(row)) continue;
+      // Newest-first, so the first row that survives the filter is this
+      // extractor's max.
       if (latest === undefined || row.ran_at > latest) latest = row.ran_at;
+      break;
     }
   }
   if (latest === undefined) return undefined;

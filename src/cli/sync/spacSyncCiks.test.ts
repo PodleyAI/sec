@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
@@ -317,10 +317,36 @@ describe("shardCiks", () => {
   });
 });
 
+/** A run row with an explicit `ran_at`, which `recordRun` always stamps as now. */
+async function putRun(args: {
+  cik: number;
+  extractor_id: string;
+  ran_at: string;
+  success?: boolean;
+  outcome?: "success" | "partial" | "failure";
+}): Promise<void> {
+  await globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN).put({
+    cik: args.cik,
+    accession_number: `${String(args.cik).padStart(10, "0")}-26-000001`,
+    form: args.extractor_id,
+    extractor_id: args.extractor_id,
+    extractor_version: "1.0.0",
+    slot_at_run: "current",
+    ran_at: args.ran_at,
+    success: args.success ?? true,
+    outcome: args.outcome ?? "success",
+    error: null,
+  });
+}
+
 describe("spacUpdatesFiledOnOrAfter", () => {
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("is the UTC day before the latest successful SPAC extractor run", async () => {
@@ -329,5 +355,53 @@ describe("spacUpdatesFiledOnOrAfter", () => {
     const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
     const row = await repo.findRun(1, "0000000001-26-000001", "S-1", "1.0.0");
     await expect(spacUpdatesFiledOnOrAfter()).resolves.toBe(dayBeforeUtc(row!.ran_at));
+  });
+
+  it("asks the storage for the newest rows only, never the whole table", async () => {
+    // `SYNC_FORM_DOMAINS.spacs` covers 8-K, S-1 and 424, whose `extractor_runs`
+    // rows are corpus-wide: the general `sync forms` sweep writes one per
+    // issuer, not just per SPAC. Reading every successful row back to compute
+    // one max is a multi-hundred-MB spike before a single issuer is touched,
+    // paid again by every `--shard` process, and on Postgres the driver buffers
+    // the whole result set before any JS runs. Assert the bound reaches the
+    // storage layer rather than asserting this happens to be fast.
+    await putRun({ cik: 1, extractor_id: "S-1", ran_at: "2026-08-20T00:00:00.000Z" });
+    const storage = globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN);
+    const spy = vi.spyOn(storage, "query");
+
+    await spacUpdatesFiledOnOrAfter();
+
+    expect(spy.mock.calls.length).toBeGreaterThan(0);
+    for (const [, options] of spy.mock.calls) {
+      expect(options?.orderBy).toEqual([{ column: "ran_at", direction: "DESC" }]);
+      expect(options?.limit).toBeGreaterThan(0);
+    }
+  });
+
+  it("takes the newest run across every SPAC extractor", async () => {
+    await putRun({ cik: 1, extractor_id: "S-1", ran_at: "2026-01-05T00:00:00.000Z" });
+    await putRun({ cik: 2, extractor_id: "8-K", ran_at: "2026-06-15T09:00:00.000Z" });
+    await putRun({ cik: 3, extractor_id: "424", ran_at: "2026-03-01T00:00:00.000Z" });
+
+    await expect(spacUpdatesFiledOnOrAfter()).resolves.toBe("2026-06-14");
+  });
+
+  it("walks past a newer row that is not a success", async () => {
+    // A legacy/partial row can carry `success: true` with `outcome: "partial"`.
+    // The bounded read is newest-first, so the post-filter has to keep walking
+    // rather than stopping at the first row the storage returns.
+    await putRun({
+      cik: 1,
+      extractor_id: "8-K",
+      ran_at: "2026-06-15T00:00:00.000Z",
+      outcome: "partial",
+    });
+    await putRun({ cik: 2, extractor_id: "8-K", ran_at: "2026-05-10T00:00:00.000Z" });
+
+    await expect(spacUpdatesFiledOnOrAfter()).resolves.toBe("2026-05-09");
+  });
+
+  it("is undefined when nothing has ever run", async () => {
+    await expect(spacUpdatesFiledOnOrAfter()).resolves.toBeUndefined();
   });
 });
