@@ -29,7 +29,15 @@ export const EXTRACTOR_IDS = [
   "25-15",
   "RW",
 ] as const;
-export type ExtractorId = (typeof EXTRACTOR_IDS)[number];
+/**
+ * An extractor's id. Deliberately a plain string, not a union over
+ * {@link EXTRACTOR_IDS}: a downstream package registers its own extractors
+ * through the form-extractor registry, and a closed union would make that
+ * impossible without editing this file. {@link EXTRACTOR_IDS} remains the list
+ * sec itself ships — what `db setup` seeds `component_versions` from, and what
+ * the CLI offers for completion.
+ */
+export type ExtractorId = string;
 
 /**
  * The extractors that call `EntityObserver.observePerson`, and so are the only
