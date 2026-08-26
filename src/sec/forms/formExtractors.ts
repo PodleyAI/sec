@@ -54,22 +54,32 @@ export interface FormExtractor<TParsed = unknown> {
   readonly after?: readonly string[];
 }
 
-const REGISTRY = new Map<string, FormExtractor>();
+/**
+ * `any` rather than `unknown` for the stored parse type: `store` is
+ * contravariant in it, so a `FormExtractor<TParsed>` is not assignable to a
+ * `FormExtractor<unknown>` and the registry could not hold heterogeneous
+ * entries at all. Each registration keeps its own type at its call site; the
+ * erasure is what lets differently-typed extractors share one map.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const REGISTRY = new Map<string, FormExtractor<any>>();
 
 /** `id` for a whole-filing extractor, `id:section` otherwise. */
 export function extractorKey(id: string, section?: string): string {
   return section === undefined || section === "" ? id : `${id}:${section}`;
 }
 
-function keyOf(ext: FormExtractor): string {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function keyOf(ext: FormExtractor<any>): string {
   return extractorKey(ext.id, ext.section);
 }
 
 export function registerFormExtractor<TParsed>(ext: FormExtractor<TParsed>): void {
-  REGISTRY.set(keyOf(ext), ext as FormExtractor);
+  REGISTRY.set(keyOf(ext), ext);
 }
 
-export function getFormExtractor(key: string): FormExtractor | undefined {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getFormExtractor(key: string): FormExtractor<any> | undefined {
   return REGISTRY.get(key);
 }
 
@@ -82,13 +92,16 @@ export function listFormExtractorKeys(): readonly string[] {
  * declarations. Registration order breaks ties, so a form whose extractors
  * declare nothing keeps the order they were registered in.
  */
-export function extractorsForForm(form: string): readonly FormExtractor[] {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function extractorsForForm(form: string): readonly FormExtractor<any>[] {
   const members = [...REGISTRY.values()].filter((e) => e.forms.includes(form));
   const byKey = new Map(members.map((e) => [keyOf(e), e]));
-  const sorted: FormExtractor[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sorted: FormExtractor<any>[] = [];
   const state = new Map<string, "visiting" | "done">();
 
-  const visit = (ext: FormExtractor): void => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const visit = (ext: FormExtractor<any>): void => {
     const key = keyOf(ext);
     const seen = state.get(key);
     if (seen === "done") return;
