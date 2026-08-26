@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { DroppedBlock } from "../sec/html/DePaginator";
-import { parseEdgarHtmlWithTrace } from "../sec/html/parseEdgarHtml";
+import { parseEdgarHtmlWithTrace, type EdgarParseTrace } from "../sec/html/parseEdgarHtml";
 import type { EdgarBlock, SourceSpan } from "../sec/html/types";
 import { measureCoverage, type CoverageReport } from "./coverage";
 
@@ -57,9 +57,19 @@ function blockText(b: EdgarBlock): string {
   return b.type === "heading" ? b.text : b.type === "page-break" ? "" : b.node.text;
 }
 
-/** Parse a filing and account for what the parser did with it. */
-export function buildParseTrace(html: string, title: string): ParseTrace {
-  const { blocks, dropped } = parseEdgarHtmlWithTrace(html, title);
+/**
+ * Parse a filing and account for what the parser did with it.
+ *
+ * `parsed` lets a caller that already parsed hand the result in rather than pay
+ * for a second walk — a 7 MB filing is seconds of work, and the segmenter needs
+ * the same `doc` and span index this built from.
+ */
+export function buildParseTrace(
+  html: string,
+  title: string,
+  parsed: EdgarParseTrace = parseEdgarHtmlWithTrace(html, title)
+): ParseTrace {
+  const { blocks, dropped } = parsed;
   return {
     title,
     htmlLength: html.length,

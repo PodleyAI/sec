@@ -5,6 +5,7 @@
  */
 import { NodeKind, renderMarkdown, traverseDepthFirst } from "workglow";
 import type { DocumentNode, DocumentRootNode, SectionNode } from "workglow";
+import { subtreeSourceSpan, type SourceSpanIndex } from "../../../html/sourceSpanIndex";
 import {
   type DocumentSegmenter,
   S1_SECTIONS,
@@ -65,6 +66,13 @@ function matchTarget(title: string): S1SectionName | null {
  * donating separates them; how much of it does not.
  */
 const RESTATING_CONTAINERS: readonly S1SectionName[] = [S1_SECTIONS.PROSPECTUS_SUMMARY];
+
+/**
+ * Default for a caller that parsed without the trace. Every lookup misses, so
+ * every section reports an unknown span rather than a wrong one — which is what
+ * every existing caller wants, none of them having a span to offer.
+ */
+const EMPTY_INDEX: SourceSpanIndex = new Map();
 
 /**
  * Targets a filing nests inside a {@link RESTATING_CONTAINERS} section as a
@@ -291,7 +299,9 @@ function segmentByLineScan(text: string): Section[] {
     if (body.length === 0) return;
     const prev = best.get(hit.name);
     if (prev && prev.text.length >= body.length) return;
-    best.set(hit.name, { name: hit.name, text: body, startOffset: 0, endOffset: 0 });
+    // A line scan works on rendered markdown, which carries no link back to the
+    // HTML — so the span is genuinely unknown, not zero.
+    best.set(hit.name, { name: hit.name, text: body, source: undefined });
   });
   return [...best.values()];
 }
@@ -320,7 +330,10 @@ export interface SegmentationResult {
 }
 
 export class DocumentTreeSegmenter implements DocumentSegmenter {
-  segmentDocument(doc: DocumentRootNode): SegmentationResult {
+  segmentDocument(
+    doc: DocumentRootNode,
+    sourceByNodeId: SourceSpanIndex = EMPTY_INDEX
+  ): SegmentationResult {
     const best = new Map<S1SectionName, Section>();
     const bestNode = new Map<S1SectionName, SectionNode>();
 
@@ -338,8 +351,7 @@ export class DocumentTreeSegmenter implements DocumentSegmenter {
       const candidate: Section = {
         name,
         text: body,
-        startOffset: section.range.startOffset,
-        endOffset: section.range.endOffset,
+        source: subtreeSourceSpan(section, sourceByNodeId),
       };
       const prev = best.get(name);
       if (!prev || candidate.text.length > prev.text.length) {
@@ -393,12 +405,9 @@ export class DocumentTreeSegmenter implements DocumentSegmenter {
       for (const parent of [...containers, ...declared]) {
         const text = findNestedSection(parent.text, target);
         if (text === null) continue;
-        best.set(target, {
-          name: target,
-          text,
-          startOffset: parent.startOffset,
-          endOffset: parent.endOffset,
-        });
+        // The slice is a line range inside the parent's rendered text, so the
+        // parent's span is the tightest bound this path can honestly offer.
+        best.set(target, { name: target, text, source: parent.source });
         break;
       }
     }
@@ -427,7 +436,7 @@ export class DocumentTreeSegmenter implements DocumentSegmenter {
     return { sections: [...best.values()], usedLineScan };
   }
 
-  segment(doc: DocumentRootNode): readonly Section[] {
-    return this.segmentDocument(doc).sections;
+  segment(doc: DocumentRootNode, sourceByNodeId?: SourceSpanIndex): readonly Section[] {
+    return this.segmentDocument(doc, sourceByNodeId).sections;
   }
 }

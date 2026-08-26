@@ -91,7 +91,11 @@ function renderSections(result: VerifyFilingResult): void {
       (sections.usedLineScan ? "  (line-scan fallback — the tree carried no structure)" : "")
   );
   for (const size of [...sections.sizes].sort((a, b) => b.chars - a.chars)) {
-    console.log(`    ${String(size.chars).padStart(8)}  ${size.name}`);
+    const at =
+      size.source === undefined
+        ? "no source mapping"
+        : `html ${size.source.start}..${size.source.end}`;
+    console.log(`    ${String(size.chars).padStart(8)}  ${size.name.padEnd(46)} ${at}`);
   }
   if (sections.missing.length > 0) console.log(`    missing: ${sections.missing.join(", ")}`);
   if (sections.unresolvedWithHeading.length > 0) {

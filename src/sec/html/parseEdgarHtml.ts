@@ -7,6 +7,7 @@ import type { DocumentRootNode } from "workglow";
 import { parseToBlocks } from "./parseToBlocks";
 import { depaginateWithTrace, type DroppedBlock } from "./DePaginator";
 import { buildDocument } from "./buildDocument";
+import { buildSourceSpanIndex, type SourceSpanIndex } from "./sourceSpanIndex";
 import type { EdgarBlock } from "./types";
 
 /**
@@ -20,11 +21,16 @@ import type { EdgarBlock } from "./types";
  *
  * `dropped` is what the de-paginator removed, so a missing paragraph can be
  * attributed to a rule here rather than guessed at.
+ *
+ * `sourceByNodeId` is the same provenance keyed for consumers that hold the
+ * tree rather than the block list — the segmenter, which needs the span of a
+ * section it found by walking `doc`.
  */
 export interface EdgarParseTrace {
   readonly doc: DocumentRootNode;
   readonly blocks: readonly EdgarBlock[];
   readonly dropped: readonly DroppedBlock[];
+  readonly sourceByNodeId: SourceSpanIndex;
 }
 
 /**
@@ -47,5 +53,10 @@ export function parseEdgarHtml(html: string, title: string): DocumentRootNode {
 export function parseEdgarHtmlWithTrace(html: string, title: string): EdgarParseTrace {
   const blocks = parseToBlocks(html);
   const { blocks: clean, dropped } = depaginateWithTrace(blocks);
-  return { doc: buildDocument(title, clean), blocks: clean, dropped };
+  return {
+    doc: buildDocument(title, clean),
+    blocks: clean,
+    dropped,
+    sourceByNodeId: buildSourceSpanIndex(clean),
+  };
 }

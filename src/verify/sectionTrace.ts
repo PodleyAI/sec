@@ -12,6 +12,7 @@ import {
   type S1SectionName,
 } from "../sec/forms/registration-statements/s1/DocumentSegmenter";
 import type { SegmentationResult } from "../sec/forms/registration-statements/s1/DocumentTreeSegmenter";
+import type { SourceSpan } from "../sec/html/types";
 import { alphanumeric } from "./coverage";
 
 /** Every canonical target, whether or not the filing resolved it. */
@@ -20,13 +21,11 @@ export interface SectionRecord {
   readonly resolved: boolean;
   readonly chars: number;
   /**
-   * Offsets as `DocumentTreeSegmenter` reports them. Recorded verbatim and NOT
-   * treated as locating anything: `buildDocumentTree` derives them from a
-   * running count over concatenated node text, so they index neither the HTML,
-   * the rendered markdown, nor this section's own `text`. They are kept because
-   * a change in them still signals the tree moved.
+   * Half-open span of the filing HTML this section's body was rendered from, or
+   * undefined when a text-level fallback recovered it and there is no mapping
+   * back to the source. This is what a side-by-side view highlights.
    */
-  readonly reportedOffsets: { readonly start: number; readonly end: number } | undefined;
+  readonly source: SourceSpan | undefined;
   /** First line of the section body, which is usually enough to recognize it. */
   readonly opening: string;
   /**
@@ -106,7 +105,7 @@ export function buildSectionTrace(
         name,
         resolved: false,
         chars: 0,
-        reportedOffsets: undefined,
+        source: undefined,
         opening: "",
         contains: [],
       };
@@ -119,7 +118,7 @@ export function buildSectionTrace(
       name,
       resolved: true,
       chars: section.text.length,
-      reportedOffsets: { start: section.startOffset, end: section.endOffset },
+      source: section.source,
       opening: (section.text.split("\n").find((l) => l.trim().length > 0) ?? "").slice(0, 160),
       contains,
     };

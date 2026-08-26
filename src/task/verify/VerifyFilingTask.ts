@@ -9,7 +9,7 @@ import { Type } from "typebox";
 import { Task, type IExecuteContext } from "workglow";
 import { S1_SECTIONS } from "../../sec/forms/registration-statements/s1/DocumentSegmenter";
 import { DocumentTreeSegmenter } from "../../sec/forms/registration-statements/s1/DocumentTreeSegmenter";
-import { parseEdgarHtml } from "../../sec/html/parseEdgarHtml";
+import { parseEdgarHtmlWithTrace } from "../../sec/html/parseEdgarHtml";
 import { buildChunkTrace } from "../../verify/chunkTrace";
 import { loadFilingHtml } from "../../verify/loadFilingHtml";
 import { buildParseTrace } from "../../verify/parseTrace";
@@ -67,7 +67,14 @@ export interface SectionSummary {
   /** A target whose heading is in the tree but which resolved to nothing. */
   readonly unresolvedWithHeading: readonly string[];
   readonly unexpectedContainments: readonly string[];
-  readonly sizes: readonly { readonly name: string; readonly chars: number }[];
+  readonly sizes: readonly {
+    readonly name: string;
+    readonly chars: number;
+    /** Bounding span in the filing HTML, absent when a text fallback found it. */
+    readonly source: { readonly start: number; readonly end: number } | undefined;
+  }[];
+  /** Sections resolved by a path with no mapping back to the source. */
+  readonly withoutSource: readonly string[];
 }
 
 export interface ChunkSummary {
@@ -182,7 +189,8 @@ export class VerifyFilingTask extends Task<
     }
 
     await context.updateProgress(0.1, "Parsing");
-    const parseTrace = buildParseTrace(source.html, source.label);
+    const parsed = parseEdgarHtmlWithTrace(source.html, source.label);
+    const parseTrace = buildParseTrace(source.html, source.label, parsed);
     let parse: ParseSummary | undefined;
     if (stages.includes("parse")) {
       write("parse", parseTrace);
@@ -220,9 +228,11 @@ export class VerifyFilingTask extends Task<
     let chunks: ChunkSummary | undefined;
     if (stages.includes("sections") || stages.includes("chunks")) {
       await context.updateProgress(0.5, "Segmenting");
-      const doc = parseEdgarHtml(source.html, source.label);
-      const segmentation = new DocumentTreeSegmenter().segmentDocument(doc);
-      const sectionTrace = buildSectionTrace(doc, segmentation);
+      const segmentation = new DocumentTreeSegmenter().segmentDocument(
+        parsed.doc,
+        parsed.sourceByNodeId
+      );
+      const sectionTrace = buildSectionTrace(parsed.doc, segmentation);
       if (stages.includes("sections")) {
         write("sections", sectionTrace);
         const resolved = sectionTrace.sections.filter((s) => s.resolved);
@@ -237,7 +247,8 @@ export class VerifyFilingTask extends Task<
               .filter((inner) => !isExpectedContainment(s.name, inner))
               .map((inner) => `${s.name} contains ${inner}`)
           ),
-          sizes: resolved.map((s) => ({ name: s.name, chars: s.chars })),
+          sizes: resolved.map((s) => ({ name: s.name, chars: s.chars, source: s.source })),
+          withoutSource: resolved.filter((s) => s.source === undefined).map((s) => s.name),
         };
       }
       if (stages.includes("chunks")) {
