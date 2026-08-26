@@ -76,6 +76,11 @@ export class CompanyIdentityLinkRepo {
     return (await this.repo.query({ canonical_company_id, resolver_version })) ?? [];
   }
 
+  /** Every link at a resolver version, across every canonical id — the full population a projection recomputes over. */
+  async listForResolverVersion(resolver_version: string): Promise<CompanyIdentityLink[]> {
+    return (await this.repo.query({ resolver_version })) ?? [];
+  }
+
   async deleteForResolverVersion(resolver_version: string): Promise<number> {
     const rows = (await this.repo.query({ resolver_version })) ?? [];
     for (const r of rows) {

@@ -130,6 +130,17 @@ export class CanonicalJunctionRepo<TRow extends CanonicalJunctionRow> {
     });
   }
 
+  /**
+   * Write one already-aggregated junction row outright — no read-modify-write,
+   * unlike {@link record}'s increment. For a projection that recomputes
+   * `observation_count` and the seen-at bounds from the current observations
+   * and replaces a resolver version's rows wholesale rather than reconciling
+   * them one observation at a time.
+   */
+  async putRow(row: TRow): Promise<void> {
+    await this.repo.put(row);
+  }
+
   /** All junction rows for a canonical entity at a resolver version. */
   async listForCanonical(idValue: string, resolver_version: string): Promise<TRow[]> {
     return (await this.repo.query({ [this.idColumn]: idValue, resolver_version } as any)) ?? [];

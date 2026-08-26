@@ -14,6 +14,14 @@ import {
 } from "./CompanyObservationSchema";
 
 /**
+ * Ids per `in`-list query. The storage layer renders an `in` criterion as one
+ * bind parameter per value on SQLite, so a list stays subject to
+ * SQLITE_MAX_VARIABLE_NUMBER — see `PersonObservationTitleRepo`'s constant of
+ * the same name for the full rationale.
+ */
+const MAX_IDS_PER_QUERY = 900;
+
+/**
  * Draft type for `upsertByNaturalKey` callers: `observation_id` is omitted
  * (repo-assigned). All nullable observation fields can also be omitted; they
  * default to `null` in the persisted row.
@@ -136,6 +144,24 @@ export class CompanyObservationRepo {
     extractor_id: string
   ): Promise<CompanyObservation[]> {
     return (await this.repo.query({ accession_number, extractor_id })) ?? [];
+  }
+
+  /**
+   * Observations for many ids at once — one query per chunk of ids rather
+   * than one per id, the N+1 a caller joining onto a page of identity links
+   * would otherwise pay. Order is not preserved and missing ids are simply
+   * absent from the result.
+   */
+  async listByIds(observation_ids: readonly number[]): Promise<CompanyObservation[]> {
+    const distinct = [...new Set(observation_ids)];
+    const rows: CompanyObservation[] = [];
+    for (let start = 0; start < distinct.length; start += MAX_IDS_PER_QUERY) {
+      const chunk = distinct.slice(start, start + MAX_IDS_PER_QUERY);
+      const matches =
+        (await this.repo.query({ observation_id: { value: chunk, operator: "in" } })) ?? [];
+      rows.push(...matches);
+    }
+    return rows;
   }
 
   async deleteByObservationId(observation_id: number): Promise<void> {

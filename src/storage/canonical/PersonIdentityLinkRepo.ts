@@ -76,6 +76,11 @@ export class PersonIdentityLinkRepo {
     return (await this.repo.query({ canonical_person_id, resolver_version })) ?? [];
   }
 
+  /** Every link at a resolver version, across every canonical id — the full population a projection recomputes over. */
+  async listForResolverVersion(resolver_version: string): Promise<PersonIdentityLink[]> {
+    return (await this.repo.query({ resolver_version })) ?? [];
+  }
+
   async deleteForResolverVersion(resolver_version: string): Promise<number> {
     const rows = (await this.repo.query({ resolver_version })) ?? [];
     for (const r of rows) {
