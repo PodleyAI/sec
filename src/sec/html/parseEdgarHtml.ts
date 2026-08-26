@@ -5,8 +5,33 @@
  */
 import type { DocumentRootNode } from "workglow";
 import { parseToBlocks } from "./parseToBlocks";
-import { depaginate } from "./DePaginator";
+import { depaginateWithTrace, type DroppedBlock } from "./DePaginator";
 import { buildDocument } from "./buildDocument";
+import { buildSourceSpanIndex, type SourceSpanIndex } from "./sourceSpanIndex";
+import type { EdgarBlock } from "./types";
+
+/**
+ * The document, plus what the parser did to produce it.
+ *
+ * `blocks` are the surviving blocks in document order, each carrying the
+ * `[start, end)` span of filing HTML it was built from — the only link from
+ * anything downstream back to the source. `DocumentNode.range` is not that
+ * link: `buildDocumentTree` replaces it with a running count over concatenated
+ * node text, which indexes neither the HTML nor the rendered markdown.
+ *
+ * `dropped` is what the de-paginator removed, so a missing paragraph can be
+ * attributed to a rule here rather than guessed at.
+ *
+ * `sourceByNodeId` is the same provenance keyed for consumers that hold the
+ * tree rather than the block list — the segmenter, which needs the span of a
+ * section it found by walking `doc`.
+ */
+export interface EdgarParseTrace {
+  readonly doc: DocumentRootNode;
+  readonly blocks: readonly EdgarBlock[];
+  readonly dropped: readonly DroppedBlock[];
+  readonly sourceByNodeId: SourceSpanIndex;
+}
 
 /**
  * Convert EDGAR filing HTML into a hierarchical Document: style-inferred heading
@@ -14,7 +39,24 @@ import { buildDocument } from "./buildDocument";
  * page-split tables stitched. Form-agnostic; pure and synchronous.
  */
 export function parseEdgarHtml(html: string, title: string): DocumentRootNode {
+  return parseEdgarHtmlWithTrace(html, title).doc;
+}
+
+/**
+ * {@link parseEdgarHtml}, also returning the block-level source provenance the
+ * verification trace reads.
+ *
+ * The document it produces is identical to what `parseEdgarHtml` returns —
+ * `buildDocument` ignores the `source` spans entirely — so nothing in the
+ * extraction path changes by tracing a filing.
+ */
+export function parseEdgarHtmlWithTrace(html: string, title: string): EdgarParseTrace {
   const blocks = parseToBlocks(html);
-  const clean = depaginate(blocks);
-  return buildDocument(title, clean);
+  const { blocks: clean, dropped } = depaginateWithTrace(blocks);
+  return {
+    doc: buildDocument(title, clean),
+    blocks: clean,
+    dropped,
+    sourceByNodeId: buildSourceSpanIndex(clean),
+  };
 }

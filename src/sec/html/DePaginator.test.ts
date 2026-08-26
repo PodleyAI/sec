@@ -17,7 +17,26 @@ const style: ResolvedStyle = {
   centered: true,
   upperRatio: 1,
 };
-const heading = (text: string): EdgarBlock => ({ type: "heading", text, style, level: 2 });
+/**
+ * Synthetic source spans, ten units apart in construction order. Real spans
+ * come from parse5 and the de-paginator only ever unions them, so any
+ * increasing sequence exercises the stitch; the gaps make a merged span
+ * visibly wider than either half.
+ */
+let nextSpanStart = 0;
+const span = (): { readonly start: number; readonly end: number } => {
+  const start = nextSpanStart;
+  nextSpanStart += 10;
+  return { start, end: start + 5 };
+};
+const pageBreak = (): EdgarBlock => ({ type: "page-break", source: span() });
+const heading = (text: string): EdgarBlock => ({
+  type: "heading",
+  text,
+  style,
+  level: 2,
+  source: span(),
+});
 const para = (text: string): EdgarBlock => ({
   type: "paragraph",
   node: {
@@ -26,6 +45,7 @@ const para = (text: string): EdgarBlock => ({
     range: { startOffset: 0, endOffset: 0 },
     text,
   } as ParagraphNode,
+  source: span(),
 });
 const cell = (t: string, isHeader = false): TableCell => ({
   text: t,
@@ -47,6 +67,7 @@ const table = (headerRows: TableCell[][], rows: TableCell[][]): EdgarBlock => ({
     rows,
     stitchedFrom: 1,
   } as TableNode,
+  source: span(),
 });
 
 describe("depaginate", () => {
@@ -121,7 +142,7 @@ describe("depaginate", () => {
   it("keeps a heading that starts a page, unlike an adjacent short paragraph", () => {
     const blocks: EdgarBlock[] = [
       para("tail of the previous page"),
-      { type: "page-break" },
+      pageBreak(),
       heading("THE OFFERING"),
       para("The offering body runs on from here."),
     ];
@@ -133,7 +154,7 @@ describe("depaginate", () => {
     const header = [[cell("Name", true), cell("Shares", true)]];
     const blocks: EdgarBlock[] = [
       table(header, [[cell("Alice"), cell("1")]]),
-      { type: "page-break" },
+      pageBreak(),
       para("ACME CORPORATION"),
       table(header, [[cell("Bob"), cell("2")]]),
     ];
@@ -148,7 +169,7 @@ describe("depaginate", () => {
   it("does NOT merge two distinct adjacent tables with different column counts", () => {
     const blocks: EdgarBlock[] = [
       table([[cell("A", true), cell("B", true)]], [[cell("1"), cell("2")]]),
-      { type: "page-break" },
+      pageBreak(),
       table([[cell("X", true)]], [[cell("9")]]),
     ];
     const out = depaginate(blocks);

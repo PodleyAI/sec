@@ -7,7 +7,7 @@ import { renderMarkdown } from "workglow";
 import type { TableCell, TableNode } from "workglow";
 import { SECTION_HEADING_PATTERNS } from "../forms/registration-statements/s1/DocumentSegmenter";
 import { isPageNumber } from "./pageFurniture";
-import type { EdgarBlock } from "./types";
+import type { EdgarBlock, SourceSpan } from "./types";
 
 const FREQ_THRESHOLD = 5;
 const SHORT_LEN = 100;
@@ -47,8 +47,60 @@ function isTargetSectionHeading(b: EdgarBlock): boolean {
   );
 }
 
+/**
+ * Why the de-paginator removed a block, in the vocabulary its three rules use.
+ *
+ * Kept apart rather than collapsed into "furniture" because they answer
+ * different questions when a section comes up short: `repeated-furniture` means
+ * the text appeared {@link FREQ_THRESHOLD}+ times and a later copy lost,
+ * `page-number` means it was a bare numeral, and `near-page-break` means a
+ * short paragraph sat against a page boundary. Only the last two can eat prose
+ * that the filing states exactly once.
+ */
+export const DROP_REASONS = ["repeated-furniture", "page-number", "near-page-break"] as const;
+export type DropReason = (typeof DROP_REASONS)[number];
+
+/** One removed block, with enough of it to recognize in a coverage report. */
+export interface DroppedBlock {
+  readonly reason: DropReason;
+  readonly source: SourceSpan;
+  readonly text: string;
+}
+
+export interface DepaginateResult {
+  readonly blocks: EdgarBlock[];
+  readonly dropped: readonly DroppedBlock[];
+}
+
+/** The text a block contributes to the filing, for a drop report. */
+function blockText(b: EdgarBlock): string {
+  switch (b.type) {
+    case "heading":
+      return b.text;
+    case "paragraph":
+    case "table":
+    case "list":
+    case "image":
+      return b.node.text;
+    case "page-break":
+      return "";
+  }
+}
+
 /** Mark furniture (running headers/footers, page numbers) and drop it; then stitch. */
 export function depaginate(blocks: EdgarBlock[]): EdgarBlock[] {
+  return depaginateWithTrace(blocks).blocks;
+}
+
+/**
+ * {@link depaginate}, also reporting what it removed and why.
+ *
+ * The drop list is the verification trace's account of this stage: a section
+ * that arrives at an extractor missing a paragraph the filing plainly contains
+ * is either a walk that never emitted it or a rule here that ate it, and
+ * without this there is no way to tell those apart.
+ */
+export function depaginateWithTrace(blocks: EdgarBlock[]): DepaginateResult {
   // --- Pass 1: frequency table of short prose and short heading text ---
   const freq = new Map<string, number>();
   for (const b of blocks) {
@@ -64,21 +116,25 @@ export function depaginate(blocks: EdgarBlock[]): EdgarBlock[] {
   // appeared in the filing: only the repeats are page furniture, so the first
   // surviving occurrence is kept and every later one dropped.
   const kept: EdgarBlock[] = [];
+  const dropped: DroppedBlock[] = [];
   const keptOnce = new Set<string>();
+  const drop = (b: EdgarBlock, reason: DropReason): void => {
+    dropped.push({ reason, source: b.source, text: blockText(b) });
+  };
   blocks.forEach((b, i) => {
     const key = furnitureKey(b);
     const repeatKey =
       key !== undefined && (freq.get(key) ?? 0) >= FREQ_THRESHOLD && !isTargetSectionHeading(b)
         ? key
         : undefined;
-    if (repeatKey !== undefined && keptOnce.has(repeatKey)) return;
+    if (repeatKey !== undefined && keptOnce.has(repeatKey)) return drop(b, "repeated-furniture");
     if (b.type === "paragraph") {
       const t = b.node.text;
-      if (isPageNumber(t)) return;
+      if (isPageNumber(t)) return drop(b, "page-number");
       // Page-break adjacency stays a paragraph-only signal. A genuine section
       // heading normally starts a fresh page, so extending it to headings would
       // strip the very titles the tree is built from.
-      if (t.length <= SHORT_LEN && isAdjacentToBreak(i)) return;
+      if (t.length <= SHORT_LEN && isAdjacentToBreak(i)) return drop(b, "near-page-break");
     }
     // Recorded only once the block survives the remaining rules, so a first
     // occurrence dropped as a page number or page-break neighbour does not
@@ -103,7 +159,14 @@ export function depaginate(blocks: EdgarBlock[]): EdgarBlock[] {
         canStitch(beforeBreak.node, b.node)
       ) {
         const merged = stitchTables(beforeBreak.node, b.node);
-        stitched.splice(stitched.length - 2, 2, { type: "table", node: merged });
+        // The stitched table covers both halves and the break between them, so
+        // its span runs from the first half's start to the second half's end.
+        // Anything narrower would leave the continuation's rows unattributed.
+        stitched.splice(stitched.length - 2, 2, {
+          type: "table",
+          node: merged,
+          source: { start: beforeBreak.source.start, end: b.source.end },
+        });
         continue;
       }
     }
@@ -111,7 +174,9 @@ export function depaginate(blocks: EdgarBlock[]): EdgarBlock[] {
   }
 
   // --- Pass 4: drop remaining page-break markers ---
-  return stitched.filter((b) => b.type !== "page-break");
+  // Not reported as drops: a marker is our own annotation of a page boundary,
+  // not filing content, so it has nothing to account for.
+  return { blocks: stitched.filter((b) => b.type !== "page-break"), dropped };
 }
 
 /** Conservative: same column count, and continuation either repeats header or has none. */
