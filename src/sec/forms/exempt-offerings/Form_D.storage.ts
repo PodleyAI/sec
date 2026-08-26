@@ -26,6 +26,7 @@ import type { InvestmentOffering } from "../../../storage/investment-offering/In
 import type { InvestmentOfferingHistory } from "../../../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { parseCikSafely } from "../../../util/parseCik";
 import { EntityObserver } from "../../../resolver/EntityObserver";
+import { COMPLETE_ROSTER_ROLE_SCOPES } from "../../../resolver/rebuildPersonRoles";
 import { PersonResolver } from "../../../resolver/PersonResolver";
 import { CompanyResolver } from "../../../resolver/CompanyResolver";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
@@ -553,7 +554,7 @@ export async function processFormD({
   for (const person of formD.relatedPersonsList?.relatedPersonInfo || []) {
     const outcome = await processRelatedPerson(
       cik,
-      "form-d:related-person",
+      COMPLETE_ROSTER_ROLE_SCOPES.formDRelatedPerson,
       person,
       ctx,
       relatedPersonIndex++
@@ -571,7 +572,7 @@ export async function processFormD({
     await observer.closeUnassertedPersonRoles({
       accession_number,
       extractor_id: "D",
-      role_scope: "form-d:related-person",
+      role_scope: COMPLETE_ROSTER_ROLE_SCOPES.formDRelatedPerson,
       company_cik: cik,
       filing_date,
     });

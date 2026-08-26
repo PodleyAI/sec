@@ -137,6 +137,22 @@ function expandBoardSeatDirector(titles: readonly string[]): string[] {
 }
 
 /**
+ * The canonical titles one claim's filed titles mint tenures from: compound
+ * titles split and canonicalized, placeholders dropped, an implied board
+ * directorship re-added. An empty result means the claim names a person the
+ * filing's roster is not complete without.
+ *
+ * Exported so a batch pass over stored observations derives tenures from the
+ * SAME code that wrote them — a second implementation that drifted would mint
+ * duplicate tenures under titles nothing else produces.
+ */
+export function canonicalRoleTitles(titles: readonly string[]): readonly string[] {
+  return expandBoardSeatDirector(
+    normalizeManagementTitles(titles).filter((t) => !PLACEHOLDER_TITLES.has(t.toLowerCase()))
+  );
+}
+
+/**
  * Shared helper that form storage modules call to normalize, upsert, resolve,
  * and link person and company observations. Centralizes the observe→resolve→link
  * pipeline so each form storage module doesn't repeat it.
@@ -297,11 +313,7 @@ export class EntityObserver {
   private async recordPersonRoles(claim: PersonClaim, canonical_person_id: string): Promise<void> {
     const company_cik = claim.source_filing_issuer_cik;
     if (!claim.filing_date || !claim.role_scope || company_cik == null) return;
-    const titles = expandBoardSeatDirector(
-      normalizeManagementTitles(claim.titles ?? []).filter(
-        (t) => !PLACEHOLDER_TITLES.has(t.toLowerCase())
-      )
-    );
+    const titles = canonicalRoleTitles(claim.titles ?? []);
     const groupKey = this.roleGroupKey(
       claim.accession_number,
       claim.extractor_id,

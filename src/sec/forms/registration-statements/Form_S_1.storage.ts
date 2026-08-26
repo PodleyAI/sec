@@ -8,6 +8,7 @@ import { globalServiceRegistry, type IExecuteContext, type ModelConfig } from "w
 import { normalizeFamilyName } from "../../../resolver/FamilyResolver";
 import { SponsorFamilyResolver } from "../../../resolver/SponsorFamilyResolver";
 import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
+import { COMPLETE_ROSTER_ROLE_SCOPES } from "../../../resolver/rebuildPersonRoles";
 import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/BeneficialOwnershipRepo";
 import { CanonicalSponsorFamilyAliasRepo } from "../../../storage/canonical/CanonicalSponsorFamilyAliasRepo";
 import { CanonicalSponsorFamilyRepo } from "../../../storage/canonical/CanonicalSponsorFamilyRepo";
@@ -837,7 +838,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           titles: r.titles,
           relationship: r.relationship ?? "s1:management",
           filing_date: args.filing_date,
-          role_scope: "s1:management",
+          role_scope: COMPLETE_ROSTER_ROLE_SCOPES.s1Management,
           // Store birth_year (not age) so present age stays recomputable; a
           // stated age is relative to the filing date.
           birth_year: birthYearFromAge(r.age, args.filing_date),
@@ -870,7 +871,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         await observer.closeUnassertedPersonRoles({
           accession_number,
           extractor_id: EXTRACTOR_ID,
-          role_scope: "s1:management",
+          role_scope: COMPLETE_ROSTER_ROLE_SCOPES.s1Management,
           company_cik: cik,
           filing_date: args.filing_date,
         });
