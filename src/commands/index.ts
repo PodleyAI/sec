@@ -34,30 +34,24 @@ import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../config/tokens";
  * committed files against EDGAR over a plain fetch — needing a SQLite path to
  * run it would block the CI use case it exists for.
  *
- * Exported because a superset CLI (embarc-data) installs its OWN preAction hook
- * to register private-data repos, and that registration calls `createStorage()`,
- * which reads `sec.db.type` — a token only the bootstrap below registers. A
- * superset that exempts a different set therefore crashes on exactly the
- * commands sec deliberately runs without a database. Consume this set rather
- * than restating it, so adding an exempt command here can't leave the superset
- * broken.
+ * Matched on the leaf name, which is what these predate; anything added now
+ * should go in {@link DI_EXEMPT_COMMAND_PATHS} instead.
  */
-export const DI_EXEMPT_COMMANDS: ReadonlySet<string> = new Set(["init", "golden-fixtures"]);
+const DI_EXEMPT_COMMANDS: ReadonlySet<string> = new Set(["init", "golden-fixtures"]);
 
 /**
  * The same exemption, keyed by FULL command path.
  *
- * `verify`'s leaves are named for stages — `parse`, `all`, `fixtures` — and
- * exempting those by leaf name would exempt `sync all` with them, which needs
- * a database and would fail late and confusingly instead of at the gate. A
- * path cannot collide.
+ * A leaf name is not enough for a group whose leaves are named for stages:
+ * `verify all` and `sync all` share one, and only the first can run without a
+ * database. A path cannot collide, so new entries belong here.
  *
- * These read a committed fixture or a local file and touch nothing else. The
- * accession form of the same commands does need the database, and says so:
- * `loadFilingHtml` checks the repository token before using it rather than
- * letting an unregistered token surface as an internal error.
+ * These read a committed fixture, a local file, or a trace directory and touch
+ * nothing else. The accession form of the same commands does need the database
+ * and says so: `loadFilingHtml` checks the repository token before using it,
+ * rather than letting an unregistered token surface as an internal error.
  */
-export const DI_EXEMPT_COMMAND_PATHS: ReadonlySet<string> = new Set([
+const DI_EXEMPT_COMMAND_PATHS: ReadonlySet<string> = new Set([
   "verify parse",
   "verify sections",
   "verify chunks",
@@ -77,11 +71,33 @@ function commandPath(command: Command): string {
   return parts.join(" ");
 }
 
+/**
+ * Whether a command runs without a database, so DI bring-up must be skipped.
+ *
+ * **This predicate is the contract, and the sets behind it are deliberately not
+ * exported.** A superset CLI (embarc-data) installs its OWN preAction hook to
+ * register private-data repos, and that registration calls `createStorage()`,
+ * which reads `sec.db.type` — a token only sec's bootstrap registers. So a
+ * superset testing a different condition crashes on exactly the commands sec
+ * runs deliberately without a database.
+ *
+ * That has now happened twice. First when `golden-fixtures` was added to a set
+ * embarc-data restated locally. Then again when `verify` needed path matching
+ * and gained a second set the superset did not know to consult — a superset
+ * reading only the first set is not restating anything, and still breaks.
+ * Exporting one function instead of the data leaves nothing to keep in sync:
+ * a new exemption of any shape is picked up by every caller for free.
+ */
+export function isDiExemptCommand(command: Command): boolean {
+  return (
+    DI_EXEMPT_COMMANDS.has(command.name()) || DI_EXEMPT_COMMAND_PATHS.has(commandPath(command))
+  );
+}
+
 export const AddCommands = (program: Command): void => {
   let diInitialized = false;
 
   program.hook("preAction", async (_thisCommand, actionCommand) => {
-    const commandName = actionCommand.name();
     if (diInitialized) return;
 
     // Global flags are registered even for exempt commands so `--json` /
@@ -90,8 +106,7 @@ export const AddCommands = (program: Command): void => {
     globalServiceRegistry.registerInstance(SEC_DRY_RUN, globalOpts.dryRun);
     globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, globalOpts.json);
 
-    if (DI_EXEMPT_COMMANDS.has(commandName)) return;
-    if (DI_EXEMPT_COMMAND_PATHS.has(commandPath(actionCommand))) return;
+    if (isDiExemptCommand(actionCommand)) return;
     diInitialized = true;
 
     await bootstrapSecRuntime();
