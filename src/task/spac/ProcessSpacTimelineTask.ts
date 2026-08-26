@@ -286,7 +286,7 @@ export class ProcessSpacTimelineTask extends Task<
 
     if (force.kind === "all") {
       try {
-        await resetSpacProcessState(cik, activeVersions);
+        await resetSpacProcessState(cik, replayedExtractorVersions(toProcess, activeVersions));
       } catch (e) {
         return emptyOutcome(cik, e instanceof Error ? e.message : String(e));
       }
@@ -435,6 +435,36 @@ async function loadActiveExtractorVersions(
     versions.set(id, slot.semver);
   }
   return versions;
+}
+
+/**
+ * The active versions of the extractors this run is actually going to replay,
+ * derived from the selected filings so the reset can never reach further than
+ * the replay does.
+ *
+ * A `--force all` reset clears the runs it is about to rewrite, but the
+ * selection above drops the row-gated extractors while the issuer has no `spac`
+ * row, and drops anything under `filedOnOrAfter`. Deriving the map from the
+ * whole timeline instead deleted the audit rows of filings the same run then
+ * refused to reprocess — unrecoverable, since `extractor_runs` is the ledger
+ * the coverage gate counts, and the outcome counter reports each of them as
+ * failed. One source of truth for "which extractors is this run replaying"
+ * keeps the two from drifting apart.
+ */
+function replayedExtractorVersions(
+  toProcess: readonly Filing[],
+  activeVersionByExtractorId: ReadonlyMap<string, string>
+): ReadonlyMap<string, string> {
+  const replayed = new Map<string, string>();
+  for (const f of toProcess) {
+    if (f.form === null) continue;
+    const id = formToExtractorId(f.form);
+    if (id === undefined) continue;
+    const semver = activeVersionByExtractorId.get(id);
+    if (semver === undefined) continue;
+    replayed.set(id, semver);
+  }
+  return replayed;
 }
 
 /**

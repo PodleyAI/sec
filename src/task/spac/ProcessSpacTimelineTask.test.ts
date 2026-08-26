@@ -639,6 +639,37 @@ describe("ProcessSpacTimelineTask", () => {
     expect(out.matched).toBe(2);
   });
 
+  it("force all keeps the audit rows of a gated extractor it declines to replay", async () => {
+    // `--force all` skips the row-gated extractors (8-K / merger-proxy / 25-15)
+    // while the issuer has no `spac` row — the false-positive candidate case
+    // `sync spacs` feeds. The reset has to skip exactly the same extractors:
+    // `extractor_runs` is the ledger the major-promote coverage gate counts and
+    // nothing can rebuild it, so deleting rows for filings this run has already
+    // decided not to reprocess loses them for good. It also made the outcome
+    // counter report every one of those filings as failed, which is what fails
+    // `sync spacs process` on a candidate that will never mint a row.
+    await seedFiling("0000000000-26-000001", "D", "2021-01-04");
+    await seedFiling("0000000000-26-000002", "8-K", "2021-02-04", "d8k.htm", "5.07");
+    await seedSuccessfulRun("0000000000-26-000001", "D", "D");
+    await seedSuccessfulRun("0000000000-26-000002", "8-K", "8-K");
+
+    // Records nothing, so a deleted row stays deleted and is observable.
+    const spy = vi
+      .spyOn(ProcessAccessionDocFormTask.prototype, "execute")
+      .mockResolvedValue({ success: true });
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK, force: "all" });
+
+    const runs = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    expect(spy.mock.calls.map((c) => c[0]?.accessionNumber)).toEqual(["0000000000-26-000001"]);
+    expect(await runs.findRun(CIK, "0000000000-26-000002", "8-K", "1.0.0")).toBeDefined();
+    // The replayed extractor's own stale row is still cleared, so the reset has
+    // not simply become a no-op.
+    expect(await runs.findRun(CIK, "0000000000-26-000001", "D", "1.0.0")).toBeUndefined();
+    expect(out.skipped).toBe(1);
+    expect(out.processed).toBe(1);
+    expect(out.failed).toBe(1);
+  });
+
   it("force redemption does not delete a sibling ipo event", async () => {
     await seedFiling("0000000000-26-000001", "S-1", "2021-01-04");
     await seedFiling("0000000000-26-000002", "8-K", "2021-02-04", null, "5.07,9.01");

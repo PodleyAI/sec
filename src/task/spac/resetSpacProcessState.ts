@@ -14,11 +14,12 @@ import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/Extract
  * replay filings against an empty event/deal stream. Does not mint a spac
  * row, and leaves editorial columns, current-trust facts, and spac_history.
  *
- * `activeVersionByExtractorId` maps each extractor id on the issuer's timeline
- * to the version the replay will record at. Only those extractors' runs, at
- * that version generation, are cleared: every other extractor's rows and every
- * earlier generation are part of an audit trail nothing can rebuild, and the
- * replay does not need them gone.
+ * `activeVersionByExtractorId` maps each extractor id the replay is about to
+ * run to the version it will record at — not every id on the issuer's
+ * timeline, which would include filings the same run has decided to skip. Only
+ * those extractors' runs, at that version generation, are cleared: every other
+ * extractor's rows and every earlier generation are part of an audit trail
+ * nothing can rebuild, and the replay does not need them gone.
  */
 export async function resetSpacProcessState(
   cik: number,
