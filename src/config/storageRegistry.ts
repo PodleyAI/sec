@@ -326,6 +326,11 @@ import {
   PersonRoleSchema,
 } from "../storage/canonical/PersonRoleSchema";
 import {
+  ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN,
+  RoleRosterCompletenessPrimaryKeyNames,
+  RoleRosterCompletenessSchema,
+} from "../storage/canonical/RoleRosterCompletenessSchema";
+import {
   COMPANY_OBSERVATION_REPOSITORY_TOKEN,
   CompanyObservationPrimaryKeyNames,
   CompanyObservationSchema,
@@ -1041,6 +1046,16 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
       ["company_cik", "extractor_id", "role_scope", "resolver_version"],
       ["resolver_version"],
     ],
+  }),
+  defineStorage({
+    token: ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN,
+    table: "role_roster_completeness",
+    schema: RoleRosterCompletenessSchema,
+    primaryKeyNames: RoleRosterCompletenessPrimaryKeyNames,
+    // Read back by accession, which the composite primary key already leads
+    // with. Not resolver-versioned — the decision is a property of the
+    // filing's extraction, not of a canonical-identity generation.
+    indexes: [],
   }),
   defineStorage({
     token: CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,

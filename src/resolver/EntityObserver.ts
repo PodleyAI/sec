@@ -18,6 +18,7 @@ import type { CanonicalCompanyAddressRepo } from "../storage/canonical/Canonical
 import type { CanonicalCompanyPhoneRepo } from "../storage/canonical/CanonicalCompanyPhoneRepo";
 import { personRoleAssertionKey } from "../storage/canonical/PersonRoleRepo";
 import type { PersonRoleRepo } from "../storage/canonical/PersonRoleRepo";
+import { RoleRosterCompletenessRepo } from "../storage/canonical/RoleRosterCompletenessRepo";
 import type { PersonResolver } from "./PersonResolver";
 import type { CompanyResolver } from "./CompanyResolver";
 
@@ -211,6 +212,16 @@ export class EntityObserver {
    */
   private readonly incompleteRoleGroups = new Set<string>();
 
+  /**
+   * Where roster completeness decisions land, resolved from DI at first use
+   * and memoized (`null` once resolution has failed). Best-effort in exactly
+   * the way `PersonRoleRepo`'s alias lookup is: every registry `DefaultDI` and
+   * `TestingDI` build registers the token, so a miss means a hand-assembled
+   * unit-test registry — and an unrecorded decision reads downstream as "not
+   * known to be complete", which closes nothing.
+   */
+  private completenessRepo: RoleRosterCompletenessRepo | null | undefined;
+
   constructor(private readonly opts: EntityObserverOptions) {}
 
   async observePerson(
@@ -354,6 +365,13 @@ export class EntityObserver {
    * assert (`end_date = filing_date`). Only storage modules whose filing type
    * genuinely lists the whole roster may call this — for everything else,
    * absence means nothing and tenures stay open. Returns the number closed.
+   *
+   * `complete` is the caller's own verdict on its extraction of the roster,
+   * and it is RECORDED whichever way it went, in `role_roster_completeness`.
+   * Deciding it and recording it are the same act on purpose: a caller that
+   * weighed completeness and then simply declined to call left the fact
+   * nowhere, and a batch pass reading only the observations cannot tell that
+   * filing from a whole roster.
    */
   async closeUnassertedPersonRoles(args: {
     readonly accession_number: string;
@@ -361,7 +379,29 @@ export class EntityObserver {
     readonly role_scope: string;
     readonly company_cik: number;
     readonly filing_date: string;
+    /**
+     * Whether the extraction that fed this roster named every role holder the
+     * filing lists. False when a named row was declined before it could be
+     * observed — a junk name field, an overlong name, a row under a confidence
+     * floor: that person is still in the filing, so closing from the remainder
+     * would record a departure that never happened.
+     *
+     * Defaults to true, which is what calling this method has always asserted.
+     */
+    readonly complete?: boolean;
   }): Promise<number> {
+    const complete = args.complete ?? true;
+    const completenessRepo = this.rosterCompletenessRepo();
+    if (completenessRepo !== null) {
+      await completenessRepo.record({
+        accession_number: args.accession_number,
+        extractor_id: args.extractor_id,
+        role_scope: args.role_scope,
+        company_cik: args.company_cik,
+        filing_date: args.filing_date,
+        complete,
+      });
+    }
     if (!args.filing_date) return 0;
     const groupKey = this.roleGroupKey(
       args.accession_number,
@@ -377,8 +417,9 @@ export class EntityObserver {
     // No recorded assertions means nobody observed this roster through this
     // observer (or every title filtered away): treating that as "the filing
     // asserts no one" would mass-close the company's roles. An incomplete
-    // group (a named person contributed nothing) is equally unsafe.
-    if (incomplete || asserted === undefined || asserted.size === 0) return 0;
+    // group (a named person contributed nothing) is equally unsafe, and so is
+    // a roster the caller already knows it did not extract whole.
+    if (!complete || incomplete || asserted === undefined || asserted.size === 0) return 0;
     return await this.opts.personRoleRepo.closeUnasserted({
       resolver_version: this.opts.activeResolverPersonVersion,
       company_cik: args.company_cik,
@@ -388,6 +429,17 @@ export class EntityObserver {
       accession_number: args.accession_number,
       asserted,
     });
+  }
+
+  private rosterCompletenessRepo(): RoleRosterCompletenessRepo | null {
+    if (this.completenessRepo === undefined) {
+      try {
+        this.completenessRepo = new RoleRosterCompletenessRepo();
+      } catch {
+        this.completenessRepo = null;
+      }
+    }
+    return this.completenessRepo;
   }
 
   private roleGroupKey(

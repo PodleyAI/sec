@@ -26,7 +26,7 @@ import type { InvestmentOffering } from "../../../storage/investment-offering/In
 import type { InvestmentOfferingHistory } from "../../../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { parseCikSafely } from "../../../util/parseCik";
 import { EntityObserver } from "../../../resolver/EntityObserver";
-import { COMPLETE_ROSTER_ROLE_SCOPES } from "../../../resolver/rebuildPersonRoles";
+import { COMPLETE_ROSTER_ROLE_SCOPES } from "../../../resolver/roleScopes";
 import { PersonResolver } from "../../../resolver/PersonResolver";
 import { CompanyResolver } from "../../../resolver/CompanyResolver";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
@@ -567,16 +567,18 @@ export async function processFormD({
   // no longer asserts has ended. Closure requires the roster to be complete:
   // at least one PERSON observed (an empty or all-entity list is not evidence
   // everyone left) and no listed person dropped as junk — a person named in
-  // the filing but filtered out must not have their role closed.
-  if (observedRelatedPersons > 0 && droppedRelatedPersons === 0) {
-    await observer.closeUnassertedPersonRoles({
-      accession_number,
-      extractor_id: "D",
-      role_scope: COMPLETE_ROSTER_ROLE_SCOPES.formDRelatedPerson,
-      company_cik: cik,
-      filing_date,
-    });
-  }
+  // the filing but filtered out must not have their role closed. The verdict
+  // is handed to the closure rather than gating the call, so it is recorded
+  // either way: a dropped row leaves no observation, so nothing else would
+  // remember that this roster was partial.
+  await observer.closeUnassertedPersonRoles({
+    accession_number,
+    extractor_id: "D",
+    role_scope: COMPLETE_ROSTER_ROLE_SCOPES.formDRelatedPerson,
+    company_cik: cik,
+    filing_date,
+    complete: observedRelatedPersons > 0 && droppedRelatedPersons === 0,
+  });
 
   // Signatures: indices 300–399
   if (formD.offeringData?.signatureBlock) {

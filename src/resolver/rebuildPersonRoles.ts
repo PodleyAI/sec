@@ -12,36 +12,13 @@ import {
   normalizeRoleTitle,
   personRoleAssertionKey,
 } from "../storage/canonical/PersonRoleRepo";
+import { RoleRosterCompletenessRepo } from "../storage/canonical/RoleRosterCompletenessRepo";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
 import type { PersonObservation } from "../storage/observation/PersonObservationSchema";
 import { canonicalRoleTitles } from "./EntityObserver";
-
-/**
- * The `role_scope` values whose filings name everyone holding the role, so a
- * later one omitting a person is evidence they left. Every other scope is
- * assert-only: absence proves nothing and never ends a tenure.
- *
- * The storage modules that run a roster closure pass read their scope from
- * here, so this set and the call sites cannot drift apart.
- */
-export const COMPLETE_ROSTER_ROLE_SCOPES = {
-  formDRelatedPerson: "form-d:related-person",
-  s1Management: "s1:management",
-} as const;
-
-export type CompleteRosterRoleScope =
-  (typeof COMPLETE_ROSTER_ROLE_SCOPES)[keyof typeof COMPLETE_ROSTER_ROLE_SCOPES];
-
-const COMPLETE_ROSTER_ROLE_SCOPE_VALUES: ReadonlySet<string> = new Set(
-  Object.values(COMPLETE_ROSTER_ROLE_SCOPES)
-);
-
-/** Whether a filing in this scope may end a tenure it does not assert. */
-export function isCompleteRosterRoleScope(role_scope: string): boolean {
-  return COMPLETE_ROSTER_ROLE_SCOPE_VALUES.has(role_scope);
-}
+import { isCompleteRosterRoleScope } from "./roleScopes";
 
 /**
  * Accession numbers per `in`-list query — see `PersonObservationTitleRepo`'s
@@ -49,10 +26,6 @@ export function isCompleteRosterRoleScope(role_scope: string): boolean {
  * parameter per value).
  */
 const MAX_ACCESSIONS_PER_QUERY = 900;
-
-export interface PersonRoleRebuildResult {
-  readonly rows: number;
-}
 
 /** One filing's assertion of one title, as the tenure walk consumes it. */
 interface RoleAssertion {
@@ -77,7 +50,9 @@ interface RosterFiling {
 }
 
 interface Roster {
+  readonly extractor_id: string;
   readonly role_scope: string;
+  readonly company_cik: number;
   readonly filings: Map<string, RosterFiling>;
 }
 
@@ -195,15 +170,62 @@ function rosterKeyOf(extractor_id: string, role_scope: string, company_cik: numb
   return `${extractor_id}\x00${role_scope}\x00${company_cik}`;
 }
 
+/** The tuple one roster completeness decision is recorded against. */
+function rosterCompletenessKey(
+  accession_number: string,
+  extractor_id: string,
+  role_scope: string,
+  company_cik: number
+): string {
+  return `${accession_number}\x00${extractor_id}\x00${role_scope}\x00${company_cik}`;
+}
+
 /**
- * The filings of one roster that may end a tenure: a complete-roster scope,
- * naming a complete list. A filing enters a roster only through a person
- * observed in it, so one that asserts nobody is one every person it names
- * contributed no title to — incomplete, and no evidence anybody left.
+ * The rosters recorded COMPLETE, as {@link rosterCompletenessKey} keys. A
+ * roster with no row at all — every filing processed before the decision was
+ * written down — is absent, and absence reads as "not known to be complete":
+ * it closes nothing.
  */
-function closingFilings(roster: Roster): RosterFiling[] {
+async function loadCompleteRosters(
+  accession_numbers: readonly string[]
+): Promise<ReadonlySet<string>> {
+  const rows = await new RoleRosterCompletenessRepo().listForAccessions(accession_numbers);
+  const complete = new Set<string>();
+  for (const row of rows) {
+    if (!row.complete) continue;
+    complete.add(
+      rosterCompletenessKey(row.accession_number, row.extractor_id, row.role_scope, row.company_cik)
+    );
+  }
+  return complete;
+}
+
+/**
+ * The filings of one roster that may end a tenure. Three things must hold, and
+ * they come from three different places: the scope is one whose filings name
+ * everyone; the extraction that fed the filing recorded itself as having read
+ * the whole roster; and every person the filing names contributed a canonical
+ * title. Only the last is derivable here — a filing enters a roster only
+ * through a person observed in it, so one that asserts nobody is one every
+ * person it names contributed no title to, and that is no evidence anybody
+ * left.
+ */
+function closingFilings(roster: Roster, completeRosters: ReadonlySet<string>): RosterFiling[] {
   if (!isCompleteRosterRoleScope(roster.role_scope)) return [];
-  return [...roster.filings.values()].filter((filing) => !filing.incomplete).sort(byFilingOrder);
+  return [...roster.filings.values()]
+    .filter(
+      (filing) =>
+        !filing.incomplete &&
+        completeRosters.has(
+          rosterCompletenessKey(
+            filing.accession_number,
+            roster.extractor_id,
+            roster.role_scope,
+            roster.company_cik
+          )
+        )
+    )
+    .sort(byFilingOrder);
 }
 
 /**
@@ -258,20 +280,32 @@ function walkTenures(
  * before — the same result however many times it runs, and the same result
  * whether the resolver ran during ingestion or long after it.
  *
- * Two things it cannot see, both narrower than they sound:
+ * Two things it cannot reproduce:
  *
- * - Whether a filing's extraction dropped a row it named. The observer's own
- *   completeness gate is derivable (a named person contributing no canonical
- *   title leaves the roster incomplete), but a row the extractor declined
- *   before `observePerson` leaves no observation to read, so a filing the
- *   live path refused to close from is one this projection will close from.
  * - Which of two filings sharing a date was processed second. The projection
  *   breaks such ties by accession number; the incremental path records
  *   whichever landed last.
+ * - An observation whose accession has no `filings` row: it raises rather than
+ *   dating a tenure from nothing. The live path tolerates that filing (it
+ *   yields an empty date, which its own gate then skips), so one dangling
+ *   accession anywhere aborts a whole-version rebuild. Whether a corpus-scale
+ *   pass should abort or skip-and-count is a decision for whatever task wires
+ *   this up, and is deliberately not taken here — the raise surfaces the
+ *   corruption instead of hiding it.
+ *
+ * Roster completeness is read, not derived. A filing may end a tenure it does
+ * not assert only if `role_roster_completeness` records its extraction as
+ * having read the whole roster, because a person the extractor declined leaves
+ * no observation and so no trace of having been named. **Existing data carries
+ * no such rows**: a rebuild over a corpus ingested before they were written
+ * finds no complete rosters, closes nothing, and leaves every tenure open. That
+ * is the safe direction — it under-reports departures rather than inventing
+ * them — and it heals as filings are re-extracted, but it is a real property of
+ * a rebuild run against un-backfilled data and not a rounding error.
  */
 export async function rebuildPersonRoles(
   resolverVersion: string
-): Promise<PersonRoleRebuildResult> {
+): Promise<{ readonly rows: number }> {
   const linkRepo = new PersonIdentityLinkRepo();
   const observationRepo = new PersonObservationRepo();
   const titleRepo = new PersonObservationTitleRepo();
@@ -291,14 +325,24 @@ export async function rebuildPersonRoles(
     const filing_date = filingDateFor(filingDates, observation.accession_number);
     const role_scope = observation.role_scope;
     const company_cik = observation.source_filing_issuer_cik;
-    // A claim with no scope, or no company to hold the role at, records titles
-    // and nothing else — the same three-part gate `recordPersonRoles` applies.
-    if (role_scope == null || company_cik == null) continue;
+    // A claim with no date to anchor a tenure to, no scope, or no company to
+    // hold the role at records titles and nothing else — the same three-part
+    // gate `recordPersonRoles` applies. The date is the one that is not on the
+    // observation: filings genuinely carry an empty `filing_date`, and an
+    // empty one also sorts before every real date, so admitting it would both
+    // mint tenures the live path refuses and back-date the ones it shares a
+    // group with.
+    if (!filing_date || role_scope == null || company_cik == null) continue;
 
     const rosterKey = rosterKeyOf(observation.extractor_id, role_scope, company_cik);
     let roster = rosters.get(rosterKey);
     if (roster === undefined) {
-      roster = { role_scope, filings: new Map<string, RosterFiling>() };
+      roster = {
+        extractor_id: observation.extractor_id,
+        role_scope,
+        company_cik,
+        filings: new Map<string, RosterFiling>(),
+      };
       rosters.set(rosterKey, roster);
     }
     let filing = roster.filings.get(observation.accession_number);
@@ -345,9 +389,12 @@ export async function rebuildPersonRoles(
     }
   }
 
+  const completeRosters = await loadCompleteRosters(
+    [...rosters.values()].flatMap((roster) => [...roster.filings.keys()])
+  );
   const closersByRoster = new Map<string, RosterFiling[]>();
   for (const [rosterKey, roster] of rosters) {
-    closersByRoster.set(rosterKey, closingFilings(roster));
+    closersByRoster.set(rosterKey, closingFilings(roster, completeRosters));
   }
   const aliasTargets = await resolveAliasTargets([
     ...new Set([...groups.values()].map((group) => group.canonical_person_id)),
