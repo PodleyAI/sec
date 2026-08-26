@@ -10,6 +10,7 @@ import { parseEdgarHtml } from "../sec/html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "../sec/forms/registration-statements/s1/DocumentTreeSegmenter";
 import { S1_SECTIONS } from "../sec/forms/registration-statements/s1/DocumentSegmenter";
 import { fileURLToPath } from "node:url";
+import { decode as decodeHtmlEntities } from "html-entities";
 const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
 /**
@@ -86,6 +87,50 @@ function segmentFixture(path: string, title: string): SegmentedFixture {
   }
   segmentedFixtures.set(path, result);
   return result;
+}
+
+/** One committed fixture as plain text: the whole filing, tags and entities resolved. */
+export interface RealDocument {
+  /** Source filename (accession-derived). */
+  readonly filing: string;
+  readonly text: string;
+}
+
+/** Whole-document plain text, keyed by absolute path — the corpus is tens of MB. */
+const documentText = new Map<string, string>();
+
+/**
+ * The whole filing as plain text, for callers that must check a value against
+ * the DOCUMENT rather than one section.
+ *
+ * Deliberately a tag strip rather than {@link parseEdgarHtml} + the segmenter:
+ * the question this answers is "does the filing contain this string at all", so
+ * anything segmentation drops — the cover page, the defined-terms list, a table
+ * the tree walker does not surface as a section — must still count. Running it
+ * through the section pipeline would make the answer depend on segmentation
+ * quality, which is the opposite of what a grounding check wants.
+ */
+export function loadRealS1Documents(dir?: string, ciks?: readonly string[]): RealDocument[] {
+  const { resolvedDir, files: allFiles } = listFixtureFiles(dir);
+  const wanted = ciks && ciks.length > 0 ? new Set(ciks.map((c) => String(Number(c)))) : undefined;
+  const out: RealDocument[] = [];
+  for (const file of allFiles.sort()) {
+    const filing = file.replace(/\.htm$/, "");
+    if (wanted !== undefined) {
+      const cik = fixtureCik(filing);
+      if (cik === null || !wanted.has(cik)) continue;
+    }
+    const path = join(resolvedDir, file);
+    let text = documentText.get(path);
+    if (text === undefined) {
+      text = decodeHtmlEntities(readFileSync(path, "utf8").replace(/<[^>]*>/g, " "))
+        .replace(/\u00a0/g, " ")
+        .replace(/\s+/g, " ");
+      documentText.set(path, text);
+    }
+    out.push({ filing, text });
+  }
+  return out;
 }
 
 export interface RealSection {

@@ -14,9 +14,10 @@ import {
   type GoldenRow,
 } from "./goldenS1Labels";
 import { EVAL_EXTRACTORS } from "./fixtures";
-import { loadRealS1Sections } from "./realSections";
+import { loadRealS1Documents, loadRealS1Sections } from "./realSections";
 import { isOwnershipGroupSubtotal } from "../sec/forms/registration-statements/s1/sectionExtractors";
 import { normalizeManagementTitles } from "../sec/forms/registration-statements/s1/normalizeTitle";
+import { normalizePerson } from "../storage/person/PersonNormalization";
 
 /**
  * Derived, not hardcoded: labeling a new extractor must automatically pull it
@@ -129,6 +130,136 @@ describe("goldenS1Labels", () => {
       expect(present.has(key), `golden key not found in committed sections: ${key}`).toBe(true);
     }
   }, 120_000);
+
+  /**
+   * Name fields whose value is transcribed from the section, so it can be
+   * looked for there. Keyed by the extractor's own `keyField`, so an extractor
+   * keyed on something that is not a name (`headline`, `purpose`,
+   * `holder_class`) is skipped rather than listed as an exception.
+   */
+  const TRANSCRIBED_NAME_FIELDS: ReadonlySet<string> = new Set(["full_name", "name", "legal_name"]);
+
+  /**
+   * Fold the punctuation the same document renders inconsistently: a filer's
+   * typographic apostrophe against a plain one, NFKD-separable accents, and the
+   * dash family. Case is folded too — a roster table shouting "JON NELSON" is
+   * the same label as the bio's "Jon Nelson".
+   */
+  const foldForLookup = (value: string): string =>
+    value
+      .normalize("NFKD")
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2010-\u2015]/g, "-")
+      .replace(/\s+/g, " ")
+      .toLowerCase()
+      .trim();
+
+  it("labels only names that appear somewhere in the filing", () => {
+    // Grounding, not achievability. A label must be traceable to the document —
+    // that is what stops a fabricated or mis-transcribed name — but it is
+    // deliberately checked against the WHOLE filing, not the one section the
+    // extractor is currently handed.
+    //
+    // The distinction is the point. The related-party section names
+    // counterparties by the defined term set up elsewhere ("BTIG", "CCM") and
+    // people by surname ("Mr. Green"). Ground truth here records the entity, so
+    // the labels carry the identifying names — BTIG, LLC; Cohen & Company
+    // Capital Markets; Aaron Green — which live in the underwriting section, the
+    // defined-terms list and the roster. A section-scoped assertion would reject
+    // every one of them.
+    //
+    // That today's section-scoped extractor cannot produce these is the gap this
+    // corpus now measures, and closing it is the pipeline's job: resolution has
+    // to see the whole document. Scoring against what a section happens to
+    // contain measures transcription; scoring against the entity measures what
+    // the data is for.
+    const byFiling = new Map(loadRealS1Documents().map((d) => [d.filing, foldForLookup(d.text)]));
+    for (const [key, rows] of Object.entries(GOLDEN_S1_LABELS)) {
+      const extractor = extractorOf(key);
+      const keyField = EVAL_EXTRACTORS[extractor]?.keyField;
+      if (keyField === undefined || !TRANSCRIBED_NAME_FIELDS.has(keyField)) continue;
+      const haystack = byFiling.get(key.split("::")[0] ?? "");
+      expect(haystack, `no committed fixture for ${key}`).toBeDefined();
+      for (const row of rows) {
+        const name = String((row as Record<string, unknown>)[keyField] ?? "");
+        expect(name, `${key}: empty ${keyField}`).not.toBe("");
+        expect(
+          haystack!.includes(foldForLookup(name)),
+          `${key}: ${JSON.stringify(name)} does not appear anywhere in the filing`
+        ).toBe(true);
+      }
+    }
+  }, 120_000);
+
+  /** Label fields naming a natural person, per extractor. */
+  const PERSON_NAME_FIELDS: Readonly<Record<string, string>> = {
+    management: "full_name",
+    "beneficial-ownership": "name",
+    "related-party": "name",
+    "executive-compensation": "person_name",
+  };
+
+  /** Company-shaped tokens, so an org in an un-discriminated tier is not read as a person. */
+  const COMPANY_SHAPED =
+    /\b(LLC|L\.L\.C\.|Inc|LP|L\.P\.|Ltd|Corp|Corporation|Company|Co|Holdings|Partners|Trust|Fund|Capital|Group|Management|Ventures|Securities|Advisors?|Associates|Bank|S\.p\.A|B\.V\.|N\.V\.|PLC|GmbH|AG|Technologies)\b\.?/i;
+
+  /**
+   * Distinct people in one filing who share a first initial and surname. Each was
+   * read back to the filing — these are relatives, not spellings of one person:
+   *
+   * - `Frank R. Martire, Jr.` (72, Founder and Chairman) and `Frank Martire, III`
+   *   (42, President) — father and son on the same roster.
+   * - `Dana G. Mead, Jr.` (66, Chair of the Board) and `Dana Mead III` (director
+   *   of strategic programs, disclosed as a consultant matter).
+   * - `Mark Tompkins` and `Michael Paul Tompkins`, which the filing states
+   *   outright: "Michael Paul Tompkins is the brother of Mark Tompkins."
+   */
+  const DISTINCT_RELATIVES: ReadonlySet<string> = new Set([
+    "s1_1848507_000119312521066104:f|martire",
+    "s1_1489993_000162828026025811:d|mead",
+    "s1_2075109_000121390026073335:m|tompkins",
+  ]);
+
+  it("names one person one way within a filing", () => {
+    // Labels feed `observePerson`, whose resolver keys on the normalized name
+    // parts — so "Richard Davis" in the ownership table and "Richard C. Davis" in
+    // related-party mint TWO canonical people for one human. Ground truth records
+    // the entity, so every tier naming the same person must name them identically,
+    // using the fullest form the filing supports.
+    //
+    // The check runs the real `normalizePerson`, not a copy: the question is not
+    // whether the strings differ but whether the identity tier would split, and
+    // only that function knows. Credentials, honorifics and suffix punctuation
+    // already fold, so those variants are not what this catches.
+    const groups = new Map<string, Map<string, string[]>>();
+    for (const [key, rows] of Object.entries(GOLDEN_S1_LABELS)) {
+      const [filing = "", extractor = ""] = key.split("::");
+      const field = PERSON_NAME_FIELDS[extractor];
+      if (field === undefined) continue;
+      for (const row of rows) {
+        const bag = row as Record<string, unknown>;
+        if (extractor === "beneficial-ownership" && bag.owner_kind !== "person") continue;
+        const name = String(bag[field] ?? "");
+        if (name === "" || COMPANY_SHAPED.test(name)) continue;
+        const person = normalizePerson({ name });
+        if (!person?.first || !person.last) continue;
+        const id = `${filing}:${person.first[0]?.toLowerCase()}|${person.last.toLowerCase()}`;
+        const byHash = groups.get(id) ?? new Map<string, string[]>();
+        groups.set(id, byHash);
+        const spellings = byHash.get(person.person_hash_id) ?? [];
+        byHash.set(person.person_hash_id, spellings);
+        if (!spellings.includes(name)) spellings.push(name);
+      }
+    }
+    for (const [id, byHash] of groups) {
+      if (byHash.size < 2 || DISTINCT_RELATIVES.has(id)) continue;
+      expect.fail(
+        `${id}: one person labelled ${byHash.size} ways, minting ${byHash.size} canonical people — ` +
+          [...byHash].map(([h, n]) => `${h} (${n.join(" / ")})`).join("; ")
+      );
+    }
+  });
 
   it.each(LABELED_EXTRACTORS)(
     "covers every committed %s section (so --reference golden scores them all)",

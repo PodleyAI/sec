@@ -63,6 +63,23 @@ export interface GoldenOwnerRow {
  * entity-kind discriminator, so a golden row carrying one would be an unscored
  * field the label guard rejects — and inventing a kind for a party the prose
  * names only in passing would be a judgement the filing does not support.
+ *
+ * **A short name here is usually correct, and is not a label to tidy up.** This
+ * section refers to counterparties by the defined term the filing set up
+ * elsewhere ("BTIG", "CCM", "EBC", "Fund III") and to people by surname
+ * ("Mr. Green"; "Messrs. Lawson, Barr and Brown"). The full legal names —
+ * BTIG, LLC; Cohen & Company Capital Markets; EarlyBirdCapital, Inc.;
+ * TCG Crossover Fund III, LP — live in the underwriting section and the
+ * defined-terms list, neither of which this extractor is ever handed. Every one
+ * of the 21 such labels in the committed corpus was checked against its section:
+ * the legal name appears in **none** of them, so labelling it would score a
+ * compliant extractor wrong. `goldenS1Labels.test.ts` asserts a label appears in
+ * its own section, which is what stops that correction being made by mistake.
+ *
+ * The consequence downstream is real and is NOT the label's fault: these names
+ * reach the canonical tier through `observeCompany` / `observePerson`, so a
+ * canonical company can end up named "CCM". Fixing that means giving the
+ * extractor the filing's defined-terms mapping, not rewriting ground truth.
  */
 export interface GoldenPartyRow {
   readonly name: string;
@@ -212,7 +229,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // only in the bio ("Dr. Graeme Shaw, our Chief Technology Officer") and is
   // included on the union-of-table-and-bio rule.
   [goldenLabelKey("s1_2134856_000182912626007847", "management")]: [
-    G("Richard Davis", ["Chief Executive Officer", "Director"]),
+    G("Richard C. Davis", ["Chief Executive Officer", "Director"]),
     G("Graeme Shaw", ["Chief Technology Officer"]),
     G("Vikas Mittal", ["Chief Financial Officer", "Director"]),
     G("Michael Leitner", ["Director Nominee"]),
@@ -294,7 +311,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
       "Principal Accounting Officer",
     ]),
     G("Flip Wallen", ["President"]),
-    G("Stephen Sadle", ["Chief Operating Officer", "Director"]),
+    G("Stephen L. Sadle", ["Chief Operating Officer", "Director"]),
     G("Robert P. Crabb", ["Secretary"]),
     G("H. James Magnuson", ["Director"]),
     G("Mossadaq Chughtai", ["Director"]),
@@ -368,10 +385,14 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // is the cell as printed, marker dropped.
   [goldenLabelKey("s1_1507957_000143774926010088", "beneficial-ownership")]: [
     O("AWM Investment Company, Inc.", "company"),
-    O("AIGH", "company"),
+    // The table prints one row, "AIGH (2)"; footnote 2 names the three parties it
+    // collects. Identity is the point of the label, so each is its own row.
+    O("AIGH Capital Management, LLC", "company"),
+    O("AIGH Investment Partners, LLC", "company"),
+    O("Orin Hirschman", "person"),
     O("Laurence W. Lytton", "person"),
     O("David Somo", "person"),
-    O("Timothy Burns", "person"),
+    O("Timothy W. Burns", "person"),
     O("Drue Freeman", "person"),
     O("Gregory Knight", "person"),
     O("Ted Lesster", "person"),
@@ -503,8 +524,8 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   ],
   [goldenLabelKey("s1_1880613_000162828026005423", "beneficial-ownership")]: [
     O("Direct Digital Management, LLC", "company"),
-    O("Mark Walker", "person"),
-    O("Keith Smith", "person"),
+    O("Mark D. Walker", "person"),
+    O("Keith W. Smith", "person"),
     O("Diana P. Diaz", "person"),
     O("Richard Cohen", "person"),
     O("Antoinette R. Leatherberry", "person"),
@@ -527,7 +548,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     G("Blake Janover", ["Director"]),
     G("Leslie Goldman Tepper", ["Director"]),
     G("Jonathon Angell", ["Director"]),
-    G("Thomas Glanville", ["Director"]),
+    G("Thomas S. Glanville", ["Director"]),
   ],
   // Names are transcribed as EACH table prints them, which is why several
   // disagree with the roster above ("Jonathan"/"Jonathon" Angell, "Richard
@@ -537,12 +558,12 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     O("Entities affiliated with 8VC", "company"),
     O("Mark Tompkins", "person"),
     O("EE Holdings Limited", "company"),
-    O("Jonathan Angell", "person"),
+    O("Jonathon Angell", "person"),
     O("Michael Brasel", "person"),
     O("Thomas S. Glanville", "person"),
     O("Blake Janover", "person"),
     O("Elizabeth Muller", "person"),
-    O("Richard Muller", "person"),
+    O("Richard A. Muller", "person"),
     O("Leslie Goldman Tepper", "person"),
   ],
   // Factorial Energy. "Executive Chairperson" is NOT expanded: the normalizer
@@ -567,7 +588,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     O("Siyu Huang", "person"),
     O("Alex Yu", "person"),
     O("Jason Duva", "person"),
-    O("Joseph Taylor", "person"),
+    O("Joseph M. Taylor", "person"),
     O("Uwe Keller", "person"),
     O("Liad Meidar", "person"),
     O("Dieter Zetsche", "person"),
@@ -575,8 +596,8 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     O("WAVE Equity Fund, L.P.", "company"),
     O("Mercedes-Benz Corporate Investments LLC", "company"),
     O("Stellantis Europe S.p.A", "company"),
-    O("Sponsor", "company"),
-    O("DirectorCo", "company"),
+    O("CGC III Sponsor LLC", "company"),
+    O("CGC III Sponsor DirectorCo LLC", "company"),
     O("Pangaea Three-B, LP", "company"),
   ],
   [goldenLabelKey("s1_2075109_000121390026073335", "management")]: [
@@ -608,7 +629,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // than "Karman"; the registrant on the cover is Karman Line Acquisition Corp.
   [goldenLabelKey("s1_2134856_000182912626007847", "beneficial-ownership")]: [
     O("Samara Acquisition Sponsor VI Ltd.", "company"),
-    O("Richard Davis", "person"),
+    O("Richard C. Davis", "person"),
     O("Graeme Shaw", "person"),
     O("Vikas Mittal", "person"),
     O("Michael Leitner", "person"),
@@ -636,7 +657,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   [goldenLabelKey("s1_1848507_000119312521066104", "related-party")]: [],
   [goldenLabelKey("s1_1849470_000110465921035696", "related-party")]: [],
   [goldenLabelKey("s1_1880613_000162828026005423", "related-party")]: [
-    R("DDM"),
+    R("Direct Digital Management, LLC"),
     R("DDH LLC"),
   ],
   [goldenLabelKey("s1_1918102_000110465926016226", "related-party")]: [
@@ -648,11 +669,11 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   ],
   [goldenLabelKey("s1_2049662_000110465926079324", "related-party")]: [
     R("Stellantis Ventures B.V."),
-    R("Stellantis Europe"),
+    R("Stellantis Europe S.p.A"),
     R("FCA US LLC"),
     R("Michael Bly"),
     R("Mercedes-Benz Corporate Investments LLC"),
-    R("Mercedes-Benz"),
+    R("Mercedes-Benz AG"),
     R("Uwe Keller"),
     R("GVP Climate Series SVP LP - Series 3"),
     R("GVP Climate Fund I LP"),
@@ -664,12 +685,12 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     R("Hermitage Investment Fund 1 LP"),
     R("Dr. Alex Yu"),
     R("Dr. Siyu Huang"),
-    R("Joseph Taylor"),
+    R("Joseph M. Taylor"),
     R("Ali Bouzarif"),
     R("Kevin Gold"),
     R("Sanford Litvack"),
     R("CGC III Sponsor DirectorCo LLC"),
-    R("Cantor"),
+    R("Cantor Fitzgerald & Co."),
   ],
   [goldenLabelKey("s1_2075109_000121390026073335", "related-party")]: [
     R("Mark Tompkins"),
@@ -688,7 +709,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     R("Emmanuel Raptopoulos"),
   ],
   [goldenLabelKey("s1_2105318_000149315226031978", "related-party")]: [
-    R("EBC"),
+    R("EarlyBirdCapital, Inc."),
   ],
   [goldenLabelKey("s1_2114227_000121390026039320", "related-party")]: [
     R("M. Klein Associates Inc."),
@@ -704,14 +725,14 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   ],
   [goldenLabelKey("s1_2135163_000182912626006553", "related-party")]: [],
   [goldenLabelKey("s1_2136360_000213636026000003", "related-party")]: [
-    R("Lucid"),
+    R("Lucid Capital Markets, LLC"),
   ],
   [goldenLabelKey("s1_2147219_000110465926092088", "related-party")]: [
-    R("Chardan"),
+    R("Chardan Capital Markets LLC"),
   ],
   [goldenLabelKey("s1_95572_000121390026086369", "related-party")]: [
-    R("Ron Pickett"),
-    R("Stephen Sadle"),
+    R("Ronald W. Pickett"),
+    R("Stephen L. Sadle"),
     R("H. James Magnuson"),
     R("Robert P. Crabb"),
     R("Arthur P. Dammarell"),
@@ -1123,8 +1144,8 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // quietly absorbed as a model error.
   [goldenLabelKey("s1_1507957_000143774926010088", "executive-compensation")]: [
     { person_name: "David Somo", fiscal_year: 2025, salary: 57212, total: 2160767 },
-    { person_name: "Timothy Burns", fiscal_year: 2025, salary: 282576, total: 494788 },
-    { person_name: "Timothy Burns", fiscal_year: 2024, salary: 282576, total: 669293 },
+    { person_name: "Timothy W. Burns", fiscal_year: 2025, salary: 282576, total: 494788 },
+    { person_name: "Timothy W. Burns", fiscal_year: 2024, salary: 282576, total: 669293 },
     { person_name: "R. Daniel Brdar", fiscal_year: 2025, salary: 306519, total: 678216 },
     { person_name: "R. Daniel Brdar", fiscal_year: 2024, salary: 354200, total: 1180139 },
   ],
@@ -1148,18 +1169,18 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     { person_name: "Michael Wiesinger", fiscal_year: 2024, salary: null, total: null },
   ],
   [goldenLabelKey("s1_1880613_000162828026005423", "executive-compensation")]: [
-    { person_name: "Mark Walker", fiscal_year: 2025, salary: 500000, total: null },
-    { person_name: "Mark Walker", fiscal_year: 2024, salary: 500000, total: null },
-    { person_name: "Keith Smith", fiscal_year: 2025, salary: 500000, total: null },
-    { person_name: "Keith Smith", fiscal_year: 2024, salary: 500000, total: null },
+    { person_name: "Mark D. Walker", fiscal_year: 2025, salary: 500000, total: null },
+    { person_name: "Mark D. Walker", fiscal_year: 2024, salary: 500000, total: null },
+    { person_name: "Keith W. Smith", fiscal_year: 2025, salary: 500000, total: null },
+    { person_name: "Keith W. Smith", fiscal_year: 2024, salary: 500000, total: null },
     { person_name: "Diana P. Diaz", fiscal_year: 2025, salary: 350000, total: null },
     { person_name: "Diana P. Diaz", fiscal_year: 2024, salary: 350000, total: null },
   ],
   [goldenLabelKey("s1_1918102_000110465926016226", "executive-compensation")]: [
     { person_name: "Elizabeth Muller", fiscal_year: 2025, salary: 404261, total: 7018912 },
     { person_name: "Elizabeth Muller", fiscal_year: 2024, salary: 400000, total: 541005 },
-    { person_name: "Richard Muller, Ph.D.", fiscal_year: 2025, salary: 300000, total: 1679635 },
-    { person_name: "Richard Muller, Ph.D.", fiscal_year: 2024, salary: 300000, total: 549068 },
+    { person_name: "Richard A. Muller", fiscal_year: 2025, salary: 300000, total: 1679635 },
+    { person_name: "Richard A. Muller", fiscal_year: 2024, salary: 300000, total: 549068 },
     { person_name: "Michael Brasel", fiscal_year: 2025, salary: 242898, total: 660346 },
     { person_name: "Malcolm Thompson", fiscal_year: 2025, salary: 160417, total: 3663221 },
     { person_name: "Malcolm Thompson", fiscal_year: 2024, salary: 250000, total: 328050 },
@@ -1188,8 +1209,8 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     { person_name: "Ronald W. Pickett", fiscal_year: 2024, salary: 200000, total: 200000 },
     { person_name: "Stephen L. Sadle", fiscal_year: 2025, salary: 175000, total: 175000 },
     { person_name: "Stephen L. Sadle", fiscal_year: 2024, salary: 175000, total: 175000 },
-    { person_name: "Mil L. (Flip) Wallen", fiscal_year: 2025, salary: null, total: 1125000 },
-    { person_name: "Mil L. (Flip) Wallen", fiscal_year: 2024, salary: null, total: null },
+    { person_name: "Millard L. Wallen, III", fiscal_year: 2025, salary: null, total: 1125000 },
+    { person_name: "Millard L. Wallen, III", fiscal_year: 2024, salary: null, total: null },
   ],
 
   // ── sponsor-promote ────────────────────────────────────────────────────────
@@ -2943,7 +2964,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     { full_name: "Mark F. Leposky", titles: ["Director"] },
   ],
   [goldenLabelKey("s1_1489993_000162828026025811", "management")]: [
-    { full_name: "Richard Foust", titles: ["Director", "Chief Executive Officer", "President"] },
+    { full_name: "Richard John Foust", titles: ["Director", "Chief Executive Officer", "President"] },
     { full_name: "Nelson Bunker Curnes", titles: ["Director", "Chief Financial Officer"] },
     { full_name: "Douglas (Doug) Ellison", titles: ["Chief Commercial Officer"] },
     { full_name: "Prashant Rawat", titles: ["Chief Operating Officer"] },
@@ -3007,7 +3028,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     { full_name: "Melanie Furlan", titles: ["Director"] },
     { full_name: "Roderick McIllree", titles: ["Director"] },
     { full_name: "Scott D. Wollney", titles: ["Director"] },
-    { full_name: "Hassan R. Baqar", titles: ["Director"] },
+    { full_name: "Hassan Raza Baqar", titles: ["Director"] },
   ],
   [goldenLabelKey("s1_2098410_000110465926086682", "management")]: [
     { full_name: "R. Ramin Kamfar", titles: ["Chairman of the Board of Directors", "Chief Executive Officer"] },
@@ -3169,8 +3190,8 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     O("Melanie Furlan", "person"),
     O("Daniel M. McCabe", "person"),
     O("Roderick McIllree", "person"),
-    O("Scott Wollney", "person"),
-    O("Hassan R. Baqar", "person"),
+    O("Scott D. Wollney", "person"),
+    O("Hassan Raza Baqar", "person"),
     O("Pelican Sponsor LLC", "company"),
     O("FG Merchant Partners LP", "company"),
   ],
@@ -3281,11 +3302,11 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   ],
   // doubling set — related-party
   [goldenLabelKey("s1_1083743_000149315226025047", "related-party")]: [
-    { name: "Cleveland" },
+    { name: "Cleveland Capital Management, L.L.C." },
     { name: "Krishna Vanka" },
-    { name: "Kevin Royal" },
-    { name: "Jeffrey Mason" },
-    { name: "Dale Robinette" },
+    { name: "Kevin S. Royal" },
+    { name: "Jeffrey C. Mason" },
+    { name: "Dale T. Robinette" },
     { name: "Michael Johnson" },
   ],
   [goldenLabelKey("s1_1489993_000162828026025811", "related-party")]: [
@@ -3324,18 +3345,18 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   ],
   [goldenLabelKey("s1_1602409_000152013826000232", "related-party")]: [],
   [goldenLabelKey("s1_1849380_000149315226031598", "related-party")]: [
-    { name: "Green" },
+    { name: "Aaron Green" },
     { name: "Jeffrey Yu" },
     { name: "Thomas Kosasa" },
   ],
   [goldenLabelKey("s1_1925283_000162828026027260", "related-party")]: [
-    { name: "Lawson" },
-    { name: "Barr" },
-    { name: "Brown" },
+    { name: "Lawrence James Lawson III" },
+    { name: "Robert B. Barr" },
+    { name: "Robert T. Brown" },
   ],
   [goldenLabelKey("s1_2091349_000119312526214778", "related-party")]: [
     { name: "AnaptysBio, Inc." },
-    { name: "EcoR1" },
+    { name: "EcoR1 Capital, LLC" },
   ],
   [goldenLabelKey("s1_2093507_000182912626003406", "related-party")]: [
     { name: "D. Kyle Cerminara" },
@@ -3347,23 +3368,23 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     { name: "ThinkEquity LLC" },
   ],
   [goldenLabelKey("s1_2098410_000110465926086682", "related-party")]: [
-    { name: "BTIG" },
-    { name: "JBAAM" },
+    { name: "BTIG, LLC" },
+    { name: "JBA Asset Management LLC" },
     { name: "Bluerock Capital Markets, LLC" },
   ],
   [goldenLabelKey("s1_2110105_000162828026032836", "related-party")]: [
-    { name: "Honeywell" },
+    { name: "Honeywell International Inc." },
     { name: "Vimal Kapur" },
     { name: "Michal Stepniak" },
     { name: "Honeywell Aerospace Inc." },
     { name: "Honeywell Performance Materials & Technologies" },
     { name: "National Technology and Engineering Solutions of Sandia" },
     { name: "Honeywell Aerospace Technologies" },
-    { name: "HHII" },
+    { name: "Honeywell Holdings International Inc." },
     { name: "CQ Invest I LLC" },
   ],
   [goldenLabelKey("s1_2110119_000121390026072712", "related-party")]: [
-    { name: "BTIG" },
+    { name: "BTIG, LLC" },
   ],
   [goldenLabelKey("s1_2113481_000121390026068811", "related-party")]: [
     { name: "Cantor Fitzgerald & Co." },
@@ -3401,17 +3422,17 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     R("Zhiqiang Du"),
   ],
   [goldenLabelKey("s1_2128045_000121390026070217", "related-party")]: [
-    { name: "CCM" },
-    { name: "MJP Advisory" },
+    { name: "Cohen & Company Capital Markets" },
+    { name: "MJP Advisory Group LLC" },
   ],
   [goldenLabelKey("s1_2131350_000119312526294964", "related-party")]: [
     { name: "Jess Enterprises, Inc." },
-    { name: "Authentic" },
+    { name: "Authentic Holdings, LLC" },
   ],
   [goldenLabelKey("s1_2137679_000182912626006500", "related-party")]: [],
   [goldenLabelKey("s1_2137965_000119312526308950", "related-party")]: [
     { name: "TCGX Sponsor, LLC" },
-    { name: "Fund III" },
+    { name: "TCG Crossover Fund III, LP" },
   ],
   // doubling set — use-of-proceeds
   [goldenLabelKey("s1_1083743_000149315226025047", "use-of-proceeds")]: [],
@@ -3797,7 +3818,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     { person_name: "Kevin S. Royal", fiscal_year: 2024, salary: 330000, total: 530970 },
   ],
   [goldenLabelKey("s1_1489993_000162828026025811", "executive-compensation")]: [
-    { person_name: "Richard Foust", fiscal_year: 2025, salary: 422708, total: null },
+    { person_name: "Richard John Foust", fiscal_year: 2025, salary: 422708, total: null },
     { person_name: "Prashant Rawat", fiscal_year: 2025, salary: 422300, total: null },
     { person_name: "Douglas (Doug) Ellison", fiscal_year: 2025, salary: 350000, total: null },
   ],
@@ -5553,7 +5574,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   [goldenLabelKey("s1_95572_000121390026086369", "beneficial-ownership")]: [
     O("Ronald W. Pickett", "person"),
     O("Flip Wallen", "person"),
-    O("Stephen Sadle", "person"),
+    O("Stephen L. Sadle", "person"),
     O("Robert P. Crabb", "person"),
     O("H. James Magnuson", "person"),
     O("Mossadaq Chughtai", "person"),
