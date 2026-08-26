@@ -288,7 +288,7 @@ export function registerSecSyncLeaves(): void {
                 forms: ctx.formTypes?.length ? expandFormTypes(ctx.formTypes) : undefined,
                 since: ctx.from,
                 force: ctx.force,
-                limit: DEFAULT_CONVERT_LIMIT,
+                limit: ctx.limit ?? DEFAULT_CONVERT_LIMIT,
               },
             }),
           ]);

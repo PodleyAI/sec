@@ -48,6 +48,9 @@ interface LeafOpts {
   readonly only?: ReturnType<typeof parseSpacProcessOnly>;
   readonly concurrency?: number;
   readonly simple?: boolean;
+  readonly types?: string;
+  readonly since?: string;
+  readonly limit?: number;
 }
 
 /**
@@ -98,6 +101,25 @@ function applyLeafOptions(cmd: Command, leafId: string): Command {
       );
   }
 
+  if (leafId === "documents") {
+    cmd
+      .option(
+        "--types <list>",
+        "Comma-separated forms to convert (default: the narrative set in CONVERTIBLE_FORMS)"
+      )
+      .option("--since <date>", "Only filings filed on or after this date (YYYY-MM-DD)")
+      .option(
+        "--limit <n>",
+        "How many filings to convert in this run (default 500) — a backfill is many runs",
+        parseIntOption
+      )
+      .option(
+        "--force",
+        "Re-convert filings already stored at the current converter version",
+        false
+      );
+  }
+
   if (leafId === "portals" || leafId === "crowdfunding" || leafId === "reg-a") {
     cmd.option(
       "--shard <i/N>",
@@ -145,6 +167,16 @@ async function runLeaf(leaf: SyncLeaf, opts: LeafOpts, stepId: string | undefine
 
       if (leaf.id === "facts") {
         ctx = { ...ctx, force: opts.force ?? false, retryFailed: opts.retryFailed ?? false };
+      }
+
+      if (leaf.id === "documents") {
+        ctx = {
+          ...ctx,
+          force: opts.force ?? false,
+          from: opts.since,
+          formTypes: opts.types === undefined ? undefined : opts.types.split(","),
+          limit: opts.limit,
+        };
       }
 
       if (leaf.id === "spacs") {

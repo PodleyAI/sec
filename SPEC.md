@@ -182,28 +182,32 @@ Bring local SEC data forward to today. `sync` is a **command group** — bare `s
 
 **Leaves** (each is `sec sync <leaf>`):
 
-| Leaf            | Steps (`--step`)       | What it runs                                                                                                      |
-| --------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `submissions`   | `index`, `submissions` | Daily-index catch-up + lookback, then submissions refresh                                                         |
-| `facts`         | (single)               | Company-facts refresh                                                                                             |
-| `portals`       | (single)               | Forms sweep: CFPORTAL family                                                                                      |
-| `crowdfunding`  | (single)               | Forms sweep: Form C family                                                                                        |
-| `reg-a`         | (single)               | Forms sweep: Reg A family                                                                                         |
-| `forms <types>` | (single)               | Generic forms sweep (comma-separated types). Not in `all`. Extractor ids expand (`D` → `D,D/A`)                   |
-| `spacs`         | `identify`, `process`  | SPAC candidate identification, then SPAC-chain forms for known SPACs ∪ high/medium candidates                     |
-| `all`           | (none)                 | Every leaf with `inAll: true`, in order: `submissions` → `facts` → `portals` → `crowdfunding` → `reg-a` → `spacs` |
+| Leaf            | Steps (`--step`)       | What it runs                                                                                                                    |
+| --------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `submissions`   | `index`, `submissions` | Daily-index catch-up + lookback, then submissions refresh                                                                       |
+| `facts`         | (single)               | Company-facts refresh                                                                                                           |
+| `portals`       | (single)               | Forms sweep: CFPORTAL family                                                                                                    |
+| `crowdfunding`  | (single)               | Forms sweep: Form C family                                                                                                      |
+| `reg-a`         | (single)               | Forms sweep: Reg A family                                                                                                       |
+| `forms <types>` | (single)               | Generic forms sweep (comma-separated types). Not in `all`. Extractor ids expand (`D` → `D,D/A`)                                 |
+| `spacs`         | `identify`, `process`  | SPAC candidate identification, then SPAC-chain forms for known SPACs ∪ high/medium candidates                                   |
+| `documents`     | `convert`              | Convert filing primary documents to markdown sections (`filing_document` + `filing_section`)                                    |
+| `all`           | (none)                 | Every leaf with `inAll: true`, in order: `submissions` → `facts` → `portals` → `crowdfunding` → `reg-a` → `spacs` → `documents` |
 
 **Common flags:**
 
-| Flag             | Leaves                                               | Description                                                                                                                         |
-| ---------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `--step <name>`  | Multi-step leaves only                               | Run one step (`index` / `submissions` on `submissions`; `identify` / `process` on `spacs`). Unknown name errors with the valid list |
-| `--from <date>`  | `submissions`, `all`                                 | Exclusive daily-index catch-up start (`YYYY-MM-DD`); fetch begins the day after this date, like the cursor's `last_success`         |
-| `--lookback <n>` | `submissions`, `all`                                 | Re-fetch the last _n_ **completed** calendar days, bypassing cache (default **3**)                                                  |
-| `--force`        | `submissions`, `facts`, `all`                        | Reprocess submissions/facts, ignoring processed state (`--force` on `submissions` applies to the `submissions` step)                |
-| `--retry-failed` | `facts`, `all`                                       | Also re-fetch CIKs whose last facts processing failed                                                                               |
-| `--full`         | `spacs`                                              | Rescan every entity on the `identify` step (default is incremental)                                                                 |
-| `--shard <i/N>`  | `portals`, `crowdfunding`, `reg-a`, `spacs`, `forms` | Process shard _i_ of _N_ (1-based)                                                                                                  |
+| Flag             | Leaves                                               | Description                                                                                                                                                                |
+| ---------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--step <name>`  | Multi-step leaves only                               | Run one step (`index` / `submissions` on `submissions`; `identify` / `process` on `spacs`). Unknown name errors with the valid list                                        |
+| `--from <date>`  | `submissions`, `all`                                 | Exclusive daily-index catch-up start (`YYYY-MM-DD`); fetch begins the day after this date, like the cursor's `last_success`                                                |
+| `--lookback <n>` | `submissions`, `all`                                 | Re-fetch the last _n_ **completed** calendar days, bypassing cache (default **3**)                                                                                         |
+| `--force`        | `submissions`, `facts`, `documents`, `all`           | Reprocess submissions/facts, ignoring processed state (`--force` on `submissions` applies to the `submissions` step; on `documents` it re-converts at the current version) |
+| `--retry-failed` | `facts`, `all`                                       | Also re-fetch CIKs whose last facts processing failed                                                                                                                      |
+| `--full`         | `spacs`                                              | Rescan every entity on the `identify` step (default is incremental)                                                                                                        |
+| `--shard <i/N>`  | `portals`, `crowdfunding`, `reg-a`, `spacs`, `forms` | Process shard _i_ of _N_ (1-based)                                                                                                                                         |
+| `--types <list>` | `documents`                                          | Narrow the forms converted (comma-separated); default is the narrative set in `CONVERTIBLE_FORMS`                                                                          |
+| `--since <date>` | `documents`                                          | Only convert filings filed on or after this date (`YYYY-MM-DD`)                                                                                                            |
+| `--limit <n>`    | `documents`                                          | Filings converted in one run (default **500**)                                                                                                                             |
 
 **Daily path:** `sec sync all` (or `sec sync submissions` then other leaves as needed).
 
@@ -224,6 +228,19 @@ Bring local SEC data forward to today. `sync` is a **command group** — bare `s
 `sync submissions --step submissions` is the submissions refresh **without** the index step (the old `update submissions` path).
 
 Form-domain leaves do not refresh submissions first — run `sync submissions` (or `sync all`) before them when filings may be stale.
+
+**`documents`** converts each filing's primary document to markdown and stores it as `filing_section`
+rows (one per heading, flat, concatenating back to the filing in `ordinal` order) under a
+`filing_document` header row. Selection is an anti-join against the stored `converter_version`, so
+the leaf is resumable and bounded at 500 filings per run — a backfill is many runs, not one. It reads
+the accession-doc fetch cache first and only reaches EDGAR on a miss, and it runs LAST in `sync all`
+so the documents it wants are already cached by the sweeps before it.
+
+Scoped to the narrative forms (registrations, prospectuses, merger proxies, 8-Ks) rather than to
+every filing: `filings` is hundreds of thousands of rows, most of them ownership XML with no prose.
+Widen it with `--types`, or by adding to `CONVERTIBLE_FORMS` and re-running. Bump
+`FILING_CONVERTER_VERSION` and re-run to re-convert after a parser change — never truncate, since a
+half-finished re-run then leaves the old rows readable.
 
 ---
 
