@@ -7,6 +7,10 @@
 import { reportSpacProcessRows, spacProcessFailureCount } from "../../commands/spac";
 import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
 import { CatchUpDailyIndexTask } from "../../task/index/CatchUpDailyIndexTask";
+import {
+  ConvertFilingDocumentsTask,
+  DEFAULT_CONVERT_LIMIT,
+} from "../../task/document/ConvertFilingDocumentsTask";
 import { IdentifySpacsTask } from "../../task/spac/IdentifySpacsTask";
 import { ProcessSpacTimelineTask } from "../../task/spac/ProcessSpacTimelineTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
@@ -263,5 +267,33 @@ export function registerSecSyncLeaves(): void {
         throw new Error(`${failed} of ${total} issuer(s) had failed filings`);
       }
     },
+  });
+
+  registerSyncLeaf({
+    id: "documents",
+    description: "Convert filing documents to markdown sections",
+    order: 70,
+    inAll: true,
+    steps: [
+      {
+        id: "convert",
+        title: "Convert filings to markdown",
+        run: async (ctx: SyncRunContext) => {
+          await runWorkflowCli([
+            new ConvertFilingDocumentsTask({
+              defaults: {
+                // `sync forms --types` already means "narrow to these forms";
+                // reusing it here keeps one vocabulary rather than inventing a
+                // second spelling of the same idea.
+                forms: ctx.formTypes?.length ? expandFormTypes(ctx.formTypes) : undefined,
+                since: ctx.from,
+                force: ctx.force,
+                limit: DEFAULT_CONVERT_LIMIT,
+              },
+            }),
+          ]);
+        },
+      },
+    ],
   });
 }

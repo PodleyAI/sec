@@ -66,6 +66,16 @@ import {
   FilingSchema,
 } from "../storage/filing/FilingSchema";
 import {
+  FILING_DOCUMENT_REPOSITORY_TOKEN,
+  FilingDocumentPrimaryKeyNames,
+  FilingDocumentSchema,
+} from "../storage/document/FilingDocumentSchema";
+import {
+  FILING_SECTION_REPOSITORY_TOKEN,
+  FilingSectionPrimaryKeyNames,
+  FilingSectionSchema,
+} from "../storage/document/FilingSectionSchema";
+import {
   INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN,
   InvestmentOfferingHistoryPrimaryKeyNames,
   InvestmentOfferingHistorySchema,
@@ -589,6 +599,28 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     schema: FilingSchema,
     primaryKeyNames: FilingPrimaryKeyNames,
     indexes: [["form", "cik"], ["filing_date"], ["accession_number"], ["file_number"]],
+  }),
+  defineStorage({
+    token: FILING_DOCUMENT_REPOSITORY_TOKEN,
+    table: "filing_document",
+    schema: FilingDocumentSchema,
+    primaryKeyNames: FilingDocumentPrimaryKeyNames,
+    // The sweep's anti-join asks "which filings of this form have no row at the
+    // current converter version", which reads `form` and `converter_version`
+    // together and nothing else off this table.
+    indexes: [["form", "converter_version"], ["converted_at"]],
+  }),
+  defineStorage({
+    token: FILING_SECTION_REPOSITORY_TOKEN,
+    table: "filing_section",
+    schema: FilingSectionSchema,
+    primaryKeyNames: FilingSectionPrimaryKeyNames,
+    // Every read of this table is "the sections of one filing", either whole
+    // (ordered by ordinal, which the primary key already serves) or one by
+    // slug. The unique index is the correctness half: two sections of one
+    // filing sharing a slug would make `?section=` ambiguous, and the splitter
+    // deduplicates precisely so this holds.
+    uniqueIndexes: [["cik", "accession_number", "slug"]],
   }),
   // ------------------------------ Crowdfunding --------------------------------
   defineStorage({

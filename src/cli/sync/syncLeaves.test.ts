@@ -75,7 +75,20 @@ describe("syncLeaves registry", () => {
       listSyncLeaves()
         .filter((l) => l.inAll)
         .map((l) => l.id)
-    ).toEqual(["submissions", "facts", "portals", "crowdfunding", "reg-a", "spacs"]);
+    ).toEqual([
+      "submissions",
+      "facts",
+      "portals",
+      "crowdfunding",
+      "reg-a",
+      "spacs",
+      // Last, and in `sync all` on purpose: a filing nobody has converted is a
+      // page that offers an EDGAR link instead of the filing, so conversion has
+      // to keep up with ingest without an operator remembering a second command.
+      // Bounded per run by DEFAULT_CONVERT_LIMIT, and it runs after `spacs` so
+      // the documents it wants are already in the fetch cache.
+      "documents",
+    ]);
   });
 });
 
