@@ -8,6 +8,11 @@ import { Type } from "typebox";
 import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
+import {
+  extractorsForForm,
+  getFormExtractor,
+  listFormExtractorKeys,
+} from "../../sec/forms/formExtractors";
 import { isDryRun } from "../../cli/isDryRun";
 import {
   FILING_REPOSITORY_TOKEN,
@@ -15,17 +20,28 @@ import {
   type FilingRepositoryStorage,
 } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
-import {
-  FORM_TO_EXTRACTOR_ID,
-  formToExtractorId,
-  sortFormsForSweep,
-} from "../../storage/versioning/extractorIds";
+import { sortFormsForSweep } from "../../storage/versioning/extractorIds";
 import { ExtractorRunRepo, filingRunKey } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { SecFetchMaxPerSec } from "../../config/Constants";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import { resolvePrimaryDocName } from "../../util/accessionDocPath";
+
+/**
+ * The worklist's "all forms" default reads the form-extractor registry
+ * directly, so it needs the registry populated wherever this task can run —
+ * a sweep, a test, a directly constructed instance — none of which are
+ * guaranteed to have imported `ProcessAccessionDocFormTask` (whose own module
+ * scope does the same registration). Without this, an omitted `form` input
+ * silently resolves to an empty list rather than an error.
+ *
+ * `registerSecFormExtractors` registers once per registry generation, so this
+ * neither duplicates the bootstrap's call nor overrides a downstream
+ * package's registration under a shared key.
+ */
+registerSecFormExtractors();
 
 export type ComputeFormsWorklistTaskInput = {
   /** Omit (or pass empty) to process every form with a registered extractor. */
@@ -168,10 +184,11 @@ export class ComputeFormsWorklistTask extends Task<
       globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
     );
 
+    const allForms = [
+      ...new Set(listFormExtractorKeys().flatMap((k) => getFormExtractor(k)!.forms)),
+    ];
     const requestedForms =
-      input.form !== undefined && input.form.length > 0
-        ? input.form
-        : Object.keys(FORM_TO_EXTRACTOR_ID);
+      input.form !== undefined && input.form.length > 0 ? input.form : allForms;
     const formSet = new Set(requestedForms);
 
     const shardCount = input.shardCount ?? 1;
@@ -225,7 +242,7 @@ export class ComputeFormsWorklistTask extends Task<
     // ordered correctly without the operator knowing to do it.
     const forms = sortFormsForSweep(
       [...formSet].filter((form) => {
-        if (formToExtractorId(form)) return true;
+        if (extractorsForForm(form).length > 0) return true;
         console.warn(`update-forms: form '${form}' has no registered extractor; skipping`);
         return false;
       })
@@ -233,43 +250,45 @@ export class ComputeFormsWorklistTask extends Task<
 
     let total = 0;
     for (const form of forms) {
-      const extractorId = formToExtractorId(form)!;
-      const extractorVersion = await resolveVersion(extractorId);
-      let from: number | undefined;
-      let seen: string | undefined;
-      for (;;) {
-        const { rows, full } = await this.readPage(filingRepo, form, from, seen, allowCiks);
-        if (rows.length === 0) break;
+      for (const extractor of extractorsForForm(form)) {
+        const extractorId = extractor.id;
+        const extractorVersion = await resolveVersion(extractorId);
+        let from: number | undefined;
+        let seen: string | undefined;
+        for (;;) {
+          const { rows, full } = await this.readPage(filingRepo, form, from, seen, allowCiks);
+          if (rows.length === 0) break;
 
-        // One chunked `extractor_runs` lookup per PAGE, over the rows that pass
-        // the cheap in-memory tests. The corpus-wide Set this replaced was built
-        // once per form and held for its whole scan; at Form D's size that is
-        // hundreds of MB resident before the first filing is fetched, and every
-        // `--shard` process paid it in full. See
-        // {@link ExtractorRunRepo.successfulRunKeysForFilings}.
-        const eligible = rows.filter((f) => this.passesCheapTests(f, cheapTestOpts));
-        const successfulKeys = await runRepo.successfulRunKeysForFilings(
-          eligible,
-          extractorId,
-          extractorVersion,
-          form
-        );
-        for (const f of eligible) {
-          if (successfulKeys.has(filingRunKey(f))) continue;
-          total++;
-          if (dryRun) continue;
-          accessionNumber.push(f.accession_number);
-          cik.push(f.cik);
-          formOut.push(f.form!);
-          // "" when the filing names no primary document: the port is a parallel
-          // array, so the row has to keep its slot. `ProcessAccessionDocFormTask`
-          // reads it as absent and dead-letters that one filing.
-          fileName.push(resolvePrimaryDocName(f.primary_doc) ?? "");
+          // One chunked `extractor_runs` lookup per PAGE, over the rows that pass
+          // the cheap in-memory tests. The corpus-wide Set this replaced was built
+          // once per form and held for its whole scan; at Form D's size that is
+          // hundreds of MB resident before the first filing is fetched, and every
+          // `--shard` process paid it in full. See
+          // {@link ExtractorRunRepo.successfulRunKeysForFilings}.
+          const eligible = rows.filter((f) => this.passesCheapTests(f, cheapTestOpts));
+          const successfulKeys = await runRepo.successfulRunKeysForFilings(
+            eligible,
+            extractorId,
+            extractorVersion,
+            form
+          );
+          for (const f of eligible) {
+            if (successfulKeys.has(filingRunKey(f))) continue;
+            total++;
+            if (dryRun) continue;
+            accessionNumber.push(f.accession_number);
+            cik.push(f.cik);
+            formOut.push(f.form!);
+            // "" when the filing names no primary document: the port is a parallel
+            // array, so the row has to keep its slot. `ProcessAccessionDocFormTask`
+            // reads it as absent and dead-letters that one filing.
+            fileName.push(resolvePrimaryDocName(f.primary_doc) ?? "");
+          }
+          if (!full) break;
+          const last = rows[rows.length - 1]!;
+          from = last.cik;
+          seen = last.accession_number;
         }
-        if (!full) break;
-        const last = rows[rows.length - 1]!;
-        from = last.cik;
-        seen = last.accession_number;
       }
     }
 
