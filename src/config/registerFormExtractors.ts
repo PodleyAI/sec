@@ -3,7 +3,10 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { registerFormExtractor } from "../sec/forms/formExtractors";
+import {
+  formExtractorRegistryGeneration,
+  registerFormExtractor,
+} from "../sec/forms/formExtractors";
 import { processDeregistration } from "../sec/forms/exchange-listing-withdrawal/processDeregistration";
 import { processForm1A } from "../sec/forms/exempt-offerings/Form_1_A.storage";
 import { processForm1K } from "../sec/forms/exempt-offerings/Form_1_K.storage";
@@ -39,15 +42,34 @@ import type { FormCfportal } from "../sec/forms/portal/Form_CFPORTAL.schema";
 import type { FormS1Parsed } from "../sec/forms/registration-statements/Form_S_1";
 
 /**
+ * Which registry generation this function has already registered into, so a
+ * second call is a no-op rather than a rebuild. See
+ * {@link registerSecFormExtractors}.
+ */
+let registeredGeneration = -1;
+
+/**
  * Register the extractors sec ships into the form-extractor registry. Called
- * from the CLI bootstrap, and from any test that dispatches a filing.
+ * from the CLI bootstrap, from the dispatch task's own module, and from any
+ * test that dispatches a filing.
  *
  * Registration reads nothing and touches no dependency injection, so it is
  * safe before the runtime is up — the same property `registerSecTasks` relies
  * on. The `store` closures themselves may resolve DI once invoked, exactly as
  * the `.storage.ts` handlers they call already do.
+ *
+ * Registering ONCE per registry generation is what makes an override stick.
+ * Every call builds fresh closures, so a second one would `set` all 21 keys
+ * again and silently replace a downstream package's registration under any key
+ * it shares — including the natural case of that package registering at its own
+ * module scope and then calling `bootstrapSecRuntime()`. Keying the guard to the
+ * registry's generation rather than a plain boolean means clearing the registry
+ * re-arms it, so a test that starts from an empty registry still gets these.
  */
 export function registerSecFormExtractors(): void {
+  if (registeredGeneration === formExtractorRegistryGeneration()) return;
+  registeredGeneration = formExtractorRegistryGeneration();
+
   registerFormExtractor<FormD>({
     id: "D",
     forms: ["D", "D/A"],
@@ -231,9 +253,10 @@ export function registerSecFormExtractors(): void {
     },
   });
 
-  // The four extractors below are dispatched before the storage switch today
-  // (metadata carried in the submissions payload, so no document is fetched),
-  // registered here with the same argument shape their existing call site uses.
+  // The five extractors below declare `needsDocument: false`: everything they
+  // record — the `024-` file number, the item codes, the event date — arrives in
+  // the submissions payload, so the driver fetches and parses nothing for them
+  // and their `store` receives `parsed: undefined`.
   registerFormExtractor<unknown>({
     id: "253G",
     forms: ["253G1", "253G2", "253G3", "253G4"],

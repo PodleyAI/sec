@@ -9,7 +9,14 @@ import {
   extractorsForForm,
   formNeedsDocument,
   formNeedsFullSubmission,
+  getFormExtractor,
+  listFormExtractorKeys,
+  registerFormExtractor,
 } from "../sec/forms/formExtractors";
+import {
+  REGA_FULL_SUBMISSION_FORMS,
+  REGISTRATION_PROSPECTUS_FORMS,
+} from "../task/forms/ProcessAccessionDocFormTask";
 import { FORM_TO_EXTRACTOR_ID } from "../storage/versioning/extractorIds";
 import { registerSecFormExtractors } from "./registerFormExtractors";
 
@@ -56,4 +63,26 @@ test("the metadata-only forms need no document; document forms do", () => {
   for (const form of ["D", "S-1", "8-K", "1-K"]) {
     expect(formNeedsDocument(form), `form ${form}`).toBe(true);
   }
+});
+
+test("re-registering does not clobber a later override", () => {
+  registerSecFormExtractors();
+  registerFormExtractor({ id: "D", forms: ["D", "D/A"], store: async () => {} });
+  const override = getFormExtractor("D");
+  registerSecFormExtractors();
+  expect(getFormExtractor("D")).toBe(override);
+});
+
+test("the full-submission form sets match the extractors that declare it", () => {
+  // The dispatch task asks the registry which body to fetch; the bulk
+  // downloader and the SPAC candidate downloader ask these two sets when they
+  // lay out the fetch cache. Adding a form to one side only makes the cached
+  // file and the requested one disagree — a permanent cache miss and a network
+  // fetch on every filing of that form, with nothing else failing.
+  const declared = listFormExtractorKeys()
+    .map((key) => getFormExtractor(key))
+    .filter((ext) => ext?.needsFullSubmission === true)
+    .flatMap((ext) => [...(ext?.forms ?? [])]);
+  const cached = [...REGISTRATION_PROSPECTUS_FORMS, ...REGA_FULL_SUBMISSION_FORMS];
+  expect([...new Set(declared)].sort()).toEqual([...new Set(cached)].sort());
 });

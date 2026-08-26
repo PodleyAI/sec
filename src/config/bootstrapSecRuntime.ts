@@ -41,9 +41,9 @@ export async function bootstrapSecRuntime(): Promise<void> {
   DefaultDI();
   registerSecResolvers();
   // Reads nothing and touches no DI, so where it sits among the register* calls
-  // does not matter. Anything that dispatches a filing registers these for
-  // itself; this is what puts them in front of a caller that only wants to ask
-  // what handles a form.
+  // does not matter, and it is a no-op once the dispatch task's own module has
+  // run. This is what puts the extractors in front of a caller that only wants
+  // to ask what handles a form, without importing the task that dispatches them.
   registerSecFormExtractors();
   await registerSecModels();
   await registerSecProviders();

@@ -106,6 +106,19 @@ export interface FormExtractor<TParsed = unknown> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const REGISTRY = new Map<string, FormExtractor<any>>();
 
+/**
+ * Bumped every time the registry is emptied. A package that registers a fixed
+ * set of extractors reads this to tell "I have already registered into THIS
+ * registry" from "the registry was cleared out from under me", which is what
+ * lets such a call be idempotent without a flag of its own that a clear cannot
+ * reach.
+ */
+let generation = 0;
+
+export function formExtractorRegistryGeneration(): number {
+  return generation;
+}
+
 /** `id` for a whole-filing extractor, `id:section` otherwise. */
 export function extractorKey(id: string, section?: string): string {
   return section === undefined || section === "" ? id : `${id}:${section}`;
@@ -207,4 +220,5 @@ export function formNeedsDocument(form: string): boolean {
 /** Test hook: drop all registrations so a test starts from an empty registry. */
 export function clearFormExtractorsForTesting(): void {
   REGISTRY.clear();
+  generation++;
 }

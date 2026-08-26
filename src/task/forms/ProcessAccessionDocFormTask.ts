@@ -45,9 +45,12 @@ import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
  * Storing a filing runs whatever the form-extractor registry holds for its
  * form, so the registry has to be populated wherever this task can run — a
  * backfill, a test, or a directly constructed instance never passes through the
- * CLI bootstrap. Registration is keyed and idempotent, and a module's own
- * statements run before any bootstrap call can, so an extractor registered
- * later under the same key still replaces the one below.
+ * CLI bootstrap. Doing it here, at import, is what makes that true without every
+ * caller having to know.
+ *
+ * `registerSecFormExtractors` registers once per registry generation, so this
+ * neither duplicates the bootstrap's call nor lets a later one rebuild over an
+ * extractor a downstream package registered under one of these keys.
  */
 registerSecFormExtractors();
 
