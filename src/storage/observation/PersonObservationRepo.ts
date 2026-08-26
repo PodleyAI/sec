@@ -32,6 +32,7 @@ export type PersonObservationDraft = Omit<
   | "normalized_last"
   | "normalized_suffix"
   | "relationship"
+  | "role_scope"
   | "birth_year"
   | "bio"
   | "raw_address_id"
@@ -52,6 +53,7 @@ export type PersonObservationDraft = Omit<
       | "normalized_last"
       | "normalized_suffix"
       | "relationship"
+      | "role_scope"
       | "birth_year"
       | "bio"
       | "raw_address_id"
@@ -209,6 +211,7 @@ export class PersonObservationRepo {
       normalized_last: draft.normalized_last ?? null,
       normalized_suffix: draft.normalized_suffix ?? null,
       relationship: draft.relationship ?? null,
+      role_scope: draft.role_scope ?? null,
       birth_year: draft.birth_year ?? null,
       bio: draft.bio ?? null,
       raw_address_id: draft.raw_address_id ?? null,

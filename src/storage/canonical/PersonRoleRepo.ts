@@ -235,11 +235,11 @@ export class PersonRoleRepo {
   }
 
   /**
-   * A roster filing enumerated the complete `(extractor_id, role_scope)`
-   * population for the company; close every open tenure it did not assert.
-   * Guarded by `filing_date > last_seen_date` (strict), so an out-of-order
-   * older filing can never close a role a newer filing asserts, and same-day
-   * filings never close each other's assertions. Returns the number closed.
+   * This filing enumerated the complete `(extractor_id, role_scope)` roster
+   * for the company; close every open tenure it did not assert. Guarded by
+   * `filing_date > last_seen_date` (strict), so an out-of-order older filing
+   * can never close a role a newer filing asserts, and same-day filings
+   * never close each other's assertions. Returns the number closed.
    */
   async closeUnasserted(args: CloseUnassertedArgs): Promise<number> {
     const candidates =

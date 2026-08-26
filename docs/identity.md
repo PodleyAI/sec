@@ -54,14 +54,28 @@ titles split into separate rows) at one company (`company_cik`), with a required
 `start_date` (earliest asserting filing date), an optional `end_date` (null = current), and
 `last_seen_date` as the order-safety guard.
 
-A claim participates when it carries `filing_date`, `source_filing_issuer_cik`, and a
-`role_scope` population tag. Tenures are scoped by `(extractor_id, role_scope)`.
+A tenure's `end_date` is set only by inference: a later filing that no longer mentions the
+person reads as evidence they left. That inference is sound for a list that names everyone
+holding a role — an S-1 management section names every officer and director, so a later one
+omitting Jane Smith says she left — and it is nonsense for a list that only names whoever
+happened to appear — a Form D signature block names whoever signed, so omitting her says
+nothing. `role_scope` is the tag that tells the two apart: it names which list inside the
+form a person was read from (`form-d:related-person`, `form-d:signature`, `s1:management`,
+`section16:reporting-owner`, `cfportal:contact`, …), and tenures are keyed
+`(extractor_id, role_scope)` so one list can never close another's tenures.
 
-**Only forms enumerating a COMPLETE population call
-`observer.closeUnassertedPersonRoles(...)`** after their person loop — currently Form D
-related persons (`form-d:related-person`) and the S-1 management section (`s1:management`).
-Everything else (signatures, sales-comp recipients, Section 16 owners, CFPORTAL contacts and
-owners) is assert-only, because absence there means nothing.
+There are two kinds:
+
+- **Complete rosters** name everyone holding the role, so absence is evidence of departure.
+  These call `observer.closeUnassertedPersonRoles(...)` after their person loop — today,
+  Form D related persons (`form-d:related-person`) and the S-1 management section
+  (`s1:management`).
+- **Assert-only lists** name only whoever happened to appear — signatures, sales-comp
+  recipients, Section 16 owners, CFPORTAL contacts and owners, and so on — so absence proves
+  nothing. These never call closure.
+
+A claim participates in role-tenure tracking at all only when it carries `filing_date`,
+`source_filing_issuer_cik`, and a `role_scope`.
 
 Closure is guarded by `filing_date > last_seen_date` (re-checked under a per-tenure lock), so
 out-of-order replays never close a role a newer filing asserts. The full set of behaviours:

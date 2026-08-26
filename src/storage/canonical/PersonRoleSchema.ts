@@ -19,9 +19,9 @@ import { TypeNullable } from "../../util/TypeBoxUtil";
  * two rows.
  *
  * Tenures are scoped by `(extractor_id, role_scope)`: closure only ever
- * compares a filing against tenures opened by the same population (e.g. a
+ * compares a filing against tenures opened by the same roster (e.g. a
  * Form D related-persons roster never closes an S-1 management tenure), so
- * populations with different completeness semantics cannot cross-contaminate.
+ * rosters with different completeness semantics cannot cross-contaminate.
  *
  * Rows are resolver-versioned like the address/phone junctions: rebuilt when
  * observations replay at a new person-resolver version, purged by
@@ -43,7 +43,7 @@ export const PersonRoleSchema = Type.Object({
   }),
   role_scope: Type.String({
     maxLength: 64,
-    description: "Population within the extractor (e.g. 'form-d:related-person', 's1:management')",
+    description: "Which list within the extractor (e.g. 'form-d:related-person', 's1:management')",
   }),
   title: Type.String({
     maxLength: 256,

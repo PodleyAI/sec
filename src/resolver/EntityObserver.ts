@@ -232,6 +232,7 @@ export class EntityObserver {
       // identify one. See `splitSuffixParts`.
       normalized_suffix: clamp(normalized?.suffix ?? null, 32),
       relationship: clamp(claim.relationship ?? null, 64),
+      role_scope: claim.role_scope ?? null,
       birth_year: claim.birth_year ?? null,
       bio: claim.bio ?? null,
       raw_address_id: claim.address_id ?? null,
