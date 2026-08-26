@@ -56,4 +56,12 @@ export class CanonicalPersonAddressRepo extends CanonicalJunctionRepo<CanonicalP
   }): Promise<void> {
     return this.remove(pk.canonical_person_id, pk.address_hash_id, pk.resolver_version);
   }
+
+  /**
+   * Write one already-aggregated row outright (a projection rebuild's
+   * replace path) — see {@link CanonicalJunctionRepo.putRow}.
+   */
+  replaceAggregate(row: CanonicalPersonAddress): Promise<void> {
+    return this.putRow(row);
+  }
 }

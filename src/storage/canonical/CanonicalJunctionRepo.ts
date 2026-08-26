@@ -135,10 +135,16 @@ export class CanonicalJunctionRepo<TRow extends CanonicalJunctionRow> {
    * unlike {@link record}'s increment. For a projection that recomputes
    * `observation_count` and the seen-at bounds from the current observations
    * and replaces a resolver version's rows wholesale rather than reconciling
-   * them one observation at a time.
+   * them one observation at a time. Serialised per composite PK, like
+   * `record`/`remove`, so a rebuild racing live ingestion cannot land between
+   * another caller's read and write of the same key.
    */
-  async putRow(row: TRow): Promise<void> {
-    await this.repo.put(row);
+  protected putRow(row: TRow): Promise<void> {
+    const idValue = (row as any)[this.idColumn];
+    const assocValue = (row as any)[this.assocColumn];
+    return junctionLocks.lock(this.lockKey(idValue, assocValue, row.resolver_version), async () => {
+      await this.repo.put(row);
+    });
   }
 
   /** All junction rows for a canonical entity at a resolver version. */

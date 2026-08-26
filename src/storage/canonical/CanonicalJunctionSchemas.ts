@@ -9,10 +9,16 @@ import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 
 /**
- * Canonical-person ↔ address junction, tagged by resolver_version.
- * `observation_count` is incremented every time an observation contributes
- * the same `(canonical_person_id, address_hash_id)` pair under the same
- * resolver_version; used downstream as a primary-address heuristic.
+ * Canonical-person ↔ address junction, tagged by resolver_version. Two
+ * writers keep this table, and they fill these columns differently:
+ * `EntityObserver`'s incremental path increments `observation_count` by one
+ * and stamps `first_seen_at`/`last_seen_at` with the wall clock each time an
+ * observation contributes the same `(canonical_person_id, address_hash_id)`
+ * pair; `rebuildPersonJunctions` (a projection) replaces a resolver
+ * version's rows wholesale with one row per group, `observation_count` a
+ * plain group size and `first_seen_at`/`last_seen_at` the min/max
+ * `filing_date` of the asserting filings. Used downstream as a
+ * primary-address heuristic.
  *
  * Address rows themselves live in the existing `address` table; this
  * junction only references their hash IDs.
@@ -23,10 +29,20 @@ export const CanonicalPersonAddressSchema = Type.Object({
   resolver_version: Type.String({ maxLength: 32 }),
   observation_count: Type.Integer({
     minimum: 1,
-    description: "Number of observations that resolved to this (canonical, address) pair",
+    description:
+      "Count of contributing observations — a running increment from EntityObserver, " +
+      "or a group size from a rebuildPersonJunctions projection",
   }),
-  first_seen_at: Type.String({ description: "ISO 8601 timestamp of first sighting" }),
-  last_seen_at: Type.String({ description: "ISO 8601 timestamp of most recent sighting" }),
+  first_seen_at: Type.String({
+    description:
+      "Earliest sighting — an ISO 8601 timestamp from EntityObserver, " +
+      "or a YYYY-MM-DD filing_date from a rebuildPersonJunctions projection",
+  }),
+  last_seen_at: Type.String({
+    description:
+      "Most recent sighting — an ISO 8601 timestamp from EntityObserver, " +
+      "or a YYYY-MM-DD filing_date from a rebuildPersonJunctions projection",
+  }),
 });
 export type CanonicalPersonAddress = Static<typeof CanonicalPersonAddressSchema>;
 export const CanonicalPersonAddressPrimaryKeyNames = [

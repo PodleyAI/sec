@@ -93,6 +93,35 @@ function filingDateFor(byAccession: ReadonlyMap<string, string>, accession_numbe
 }
 
 /**
+ * The observation a link points to. A miss here is never "this observation
+ * just isn't part of the rebuild" — every live link has a backing
+ * observation row, since removing one always removes the other (see
+ * `reapStaleObservations`). It means either a dangling link left behind by a
+ * bug, or the backend handed `observation_id` back as a type that does not
+ * `===`-match what the link stored (a widened Postgres integer, a
+ * safe-integers SQLite handle, a proxied storage) — the same failure mode
+ * `PersonObservationTitleRepo.listForObservations` guards against, and here
+ * it would miss on EVERY link at once, so raising is the only safe response:
+ * silently skipping would empty every group, and the caller's
+ * `deleteForResolverVersion` would then run with nothing to replace it —
+ * deleting the resolver version's junction rows and writing none back.
+ */
+function observationFor<TObservation>(
+  byId: ReadonlyMap<number, TObservation>,
+  observation_id: number
+): TObservation {
+  const observation = byId.get(observation_id);
+  if (observation === undefined) {
+    throw new Error(
+      `rebuildJunctions: identity link references observation_id ` +
+        `${JSON.stringify(observation_id)} (${typeof observation_id}) with no matching ` +
+        `observation row — dangling link, or a backend id-type mismatch?`
+    );
+  }
+  return observation;
+}
+
+/**
  * Recomputes every person address/phone junction row at `resolverVersion`
  * from the current observations and their identity links, and replaces the
  * resolver version's rows outright.
@@ -128,8 +157,7 @@ export async function rebuildPersonJunctions(
   const phoneIds = new Map<string, { canonical_person_id: string; international_number: string }>();
 
   for (const link of links) {
-    const observation = observationById.get(link.observation_id);
-    if (observation === undefined) continue;
+    const observation = observationFor(observationById, link.observation_id);
     const filing_date = filingDateFor(filingDates, observation.accession_number);
 
     if (observation.raw_address_id) {
@@ -152,7 +180,7 @@ export async function rebuildPersonJunctions(
 
   await addressRepo.deleteForResolverVersion(resolverVersion);
   for (const [key, aggregate] of addressGroups) {
-    await addressRepo.putRow({
+    await addressRepo.replaceAggregate({
       ...addressIds.get(key)!,
       resolver_version: resolverVersion,
       observation_count: aggregate.count,
@@ -163,7 +191,7 @@ export async function rebuildPersonJunctions(
 
   await phoneRepo.deleteForResolverVersion(resolverVersion);
   for (const [key, aggregate] of phoneGroups) {
-    await phoneRepo.putRow({
+    await phoneRepo.replaceAggregate({
       ...phoneIds.get(key)!,
       resolver_version: resolverVersion,
       observation_count: aggregate.count,
@@ -201,8 +229,7 @@ export async function rebuildCompanyJunctions(
   >();
 
   for (const link of links) {
-    const observation = observationById.get(link.observation_id);
-    if (observation === undefined) continue;
+    const observation = observationFor(observationById, link.observation_id);
     const filing_date = filingDateFor(filingDates, observation.accession_number);
 
     if (observation.raw_address_id) {
@@ -225,7 +252,7 @@ export async function rebuildCompanyJunctions(
 
   await addressRepo.deleteForResolverVersion(resolverVersion);
   for (const [key, aggregate] of addressGroups) {
-    await addressRepo.putRow({
+    await addressRepo.replaceAggregate({
       ...addressIds.get(key)!,
       resolver_version: resolverVersion,
       observation_count: aggregate.count,
@@ -236,7 +263,7 @@ export async function rebuildCompanyJunctions(
 
   await phoneRepo.deleteForResolverVersion(resolverVersion);
   for (const [key, aggregate] of phoneGroups) {
-    await phoneRepo.putRow({
+    await phoneRepo.replaceAggregate({
       ...phoneIds.get(key)!,
       resolver_version: resolverVersion,
       observation_count: aggregate.count,
