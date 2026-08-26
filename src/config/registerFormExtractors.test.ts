@@ -38,11 +38,12 @@ test("registration is idempotent", () => {
   expect(extractorsForForm("D")).toHaveLength(before);
 });
 
-test("the prospectus forms need the full submission, Form D does not", () => {
+test("the prospectus forms need the full submission, Form D does not", async () => {
+  const probe = (form: string) => ({ form, cik: 1, items: null });
   for (const form of ["S-1", "S-1/A", "DRS", "F-1", "424B4"]) {
-    expect(formNeedsFullSubmission(form), `form ${form}`).toBe(true);
+    expect(await formNeedsFullSubmission(probe(form)), `form ${form}`).toBe(true);
   }
-  expect(formNeedsFullSubmission("1-K")).toBe(true);
-  expect(formNeedsFullSubmission("1-SA")).toBe(false);
-  expect(formNeedsFullSubmission("D")).toBe(false);
+  expect(await formNeedsFullSubmission(probe("1-K"))).toBe(true);
+  expect(await formNeedsFullSubmission(probe("1-SA"))).toBe(false);
+  expect(await formNeedsFullSubmission(probe("D"))).toBe(false);
 });

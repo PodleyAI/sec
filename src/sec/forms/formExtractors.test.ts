@@ -78,15 +78,42 @@ test("formsForExtractorKeys returns the union, de-duplicated", () => {
   expect(formsForExtractorKeys(["D", "C"]).sort()).toEqual(["C", "D", "D/A"]);
 });
 
-test("formNeedsFullSubmission is the union across a form's extractors", () => {
+test("formNeedsFullSubmission is the union across a form's extractors", async () => {
+  const probe = { form: "S-1", cik: 1, items: null };
   registerFormExtractor({ id: "plain", forms: ["S-1"], store: noopStore });
-  expect(formNeedsFullSubmission("S-1")).toBe(false);
+  expect(await formNeedsFullSubmission(probe)).toBe(false);
   registerFormExtractor({
     id: "envelope",
     forms: ["S-1"],
     needsFullSubmission: true,
     store: noopStore,
   });
-  expect(formNeedsFullSubmission("S-1")).toBe(true);
-  expect(formNeedsFullSubmission("D")).toBe(false);
+  expect(await formNeedsFullSubmission(probe)).toBe(true);
+  expect(await formNeedsFullSubmission({ ...probe, form: "D" })).toBe(false);
+});
+
+test("a predicate decides per filing, and short-circuits behind a static true", async () => {
+  let asked = 0;
+  registerFormExtractor({
+    id: "narrative",
+    forms: ["8-K"],
+    needsFullSubmission: async (probe) => {
+      asked++;
+      return probe.items?.includes("5.06") === true;
+    },
+    store: noopStore,
+  });
+  expect(await formNeedsFullSubmission({ form: "8-K", cik: 1, items: "2.02" })).toBe(false);
+  expect(await formNeedsFullSubmission({ form: "8-K", cik: 1, items: "5.06,9.01" })).toBe(true);
+  expect(asked).toBe(2);
+
+  registerFormExtractor({
+    id: "always",
+    forms: ["8-K"],
+    needsFullSubmission: true,
+    store: noopStore,
+  });
+  asked = 0;
+  expect(await formNeedsFullSubmission({ form: "8-K", cik: 1, items: "2.02" })).toBe(true);
+  expect(asked).toBe(0);
 });

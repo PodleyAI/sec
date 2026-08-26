@@ -17,16 +17,16 @@ import { processFormQualif } from "../sec/forms/exempt-offerings/Form_QUALIF.sto
 import { processRegAOfferingEvent } from "../sec/forms/exempt-offerings/RegAOfferingEvent.storage";
 import { processForm144 } from "../sec/forms/insider-trading/Form_144.storage";
 import { processOwnershipForm } from "../sec/forms/insider-trading/OwnershipDocument.storage";
+import { hasLoiTriggerItem } from "../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
 import { processForm8K } from "../sec/forms/miscellaneous-filings/Form_8_K.storage";
+import { hasRedemptionTriggerItem } from "../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { processFormCFPORTAL } from "../sec/forms/portal/Form_CFPORTAL.storage";
 import { processMergerProxy } from "../sec/forms/proxies-information-statements/Form_DEFM14A.storage";
 import { processForm424 } from "../sec/forms/registration-statements/Form_424.storage";
 import { processFormS1 } from "../sec/forms/registration-statements/Form_S_1.storage";
 import { processWithdrawal } from "../sec/forms/registration-withdrawal-termination/processWithdrawal";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
-import { getActiveSlot } from "../storage/versioning/getActiveSlot";
-import { VersionRegistry } from "../storage/versioning/VersionRegistry";
+import { SpacRepo } from "../storage/spac/SpacRepo";
 import type { Form1A } from "../sec/forms/exempt-offerings/Form_1_A.schema";
 import type { ParsedForm1K } from "../sec/forms/exempt-offerings/Form_1_K";
 import type { ParsedForm1SA } from "../sec/forms/exempt-offerings/Form_1_SA";
@@ -41,9 +41,11 @@ import type { FormCfportal } from "../sec/forms/portal/Form_CFPORTAL.schema";
 import type { FormS1Parsed } from "../sec/forms/registration-statements/Form_S_1";
 
 /**
- * `items` and `report_date` live on the filing row, not on
- * `FormExtractorStoreArgs` — most extractors never need them, so the shared
- * store args stay minimal and the two that do (8-K, 1-U) resolve them here.
+ * `report_date` lives on the filing row, not on `FormExtractorStoreArgs` — most
+ * extractors never need it, so the shared store args stay minimal and the one
+ * that does (1-U) resolves it here. `items` is on the widened args directly,
+ * but 1-U's pre-switch call site predates that and still goes through the
+ * filing row for both together.
  */
 async function filingItemsAndReportDate(
   cik: number,
@@ -53,20 +55,6 @@ async function filingItemsAndReportDate(
   const filings = await filingRepo.query({ accession_number: accessionNumber });
   const filing = filings?.find((f) => f.cik === cik) ?? filings?.[0];
   return { items: filing?.items ?? null, report_date: filing?.report_date ?? null };
-}
-
-/**
- * The 424 and merger-proxy processors resolve their own active extractor
- * version internally; the 8-K processor does not, since it stamps every
- * `Form8KEvent` row with a caller-supplied version. This resolves it the same
- * way those two do, for the one id nothing else computes it for.
- */
-async function activeExtractorVersion(id: string): Promise<string> {
-  const versionRegistry = new VersionRegistry(
-    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-  );
-  const slot = await getActiveSlot(versionRegistry, "extractor", id);
-  return slot?.semver ?? "1.0.0";
 }
 
 /**
@@ -211,12 +199,14 @@ export function registerSecFormExtractors(): void {
   registerFormExtractor<Form8K>({
     id: "8-K",
     forms: ["8-K", "8-K/A"],
-    // The redemption/LOI narrative pass reads the fetched full-submission body
-    // directly; that raw text isn't part of `FormExtractorStoreArgs`, so it
-    // stays out of scope here and that pass does not run through this path.
-    store: async ({ cik, accession_number, filing_date, form, parsed, context }) => {
-      const { items, report_date } = await filingItemsAndReportDate(cik, accession_number);
-      const extractor_version = await activeExtractorVersion("8-K");
+    needsFullSubmission: async ({ cik, items }) => {
+      if (cik === undefined) return false;
+      if (!hasRedemptionTriggerItem(items) && !hasLoiTriggerItem(items)) return false;
+      return (await new SpacRepo().getSpac(cik)) !== undefined;
+    },
+    store: async (args) => {
+      const { cik, accession_number, filing_date, form, items, report_date, parsed, context } =
+        args;
       await processForm8K({
         cik,
         accession_number,
@@ -225,8 +215,9 @@ export function registerSecFormExtractors(): void {
         items,
         report_date,
         form8K: parsed,
-        extractor_id: "8-K",
-        extractor_version,
+        extractor_id: args.extractor_id,
+        extractor_version: args.extractor_version,
+        fullSubmissionText: args.isFullSubmission ? args.text : undefined,
         context,
       });
     },

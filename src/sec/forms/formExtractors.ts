@@ -12,11 +12,37 @@ export interface FormExtractorStoreArgs {
   readonly accession_number: string;
   readonly filing_date: string;
   readonly primary_doc: string;
+  readonly form: string;
+  /**
+   * The submissions-API `items` list and period-of-report, carried for the forms
+   * that key on them. Null on the forms that have none, rather than absent, so a
+   * reader is not left inferring which is which.
+   */
+  readonly items: string | undefined | null;
+  readonly report_date: string | undefined | null;
+  /**
+   * The extractor being run and the version slot its run is recorded under.
+   * Per-extractor rather than per-filing: two extractors over one form resolve
+   * their own slots, and the driver has already looked both up.
+   */
+  readonly extractor_id: string;
+  readonly extractor_version: string;
+  /** The fetched document body. */
+  readonly text: string;
+  /** Whether `text` is the full submission rather than the primary document. */
+  readonly isFullSubmission: boolean;
   /**
    * The running task's context, threaded so a store step can report progress or
    * prefetch a resource. Undefined when a caller has none (tests, backfills).
    */
   readonly context: IExecuteContext | undefined;
+}
+
+/** What a per-filing full-submission escalation gets to decide on. */
+export interface FullSubmissionProbe {
+  readonly form: string;
+  readonly cik: number | undefined;
+  readonly items: string | undefined | null;
 }
 
 /**
@@ -39,8 +65,13 @@ export interface FormExtractor<TParsed = unknown> {
    * document. Taken as a union across a form's extractors: one extractor needing
    * the sibling `<DOCUMENT>` blocks escalates the fetch for all of them, and the
    * fetch is cached, so the others are unaffected.
+   *
+   * A predicate rather than a flag where the answer depends on the filing: an
+   * 8-K is fetched whole only when it carries a redemption or letter-of-intent
+   * item AND its filer is already a known SPAC, which is a storage lookup, not
+   * something a form symbol can answer.
    */
-  readonly needsFullSubmission?: boolean;
+  readonly needsFullSubmission?: boolean | ((probe: FullSubmissionProbe) => Promise<boolean>);
   /** Omitted when the form's registered parser class is the right one. */
   readonly parse?: (form: string, text: string) => Promise<TParsed>;
   readonly store: (
@@ -131,8 +162,24 @@ export function formsForExtractorKeys(keys: readonly string[]): string[] {
   return [...out];
 }
 
-export function formNeedsFullSubmission(form: string): boolean {
-  return extractorsForForm(form).some((e) => e.needsFullSubmission === true);
+/**
+ * Whether any extractor registered for the filing's form wants the whole
+ * submission. Async because an extractor may decide per filing.
+ *
+ * Static flags are checked before any predicate runs, so an extractor that
+ * always wants the whole submission spares every other extractor's lookup —
+ * whatever order they registered in. The answer is a plain OR across the form's
+ * extractors, so evaluating the free half first costs nothing and can save a
+ * database round trip on every filing of that form.
+ */
+export async function formNeedsFullSubmission(probe: FullSubmissionProbe): Promise<boolean> {
+  const extractors = extractorsForForm(probe.form);
+  if (extractors.some((e) => e.needsFullSubmission === true)) return true;
+  for (const ext of extractors) {
+    const rule = ext.needsFullSubmission;
+    if (typeof rule === "function" && (await rule(probe))) return true;
+  }
+  return false;
 }
 
 /** Test hook: drop all registrations so a test starts from an empty registry. */
