@@ -45,7 +45,7 @@ CI runs `format-check` → `build` → `test`, cheapest first.
 `typecheck-tests` is separate because test files are **excluded from the base
 `tsconfig.json`** and vitest transpiles without typechecking — `build` and `test` both
 pass over a test file whose types are wrong. It is **not in CI yet**: the suite reports
-122 errors across 37 files, and a step that is red the day it lands teaches everyone to
+157 errors across 48 files, and a step that is red the day it lands teaches everyone to
 ignore it. Run it locally on files you touch, and wire it into `test.yml` in the change
 that gets the count to zero.
 
