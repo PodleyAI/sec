@@ -64,6 +64,11 @@ export const CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN =
  * Canonical-person ↔ phone junction. Phone rows live in the existing
  * `phone` table keyed on `international_number`; this junction references
  * the same column.
+ *
+ * Two writers, split as on {@link CanonicalPersonAddressSchema}:
+ * `observation_count` is either an `EntityObserver` running increment or a
+ * `rebuildPersonJunctions` group size, and a seen-at value either an ISO 8601
+ * instant from the former or a `YYYY-MM-DD` `filing_date` from the latter.
  */
 export const CanonicalPersonPhoneSchema = Type.Object({
   canonical_person_id: Type.String({ maxLength: 36 }),
@@ -91,7 +96,13 @@ export const CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN =
     "sec.storage.canonicalPersonPhoneRepository"
   );
 
-/** Canonical-company ↔ address junction. */
+/**
+ * Canonical-company ↔ address junction. Two writers, split as on
+ * {@link CanonicalPersonAddressSchema}: `observation_count` is either an
+ * `EntityObserver` running increment or a `rebuildCompanyJunctions` group
+ * size, and a seen-at value either an ISO 8601 instant from the former or a
+ * `YYYY-MM-DD` `filing_date` from the latter.
+ */
 export const CanonicalCompanyAddressSchema = Type.Object({
   canonical_company_id: Type.String({ maxLength: 36 }),
   address_hash_id: Type.String({ maxLength: 512 }),
@@ -116,7 +127,11 @@ export const CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN =
     "sec.storage.canonicalCompanyAddressRepository"
   );
 
-/** Canonical-company ↔ phone junction. */
+/**
+ * Canonical-company ↔ phone junction — same two writers, and therefore the
+ * same mixed `observation_count` and seen-at encodings, as
+ * {@link CanonicalCompanyAddressSchema}.
+ */
 export const CanonicalCompanyPhoneSchema = Type.Object({
   canonical_company_id: Type.String({ maxLength: 36 }),
   // Must track PhoneSchema.international_number (64) — this column holds the

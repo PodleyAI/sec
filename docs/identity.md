@@ -19,7 +19,16 @@ Reference for `src/storage/observation/`, `src/storage/canonical/`,
 3. **Identity link** (`PersonIdentityLinkRepo` / `CompanyIdentityLinkRepo`) — join from `observation_id` +
    `resolver_version` → `canonical_*_id`. Written inline during extraction.
 4. **Junction** (`Canonical*AddressRepo`, `Canonical*PhoneRepo`) — co-occurrence of
-   canonical entities with addresses/phones at a given resolver version.
+   canonical entities with addresses/phones at a given resolver version. Two writers keep
+   these rows: `EntityObserver`'s incremental +1/-1 during extraction, and
+   `rebuildPersonJunctions` / `rebuildCompanyJunctions`
+   (`src/resolver/rebuildJunctions.ts`), which recompute one resolver version's rows
+   wholesale from the observations and their identity links. **A rebuild expects
+   ingestion to be quiesced**: it purges the version's rows before writing the recomputed
+   ones, so an observation recorded after it read its input but before that purge has its
+   contribution deleted and not written back — self-healing on the next rebuild, wrong in
+   between. The per-row lock the junction repos take does not close that window; only not
+   ingesting during a rebuild does.
 
 **`EntityObserver`** (`src/resolver/EntityObserver.ts`) is the single entry point: form
 storage modules call `observePerson()` / `observeCompany()` rather than writing rows

@@ -7,6 +7,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
+import { CanonicalCompanyAddressRepo } from "../storage/canonical/CanonicalCompanyAddressRepo";
+import { CanonicalCompanyPhoneRepo } from "../storage/canonical/CanonicalCompanyPhoneRepo";
 import type {
   CanonicalCompanyAddress,
   CanonicalCompanyPhone,
@@ -19,13 +21,23 @@ import {
   CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
   CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
 } from "../storage/canonical/CanonicalJunctionSchemas";
+import { CanonicalPersonAddressRepo } from "../storage/canonical/CanonicalPersonAddressRepo";
+import { CanonicalPersonPhoneRepo } from "../storage/canonical/CanonicalPersonPhoneRepo";
 import { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLinkRepo";
 import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
+import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
+import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { buildEntityObserver } from "./buildEntityObserver";
 import { rebuildCompanyJunctions, rebuildPersonJunctions } from "./rebuildJunctions";
 
 const RESOLVER_VERSION = "1.0.0";
+
+/**
+ * A generation `dropPrevious` would retire — rows written at it must survive a
+ * rebuild of the active version untouched.
+ */
+const PREVIOUS_RESOLVER_VERSION = "0.9.0";
 
 async function seedFiling(
   accession_number: string,
@@ -437,6 +449,157 @@ describe("rebuildPersonJunctions", () => {
       /no matching observation/
     );
   });
+
+  it("raises rather than fabricating a date when an observation's filing row is missing", async () => {
+    // The mirror of the dangling-link guard, one join further along: the
+    // observation is there, the filing it cites is not, so there is no date to
+    // derive the seen-at bounds from. Writing the row anyway would date a
+    // junction from nothing.
+    const observer = buildEntityObserver({
+      activeResolverPersonVersion: RESOLVER_VERSION,
+      activeResolverCompanyVersion: RESOLVER_VERSION,
+    });
+    await observer.observePerson({
+      // Deliberately never passed to `seedFiling`.
+      accession_number: "ACC-NO-FILING",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      observation_index: 0,
+      cik: 4101,
+      last_name: "Nofiling",
+      address_id: "addr-nofiling",
+      international_number: "+1-555-7100",
+    });
+
+    await expect(rebuildPersonJunctions(RESOLVER_VERSION)).rejects.toThrow(
+      /no filing found for accession_number "ACC-NO-FILING"/
+    );
+  });
+
+  it("purges only its own resolver version, leaving a previous generation's rows intact", async () => {
+    // The purge is what makes the projection a replace rather than a merge,
+    // but it is scoped to one generation: `dropPrevious` retires a version
+    // while the active one keeps serving the `current_canonical_*` views, so a
+    // rebuild must leave every other version's rows exactly where they are.
+    const previousAddressRepo = new CanonicalPersonAddressRepo();
+    await previousAddressRepo.recordObservation({
+      canonical_person_id: "previous-canonical-person",
+      address_hash_id: "addr-previous",
+      resolver_version: PREVIOUS_RESOLVER_VERSION,
+      seen_at: "2023-01-01T00:00:00.000Z",
+    });
+    await previousAddressRepo.recordObservation({
+      canonical_person_id: "previous-canonical-person",
+      address_hash_id: "addr-previous",
+      resolver_version: PREVIOUS_RESOLVER_VERSION,
+      seen_at: "2023-02-02T00:00:00.000Z",
+    });
+    await new CanonicalPersonPhoneRepo().recordObservation({
+      canonical_person_id: "previous-canonical-person",
+      international_number: "+1-555-7000",
+      resolver_version: PREVIOUS_RESOLVER_VERSION,
+      seen_at: "2023-01-01T00:00:00.000Z",
+    });
+
+    await seedFiling("ACC-30", 9000, "2024-09-01");
+    const observer = buildEntityObserver({
+      activeResolverPersonVersion: RESOLVER_VERSION,
+      activeResolverCompanyVersion: RESOLVER_VERSION,
+    });
+    await observer.observePerson({
+      accession_number: "ACC-30",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      observation_index: 0,
+      cik: 4001,
+      last_name: "Active",
+      address_id: "addr-active",
+      international_number: "+1-555-7001",
+    });
+
+    expect(await rebuildPersonJunctions(RESOLVER_VERSION)).toEqual({
+      addressRows: 1,
+      phoneRows: 1,
+    });
+
+    const addressStorage = globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN);
+    const phoneStorage = globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN);
+    const addressRows = (await addressStorage.getAll()) ?? [];
+    const phoneRows = (await phoneStorage.getAll()) ?? [];
+
+    // The retired generation survives with its own counts and its own
+    // wall-clock seen-at bounds — not recomputed, not deleted.
+    expect(addressRows.filter((r) => r.resolver_version === PREVIOUS_RESOLVER_VERSION)).toEqual([
+      {
+        canonical_person_id: "previous-canonical-person",
+        address_hash_id: "addr-previous",
+        resolver_version: PREVIOUS_RESOLVER_VERSION,
+        observation_count: 2,
+        first_seen_at: "2023-01-01T00:00:00.000Z",
+        last_seen_at: "2023-02-02T00:00:00.000Z",
+      },
+    ]);
+    expect(phoneRows.filter((r) => r.resolver_version === PREVIOUS_RESOLVER_VERSION)).toEqual([
+      {
+        canonical_person_id: "previous-canonical-person",
+        international_number: "+1-555-7000",
+        resolver_version: PREVIOUS_RESOLVER_VERSION,
+        observation_count: 1,
+        first_seen_at: "2023-01-01T00:00:00.000Z",
+        last_seen_at: "2023-01-01T00:00:00.000Z",
+      },
+    ]);
+    // …while the rebuilt version holds exactly what the projection computed.
+    expect(addressRows.filter((r) => r.resolver_version === RESOLVER_VERSION)).toHaveLength(1);
+    expect(phoneRows.filter((r) => r.resolver_version === RESOLVER_VERSION)).toHaveLength(1);
+  });
+
+  it("purges the resolver version's rows even when the projection computes nothing", async () => {
+    // Skipping the purge for an empty projection reads as defensive ("do not
+    // wipe the table over a computed nothing") and would strand a version's
+    // rows forever once a reap took its last observation — exactly the case
+    // where no later write comes along to overwrite them.
+    await seedFiling("ACC-40", 9000, "2024-10-01");
+    const observer = buildEntityObserver({
+      activeResolverPersonVersion: RESOLVER_VERSION,
+      activeResolverCompanyVersion: RESOLVER_VERSION,
+    });
+    const solo = await observer.observePerson({
+      accession_number: "ACC-40",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      observation_index: 0,
+      cik: 4201,
+      last_name: "Reaped",
+      address_id: "addr-reaped",
+      international_number: "+1-555-7200",
+    });
+
+    expect(await rebuildPersonJunctions(RESOLVER_VERSION)).toEqual({
+      addressRows: 1,
+      phoneRows: 1,
+    });
+    const addressStorage = globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN);
+    const phoneStorage = globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN);
+    expect(await addressStorage.getAll()).toHaveLength(1);
+    expect(await phoneStorage.getAll()).toHaveLength(1);
+
+    // A reap, in the order `reapStaleObservations` does it: the links first,
+    // then the observation row they pointed at.
+    await new PersonIdentityLinkRepo().deleteForObservation(solo.observation_id);
+    await new PersonObservationRepo().deleteByObservationId(solo.observation_id);
+
+    expect(await rebuildPersonJunctions(RESOLVER_VERSION)).toEqual({
+      addressRows: 0,
+      phoneRows: 0,
+    });
+    expect(
+      ((await addressStorage.getAll()) ?? []).filter((r) => r.resolver_version === RESOLVER_VERSION)
+    ).toEqual([]);
+    expect(
+      ((await phoneStorage.getAll()) ?? []).filter((r) => r.resolver_version === RESOLVER_VERSION)
+    ).toEqual([]);
+  });
 });
 
 describe("rebuildCompanyJunctions", () => {
@@ -711,5 +874,139 @@ describe("rebuildCompanyJunctions", () => {
     await expect(rebuildCompanyJunctions(RESOLVER_VERSION)).rejects.toThrow(
       /no matching observation/
     );
+  });
+
+  it("raises rather than fabricating a date when a company observation's filing row is missing", async () => {
+    const observer = buildEntityObserver({
+      activeResolverPersonVersion: RESOLVER_VERSION,
+      activeResolverCompanyVersion: RESOLVER_VERSION,
+    });
+    await observer.observeCompany({
+      // Deliberately never passed to `seedFiling`.
+      accession_number: "CACC-NO-FILING",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      observation_index: 0,
+      cik: 6101,
+      name: "Nofiling Corp",
+      address_id: "addr-nofiling-hq",
+      international_number: "+1-555-8100",
+    });
+
+    await expect(rebuildCompanyJunctions(RESOLVER_VERSION)).rejects.toThrow(
+      /no filing found for accession_number "CACC-NO-FILING"/
+    );
+  });
+
+  it("purges only its own resolver version, leaving a previous generation's rows intact", async () => {
+    const previousAddressRepo = new CanonicalCompanyAddressRepo();
+    await previousAddressRepo.recordObservation({
+      canonical_company_id: "previous-canonical-company",
+      address_hash_id: "addr-previous-hq",
+      resolver_version: PREVIOUS_RESOLVER_VERSION,
+      seen_at: "2023-03-03T00:00:00.000Z",
+    });
+    await previousAddressRepo.recordObservation({
+      canonical_company_id: "previous-canonical-company",
+      address_hash_id: "addr-previous-hq",
+      resolver_version: PREVIOUS_RESOLVER_VERSION,
+      seen_at: "2023-04-04T00:00:00.000Z",
+    });
+    await new CanonicalCompanyPhoneRepo().recordObservation({
+      canonical_company_id: "previous-canonical-company",
+      international_number: "+1-555-8000",
+      resolver_version: PREVIOUS_RESOLVER_VERSION,
+      seen_at: "2023-03-03T00:00:00.000Z",
+    });
+
+    await seedFiling("CACC-30", 8000, "2024-09-01");
+    const observer = buildEntityObserver({
+      activeResolverPersonVersion: RESOLVER_VERSION,
+      activeResolverCompanyVersion: RESOLVER_VERSION,
+    });
+    await observer.observeCompany({
+      accession_number: "CACC-30",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      observation_index: 0,
+      cik: 6001,
+      name: "Active Corp",
+      address_id: "addr-active-hq",
+      international_number: "+1-555-8001",
+    });
+
+    expect(await rebuildCompanyJunctions(RESOLVER_VERSION)).toEqual({
+      addressRows: 1,
+      phoneRows: 1,
+    });
+
+    const addressStorage = globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN);
+    const phoneStorage = globalServiceRegistry.get(CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN);
+    const addressRows = (await addressStorage.getAll()) ?? [];
+    const phoneRows = (await phoneStorage.getAll()) ?? [];
+
+    expect(addressRows.filter((r) => r.resolver_version === PREVIOUS_RESOLVER_VERSION)).toEqual([
+      {
+        canonical_company_id: "previous-canonical-company",
+        address_hash_id: "addr-previous-hq",
+        resolver_version: PREVIOUS_RESOLVER_VERSION,
+        observation_count: 2,
+        first_seen_at: "2023-03-03T00:00:00.000Z",
+        last_seen_at: "2023-04-04T00:00:00.000Z",
+      },
+    ]);
+    expect(phoneRows.filter((r) => r.resolver_version === PREVIOUS_RESOLVER_VERSION)).toEqual([
+      {
+        canonical_company_id: "previous-canonical-company",
+        international_number: "+1-555-8000",
+        resolver_version: PREVIOUS_RESOLVER_VERSION,
+        observation_count: 1,
+        first_seen_at: "2023-03-03T00:00:00.000Z",
+        last_seen_at: "2023-03-03T00:00:00.000Z",
+      },
+    ]);
+    expect(addressRows.filter((r) => r.resolver_version === RESOLVER_VERSION)).toHaveLength(1);
+    expect(phoneRows.filter((r) => r.resolver_version === RESOLVER_VERSION)).toHaveLength(1);
+  });
+
+  it("purges the resolver version's rows even when the projection computes nothing", async () => {
+    await seedFiling("CACC-40", 8000, "2024-10-01");
+    const observer = buildEntityObserver({
+      activeResolverPersonVersion: RESOLVER_VERSION,
+      activeResolverCompanyVersion: RESOLVER_VERSION,
+    });
+    const solo = await observer.observeCompany({
+      accession_number: "CACC-40",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      observation_index: 0,
+      cik: 6201,
+      name: "Reaped Holdings",
+      address_id: "addr-reaped-hq",
+      international_number: "+1-555-8200",
+    });
+
+    expect(await rebuildCompanyJunctions(RESOLVER_VERSION)).toEqual({
+      addressRows: 1,
+      phoneRows: 1,
+    });
+    const addressStorage = globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN);
+    const phoneStorage = globalServiceRegistry.get(CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN);
+    expect(await addressStorage.getAll()).toHaveLength(1);
+    expect(await phoneStorage.getAll()).toHaveLength(1);
+
+    await new CompanyIdentityLinkRepo().deleteForObservation(solo.observation_id);
+    await new CompanyObservationRepo().deleteByObservationId(solo.observation_id);
+
+    expect(await rebuildCompanyJunctions(RESOLVER_VERSION)).toEqual({
+      addressRows: 0,
+      phoneRows: 0,
+    });
+    expect(
+      ((await addressStorage.getAll()) ?? []).filter((r) => r.resolver_version === RESOLVER_VERSION)
+    ).toEqual([]);
+    expect(
+      ((await phoneStorage.getAll()) ?? []).filter((r) => r.resolver_version === RESOLVER_VERSION)
+    ).toEqual([]);
   });
 });

@@ -55,12 +55,4 @@ export class CanonicalPersonPhoneRepo extends CanonicalJunctionRepo<CanonicalPer
   }): Promise<void> {
     return this.remove(pk.canonical_person_id, pk.international_number, pk.resolver_version);
   }
-
-  /**
-   * Write one already-aggregated row outright (a projection rebuild's
-   * replace path) — see {@link CanonicalJunctionRepo.putRow}.
-   */
-  replaceAggregate(row: CanonicalPersonPhone): Promise<void> {
-    return this.putRow(row);
-  }
 }
