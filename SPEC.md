@@ -207,6 +207,7 @@ Bring local SEC data forward to today. `sync` is a **command group** — bare `s
 | `--shard <i/N>`  | `portals`, `crowdfunding`, `reg-a`, `spacs`, `forms` | Process shard _i_ of _N_ (1-based)                                                                                                                                         |
 | `--types <list>` | `documents`                                          | Narrow the forms converted (comma-separated); default is the narrative set in `CONVERTIBLE_FORMS`                                                                          |
 | `--since <date>` | `documents`                                          | Only convert filings filed on or after this date (`YYYY-MM-DD`)                                                                                                            |
+| `--cik <cik>`    | `documents`                                          | Convert only this issuer's filings — the follow-up to `spac process <cik>`, since an unfiltered sweep works newest-first across every filer                                |
 | `--limit <n>`    | `documents`                                          | Filings converted in one run (default **500**)                                                                                                                             |
 
 **Daily path:** `sec sync all` (or `sec sync submissions` then other leaves as needed).
@@ -235,6 +236,19 @@ rows (one per heading, flat, concatenating back to the filing in `ordinal` order
 the leaf is resumable and bounded at 500 filings per run — a backfill is many runs, not one. It reads
 the accession-doc fetch cache first and only reaches EDGAR on a miss, and it runs LAST in `sync all`
 so the documents it wants are already cached by the sweeps before it.
+
+**One issuer, end to end.** To get a single SPAC's filings — and their readable text — into the
+database:
+
+```sh
+sec fetch submissions 1811882     # filings, entity, tickers, addresses for that CIK
+sec spac process 1811882          # replay its filings in date order: extraction, timeline, events
+sec sync documents --cik 1811882  # convert those filings to markdown sections
+```
+
+The first creates the `filings` rows the other two select from; without it they have nothing to
+find. `spac process` is incremental — a filing with a recorded successful run is skipped — so
+re-running is cheap, and `--force` is what rebuilds.
 
 Scoped to the narrative forms (registrations, prospectuses, merger proxies, 8-Ks) rather than to
 every filing: `filings` is hundreds of thousands of rows, most of them ownership XML with no prose.

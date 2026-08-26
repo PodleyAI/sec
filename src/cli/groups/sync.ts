@@ -51,6 +51,7 @@ interface LeafOpts {
   readonly types?: string;
   readonly since?: string;
   readonly limit?: number;
+  readonly cik?: number;
 }
 
 /**
@@ -108,6 +109,12 @@ function applyLeafOptions(cmd: Command, leafId: string): Command {
         "Comma-separated forms to convert (default: the narrative set in CONVERTIBLE_FORMS)"
       )
       .option("--since <date>", "Only filings filed on or after this date (YYYY-MM-DD)")
+      .option(
+        "--cik <cik>",
+        "Convert only this issuer's filings — what you want after `spac process <cik>`, " +
+          "since the unfiltered sweep works newest-first across every filer",
+        parseIntOption
+      )
       .option(
         "--limit <n>",
         "How many filings to convert in this run (default 500) — a backfill is many runs",
@@ -176,6 +183,10 @@ async function runLeaf(leaf: SyncLeaf, opts: LeafOpts, stepId: string | undefine
           from: opts.since,
           formTypes: opts.types === undefined ? undefined : opts.types.split(","),
           limit: opts.limit,
+          // Rejected by `parseIntOption` at parse time rather than here: a
+          // mistyped CIK that fell through would convert the newest 500 filings
+          // of every filer, which looks like success and is not what was asked.
+          cik: opts.cik,
         };
       }
 

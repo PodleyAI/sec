@@ -36,6 +36,8 @@ export interface SyncRunContext {
    * rather than one that holds a process for a day.
    */
   readonly limit: number | undefined;
+  /** `sync documents --cik`: convert one issuer's filings rather than a sweep. */
+  readonly cik: number | undefined;
 }
 
 export interface SyncStep {
@@ -76,6 +78,7 @@ export const EMPTY_SYNC_CONTEXT: SyncRunContext = {
   isolatedStep: false,
   simple: false,
   limit: undefined,
+  cik: undefined,
 };
 
 const syncLeaves = new Map<string, SyncLeaf>();
