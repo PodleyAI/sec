@@ -14,6 +14,7 @@ import {
   TaskError,
 } from "workglow";
 import { SecCliConfigurationError } from "../../config/EnvToDI";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import {
   hasBlockingSectionFailure,
@@ -21,32 +22,16 @@ import {
 } from "../../resolver/reapStaleObservations";
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
-import { processDeregistration } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
-import { processForm1A } from "../../sec/forms/exempt-offerings/Form_1_A.storage";
-import { processForm1K } from "../../sec/forms/exempt-offerings/Form_1_K.storage";
-import { processForm1SA } from "../../sec/forms/exempt-offerings/Form_1_SA.storage";
-import { processForm1U } from "../../sec/forms/exempt-offerings/Form_1_U.storage";
-import { processForm1Z } from "../../sec/forms/exempt-offerings/Form_1_Z.storage";
-import { processFormC } from "../../sec/forms/exempt-offerings/Form_C.storage";
-import { processFormD } from "../../sec/forms/exempt-offerings/Form_D.storage";
-import { processFormQualif } from "../../sec/forms/exempt-offerings/Form_QUALIF.storage";
-import { processRegAOfferingEvent } from "../../sec/forms/exempt-offerings/RegAOfferingEvent.storage";
-import { processForm144 } from "../../sec/forms/insider-trading/Form_144.storage";
-import { processOwnershipForm } from "../../sec/forms/insider-trading/OwnershipDocument.storage";
-import { processForm8K } from "../../sec/forms/miscellaneous-filings/Form_8_K.storage";
-import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
-import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
-import type { ParsedFormDocument } from "../../sec/forms/parsedFormDocument";
-import { processFormCFPORTAL } from "../../sec/forms/portal/Form_CFPORTAL.storage";
-import { processMergerProxy } from "../../sec/forms/proxies-information-statements/Form_DEFM14A.storage";
-import { processForm424 } from "../../sec/forms/registration-statements/Form_424.storage";
-import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.storage";
-import { processWithdrawal } from "../../sec/forms/registration-withdrawal-termination/processWithdrawal";
+import {
+  extractorsForForm,
+  formNeedsDocument,
+  formNeedsFullSubmission,
+  type FormExtractor,
+} from "../../sec/forms/formExtractors";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import type { DeadLetterReasonCode } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { formToExtractorId } from "../../storage/versioning/extractorIds";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
@@ -57,9 +42,23 @@ import { cachedAccessionDocPath, stripXslPrefix } from "../../util/accessionDocP
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 
 /**
+ * Storing a filing runs whatever the form-extractor registry holds for its
+ * form, so the registry has to be populated wherever this task can run — a
+ * backfill, a test, or a directly constructed instance never passes through the
+ * CLI bootstrap. Registration is keyed and idempotent, and a module's own
+ * statements run before any bootstrap call can, so an extractor registered
+ * later under the same key still replaces the one below.
+ */
+registerSecFormExtractors();
+
+/**
  * Registration prospectus forms whose body is fetched as the full submission
  * .txt — Form.parse() needs the <SEC-HEADER> and sibling <DOCUMENT> blocks
  * (XBRL instance, EX-FILING FEES exhibit), not just the primary document.
+ *
+ * Read by the bulk downloader and the SPAC candidate downloader, which decide
+ * which file to put in the fetch cache. This task asks the form's registered
+ * extractors instead, so that one filing can escalate on more than a form name.
  */
 export const REGISTRATION_PROSPECTUS_FORMS = new Set([
   "S-1",
@@ -94,6 +93,9 @@ export const REGISTRATION_PROSPECTUS_FORMS = new Set([
  * submission to arrive at the document already being fetched, and would
  * invalidate a cache that is already holding exactly the right file. Uniformity
  * between the two forms is not worth re-downloading a corpus for.
+ *
+ * Read by the bulk downloader, for the same reason as
+ * {@link REGISTRATION_PROSPECTUS_FORMS}.
  */
 export const REGA_FULL_SUBMISSION_FORMS = new Set(["1-K", "1-K/A"]);
 
@@ -137,12 +139,12 @@ type ProcessAccessionDocFormTaskOutput = Static<
 >;
 
 /**
- * A form reached the storage dispatch with no matching arm. That is a wiring
- * error — a form added to `FORM_TO_EXTRACTOR_ID` without a handler — not a
- * property of the filing, so it escapes the store containment instead of
- * becoming a `STORE_ERROR`. No retry or version bump can fix it, and
- * dead-lettering it would mark every filing of that form as an ordinary
- * extraction failure rather than failing loudly on the first one.
+ * A form reached the storage dispatch with no extractor registered for it. That
+ * is a wiring error — a form added to `FORM_TO_EXTRACTOR_ID` without a matching
+ * registration — not a property of the filing, so it escapes the store
+ * containment instead of becoming a `STORE_ERROR`. No retry or version bump can
+ * fix it, and dead-lettering it would mark every filing of that form as an
+ * ordinary extraction failure rather than failing loudly on the first one.
  */
 class MissingStorageHandlerError extends TaskError {}
 
@@ -300,32 +302,24 @@ export class ProcessAccessionDocFormTask extends Task<
     const label = `${form} ${accessionNumber}`;
     this.setTitle(label);
 
-    // Registration prospectus forms (S-1 / DRS family) are fetched as the full
-    // submission .txt so Form.parse() can read the <SEC-HEADER> and select the
-    // primary <DOCUMENT>. Other forms keep their primary-doc fetch.
-    if (REGISTRATION_PROSPECTUS_FORMS.has(form) || REGA_FULL_SUBMISSION_FORMS.has(form)) {
-      fileName = fullSubmissionFileName(accessionNumber);
-    }
-
-    // Known-SPAC 8-Ks carrying a redemption- or LOI-trigger item are fetched as
-    // the full submission .txt so the narrative passes can read the EX-99
-    // exhibits (vote results, LOI press releases), not just the primary
-    // document. Other 8-Ks keep their primary-doc fetch.
+    // Whether the body is the whole submission .txt rather than the primary
+    // document is the union of what the form's extractors need, and it decides
+    // WHICH FILE the fetch below asks for — so it is settled here, ahead of it.
+    // Registration prospectuses (S-1 / DRS family) and Reg A annual reports
+    // answer on the form symbol alone: Form.parse() needs the <SEC-HEADER> and
+    // the sibling <DOCUMENT> blocks. A known-SPAC 8-K carrying a redemption- or
+    // LOI-trigger item answers per filing, because its narrative passes read
+    // the EX-99 exhibits (vote results, LOI press releases) and not just the
+    // primary document. Every other form keeps its primary-doc fetch.
     //
-    // The trigger check runs on the submissions-API `items` metadata alone. That
-    // is complete for 8-Ks: real 8-K bodies are HTML/text, never `edgarSubmission`
-    // XML (see Form_8_K.parse), so an item code can never appear only in a parsed
-    // `formData.items` and be missing from `items` here. The metadata item list
-    // is authoritative.
-    let spacNarrativeFullSubmission = false;
-    if (
-      (form === "8-K" || form === "8-K/A") &&
-      (hasRedemptionTriggerItem(items) || hasLoiTriggerItem(items)) &&
-      cik !== undefined &&
-      (await new SpacRepo().getSpac(cik)) !== undefined
-    ) {
+    // The 8-K trigger check runs on the submissions-API `items` metadata alone.
+    // That is complete for 8-Ks: real 8-K bodies are HTML/text, never
+    // `edgarSubmission` XML (see Form_8_K.parse), so an item code can never
+    // appear only in a parsed `formData.items` and be missing from `items`
+    // here. The metadata item list is authoritative.
+    const isFullSubmission = await formNeedsFullSubmission({ form, cik, items });
+    if (isFullSubmission) {
       fileName = fullSubmissionFileName(accessionNumber);
-      spacNarrativeFullSubmission = true;
     }
 
     const extractorId = formToExtractorId(form);
@@ -403,133 +397,68 @@ export class ProcessAccessionDocFormTask extends Task<
       }
     };
 
-    // Form 25 / 15 never need the document body: 25-NSE files live under the
-    // exchange CIK (an issuer-CIK fetch 404s), and the event date is the
-    // filings-table `filing_date`. Form RW is the same shape — metadata only.
-    // Skip fetch/parse before the missing-primary-doc guard so a 25-NSE with
-    // no `primary_doc` still records.
+    /**
+     * The single dispatch point for the filing: every extractor registered for
+     * the form, in the order the registry hands them back. Each resolves its
+     * OWN version slot — two extractors over one form have independent gates —
+     * where the filing-level `extractorId` above is what the run ledger and the
+     * filing-level dead letters stay keyed by.
+     *
+     * `parsed` is undefined and `body` empty for the extractors that work from
+     * the submissions metadata alone: nothing was fetched for them to read, and
+     * declaring `needsDocument: false` is how they say they will not.
+     */
+    const storeThroughExtractors = async (parsed: unknown, body: string): Promise<void> => {
+      const extractors: readonly FormExtractor[] = extractorsForForm(form!);
+      if (extractors.length === 0) {
+        throw new MissingStorageHandlerError(`Form '${form}' has no storage handler`);
+      }
+      for (const extractor of extractors) {
+        const slot = await getActiveSlot(versionRegistry, "extractor", extractor.id);
+        if (!slot) {
+          throw new TaskError(`No active slot for extractor '${extractor.id}'`);
+        }
+        await extractor.store({
+          cik: cik!,
+          file_number: file_number ?? "",
+          accession_number: accessionNumber,
+          filing_date: filing_date ?? "",
+          primary_doc: fileName ?? "",
+          form: form!,
+          items,
+          report_date,
+          extractor_id: extractor.id,
+          extractor_version: slot.semver,
+          text: body,
+          isFullSubmission,
+          // Threaded to the AI form processors so a local model's download
+          // renders its progress in this task's CLI UI (via `prefetchModel`).
+          // Non-AI processors ignore it.
+          context,
+          parsed,
+        });
+      }
+    };
+
+    // A form whose every extractor declares it needs no document is recorded
+    // from the submissions metadata alone — there is nothing to fetch or parse,
+    // and the body never enters the picture.
     //
-    // Form 1-U joins them for a different reason: its body IS narrative HTML,
-    // but its item codes arrive in the submissions payload for all 11,600
-    // filings, so the event and its date are already known. Fetching the
-    // narratives at 8 req/s would cost ~25 minutes of rate-limit budget to learn
-    // what EDGAR has already told us.
-    const metadataOnly =
-      extractorId === "25-15"
-        ? processDeregistration
-        : extractorId === "RW"
-          ? processWithdrawal
-          : undefined;
-    // Offering-circular supplements (253G1-253G4) and withdrawals (1-A-W,
-    // 1-Z-W) join 1-U on the metadata-only path, and more cheaply than any of
-    // them: EDGAR records the `024-` file number linking the event to its
-    // offering on 100% of these filings, and the rule subsection IS the form
-    // name. Their bodies are 1-2 MB of narrative HTML apiece — ~8 GB across the
-    // 5,874 filings — and carry extractable terms in only 13-30% of cases.
-    if (extractorId === "253G" || extractorId === "1-A-W") {
+    // Two of the reasons are correctness, not economy. A 25-NSE names no
+    // `primary_doc` at all, so the missing-primary-doc guard below would fail
+    // it — this skip has to come FIRST for it to record. And a 25-NSE is filed
+    // under the exchange's CIK as well as the issuer's, so the issuer-CIK fetch
+    // this task would build 404s.
+    //
+    // The rest is cost. A 253G / 1-A-W / 1-U body is 1-2 MB of narrative HTML
+    // apiece — some 8 GB across the 5,874 filings — and carries extractable
+    // terms in 13-30% of cases, while the `024-` file number linking the event
+    // to its offering, the item codes and the event date all arrive in the
+    // submissions payload already.
+    if (!formNeedsDocument(form)) {
       await context.updateProgress(80, `${label} · storing`);
       try {
-        await processRegAOfferingEvent({
-          cik: cik!,
-          accession_number: accessionNumber,
-          form: form!,
-          filing_date: filing_date ?? "",
-          file_number: file_number ?? null,
-        });
-      } catch (err) {
-        if (err instanceof TaskAbortedError || context.signal?.aborted) throw err;
-        const message = err instanceof Error ? err.message : String(err);
-        const detail = `Store failed for form '${form}': ${message}`;
-        console.error(`STORE_ERROR ${accessionNumber}@${extractorId}:`, err);
-        await recordDeadLetterSafe("STORE_ERROR", detail.slice(0, 1024));
-        await recordRunFailed(`STORE_ERROR: ${detail}`);
-        return { success: false };
-      }
-      try {
-        await deadLetters.markResolved(extractorId, accessionNumber, "");
-      } catch (dlErr) {
-        console.error(
-          `Failed to resolve filing-level dead-letter for ${accessionNumber}@${extractorId}:`,
-          dlErr
-        );
-      }
-      try {
-        await runRepo.recordRun({
-          cik: cik!,
-          accession_number: accessionNumber,
-          form: form!,
-          extractor_id: extractorId,
-          extractor_version: extractorVersion,
-          slot_at_run: slotAtRun,
-          success: true,
-          outcome: "success",
-          error: null,
-        });
-      } catch (recordErr) {
-        console.error(
-          `Failed to record extractor_runs row for ${accessionNumber}@${extractorId}:`,
-          recordErr
-        );
-      }
-      return { success: true };
-    }
-    if (extractorId === "1-U") {
-      await context.updateProgress(80, `${label} · storing`);
-      try {
-        await processForm1U({
-          cik: cik!,
-          accession_number: accessionNumber,
-          form: form!,
-          filing_date: filing_date ?? "",
-          file_number: file_number ?? null,
-          items: items ?? null,
-        });
-      } catch (err) {
-        if (err instanceof TaskAbortedError || context.signal?.aborted) throw err;
-        const message = err instanceof Error ? err.message : String(err);
-        const detail = `Store failed for form '${form}': ${message}`;
-        console.error(`STORE_ERROR ${accessionNumber}@${extractorId}:`, err);
-        await recordDeadLetterSafe("STORE_ERROR", detail.slice(0, 1024));
-        await recordRunFailed(`STORE_ERROR: ${detail}`);
-        return { success: false };
-      }
-      try {
-        await deadLetters.markResolved(extractorId, accessionNumber, "");
-      } catch (dlErr) {
-        console.error(
-          `Failed to resolve filing-level dead-letter for ${accessionNumber}@${extractorId}:`,
-          dlErr
-        );
-      }
-      try {
-        await runRepo.recordRun({
-          cik: cik!,
-          accession_number: accessionNumber,
-          form: form!,
-          extractor_id: extractorId,
-          extractor_version: extractorVersion,
-          slot_at_run: slotAtRun,
-          success: true,
-          outcome: "success",
-          error: null,
-        });
-      } catch (recordErr) {
-        console.error(
-          `Failed to record extractor_runs row for ${accessionNumber}@${extractorId}:`,
-          recordErr
-        );
-      }
-      return { success: true };
-    }
-    if (metadataOnly) {
-      await context.updateProgress(80, `${label} · storing`);
-      try {
-        await metadataOnly({
-          cik: cik!,
-          accession_number: accessionNumber,
-          form,
-          filing_date: filing_date ?? "",
-        });
+        await storeThroughExtractors(undefined, "");
       } catch (err) {
         if (err instanceof TaskAbortedError || context.signal?.aborted) {
           throw err;
@@ -626,165 +555,19 @@ export class ProcessAccessionDocFormTask extends Task<
       return { success: false };
     }
 
-    // The registry is keyed by form name and holds every form class, so the
-    // parse result it hands back is `unknown`. Re-pairing the name with the
-    // value recovers the discriminated union each arm below narrows, which is
-    // what type-checks the handler arguments.
-    const parsedDocument = { form: form!, parsed } as ParsedFormDocument;
-
-    // The storage handlers below are the single dispatch boundary for every
-    // form, so containment lives here rather than in each `.storage.ts`. A
-    // throw is a filing-level STORE_ERROR dead-letter plus a failed run, and
-    // the filing is abandoned — never rethrown, because the `forEach` fan-out
-    // in `formsSweepLoop` has no per-iteration guard: a rethrow would
-    // propagate out of the outer workflow and leave every filing after it
-    // unprocessed. The failure is visible to `sec extractor dead-letters` and
-    // recoverable by `retry-dead-letters` once the storage code is fixed and
-    // the version bumped, which is exactly the treatment fetch and parse
-    // already get.
+    // The extractors registered for the form are the single dispatch boundary,
+    // so containment lives here rather than in each `.storage.ts`. A throw is a
+    // filing-level STORE_ERROR dead-letter plus a failed run, and the filing is
+    // abandoned — never rethrown, because the `forEach` fan-out in
+    // `formsSweepLoop` has no per-iteration guard: a rethrow would propagate out
+    // of the outer workflow and leave every filing after it unprocessed. The
+    // failure is visible to `sec extractor dead-letters` and recoverable by
+    // `retry-dead-letters` once the storage code is fixed and the version
+    // bumped, which is exactly the treatment fetch and parse already get.
     await context.updateProgress(80, `${label} · storing`);
     let storeError: unknown = undefined;
     try {
-      const storageArgs = {
-        cik: cik!,
-        file_number: file_number ?? "",
-        accession_number: accessionNumber,
-        filing_date: filing_date ?? "",
-        primary_doc: fileName,
-        // Threaded to the AI form processors so a local model's download renders
-        // its progress in this task's CLI UI (via `prefetchModel`). Non-AI
-        // processors ignore it (spread bypasses excess-property checks).
-        context,
-      };
-
-      switch (parsedDocument.form) {
-        case "D":
-        case "D/A":
-          await processFormD({ ...storageArgs, formD: parsedDocument.parsed });
-          break;
-        case "C":
-        case "C/A":
-        case "C-W":
-        case "C-U":
-        case "C-U-W":
-        case "C/A-W":
-        case "C-AR":
-        case "C-AR-W":
-        case "C-AR/A":
-        case "C-AR/A-W":
-        case "C-TR":
-        case "C-TR-W":
-          await processFormC({ ...storageArgs, formC: parsedDocument.parsed });
-          break;
-        case "CFPORTAL":
-        case "CFPORTAL/A":
-        case "CFPORTAL-W":
-          await processFormCFPORTAL({ ...storageArgs, formCfportal: parsedDocument.parsed });
-          break;
-        case "1-A":
-        case "1-A/A":
-        case "1-A POS":
-          await processForm1A({ ...storageArgs, form1A: parsedDocument.parsed });
-          break;
-        case "1-K":
-        case "1-K/A":
-          await processForm1K({ ...storageArgs, form: form!, form1K: parsedDocument.parsed });
-          break;
-        case "1-SA":
-        case "1-SA/A":
-          await processForm1SA({
-            cik: cik!,
-            accession_number: accessionNumber,
-            form: form!,
-            filing_date: filing_date ?? "",
-            form1SA: parsedDocument.parsed,
-          });
-          break;
-        case "QUALIF":
-          await processFormQualif({
-            cik: cik!,
-            accession_number: accessionNumber,
-            filing_date: filing_date ?? "",
-            formQualif: parsedDocument.parsed,
-          });
-          break;
-        case "1-Z":
-        case "1-Z/A":
-          await processForm1Z({ ...storageArgs, form1Z: parsedDocument.parsed });
-          break;
-        case "3":
-        case "3/A":
-        case "4":
-        case "4/A":
-        case "5":
-        case "5/A":
-          await processOwnershipForm({ ...storageArgs, form: form!, doc: parsedDocument.parsed });
-          break;
-        case "144":
-        case "144/A":
-          await processForm144({ ...storageArgs, form: form!, doc: parsedDocument.parsed });
-          break;
-        case "S-1":
-        case "S-1/A":
-        case "S-1MEF":
-        case "DRS":
-        case "DRS/A":
-        case "F-1":
-        case "F-1/A":
-        case "F-1MEF":
-          await processFormS1({ ...storageArgs, form: form!, formS1: parsedDocument.parsed });
-          break;
-        case "424A":
-        case "424B1":
-        case "424B2":
-        case "424B3":
-        case "424B4":
-        case "424B5":
-        case "424B7":
-          await processForm424({ ...storageArgs, form: form!, form424: parsedDocument.parsed });
-          break;
-        case "8-K":
-        case "8-K/A":
-          await processForm8K({
-            ...storageArgs,
-            form: form!,
-            items,
-            report_date,
-            form8K: parsedDocument.parsed,
-            extractor_id: extractorId,
-            extractor_version: extractorVersion,
-            fullSubmissionText: spacNarrativeFullSubmission ? text : undefined,
-          });
-          break;
-        case "DEFM14A":
-        case "PREM14A":
-        case "DEFM14C":
-        case "PREM14C":
-        case "DEFR14A":
-        case "PRER14A":
-        // General proxy forms: a SPAC's business-combination vote is commonly
-        // filed on these, not on the "M" variants. See FORM_TO_EXTRACTOR_ID.
-        case "DEF 14A":
-        case "PRE 14A":
-        case "PRE 14A/A":
-        case "PRE14A":
-        case "PREN14A":
-        case "PREN14A/A":
-        case "PREM14A/A":
-        case "PREC14A/A":
-        case "DEFA14A":
-        case "DEF 14C":
-        case "PRE 14C":
-        case "PREA14C":
-          await processMergerProxy({
-            ...storageArgs,
-            form: form!,
-            formMergerProxy: parsedDocument.parsed,
-          });
-          break;
-        default:
-          throw new MissingStorageHandlerError(`Form '${form}' has no storage handler`);
-      }
+      await storeThroughExtractors(parsed, text);
     } catch (err) {
       storeError = err;
     }
@@ -901,9 +684,9 @@ export class ProcessAccessionDocFormTask extends Task<
       throw storeError;
     }
 
-    // A missing dispatch arm is a code defect, not bad input: containing it
-    // would dead-letter every filing of that form on every sweep, forever,
-    // wearing the same reason code as a genuine storage failure.
+    // A form with no registered extractor is a code defect, not bad input:
+    // containing it would dead-letter every filing of that form on every sweep,
+    // forever, wearing the same reason code as a genuine storage failure.
     if (storeError instanceof MissingStorageHandlerError) {
       throw storeError;
     }

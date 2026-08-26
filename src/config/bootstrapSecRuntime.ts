@@ -8,6 +8,7 @@ import { getTaskQueueRegistry, Sqlite } from "workglow";
 import { DefaultDI } from "./DefaultDI";
 import { EnvToDI } from "./EnvToDI";
 import { getExtractionTemperature } from "./extractionTemperature";
+import { registerSecFormExtractors } from "./registerFormExtractors";
 import { registerSecModels } from "./registerModels";
 import { registerSecProviders } from "./registerProviders";
 import { registerSecResolvers } from "./registerResolvers";
@@ -15,7 +16,8 @@ import { getSecJobQueue } from "../task/fetch/SecJobQueue";
 
 /**
  * Brings up everything a sec task needs before it runs: the SQLite binding, the
- * DI container, resolvers, models, providers, and the started fetch queue.
+ * DI container, resolvers, form extractors, models, providers, and the started
+ * fetch queue.
  *
  * The `sec` CLI reaches this through its `preAction` hook; a second entrypoint
  * that boots sec's runtime some other way would drift from it silently — the
@@ -38,6 +40,11 @@ export async function bootstrapSecRuntime(): Promise<void> {
   getExtractionTemperature();
   DefaultDI();
   registerSecResolvers();
+  // Reads nothing and touches no DI, so where it sits among the register* calls
+  // does not matter. Anything that dispatches a filing registers these for
+  // itself; this is what puts them in front of a caller that only wants to ask
+  // what handles a form.
+  registerSecFormExtractors();
   await registerSecModels();
   await registerSecProviders();
 
