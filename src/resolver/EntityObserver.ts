@@ -45,8 +45,10 @@ export interface PersonClaim {
    */
   readonly filing_date?: string | null;
   /**
-   * Stable population tag for role tenures (e.g. `form-d:related-person`,
-   * `s1:management`). Claims without it record titles but no tenure.
+   * Which list inside the form this claim was read from (e.g.
+   * `form-d:related-person`, `s1:management`); tenures are keyed
+   * `(extractor_id, role_scope)` so one list can never close another's.
+   * Claims without it record titles but no tenure.
    */
   readonly role_scope?: string | null;
   readonly birth_year?: number | null;
@@ -179,17 +181,17 @@ export function normalizePersonNameParts(parts: PersonNameParts): {
 
 export class EntityObserver {
   /**
-   * Role-assertion keys accumulated per filing+population, so a roster
-   * filing's closure pass ({@link closeUnassertedPersonRoles}) knows which
-   * (person, title) pairs the filing DID assert. Keyed by the same tuple the
-   * closure runs over.
+   * Role-assertion keys accumulated per filing and role_scope, so a
+   * complete-roster filing's closure pass ({@link closeUnassertedPersonRoles})
+   * knows which (person, title) pairs the filing DID assert. Keyed by the
+   * same tuple the closure runs over.
    */
   private readonly assertedRoleKeys = new Map<string, Set<string>>();
 
   /**
    * Groups where a participating claim contributed no assertions (all titles
-   * filtered/empty): the filing names the person, so its roster is not a
-   * complete population and closure must not run.
+   * filtered/empty): the filing names the person, so its roster is incomplete
+   * and closure must not run.
    */
   private readonly incompleteRoleGroups = new Set<string>();
 
@@ -285,11 +287,12 @@ export class EntityObserver {
   /**
    * Record dated role tenures for a person claim. Requires the filing date
    * (tenure anchor), the issuer CIK (the company side of the role), and a
-   * role_scope (the population tag closure compares within); claims missing
-   * any of these record titles but no tenure. Titles are canonicalized here
-   * (compound split, canonical casing) so `person_role` rows are uniform
-   * regardless of writer — the observation child rows keep the writer's text
-   * (trimmed and de-duplicated, not canonicalized).
+   * role_scope (which list the claim was read from, and therefore which
+   * tenures closure may compare it against); claims missing any of these
+   * record titles but no tenure. Titles are canonicalized here (compound
+   * split, canonical casing) so `person_role` rows are uniform regardless of
+   * writer — the observation child rows keep the writer's text (trimmed and
+   * de-duplicated, not canonicalized).
    */
   private async recordPersonRoles(claim: PersonClaim, canonical_person_id: string): Promise<void> {
     const company_cik = claim.source_filing_issuer_cik;
@@ -333,11 +336,11 @@ export class EntityObserver {
   }
 
   /**
-   * Roster closure: after a filing that enumerates the COMPLETE population of
+   * Roster closure: after a filing that enumerates the COMPLETE roster of
    * `(extractor_id, role_scope)` for the company has had all its persons
-   * observed, close every open tenure in that population the filing did not
+   * observed, close every open tenure in that roster the filing did not
    * assert (`end_date = filing_date`). Only storage modules whose filing type
-   * genuinely lists the whole population may call this — for everything else,
+   * genuinely lists the whole roster may call this — for everything else,
    * absence means nothing and tenures stay open. Returns the number closed.
    */
   async closeUnassertedPersonRoles(args: {
@@ -359,10 +362,10 @@ export class EntityObserver {
     const asserted = this.assertedRoleKeys.get(groupKey);
     this.assertedRoleKeys.delete(groupKey);
     const incomplete = this.incompleteRoleGroups.delete(groupKey);
-    // No recorded assertions means nobody observed this population through
-    // this observer (or every title filtered away): treating that as "the
-    // filing asserts no one" would mass-close the company's roles. An
-    // incomplete group (a named person contributed nothing) is equally unsafe.
+    // No recorded assertions means nobody observed this roster through this
+    // observer (or every title filtered away): treating that as "the filing
+    // asserts no one" would mass-close the company's roles. An incomplete
+    // group (a named person contributed nothing) is equally unsafe.
     if (incomplete || asserted === undefined || asserted.size === 0) return 0;
     return await this.opts.personRoleRepo.closeUnasserted({
       resolver_version: this.opts.activeResolverPersonVersion,
