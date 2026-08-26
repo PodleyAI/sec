@@ -8,11 +8,16 @@ import { reportSpacProcessRows, spacProcessFailureCount } from "../../commands/s
 import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
 import { CatchUpDailyIndexTask } from "../../task/index/CatchUpDailyIndexTask";
 import { IdentifySpacsTask } from "../../task/spac/IdentifySpacsTask";
+import { ProcessSpacTimelineTask } from "../../task/spac/ProcessSpacTimelineTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
 import { isDryRun } from "../isDryRun";
 import { runWorkflowCli } from "../runWorkflow";
 import { runFormsSweep } from "./runFormsSweep";
-import { runSpacTimelineIssuers } from "./runSpacTimelineIssuers";
+import {
+  runSpacTimelineIssuers,
+  spacProcessRows,
+  type SpacProcessColumns,
+} from "./runSpacTimelineIssuers";
 import {
   filterSpacCiksByHistory,
   listSpacProcessCiks,
@@ -52,6 +57,12 @@ export function registerSecSyncLeaves(): void {
         },
       },
     ],
+    runAll: async (ctx: SyncRunContext) => {
+      await runWorkflowCli([
+        new CatchUpDailyIndexTask({ defaults: { from: ctx.from, lookback: ctx.lookback } }),
+        new UpdateAllSubmissionsTask({ defaults: { force: ctx.force } }),
+      ]);
+    },
   });
 
   registerSyncLeaf({
@@ -196,5 +207,61 @@ export function registerSecSyncLeaves(): void {
         },
       },
     ],
+    runAll: async (ctx: SyncRunContext) => {
+      const filedOnOrAfter = ctx.only === "updates" ? await spacUpdatesFiledOnOrAfter() : undefined;
+      const { failed, total } = await runWorkflowCli<{ failed: number; total: number }>(
+        [new IdentifySpacsTask({ defaults: { full: ctx.full } })],
+        undefined,
+        (wf) => {
+          wf.pipe(async () => ({
+            cik: shardCiks(
+              await filterSpacCiksByHistory(await listSpacProcessCiks(), ctx.only),
+              ctx.shard
+            ),
+          }));
+          // The map's dynamic loop-body schema only auto-connects by name/type
+          // (not the blanket wildcard a plain `pipe()` edge uses), and a
+          // pipe-function task only ever declares a literal `"*"` output
+          // property — so it can never match the loop's `cik` input by name.
+          // `.rename("*", "*")` queues the same wildcard dataflow `pipe()`
+          // would have used, bypassing that name match entirely.
+          wf.rename("*", "*");
+          const loop = wf.map({
+            concurrencyLimit: Math.max(1, ctx.concurrency),
+            maxIterations: "unbounded",
+            preserveOrder: true,
+          });
+          loop.pipe(
+            new ProcessSpacTimelineTask({
+              defaults: filedOnOrAfter !== undefined ? { filedOnOrAfter } : {},
+            })
+          );
+          loop.endMap();
+          wf.pipe((columns: SpacProcessColumns) => {
+            const rows = spacProcessRows(columns);
+            if (rows.length === 0) {
+              if (ctx.only === "never-processed") {
+                console.log("No never-processed SPACs");
+              } else if (ctx.only === "updates") {
+                console.log("No previously processed SPACs");
+              } else {
+                console.log("No known SPACs or high/medium candidates");
+              }
+              return { failed: 0, total: 0 };
+            }
+            reportSpacProcessRows(rows, { dryRun: isDryRun() });
+            return { failed: spacProcessFailureCount(rows), total: rows.length };
+          });
+        }
+      );
+      // Kept outside the graph: `runWorkflowCli`'s contract is that only
+      // unexpected failures should throw from inside it, since a TTY run
+      // intercepts a thrown error with `process.exit(1)`, bypassing normal
+      // command error handling. A nonzero failure count is an expected,
+      // reportable outcome, not a crash.
+      if (failed > 0) {
+        throw new Error(`${failed} of ${total} issuer(s) had failed filings`);
+      }
+    },
   });
 }
