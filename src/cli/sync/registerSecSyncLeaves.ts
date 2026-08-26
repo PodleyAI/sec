@@ -98,6 +98,7 @@ export function registerSecSyncLeaves(): void {
           await runFormsSweep({
             formTypes: formsForExtractorIds([...SYNC_FORM_DOMAINS.portals]),
             shard: ctx.shard,
+            requestedFrom: "sync domain 'portals'",
           });
         },
       },
@@ -117,6 +118,7 @@ export function registerSecSyncLeaves(): void {
           await runFormsSweep({
             formTypes: formsForExtractorIds([...SYNC_FORM_DOMAINS.crowdfunding]),
             shard: ctx.shard,
+            requestedFrom: "sync domain 'crowdfunding'",
           });
         },
       },
@@ -136,6 +138,7 @@ export function registerSecSyncLeaves(): void {
           await runFormsSweep({
             formTypes: formsForExtractorIds([...SYNC_FORM_DOMAINS["reg-a"]]),
             shard: ctx.shard,
+            requestedFrom: "sync domain 'reg-a'",
           });
         },
       },
@@ -155,7 +158,11 @@ export function registerSecSyncLeaves(): void {
           if (!ctx.formTypes?.length) {
             throw new Error("sync forms requires a comma-separated type list");
           }
-          await runFormsSweep({ formTypes: expandFormTypes(ctx.formTypes), shard: ctx.shard });
+          await runFormsSweep({
+            formTypes: expandFormTypes(ctx.formTypes),
+            shard: ctx.shard,
+            requestedFrom: `tokens '${ctx.formTypes.join(",")}'`,
+          });
         },
       },
     ],

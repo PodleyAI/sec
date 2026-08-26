@@ -74,7 +74,7 @@ export const DEAD_LETTER_REASON_CODES = [
 
 /**
  * A dead letter's reason code. A plain string rather than a union over the
- * codes below: an extractor registered outside this repo fails in ways this
+ * codes above: an extractor registered outside this repo fails in ways this
  * file cannot enumerate. The constants remain the vocabulary sec's own
  * extractors use, and the retry policy still switches on them.
  */

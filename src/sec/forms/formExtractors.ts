@@ -46,15 +46,12 @@ export interface FullSubmissionProbe {
 }
 
 /**
- * One extractor over one form family.
- *
- * A form may carry several: an 8-K's item codes and its de-SPAC milestones are
- * different questions of the same filing, with their own version slots and their
- * own failure modes. `id` plus `section` is the identity — `section` is `""`
- * until an extractor is split finely enough for a caller to address one part of
- * it, which is also how `extraction_dead_letter` already keys its rows.
+ * Fields every extractor declares, regardless of whether it reads the filing's
+ * document. Split out from {@link FormExtractor} so `store`'s shape — the part
+ * that differs — can be discriminated on `needsDocument` instead of living on
+ * one interface that is truthful for only half its instances.
  */
-export interface FormExtractor<TParsed = unknown> {
+interface FormExtractorCommon<TParsed> {
   readonly id: string;
   /** Empty for a whole-filing extractor. */
   readonly section?: string;
@@ -73,21 +70,15 @@ export interface FormExtractor<TParsed = unknown> {
    */
   readonly needsFullSubmission?: boolean | ((probe: FullSubmissionProbe) => Promise<boolean>);
   /**
-   * Whether this extractor needs the filing's document at all. Default true.
-   *
-   * `false` for the extractors that work from the submissions metadata alone —
-   * Reg A offering-circular supplements and withdrawals, 1-U, and the listing
-   * removals. Their bodies run 1-2 MB of narrative HTML apiece and carry
-   * anything extractable in a minority of cases, so the driver has always
-   * skipped the download for them. A form is fetched when ANY of its
-   * extractors needs the document.
+   * Parses this extractor's own reading of the fetched document, in place of
+   * the form's shared parse (the registered `ALL_FORMS_MAP` class). Omitted
+   * when that shared parse is already the right one — every extractor sec
+   * ships today. With one extractor per form this changes nothing: the shared
+   * parse runs once and every extractor's `store` sees it. Once a form carries
+   * two, each with its own `parse`, they read the same document
+   * independently instead of being stuck sharing one parser's output.
    */
-  readonly needsDocument?: boolean;
-  /** Omitted when the form's registered parser class is the right one. */
   readonly parse?: (form: string, text: string) => Promise<TParsed>;
-  readonly store: (
-    args: FormExtractorStoreArgs & { readonly form: string; readonly parsed: TParsed }
-  ) => Promise<void>;
   /**
    * Keys this must run after, within a form. A key naming nothing registered is
    * ignored rather than fatal — that is what lets sec run its own extractors
@@ -95,6 +86,46 @@ export interface FormExtractor<TParsed = unknown> {
    */
   readonly after?: readonly string[];
 }
+
+/** An extractor that reads the filing's document (the default). */
+export interface FormExtractorWithDocument<TParsed = unknown> extends FormExtractorCommon<TParsed> {
+  readonly needsDocument?: true;
+  readonly store: (
+    args: FormExtractorStoreArgs & { readonly form: string; readonly parsed: TParsed }
+  ) => Promise<void>;
+}
+
+/**
+ * An extractor that works from the submissions metadata alone —
+ * Reg A offering-circular supplements and withdrawals, 1-U, and the listing
+ * removals. Their bodies run 1-2 MB of narrative HTML apiece and carry
+ * anything extractable in a minority of cases, so the driver has always
+ * skipped the download for them. A form is fetched when ANY of its
+ * extractors needs the document.
+ *
+ * `store` here is never handed a `parsed` field. Nothing was fetched for this
+ * extractor to read, so a downstream `store` that tries to dereference one
+ * fails to compile instead of dereferencing `undefined` at runtime.
+ */
+export interface FormExtractorMetadataOnly<TParsed = unknown> extends FormExtractorCommon<TParsed> {
+  readonly needsDocument: false;
+  readonly store: (args: FormExtractorStoreArgs & { readonly form: string }) => Promise<void>;
+}
+
+/**
+ * One extractor over one form family.
+ *
+ * A form may carry several: an 8-K's item codes and its de-SPAC milestones are
+ * different questions of the same filing, with their own version slots and their
+ * own failure modes. `id` plus `section` is the identity — `section` is `""`
+ * until an extractor is split finely enough for a caller to address one part of
+ * it, which is also how `extraction_dead_letter` already keys its rows.
+ *
+ * A union on `needsDocument` rather than one interface: see
+ * {@link FormExtractorWithDocument} and {@link FormExtractorMetadataOnly}.
+ */
+export type FormExtractor<TParsed = unknown> =
+  FormExtractorWithDocument<TParsed> | FormExtractorMetadataOnly<TParsed>;
 
 /**
  * `any` rather than `unknown` for the stored parse type: `store` is

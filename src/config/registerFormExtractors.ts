@@ -65,6 +65,12 @@ let registeredGeneration = -1;
  * module scope and then calling `bootstrapSecRuntime()`. Keying the guard to the
  * registry's generation rather than a plain boolean means clearing the registry
  * re-arms it, so a test that starts from an empty registry still gets these.
+ *
+ * That re-arming cuts the other way around `clearFormExtractorsForTesting()`:
+ * this function only refuses to clobber a registration made AFTER it last ran
+ * in the current generation, so test setup that registers a downstream
+ * override before calling this again loses that override anyway. A test that
+ * needs both must clear, call this, THEN register its own extractor on top.
  */
 export function registerSecFormExtractors(): void {
   if (registeredGeneration === formExtractorRegistryGeneration()) return;

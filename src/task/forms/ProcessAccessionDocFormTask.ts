@@ -421,6 +421,13 @@ export class ProcessAccessionDocFormTask extends Task<
         if (!slot) {
           throw new TaskError(`No active slot for extractor '${extractor.id}'`);
         }
+        // Most forms register one extractor, so the shared `parsed` computed
+        // above (via `ALL_FORMS_MAP`) is already this extractor's answer.
+        // An extractor that supplies its own `parse` gets it invoked here on
+        // the same fetched `body` instead of reusing the shared value — once
+        // a form carries two extractors, each reads the document
+        // independently rather than being stuck sharing one parser's output.
+        const extractorParsed = extractor.parse ? await extractor.parse(form!, body) : parsed;
         await extractor.store({
           cik: cik!,
           file_number: file_number ?? "",
@@ -438,7 +445,7 @@ export class ProcessAccessionDocFormTask extends Task<
           // renders its progress in this task's CLI UI (via `prefetchModel`).
           // Non-AI processors ignore it.
           context,
-          parsed,
+          parsed: extractorParsed,
         });
       }
     };
