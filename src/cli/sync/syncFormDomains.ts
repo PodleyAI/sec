@@ -5,11 +5,26 @@
  */
 
 import type { ExtractorId } from "../../storage/versioning/extractorIds";
-import { EXTRACTOR_IDS, formsForExtractorIds } from "../../storage/versioning/extractorIds";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
+import { formsForExtractorKeys, listFormExtractorKeys } from "../../sec/forms/formExtractors";
 
-export { formsForExtractorIds };
+/**
+ * `expandFormTypes` reads the form-extractor registry during CLI argument
+ * parsing, which can run before `bootstrapSecRuntime`. Without this call an
+ * empty registry makes every extractor id look unrecognised, so a token like
+ * `S-1` would pass through as a literal form code instead of expanding to
+ * every form that extractor handles.
+ *
+ * `registerSecFormExtractors` registers once per registry generation, so this
+ * neither duplicates the bootstrap's call nor overrides a downstream
+ * package's registration under a shared key.
+ */
+registerSecFormExtractors();
 
-const EXTRACTOR_ID_SET: ReadonlySet<string> = new Set(EXTRACTOR_IDS);
+/** Kept under its historical name: callers pass extractor ids, not registry keys. */
+export function formsForExtractorIds(ids: readonly string[]): string[] {
+  return formsForExtractorKeys(ids);
+}
 
 /**
  * Turns CLI form tokens into the form codes a sweep should process.
@@ -19,12 +34,11 @@ const EXTRACTOR_ID_SET: ReadonlySet<string> = new Set(EXTRACTOR_IDS);
  * stay as written so the worklist can warn on them.
  */
 export function expandFormTypes(tokens: readonly string[]): string[] {
+  const registered = new Set(listFormExtractorKeys());
   const seen = new Set<string>();
   const out: string[] = [];
   for (const token of tokens) {
-    const expanded = EXTRACTOR_ID_SET.has(token)
-      ? formsForExtractorIds([token as ExtractorId])
-      : [token];
+    const expanded = registered.has(token) ? formsForExtractorIds([token]) : [token];
     for (const form of expanded) {
       if (seen.has(form)) continue;
       seen.add(form);
