@@ -149,8 +149,9 @@ export abstract class Form {
  * because `parse` is `static`: TypeScript forbids a static member from
  * referencing a class type parameter, so `abstract class Form<TParsed>` cannot
  * type its own `parse`. Registries that hold mixed form classes keep the
- * default `unknown`; `ParsedFormDocument` (`./parsedFormDocument`) is what
- * recovers the concrete type per form name.
+ * default `unknown`; each registration supplies its own parsed type to
+ * `registerFormExtractor`, so the concrete type is recovered per extractor at
+ * its registration site rather than centrally per form name.
  */
 export type FormConstructor<TParsed = unknown> = typeof Form & {
   parse(form: string, xml: string): Promise<TParsed>;
