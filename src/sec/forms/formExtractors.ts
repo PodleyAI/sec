@@ -72,6 +72,17 @@ export interface FormExtractor<TParsed = unknown> {
    * something a form symbol can answer.
    */
   readonly needsFullSubmission?: boolean | ((probe: FullSubmissionProbe) => Promise<boolean>);
+  /**
+   * Whether this extractor needs the filing's document at all. Default true.
+   *
+   * `false` for the extractors that work from the submissions metadata alone —
+   * Reg A offering-circular supplements and withdrawals, 1-U, and the listing
+   * removals. Their bodies run 1-2 MB of narrative HTML apiece and carry
+   * anything extractable in a minority of cases, so the driver has always
+   * skipped the download for them. A form is fetched when ANY of its
+   * extractors needs the document.
+   */
+  readonly needsDocument?: boolean;
   /** Omitted when the form's registered parser class is the right one. */
   readonly parse?: (form: string, text: string) => Promise<TParsed>;
   readonly store: (
@@ -180,6 +191,17 @@ export async function formNeedsFullSubmission(probe: FullSubmissionProbe): Promi
     if (typeof rule === "function" && (await rule(probe))) return true;
   }
   return false;
+}
+
+/**
+ * Whether the filing's document must be fetched and parsed. True unless every
+ * extractor registered for the form opts out, since one extractor needing the
+ * body means it is fetched and the rest read it for free.
+ */
+export function formNeedsDocument(form: string): boolean {
+  const extractors = extractorsForForm(form);
+  if (extractors.length === 0) return true;
+  return extractors.some((e) => e.needsDocument !== false);
 }
 
 /** Test hook: drop all registrations so a test starts from an empty registry. */

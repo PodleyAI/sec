@@ -3,7 +3,6 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { globalServiceRegistry } from "workglow";
 import { registerFormExtractor } from "../sec/forms/formExtractors";
 import { processDeregistration } from "../sec/forms/exchange-listing-withdrawal/processDeregistration";
 import { processForm1A } from "../sec/forms/exempt-offerings/Form_1_A.storage";
@@ -25,7 +24,6 @@ import { processMergerProxy } from "../sec/forms/proxies-information-statements/
 import { processForm424 } from "../sec/forms/registration-statements/Form_424.storage";
 import { processFormS1 } from "../sec/forms/registration-statements/Form_S_1.storage";
 import { processWithdrawal } from "../sec/forms/registration-withdrawal-termination/processWithdrawal";
-import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { SpacRepo } from "../storage/spac/SpacRepo";
 import type { Form1A } from "../sec/forms/exempt-offerings/Form_1_A.schema";
 import type { ParsedForm1K } from "../sec/forms/exempt-offerings/Form_1_K";
@@ -39,23 +37,6 @@ import type { OwnershipDocument } from "../sec/forms/insider-trading/OwnershipDo
 import type { Form8K } from "../sec/forms/miscellaneous-filings/Form_8_K.schema";
 import type { FormCfportal } from "../sec/forms/portal/Form_CFPORTAL.schema";
 import type { FormS1Parsed } from "../sec/forms/registration-statements/Form_S_1";
-
-/**
- * `report_date` lives on the filing row, not on `FormExtractorStoreArgs` — most
- * extractors never need it, so the shared store args stay minimal and the one
- * that does (1-U) resolves it here. `items` is on the widened args directly,
- * but 1-U's pre-switch call site predates that and still goes through the
- * filing row for both together.
- */
-async function filingItemsAndReportDate(
-  cik: number,
-  accessionNumber: string
-): Promise<{ readonly items: string | null; readonly report_date: string | null }> {
-  const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
-  const filings = await filingRepo.query({ accession_number: accessionNumber });
-  const filing = filings?.find((f) => f.cik === cik) ?? filings?.[0];
-  return { items: filing?.items ?? null, report_date: filing?.report_date ?? null };
-}
 
 /**
  * Register the extractors sec ships into the form-extractor registry. Called
@@ -256,25 +237,46 @@ export function registerSecFormExtractors(): void {
   registerFormExtractor<unknown>({
     id: "253G",
     forms: ["253G1", "253G2", "253G3", "253G4"],
+    needsDocument: false,
     store: async ({ cik, accession_number, filing_date, file_number, form }) => {
-      await processRegAOfferingEvent({ cik, accession_number, form, filing_date, file_number });
+      await processRegAOfferingEvent({
+        cik,
+        accession_number,
+        form,
+        filing_date,
+        file_number: file_number || null,
+      });
     },
   });
 
   registerFormExtractor<unknown>({
     id: "1-A-W",
     forms: ["1-A-W", "1-A-W/A", "1-Z-W", "1-Z-W/A"],
+    needsDocument: false,
     store: async ({ cik, accession_number, filing_date, file_number, form }) => {
-      await processRegAOfferingEvent({ cik, accession_number, form, filing_date, file_number });
+      await processRegAOfferingEvent({
+        cik,
+        accession_number,
+        form,
+        filing_date,
+        file_number: file_number || null,
+      });
     },
   });
 
   registerFormExtractor<unknown>({
     id: "1-U",
     forms: ["1-U", "1-U/A"],
-    store: async ({ cik, accession_number, filing_date, file_number, form }) => {
-      const { items } = await filingItemsAndReportDate(cik, accession_number);
-      await processForm1U({ cik, accession_number, form, filing_date, file_number, items });
+    needsDocument: false,
+    store: async ({ cik, accession_number, filing_date, file_number, form, items }) => {
+      await processForm1U({
+        cik,
+        accession_number,
+        form,
+        filing_date,
+        file_number: file_number || null,
+        items: items ?? null,
+      });
     },
   });
 
@@ -300,6 +302,7 @@ export function registerSecFormExtractors(): void {
       "20-F",
       "20-F/A",
     ],
+    needsDocument: false,
     store: async ({ cik, accession_number, filing_date, form }) => {
       await processDeregistration({ cik, accession_number, form, filing_date });
     },
@@ -308,6 +311,7 @@ export function registerSecFormExtractors(): void {
   registerFormExtractor<unknown>({
     id: "RW",
     forms: ["RW", "SEC STAFF ACTION"],
+    needsDocument: false,
     store: async ({ cik, accession_number, filing_date, form }) => {
       await processWithdrawal({ cik, accession_number, form, filing_date });
     },

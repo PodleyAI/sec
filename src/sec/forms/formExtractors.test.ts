@@ -8,6 +8,7 @@ import {
   clearFormExtractorsForTesting,
   extractorKey,
   extractorsForForm,
+  formNeedsDocument,
   formNeedsFullSubmission,
   formsForExtractorKeys,
   getFormExtractor,
@@ -116,4 +117,12 @@ test("a predicate decides per filing, and short-circuits behind a static true", 
   asked = 0;
   expect(await formNeedsFullSubmission({ form: "8-K", cik: 1, items: "2.02" })).toBe(true);
   expect(asked).toBe(0);
+});
+
+test("a form needs its document unless every extractor opts out", () => {
+  registerFormExtractor({ id: "meta", forms: ["1-U"], needsDocument: false, store: noopStore });
+  expect(formNeedsDocument("1-U")).toBe(false);
+  registerFormExtractor({ id: "body", forms: ["1-U"], store: noopStore });
+  expect(formNeedsDocument("1-U")).toBe(true);
+  expect(formNeedsDocument("UNREGISTERED")).toBe(true);
 });

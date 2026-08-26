@@ -7,6 +7,7 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import {
   clearFormExtractorsForTesting,
   extractorsForForm,
+  formNeedsDocument,
   formNeedsFullSubmission,
 } from "../sec/forms/formExtractors";
 import { FORM_TO_EXTRACTOR_ID } from "../storage/versioning/extractorIds";
@@ -46,4 +47,13 @@ test("the prospectus forms need the full submission, Form D does not", async () 
   expect(await formNeedsFullSubmission(probe("1-K"))).toBe(true);
   expect(await formNeedsFullSubmission(probe("1-SA"))).toBe(false);
   expect(await formNeedsFullSubmission(probe("D"))).toBe(false);
+});
+
+test("the metadata-only forms need no document; document forms do", () => {
+  for (const form of ["253G1", "1-A-W", "1-U", "25", "RW"]) {
+    expect(formNeedsDocument(form), `form ${form}`).toBe(false);
+  }
+  for (const form of ["D", "S-1", "8-K", "1-K"]) {
+    expect(formNeedsDocument(form), `form ${form}`).toBe(true);
+  }
 });
