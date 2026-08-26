@@ -12,6 +12,7 @@ import type {
   ServiceToken,
   TypedArraySchemaOptions,
 } from "workglow";
+import { globalServiceRegistry } from "workglow";
 import {
   ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN,
   AddressesEntityHistoryJunctionSchema,
@@ -473,6 +474,27 @@ export function defineStorage<
   Entity = FromSchema<Schema, TypedArraySchemaOptions>,
 >(definition: TypedStorageDefinition<Schema, PrimaryKeyNames, Entity>): StorageDefinition {
   return definition as unknown as StorageDefinition;
+}
+
+/**
+ * Builds the storage backing one table: the SQL-backed one in production, an
+ * in-memory one under test. Taken as a parameter so the registry describes
+ * tables without knowing which backend will hold them.
+ */
+export type StorageFactory = (definition: StorageDefinition) => AnyTabularStorage;
+
+/**
+ * Binds each descriptor's token to the storage the factory builds for it, in
+ * array order — which is the order tables are created and dropped, so a table
+ * whose creation depends on another must follow it here.
+ */
+export function registerStorages(
+  definitions: readonly StorageDefinition[],
+  makeStorage: StorageFactory
+): void {
+  for (const definition of definitions) {
+    globalServiceRegistry.registerInstance(definition.token, makeStorage(definition));
+  }
 }
 
 /**

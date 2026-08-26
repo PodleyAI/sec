@@ -5,7 +5,7 @@
  */
 
 import { InMemoryTabularStorage, globalServiceRegistry } from "workglow";
-import { SEC_STORAGE_REGISTRY } from "./storageRegistry";
+import { registerStorages, SEC_STORAGE_REGISTRY } from "./storageRegistry";
 import { clearRegisteredTablesForTesting } from "./tableRegistry";
 import { ENV_DERIVED_TOKENS } from "./tokens";
 
@@ -40,9 +40,9 @@ export function resetDependencyInjectionsForTesting(): void {
   // in-memory test repos below bypass. Clear it so a table registered by a
   // previous test file's DefaultDI wiring cannot leak into this one.
   clearRegisteredTablesForTesting();
-  for (const definition of SEC_STORAGE_REGISTRY) {
-    globalServiceRegistry.registerInstance(
-      definition.token,
+  registerStorages(
+    SEC_STORAGE_REGISTRY,
+    (definition) =>
       new InMemoryTabularStorage(
         definition.schema,
         definition.primaryKeyNames,
@@ -52,6 +52,5 @@ export function resetDependencyInjectionsForTesting(): void {
         undefined, // migrationName (default)
         definition.uniqueIndexes
       )
-    );
-  }
+  );
 }
