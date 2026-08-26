@@ -24,6 +24,41 @@ The fixture and file forms need no configured database. The accession form does 
 | `sections` | Which S-1 targets resolved, how big, and what did they swallow? | `sections.json`                                                                                                |
 | `chunks`   | How would the risk-factor section be split for extraction?      | `chunks.json`                                                                                                  |
 
+## Model calls
+
+Set `SEC_TRACE_DIR` and every extraction model call is appended to
+`<dir>/calls.ndjson`. Off unless the variable is set, and cheap when off — one memoized
+environment read per call.
+
+```bash
+SEC_TRACE_DIR=./trace sec fetch form 1849470 S-1
+sec verify calls ./trace                        # summary by extractor and model
+sec verify calls ./trace --section 5068871d     # every attempt for one section
+```
+
+Each record carries the label, model id, extractor-level attempt number, whether the nonce
+was in play, duration, outcome, the instructions, prompt size, and usage. **The section prose
+is stored once under `sections/<sha256>.txt` and referenced by hash** — a record that inlined
+it would repeat a 246k risk-factors section on every attempt.
+
+**There is no raw response text, and that is a limit of the seam.**
+`StructuredGenerationTask` declares one output port, `object` — the parsed and validated
+result. The unparsed stream is not exposed. So a trace records the parsed object on success
+and, on a schema failure, each attempt's rejected object with its validation errors (which
+`StructuredOutputValidationError` does carry). Capturing the raw stream needs a new port in
+`@workglow/ai`.
+
+Recording never throws. A full disk must not fail an extraction that would otherwise have
+succeeded, and a write failure costs one record rather than the rest of the sweep's.
+
+### Retries are counted twice over, and the trace shows both
+
+`runGuardedExtraction` retries a section up to `EXTRACTION_ATTEMPTS` times, and each of those
+calls runs a `StructuredGenerationTask` that itself retries on a schema rejection
+(`maxRetries: 1`, so two attempts). One section whose output never validates therefore costs
+**six real model calls**, and the summary's `calls` against `sections` is where that shows up.
+The outer number is the record's `attempt`; the inner rounds are its `validationAttempts`.
+
 ## Source spans
 
 Every `EdgarBlock` carries a half-open `[start, end)` span of the **original filing HTML**

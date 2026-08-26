@@ -63,6 +63,7 @@ export const DI_EXEMPT_COMMAND_PATHS: ReadonlySet<string> = new Set([
   "verify chunks",
   "verify all",
   "verify fixtures",
+  "verify calls",
 ]);
 
 /** A command's path from the program root, e.g. `verify parse`. */

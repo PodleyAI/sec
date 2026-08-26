@@ -6,7 +6,12 @@
 
 import { createHash } from "node:crypto";
 import type { IExecuteContext, ModelConfig, Usage } from "workglow";
-import { StructuredGenerationTask, TaskAbortedError, mergeUsage } from "workglow";
+import {
+  StructuredGenerationTask,
+  StructuredOutputValidationError,
+  TaskAbortedError,
+  mergeUsage,
+} from "workglow";
 import { getExtractionTemperature } from "../../../../config/extractionTemperature";
 import { ensureModelDownloaded } from "../../../../task/model/EnsureModelDownloadedTask";
 import { isOverlongPersonName } from "../../../../util/personNameBounds";
@@ -27,6 +32,12 @@ import {
   stripHeadingMarkers,
 } from "./riskFactorChunks";
 import { RiskFactorsOutputSchema, type RiskFactorRow } from "./riskFactorSchema";
+import {
+  isCallTracing,
+  recordCall,
+  type CallOutcome,
+  type CallValidationAttempt,
+} from "../../../../verify/callTrace";
 import { resolveModelId } from "./s1Model";
 import {
   BeneficialOwnershipOutputSchema,
@@ -685,6 +696,60 @@ const generationNodes = new WeakMap<IExecuteContext, StructuredGenerationTask>()
  * return type. Multi-call sections (chunked risk factors) merge additively.
  */
 const extractionUsageByContext = new WeakMap<IExecuteContext, Usage>();
+
+/**
+ * Tokens the most recent {@link runStructured} billed, for the call trace.
+ *
+ * Separate from {@link extractionUsageByContext}, which accumulates a whole
+ * section's spend across chunks and retries: a trace record prices ONE call,
+ * and reading the accumulator would attribute every earlier attempt's tokens to
+ * the last one. Overwritten per call and only ever read immediately after.
+ */
+let lastCallUsageValue: Usage | undefined;
+
+/** Usage billed by the call that just returned, for a trace record. */
+function lastCallUsage(): Record<string, unknown> | undefined {
+  return lastCallUsageValue as Record<string, unknown> | undefined;
+}
+
+/**
+ * Classify a failed call for the trace, keeping apart the outcomes that have
+ * different fixes: a rejected schema is the extractor's problem, a throttle is
+ * the provider's, and a nonce mismatch is a possible injection.
+ */
+function callFailure(e: unknown): {
+  readonly outcome: CallOutcome;
+  readonly validationAttempts: readonly CallValidationAttempt[] | undefined;
+  readonly errorName: string | undefined;
+  readonly errorMessage: string | undefined;
+  readonly usage: Record<string, unknown> | undefined;
+} {
+  const errorName = e instanceof Error ? e.name : typeof e;
+  const errorMessage = e instanceof Error ? e.message : String(e);
+  if (e instanceof StructuredOutputValidationError) {
+    return {
+      outcome: "invalid-output",
+      validationAttempts: e.attempts,
+      errorName,
+      errorMessage,
+      // Every attempt was a real request, so the error's own usage is the
+      // honest price of this call — the successful-result path never sees it.
+      usage: (e.usage ?? lastCallUsageValue) as Record<string, unknown> | undefined,
+    };
+  }
+  const outcome: CallOutcome = isRateLimitError(e)
+    ? "rate-limited"
+    : e instanceof NonceMismatchError
+      ? "nonce-mismatch"
+      : "error";
+  return {
+    outcome,
+    validationAttempts: undefined,
+    errorName,
+    errorMessage,
+    usage: lastCallUsage(),
+  };
+}
 /** Standalone calls (no caller context) stash here for the same take API. */
 let standaloneExtractionUsage: Usage | undefined;
 
@@ -812,6 +877,7 @@ async function runStructured(
     // Capture before clearing outputs: OpenRouter (and similar) put the charged
     // credits on `runUsage.extra.cost`, which the eval harness reads via
     // {@link takeExtractionUsage}. A failed attempt still spent tokens.
+    lastCallUsageValue = task.runUsage;
     recordExtractionUsage(callerContext, task.runUsage);
     // `run` leaves this section's prompt in `runInputData` (and its result in
     // `runOutputData`). Clearing both keeps the idle node between sections empty
@@ -882,12 +948,25 @@ async function runGuardedExtraction(
     : buildExtractionPrompt({ instructions, sectionText });
   let lastError: unknown;
   let rateLimitWaits = 0;
+  const tracing = isCallTracing();
   for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS;) {
     // Local grammar/ONNX providers cannot reliably echo a 16-hex token, and the
     // nonce is off by default besides; either way the schema must drop
     // `nonce_seen` or the model is asked to echo something it was never given.
     const nonce = nonceEnabled ? deriveVerifyNonce(sectionText, attempt) : undefined;
     const prompt = staticPrompt ?? buildExtractionPrompt({ instructions, sectionText, nonce });
+    const startedAt = Date.now();
+    // Built per attempt so either branch can write a record without restating
+    // what identifies the call.
+    const traceBase = {
+      label,
+      modelId: resolveModelId(model),
+      attempt,
+      nonce: nonce !== undefined,
+      prompt,
+      instructions,
+      sectionText,
+    };
     try {
       const obj = await runStructured(
         label,
@@ -898,8 +977,20 @@ async function runGuardedExtraction(
         maxTokens
       );
       if (nonce !== undefined) verifyNonce(obj, nonce);
+      if (tracing) {
+        recordCall({
+          ...traceBase,
+          durationMs: Date.now() - startedAt,
+          outcome: "ok",
+          object: obj,
+          usage: lastCallUsage(),
+        });
+      }
       return obj;
     } catch (e) {
+      if (tracing) {
+        recordCall({ ...traceBase, durationMs: Date.now() - startedAt, ...callFailure(e) });
+      }
       // A nonce mismatch is retried like any other failure, and deliberately so.
       // Retrying cannot weaken the check: each attempt derives its own nonce
       // (see {@link deriveVerifyNonce}), so a reply to the previous prompt does

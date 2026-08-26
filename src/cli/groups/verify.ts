@@ -8,7 +8,9 @@ import type { Command } from "commander";
 import { parseIntOption } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
+import { sectionFilePath } from "../../verify/callTrace";
 import { listFixtures } from "../../verify/loadFilingHtml";
+import { callsForSection, readCallTrace } from "../../verify/readCallTrace";
 import {
   VerifyFilingTask,
   VERIFY_STAGES,
@@ -144,6 +146,77 @@ export function addVerifyCommands(program: Command): void {
   const verify = program
     .command("verify")
     .description("Account for what the parser, segmenter and chunker did with a filing");
+
+  verify
+    .command("calls [dir]")
+    .description("Summarize a model-call trace written by SEC_TRACE_DIR")
+    .option("--section <sha>", "Show every call for one section, by hash prefix")
+    .option("--format <format>", "Output format (text, json)", "text")
+    .action(async (dirArg: string | undefined, options: Record<string, unknown>) => {
+      await runCommand(async () => {
+        const dir = dirArg ?? process.env.SEC_TRACE_DIR;
+        if (dir === undefined || dir.length === 0) {
+          throw new Error("Give a trace directory, or set SEC_TRACE_DIR");
+        }
+        const section = options.section as string | undefined;
+        if (section !== undefined) {
+          const calls = callsForSection(dir, section);
+          if (options.format === "json") {
+            console.log(JSON.stringify(calls, null, 2));
+            return;
+          }
+          if (calls.length === 0) {
+            console.log(`No calls for a section matching "${section}".`);
+            return;
+          }
+          console.log(`prose: ${sectionFilePath(dir, calls[0]!.sectionSha256)}`);
+          for (const call of calls) {
+            console.log(
+              `\n  #${call.seq} ${call.label} attempt ${call.attempt} -> ${call.outcome}` +
+                ` (${call.durationMs}ms, prompt ${call.promptChars} chars)`
+            );
+            if (call.errorMessage !== undefined) console.log(`    ${call.errorMessage}`);
+            for (const attempt of call.validationAttempts ?? []) {
+              for (const error of attempt.errors) {
+                console.log(`    attempt ${attempt.attempt}: ${error.path} ${error.message}`);
+              }
+            }
+          }
+          return;
+        }
+
+        const summary = readCallTrace(dir);
+        if (options.format === "json") {
+          console.log(JSON.stringify(summary, null, 2));
+          return;
+        }
+        console.log(`${summary.path}: ${summary.calls} calls`);
+        if (summary.unreadable > 0) {
+          console.log(`  ${summary.unreadable} unreadable line(s) — a run killed mid-append`);
+        }
+        if (summary.calls === 0) return;
+        console.log(
+          "  outcomes: " +
+            Object.entries(summary.byOutcome)
+              .map(([outcome, n]) => `${outcome} ${n}`)
+              .join(", ")
+        );
+        console.log(
+          `\n  ${"extractor".padEnd(24)} ${"model".padEnd(22)} calls  sections  retries  in/out tokens`
+        );
+        for (const group of summary.groups) {
+          console.log(
+            `  ${group.label.padEnd(24)} ${(group.modelId ?? "-").slice(0, 22).padEnd(22)}` +
+              ` ${String(group.calls).padStart(5)} ${String(group.sections).padStart(9)}` +
+              ` ${String(group.retries).padStart(8)}  ${group.inputTokens}/${group.outputTokens}`
+          );
+          const failures = Object.entries(group.byOutcome).filter(([o]) => o !== "ok");
+          if (failures.length > 0) {
+            console.log(`      ${failures.map(([o, n]) => `${o} ${n}`).join(", ")}`);
+          }
+        }
+      });
+    });
 
   verify
     .command("fixtures")
