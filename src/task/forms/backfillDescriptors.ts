@@ -18,14 +18,33 @@ import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/Extract
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import {
-  FORM_TO_EXTRACTOR_ID,
   GENERAL_DEFINITIVE_PROXY_FORMS,
   type ExtractorId,
 } from "../../storage/versioning/extractorIds";
+import {
+  allRegisteredExtractorIds,
+  allRegisteredForms,
+  formHandledByExtractor,
+} from "../../sec/forms/formExtractors";
 import { listingRemovalNeedsWork } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
 import { staffActionAbandonsRegistration } from "../../sec/forms/registration-withdrawal-termination/staffActionAbandonsRegistration";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
+
+/**
+ * Both {@link formsForExtractor} and {@link listBackfillableExtractorIds} read
+ * the form-extractor registry, and `sec extractor backfill` reaches the second
+ * one while Commander is BUILDING its command tree — before the preAction hook
+ * runs `bootstrapSecRuntime`. Against an empty registry the help text would
+ * offer only the custom descriptors below, and a generic descriptor would find
+ * no forms for an id that has them.
+ *
+ * `registerSecFormExtractors` registers once per registry generation, so this
+ * neither duplicates the bootstrap's call nor overrides a downstream
+ * package's registration under a shared key.
+ */
+registerSecFormExtractors();
 
 export interface BackfillCandidate {
   readonly cik: number;
@@ -36,9 +55,9 @@ export interface BackfillCandidate {
 
 /**
  * Per-extractor backfill wiring. A new extractor gets a generalized backfill by
- * either (a) nothing at all — every form-routed extractor id (the values of
- * {@link FORM_TO_EXTRACTOR_ID}) is backfillable by default over the filings of
- * its forms — or (b) one descriptor entry here when its candidate set is not
+ * either (a) nothing at all — every extractor registered against a form is
+ * backfillable by default over the filings of its forms — or (b) one
+ * descriptor entry here when its candidate set is not
  * "all filings of my forms" (sub-extractors gated on trigger items / known
  * SPACs) or when a successful `extractor_runs` row does not imply the work was
  * done (gated no-ops that record success).
@@ -85,9 +104,7 @@ export async function defaultFilterTodo(
 
 /** All form symbols routed to the given extractor id. */
 export function formsForExtractor(extractorId: string): string[] {
-  return Object.entries(FORM_TO_EXTRACTOR_ID)
-    .filter(([, id]) => id === extractorId)
-    .map(([form]) => form);
+  return allRegisteredForms().filter((form) => formHandledByExtractor(form, extractorId));
 }
 
 /**
@@ -454,7 +471,7 @@ export function getBackfillDescriptor(extractorId: string): BackfillDescriptor |
 
 /** Every extractor id `sec extractor backfill` accepts (for CLI help / errors). */
 export function listBackfillableExtractorIds(): ExtractorId[] {
-  const ids = new Set<string>(Object.values(FORM_TO_EXTRACTOR_ID));
+  const ids = new Set<string>(allRegisteredExtractorIds());
   for (const id of Object.keys(CUSTOM_DESCRIPTORS)) ids.add(id);
   return [...ids].sort() as ExtractorId[];
 }

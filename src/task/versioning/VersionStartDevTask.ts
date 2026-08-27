@@ -9,8 +9,21 @@ import { globalServiceRegistry, Task } from "workglow";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { startDev } from "../../storage/versioning/ceremonies";
 import type { BumpType, ComponentKind } from "../../storage/versioning/ComponentVersionSchema";
-import { FORM_TO_EXTRACTOR_ID } from "../../storage/versioning/extractorIds";
+import { allRegisteredForms, formHandledByExtractor } from "../../sec/forms/formExtractors";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import { ceremonyRepos } from "./ceremonyRepos";
+
+/**
+ * {@link snapshotTargetCount} counts the filings of every form the extractor
+ * handles, and that count is written down as the promote gate's denominator.
+ * An empty registry would make it 0 — a gate that passes on the first filing —
+ * so the forms are established here rather than assumed from the caller.
+ *
+ * `registerSecFormExtractors` registers once per registry generation, so this
+ * neither duplicates the bootstrap's call nor overrides a downstream
+ * package's registration under a shared key.
+ */
+registerSecFormExtractors();
 
 /**
  * For a major-bump extractor start-dev, snapshot the count of filings
@@ -29,9 +42,7 @@ async function snapshotTargetCount(kind: ComponentKind, id: string): Promise<num
     );
   }
   const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
-  const forms = Object.entries(FORM_TO_EXTRACTOR_ID)
-    .filter(([, eid]) => eid === id)
-    .map(([form]) => form);
+  const forms = allRegisteredForms().filter((form) => formHandledByExtractor(form, id));
   let total = 0;
   for (const form of forms) {
     // COUNT() path — at Form D scale (hundreds of thousands of filings)
