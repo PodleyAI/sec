@@ -171,6 +171,22 @@ helpers the extraction path writes with (`normalizePersonNameParts`, `normalizeC
 precisely so a second implementation cannot drift and re-key half the tier to a generation
 nothing else produces.
 
+`sec resolve` then recomputes the tables derived from the links it just wrote. The
+address/phone junctions are grouped afresh from `(observation → identity_link →
+canonical_id)` at that version, because a re-resolve otherwise leaves them counted against
+the previous pass's canonical ids. Each projection is isolated the way a single row is:
+one that raises — a link whose observation is gone, an observation whose `filings` row is
+gone — is reported on its own line and the others still run. Both of those raises land
+before the projection purges anything, so a failure of that kind leaves its table exactly
+as it was rather than emptied.
+
+`--rebuild-roles` adds `person_role` to that set. It is off by default because it is not
+symmetric with the junctions: it **deletes** every tenure at the version before re-deriving
+them, and it can only re-close a tenure whose filing recorded a complete roster in
+`role_roster_completeness`. Over a corpus ingested before those rows were written it finds
+no complete roster, closes nothing, and so re-opens every departure the incremental path
+had recorded. Re-extract the roster filings first.
+
 ### The family tiers
 
 | kind                 | canonical                      | membership                      | per-filing link     |

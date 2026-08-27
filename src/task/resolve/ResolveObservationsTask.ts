@@ -18,6 +18,8 @@ import { PersonIdentityLinkRepo } from "../../storage/canonical/PersonIdentityLi
 import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../../storage/observation/PersonObservationRepo";
 import { normalizeCompanyName } from "../../storage/company/CompanyNormalization";
+import { rebuildCompanyJunctions, rebuildPersonJunctions } from "../../resolver/rebuildJunctions";
+import { rebuildPersonRoles } from "../../resolver/rebuildPersonRoles";
 
 /**
  * The resolver kinds this batch pass implements. A kind qualifies only when its
@@ -39,7 +41,85 @@ export type ResolveObservationsTaskInput = {
    * filed before resolving. See {@link renormalizePersons}.
    */
   readonly renormalize?: boolean;
+  /**
+   * Also recompute the resolver version's `person_role` tenures. Off by
+   * default because {@link rebuildPersonRoles} purges the version's rows
+   * before re-deriving them, and it can only re-close a tenure whose filing
+   * recorded a complete roster in `role_roster_completeness`: over a corpus
+   * ingested before those rows were written, every departure the incremental
+   * path had recorded re-opens. The junction projections carry no such
+   * asymmetry and always run.
+   */
+  readonly rebuildRoles?: boolean;
 };
+
+/** The derived projections this task recomputes from the identity links. */
+export const REBUILD_KINDS = ["person-junctions", "company-junctions", "person-roles"] as const;
+export type RebuildKind = (typeof REBUILD_KINDS)[number];
+
+/** What one projection did, or what stopped it. */
+export interface RebuildReport {
+  readonly kind: RebuildKind;
+  /** Rows the projection wrote at the resolver version. */
+  readonly rows: number;
+  /** The failure that ended this projection, or null. */
+  readonly error: string | null;
+}
+
+/**
+ * Runs one projection, isolating its failure the way {@link resolveAll}
+ * isolates a row's. A rebuild raises on the first dangling join it meets — a
+ * link whose observation is gone, an observation whose filing row is gone —
+ * and one such row anywhere would otherwise take the whole run with it,
+ * including the projections that would have succeeded. Both of those raises
+ * land before the projection purges anything, so a failure reported for that
+ * reason leaves its tables as they were; a storage error partway through the
+ * re-insert is the case that does not.
+ */
+async function runRebuild(
+  kind: RebuildKind,
+  rebuild: () => Promise<number>
+): Promise<RebuildReport> {
+  try {
+    return { kind, rows: await rebuild(), error: null };
+  } catch (e) {
+    const error = (e as Error).message;
+    console.error(`skipping ${kind} rebuild: ${error}`);
+    return { kind, rows: 0, error };
+  }
+}
+
+/**
+ * Recomputes the derived projections at the resolver version the links were
+ * just written at. The junctions are keyed by canonical id, so re-resolving
+ * without them leaves rows keyed to the ids of the previous pass.
+ */
+async function rebuildProjections(input: ResolveObservationsTaskInput): Promise<RebuildReport[]> {
+  const version = input.resolverVersion;
+  const reports = [
+    await runRebuild("person-junctions", async () => {
+      const result = await rebuildPersonJunctions(version);
+      return result.addressRows + result.phoneRows;
+    }),
+    await runRebuild("company-junctions", async () => {
+      const result = await rebuildCompanyJunctions(version);
+      return result.addressRows + result.phoneRows;
+    }),
+  ];
+  if (input.rebuildRoles) {
+    // Said before the deletion rather than after it, and by the task rather
+    // than by one front-end, so every caller sees what it is about to spend.
+    console.warn(
+      `rebuilding person_role at v${version}: every tenure at this version is deleted and ` +
+        `re-derived from the observations. A tenure closed by a filing with no ` +
+        `role_roster_completeness row re-opens — its end_date is not restored.`
+    );
+    reports.push(
+      await runRebuild("person-roles", async () => (await rebuildPersonRoles(version)).rows)
+    );
+  }
+  return reports;
+}
 
 /**
  * Shared per-kind loop: resolve each observation and write its identity link,
@@ -50,7 +130,7 @@ async function resolveAll<Obs extends { readonly observation_id: number }>(
   observations: readonly Obs[],
   resolveOne: (obs: Obs) => Promise<string>,
   writeLink: (observationId: number, canonicalId: string) => Promise<unknown>
-): Promise<Omit<ResolveObservationsTaskOutput, "renormalized">> {
+): Promise<Omit<ResolveObservationsTaskOutput, "renormalized" | "rebuilds">> {
   let count = 0;
   let skipped = 0;
   for (const obs of observations) {
@@ -72,6 +152,11 @@ export type ResolveObservationsTaskOutput = {
   readonly skipped: number;
   /** Rows whose derived identity columns changed under `renormalize`. */
   readonly renormalized: number;
+  /**
+   * One entry per projection recomputed from the new links, in the order they
+   * ran. `person-roles` is present only when `rebuildRoles` asked for it.
+   */
+  readonly rebuilds: RebuildReport[];
 };
 
 /**
@@ -123,8 +208,10 @@ async function renormalizeCompanies(repo: CompanyObservationRepo): Promise<numbe
 
 /**
  * Re-resolves every observation of a kind into identity-link rows at the
- * target resolver version. Per-observation failures are isolated (logged to
- * stderr) so one bad row cannot abort the whole batch.
+ * target resolver version, then recomputes the projections derived from those
+ * links. Per-observation failures are isolated (logged to stderr) so one bad
+ * row cannot abort the whole batch, and each projection is isolated the same
+ * way so one that raises does not take the others with it.
  */
 export class ResolveObservationsTask extends Task<
   ResolveObservationsTaskInput,
@@ -140,6 +227,7 @@ export class ResolveObservationsTask extends Task<
       kind: Type.Union([Type.Literal("person"), Type.Literal("company")]),
       resolverVersion: Type.String(),
       renormalize: Type.Optional(Type.Boolean()),
+      rebuildRoles: Type.Optional(Type.Boolean()),
     });
   }
 
@@ -148,6 +236,13 @@ export class ResolveObservationsTask extends Task<
       count: Type.Number(),
       skipped: Type.Number(),
       renormalized: Type.Number(),
+      rebuilds: Type.Array(
+        Type.Object({
+          kind: Type.Union(REBUILD_KINDS.map((kind) => Type.Literal(kind))),
+          rows: Type.Number(),
+          error: Type.Union([Type.String(), Type.Null()]),
+        })
+      ),
     });
   }
 
@@ -164,14 +259,12 @@ export class ResolveObservationsTask extends Task<
         activeResolverVersion: input.resolverVersion,
       });
       const linkRepo = new PersonIdentityLinkRepo();
-      return {
-        ...(await resolveAll(
-          await observations.listAll(),
-          (obs) => resolver.resolve(obs),
-          (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
-        )),
-        renormalized,
-      };
+      const resolved = await resolveAll(
+        await observations.listAll(),
+        (obs) => resolver.resolve(obs),
+        (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
+      );
+      return { ...resolved, renormalized, rebuilds: await rebuildProjections(input) };
     }
     const observations = new CompanyObservationRepo();
     const renormalized = input.renormalize ? await renormalizeCompanies(observations) : 0;
@@ -181,13 +274,11 @@ export class ResolveObservationsTask extends Task<
       activeResolverVersion: input.resolverVersion,
     });
     const linkRepo = new CompanyIdentityLinkRepo();
-    return {
-      ...(await resolveAll(
-        await observations.listAll(),
-        (obs) => resolver.resolve(obs),
-        (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
-      )),
-      renormalized,
-    };
+    const resolved = await resolveAll(
+      await observations.listAll(),
+      (obs) => resolver.resolve(obs),
+      (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
+    );
+    return { ...resolved, renormalized, rebuilds: await rebuildProjections(input) };
   }
 }

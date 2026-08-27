@@ -32,12 +32,20 @@ export function addResolveCommands(program: Command): void {
         "before resolving (lets a normalizer change take effect without re-extracting)",
       false
     )
+    .option(
+      "--rebuild-roles",
+      "also recompute person_role at the target version: DELETES every tenure there and " +
+        "re-derives it from the observations. A tenure closed by a filing carrying no " +
+        "role_roster_completeness row re-opens — re-extract those filings first",
+      false
+    )
     .action(
       async (opts: {
         kind: string;
         resolverVersion?: string;
         all: boolean;
         renormalize: boolean;
+        rebuildRoles: boolean;
       }) => {
         // runCommand: a validation throw renders a clean error + sets exit code
         // 1 without bypassing the top-level queue/DB teardown (process.exit would).
@@ -90,15 +98,32 @@ export function addResolveCommands(program: Command): void {
             throw new Error(`--resolver-version must be a valid semver (got '${resolverVersion}')`);
           }
 
-          const { count, renormalized } = await runWorkflowCli<ResolveObservationsTaskOutput>([
-            new ResolveObservationsTask({
-              defaults: { kind, resolverVersion, renormalize: opts.renormalize },
-            }),
-          ]);
+          const { count, renormalized, rebuilds } =
+            await runWorkflowCli<ResolveObservationsTaskOutput>([
+              new ResolveObservationsTask({
+                defaults: {
+                  kind,
+                  resolverVersion,
+                  renormalize: opts.renormalize,
+                  rebuildRoles: opts.rebuildRoles,
+                },
+              }),
+            ]);
           if (opts.renormalize) {
             console.log(`re-normalized ${renormalized} ${kind} observation(s)`);
           }
           console.log(`resolved ${count} ${kind} observation(s) at v${resolverVersion}`);
+          // One line per projection, failure included: a whole-version rebuild
+          // that raised leaves its table on the previous pass's canonical ids,
+          // which is worth an operator's attention even though the resolve
+          // itself succeeded.
+          for (const rebuild of rebuilds) {
+            console.log(
+              rebuild.error === null
+                ? `rebuilt ${rebuild.kind}: ${rebuild.rows} row(s) at v${resolverVersion}`
+                : `rebuild of ${rebuild.kind} FAILED: ${rebuild.error}`
+            );
+          }
         });
       }
     );
