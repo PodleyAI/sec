@@ -34,8 +34,10 @@ export const EXTRACTOR_IDS = [
  * {@link EXTRACTOR_IDS}: a downstream package registers its own extractors
  * through the form-extractor registry, and a closed union would make that
  * impossible without editing this file. {@link EXTRACTOR_IDS} remains the list
- * sec itself ships — what `db setup` seeds `component_versions` from, and what
- * the CLI offers for completion.
+ * sec itself ships — what the CLI offers for completion. `db setup` no longer
+ * seeds `component_versions` from it: a closed list cannot name an extractor
+ * registered through the open seam, so the ids seeded there are enumerated
+ * from that registry instead.
  */
 export type ExtractorId = string;
 

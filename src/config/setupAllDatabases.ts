@@ -124,6 +124,8 @@ import { getDb } from "../util/db";
 import { setupSecFetchRateLimiter } from "../task/fetch/SecJobQueue";
 import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
 import { registerSecResolvers } from "./registerResolvers";
+import { registerSecFormExtractors } from "./registerFormExtractors";
+import { listBackfillableExtractorIds } from "../task/forms/backfillDescriptors";
 import { listDatabaseExtensionTokens, runDatabaseSetupHooks } from "./databaseExtensions";
 import { SEC_DB_FOLDER, SEC_DB_TYPE } from "./tokens";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
@@ -293,13 +295,21 @@ export async function setupAllDatabases(): Promise<void> {
     // add-column pass can express.
     addMissingColumnsSqlite(db);
   }
-  // Ensure sec's resolver kinds are in the ResolverExtensionRegistry before we
-  // seed component-version rows: bootstrapComponentVersions() enumerates the
-  // registry, and this path also runs from `init` (which skips the preAction
-  // hook that otherwise calls registerSecResolvers). Idempotent — safe to call
-  // again when the hook already registered them.
+  // Ensure sec's resolver kinds and form extractors are registered before we
+  // seed component-version rows: the ids seeded below are enumerated from those
+  // two registries, and this path also runs from `init` (which skips the
+  // preAction hook that otherwise calls both). Both are idempotent — safe to
+  // call again when the hook already registered them.
   registerSecResolvers();
-  await bootstrapComponentVersions();
+  registerSecFormExtractors();
+  // Which extractors need a version slot is the same question as which
+  // extractors can be RUN, so it is answered from the same place: every id in
+  // the open form-extractor registry (a downstream package's registrations
+  // included) plus the ids whose candidate set is not form-derived and which
+  // therefore register no form of their own — the known-SPAC-gated 8-K
+  // detectors, which run inside the 8-K extractor's `store` and record
+  // `extractor_runs` rows under ids of their own.
+  await bootstrapComponentVersions(listBackfillableExtractorIds());
 
   // Create the shared SEC-fetch rate-limiter tables once here (Postgres only,
   // no-op otherwise), so a multi-shard sweep can enforce EDGAR's 10 req/sec
