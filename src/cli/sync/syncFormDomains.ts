@@ -6,7 +6,7 @@
 
 import type { ExtractorId } from "../../storage/versioning/extractorIds";
 import { registerSecFormExtractors } from "../../config/registerFormExtractors";
-import { formsForExtractorKeys, listFormExtractorKeys } from "../../sec/forms/formExtractors";
+import { allRegisteredExtractorIds, formsForExtractorIds } from "../../sec/forms/formExtractors";
 
 /**
  * `expandFormTypes` reads the form-extractor registry during CLI argument
@@ -21,10 +21,16 @@ import { formsForExtractorKeys, listFormExtractorKeys } from "../../sec/forms/fo
  */
 registerSecFormExtractors();
 
-/** Kept under its historical name: callers pass extractor ids, not registry keys. */
-export function formsForExtractorIds(ids: readonly string[]): string[] {
-  return formsForExtractorKeys(ids);
-}
+/**
+ * Re-exported rather than reimplemented. Callers here pass extractor ids, and
+ * the registry is keyed `(id, section)` — matching an id against a key returns
+ * nothing the moment an extractor registers under a section, so the two
+ * lookups are not interchangeable and only one of them belongs to this name.
+ *
+ * It stays exported from this module because importing it from here is what
+ * guarantees the registration above has already run.
+ */
+export { formsForExtractorIds };
 
 /**
  * Turns CLI form tokens into the form codes a sweep should process.
@@ -34,7 +40,7 @@ export function formsForExtractorIds(ids: readonly string[]): string[] {
  * stay as written so the worklist can warn on them.
  */
 export function expandFormTypes(tokens: readonly string[]): string[] {
-  const registered = new Set(listFormExtractorKeys());
+  const registered = new Set(allRegisteredExtractorIds());
   const seen = new Set<string>();
   const out: string[] = [];
   for (const token of tokens) {

@@ -8,11 +8,7 @@ import { Type } from "typebox";
 import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
-import {
-  extractorsForForm,
-  getFormExtractor,
-  listFormExtractorKeys,
-} from "../../sec/forms/formExtractors";
+import { allRegisteredForms, extractorsForForm } from "../../sec/forms/formExtractors";
 import { isDryRun } from "../../cli/isDryRun";
 import {
   FILING_REPOSITORY_TOKEN,
@@ -184,11 +180,15 @@ export class ComputeFormsWorklistTask extends Task<
       globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
     );
 
-    const allForms = [
-      ...new Set(listFormExtractorKeys().flatMap((k) => getFormExtractor(k)!.forms)),
-    ];
+    // Absent (or empty) `form` means every form with a registered extractor —
+    // the deliberate default of a full sweep. The two cannot be told apart
+    // here: an omitted optional array port arrives as `[]`, so "nobody asked"
+    // and "asked for nothing" are the same value by the time this runs. A
+    // request that RESOLVED to nothing is a third thing and never reaches
+    // here — `runFormsSweep` refuses it, upstream, where the request itself
+    // is still visible.
     const requestedForms =
-      input.form !== undefined && input.form.length > 0 ? input.form : allForms;
+      input.form !== undefined && input.form.length > 0 ? input.form : allRegisteredForms();
     const formSet = new Set(requestedForms);
 
     const shardCount = input.shardCount ?? 1;
@@ -258,12 +258,23 @@ export class ComputeFormsWorklistTask extends Task<
       // twice. A filing is selected when ANY of the form's extractors has no
       // successful run at its own active version, which is the same union the
       // dispatch then acts on.
-      const gates = await Promise.all(
-        extractorsForForm(form).map(async (extractor) => ({
-          extractorId: extractor.id,
-          extractorVersion: await resolveVersion(extractor.id),
-        }))
-      );
+      //
+      // An extractor with no version slot fails ITS form, not the sweep. The
+      // registry is open, so a form can be registered after the `db setup`
+      // that seeded slots; losing every other form's work to that is a far
+      // worse outcome than losing the one form that cannot be versioned.
+      let gates: readonly { readonly extractorId: string; readonly extractorVersion: string }[];
+      try {
+        gates = await Promise.all(
+          extractorsForForm(form).map(async (extractor) => ({
+            extractorId: extractor.id,
+            extractorVersion: await resolveVersion(extractor.id),
+          }))
+        );
+      } catch (e) {
+        console.error(`update-forms: skipping form '${form}': ${(e as Error).message}`);
+        continue;
+      }
       let from: number | undefined;
       let seen: string | undefined;
       for (;;) {

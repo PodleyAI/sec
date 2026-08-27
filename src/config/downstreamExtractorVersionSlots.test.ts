@@ -56,6 +56,22 @@ async function seedFiling(accession_number: string, form: string): Promise<void>
   } as never);
 }
 
+/** Runs `fn` with `console.error` captured, so a reported failure can be read. */
+async function captureErrors<T>(
+  fn: () => Promise<T>
+): Promise<{ readonly result: T; readonly errors: readonly string[] }> {
+  const errors: string[] = [];
+  const originalError = console.error;
+  console.error = (message?: unknown) => {
+    errors.push(String(message ?? ""));
+  };
+  try {
+    return { result: await fn(), errors };
+  } finally {
+    console.error = originalError;
+  }
+}
+
 beforeAll(() => {
   // Register sec's own extractors FIRST so the once-per-generation guard is
   // armed: a later `registerSecFormExtractors()` (setupAllDatabases makes one)
@@ -128,19 +144,19 @@ describe("db setup seeds a version slot for an extractor it does not ship", () =
 });
 
 /**
- * Records what happens TODAY when a slot genuinely cannot be resolved, which
- * after the change above needs an extractor registered later than the `db
- * setup` that seeded. The failure is loud but it is not local: it leaves the
- * forms worklist through `execute`, so every other form in the same sweep is
- * lost with it. Failing that form alone and carrying on is a separate change.
+ * A slot that genuinely cannot be resolved, which after the change above needs
+ * an extractor registered later than the `db setup` that seeded — something the
+ * open registry makes reachable. The failure stays loud, but it is scoped to
+ * the form whose extractor lacks a slot: the sweep's other forms have nothing
+ * to do with that extractor and their work must survive it.
  */
-describe("an unresolvable slot today", () => {
+describe("an unresolvable slot", () => {
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
   });
 
-  it("aborts the whole sweep, not only the form whose extractor lacks one", async () => {
+  it("fails only the form whose extractor lacks one, and the sweep carries on", async () => {
     const lateForm = "F-4";
     const lateId = "downstream-late";
     await seedFiling("0001111111-26-000002", "D");
@@ -152,9 +168,20 @@ describe("an unresolvable slot today", () => {
 
     registerFormExtractor({ id: lateId, forms: [lateForm], store: noopStore });
 
-    await expect(
+    const { result, errors } = await captureErrors(() =>
       new ComputeFormsWorklistTask({ defaults: {} }).run({ form: ["D", lateForm] })
-    ).rejects.toThrow(`No active slot for extractor '${lateId}'`);
+    );
+
+    // Form D's filing still comes back; only the unversioned form is dropped.
+    expect(result.count).toBe(1);
+    expect(result.accessionNumber).toEqual(["0001111111-26-000002"]);
+    expect(result.form).toEqual(["D"]);
+
+    // And the drop is reported rather than swallowed, naming both the form and
+    // the extractor that could not be versioned.
+    const reported = errors.join("\n");
+    expect(reported).toContain(`'${lateForm}'`);
+    expect(reported).toContain(`No active slot for extractor '${lateId}'`);
   });
 });
 
