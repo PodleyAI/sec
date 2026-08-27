@@ -5,7 +5,7 @@
  */
 import { NodeKind, renderMarkdown, uuid4 } from "workglow";
 import type { TableCell, TableNode } from "workglow";
-import { SECTION_HEADING_PATTERNS } from "../forms/registration-statements/s1/DocumentSegmenter";
+import { isTargetSectionLine } from "./joinSplitHeadings";
 import { isPageNumber } from "./pageFurniture";
 import type { EdgarBlock, SourceSpan } from "./types";
 
@@ -79,11 +79,7 @@ function unwrapSingleCellTable(b: EdgarBlock): EdgarBlock {
  * there is protected here without a second list to keep in sync.
  */
 function isTargetSectionHeading(b: EdgarBlock): boolean {
-  if (b.type !== "heading") return false;
-  const line = b.text.replace(/\s+/g, " ").trim();
-  return Object.values(SECTION_HEADING_PATTERNS).some((patterns) =>
-    patterns.some((re) => re.test(line))
-  );
+  return b.type === "heading" && isTargetSectionLine(b.text);
 }
 
 /**

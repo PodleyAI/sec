@@ -20,7 +20,7 @@ import {
  * truncate — and a half-finished re-run leaves the old rows readable instead of
  * leaving a hole.
  */
-export const FILING_CONVERTER_VERSION = "1";
+export const FILING_CONVERTER_VERSION = "2";
 
 /** What one conversion produced, before it is written anywhere. */
 export interface ConvertedFilingDocument {

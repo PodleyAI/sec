@@ -5,6 +5,7 @@
  */
 import type { DocumentRootNode } from "workglow";
 import { parseToBlocks } from "./parseToBlocks";
+import { joinSplitHeadings } from "./joinSplitHeadings";
 import { depaginateWithTrace, type DroppedBlock } from "./DePaginator";
 import { buildDocument } from "./buildDocument";
 import { buildSourceSpanIndex, type SourceSpanIndex } from "./sourceSpanIndex";
@@ -51,7 +52,9 @@ export function parseEdgarHtml(html: string, title: string): DocumentRootNode {
  * extraction path changes by tracing a filing.
  */
 export function parseEdgarHtmlWithTrace(html: string, title: string): EdgarParseTrace {
-  const blocks = parseToBlocks(html);
+  // Joined before de-pagination so adjacency is the walk's, not an artifact
+  // of furniture having been removed from between two headings.
+  const blocks = joinSplitHeadings(parseToBlocks(html));
   const { blocks: clean, dropped } = depaginateWithTrace(blocks);
   return {
     doc: buildDocument(title, clean),
