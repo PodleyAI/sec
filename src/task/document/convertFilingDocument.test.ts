@@ -118,6 +118,19 @@ describe("convertFilingSubmission", () => {
     expect(docs.map((d) => d.docFile)).not.toContain("ex101.xml");
   });
 
+  it("drops a member whose body is a binary envelope, however it is labelled", () => {
+    // A filer who types a PDF `EX-99.1` and names it `.htm` gets past both the
+    // type and the extension rules; rendering it produces pages of mojibake
+    // rather than an honest absence.
+    const mislabelled = submission(
+      doc("8-K", 1, "form8k.htm", "<html><body><p>Item 7.01. See Exhibit 99.1.</p></body></html>"),
+      doc("EX-99.1", 2, "ex99-1.htm", "<PDF>\n%PDF-1.4 binary follows"),
+      doc("EX-99.2", 3, "ex99-2.htm", "begin 644 chart.gif\nM0V]N=&5N=',@;V8@=&AE(&9I;&4`")
+    );
+    const docs = convertFilingSubmission("8-K", "0001-26-1", mislabelled, "form8k.htm");
+    expect(docs.map((d) => d.docFile)).toEqual(["form8k.htm"]);
+  });
+
   it("keeps the 8-K exhibit that carries the disclosure the primary only points at", () => {
     const docs = convertFilingSubmission("8-K", "0001234567-26-000001", EIGHT_K, "form8k.htm");
     expect(docs.map((d) => d.docFile)).toEqual(["form8k.htm", "ex99-1.htm"]);

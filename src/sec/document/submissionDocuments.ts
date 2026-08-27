@@ -45,10 +45,26 @@ const SKIP_TYPES = /^(graphic|zip|xml|excel|ex-101\b|ex-filing fees\b)/i;
  */
 const SKIP_EXTENSIONS = /\.(jpe?g|gif|png|bmp|tiff?|pdf|zip|xlsx?|xsd|json|css|js)$/i;
 
+/**
+ * A member whose `<TEXT>` body is a binary envelope rather than the file.
+ *
+ * The same predicate `extractPrimaryDocFromSubmission` refuses to cache on, and
+ * for the same reason: a `<PDF>` or uuencoded body is not the document, it is a
+ * wrapper around bytes the SGML cannot losslessly carry. The type and extension
+ * rules catch the honest cases; this catches the filer who labels a PDF
+ * `EX-99.1` and names it `.htm`, which would otherwise render as pages of
+ * mojibake with no sign anything went wrong.
+ */
+function isBinaryEnvelope(body: string): boolean {
+  return /^\s*<PDF>/i.test(body) || /^\s*begin \d{3} /i.test(body);
+}
+
 /** Whether one submission member is worth rendering as markdown. */
 function isNarrative(doc: SubmissionDocument, isPrimary: boolean): boolean {
   // The primary document is the filing. Whatever EDGAR calls it, it is what a
-  // reader followed the link for, so it is never filtered out.
+  // reader followed the link for — but a binary body is still not text, and
+  // rendering one produces a document rather than an honest absence.
+  if (isBinaryEnvelope(doc.body)) return false;
   if (isPrimary) return true;
   if (doc.filename === null || doc.filename.trim() === "") return false;
   if (doc.type !== null && SKIP_TYPES.test(doc.type.trim())) return false;
