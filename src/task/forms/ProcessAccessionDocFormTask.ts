@@ -530,7 +530,9 @@ export class ProcessAccessionDocFormTask extends Task<
      *
      * `parsed` is undefined and `body` empty for the extractors that work from
      * the submissions metadata alone: nothing was fetched for them to read, and
-     * declaring `needsDocument: false` is how they say they will not.
+     * declaring `needsDocument: false` is how they say they will not. It is
+     * undefined too when every extractor of the form brings its own `parse`:
+     * nothing here would read the shared one, so the caller never ran it.
      */
     const storeThroughExtractors = async (parsed: unknown, body: string): Promise<void> => {
       const extractors: readonly FormExtractor[] = extractorsForForm(form!);
@@ -652,35 +654,64 @@ export class ProcessAccessionDocFormTask extends Task<
     // refreshed (created_at >= runStart) from stale orphans of a prior run.
     const runStart = new Date().toISOString();
 
-    const formCls = ALL_FORMS_MAP.get(form!);
-    if (!formCls) throw new TaskError(`Form '${form}' not found in ALL_FORMS_MAP`);
+    // Whether the form's SHARED parse — the registered `ALL_FORMS_MAP` class —
+    // is read by anything. `storeThroughExtractors` hands it to an extractor
+    // only where that extractor both wants the document and brings no `parse`
+    // of its own, so this asks that dispatch's question extractor by extractor
+    // and the two have to keep agreeing.
+    //
+    // A form whose every extractor parses the fetched body itself therefore
+    // needs no parser class here: running one would be work nothing reads, and
+    // its failure would dead-letter a filing that every actual reader of the
+    // document parsed fine.
+    const sharedParseIsRead = extractorsForForm(form!).some(
+      (extractor) => extractor.needsDocument !== false && !extractor.parse
+    );
 
-    // Parse is its own containment domain, distinct from store: what parse
-    // sees is the filing's own bytes, so a throw ("Maximum nested tags
-    // exceeded" on a deeply nested legacy HTML table) or an empty result (a
-    // structured-XML form whose primary document has no XML root — e.g.
-    // ownership forms 3/4/5 filed as narrative HTML/text before the
-    // 2003-06-30 XML mandate) is a property of the input, not an extractor
-    // bug. Contain both as a filing-level PARSE_ERROR dead-letter
-    // (version-gated retry) instead of crashing the whole sweep. Parsers that
-    // legitimately handle non-XML bodies return an object (Form_8_K returns
-    // `{}`; Form_S_1 parses the text) and never hit either guard.
-    await context.updateProgress(60, `${label} · parsing`);
     let parsed: unknown;
-    try {
-      parsed = await formCls.parse(form!, text);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const detail = `Parse failed for primary doc '${fileName}': ${message}`;
-      await recordDeadLetterSafe("PARSE_ERROR", detail.slice(0, 1024));
-      await recordRunFailed(`PARSE_ERROR: ${detail}`);
-      return { success: false };
-    }
-    if (parsed == null) {
-      const detail = `Parsed document is empty — primary doc '${fileName}' is not the expected XML format for form '${form}'`;
-      await recordDeadLetterSafe("PARSE_ERROR", detail);
-      await recordRunFailed(`PARSE_ERROR: ${detail}`);
-      return { success: false };
+    if (sharedParseIsRead) {
+      const formCls = ALL_FORMS_MAP.get(form!);
+      // A form with no parser class is contained exactly like a parse that
+      // throws, and for the same reason: the `forEach` fan-out in
+      // `formsSweepLoop` has no per-iteration guard, so throwing out of here
+      // abandons every filing queued behind this one — the failure the rest of
+      // this domain is contained to prevent. Failing THIS filing as a
+      // version-gated PARSE_ERROR keeps the sweep going and stays recoverable
+      // once a parser class, or an extractor carrying its own `parse`, is
+      // registered for the form.
+      if (!formCls) {
+        const detail = `No parser class registered for form '${form}', and an extractor of this form reads the shared parse`;
+        await recordDeadLetterSafe("PARSE_ERROR", detail.slice(0, 1024));
+        await recordRunFailed(`PARSE_ERROR: ${detail}`);
+        return { success: false };
+      }
+
+      // Parse is its own containment domain, distinct from store: what parse
+      // sees is the filing's own bytes, so a throw ("Maximum nested tags
+      // exceeded" on a deeply nested legacy HTML table) or an empty result (a
+      // structured-XML form whose primary document has no XML root — e.g.
+      // ownership forms 3/4/5 filed as narrative HTML/text before the
+      // 2003-06-30 XML mandate) is a property of the input, not an extractor
+      // bug. Contain both as a filing-level PARSE_ERROR dead-letter
+      // (version-gated retry) instead of crashing the whole sweep. Parsers that
+      // legitimately handle non-XML bodies return an object (Form_8_K returns
+      // `{}`; Form_S_1 parses the text) and never hit either guard.
+      await context.updateProgress(60, `${label} · parsing`);
+      try {
+        parsed = await formCls.parse(form!, text);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const detail = `Parse failed for primary doc '${fileName}': ${message}`;
+        await recordDeadLetterSafe("PARSE_ERROR", detail.slice(0, 1024));
+        await recordRunFailed(`PARSE_ERROR: ${detail}`);
+        return { success: false };
+      }
+      if (parsed == null) {
+        const detail = `Parsed document is empty — primary doc '${fileName}' is not the expected XML format for form '${form}'`;
+        await recordDeadLetterSafe("PARSE_ERROR", detail);
+        await recordRunFailed(`PARSE_ERROR: ${detail}`);
+        return { success: false };
+      }
     }
 
     // The extractors registered for the form are the single dispatch boundary,

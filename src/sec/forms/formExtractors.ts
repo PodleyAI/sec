@@ -104,6 +104,10 @@ interface FormExtractorCommon<TParsed> {
    * parse runs once and every extractor's `store` sees it. Once a form carries
    * two, each with its own `parse`, they read the same document
    * independently instead of being stuck sharing one parser's output.
+   *
+   * A form whose every document-reading extractor declares one needs no
+   * registered parser class at all — the shared parse is computed only where
+   * some extractor would actually read it.
    */
   readonly parse?: (form: string, text: string) => Promise<TParsed>;
   /**
