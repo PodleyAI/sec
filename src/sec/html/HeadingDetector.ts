@@ -8,10 +8,33 @@ import { emphasisTraitCount } from "./StyleResolver";
 
 const MAX_HEADING_LEN = 200;
 
+/**
+ * An Exchange Act item heading — `Item 2.02`, `ITEM 1.01.`
+ *
+ * Two-part numbering is what scopes this. A registration statement's Part II
+ * numbers its items `Item 13.` and a 10-K `Item 1A.`; neither matches, so the
+ * rule reaches 8-K item vocabulary and nothing else. Measured over the
+ * committed S-1 corpus it moves 0 of 3,753 headings.
+ */
+const ITEM_HEADING = /^item\s+\d+\.\d+\b/i;
+
 /** Stage A gate: is this block a heading at all? Short + >= 2 emphasis traits. */
 export function isHeadingCandidate(text: string, style: ResolvedStyle): boolean {
   const t = text.trim();
   if (t.length === 0 || t.length > MAX_HEADING_LEN) return false;
+  // An 8-K's item heading is punctuated as a sentence — "Item 2.02. Results of
+  // Operations and Financial Condition." — so both prose rules below reject it,
+  // and every item heading in the fixtures is one. It is still the heading the
+  // whole form is organised by, and without it an item's disclosure is filed
+  // under whatever cover-page line preceded it.
+  //
+  // Emphasis is not required, unlike every other candidate: 7 of the 15 item
+  // headings in the 8-K corpus carry no emphasis trait at all. The scope is the
+  // guard instead — this runs on one leaf element's whole text, before prose
+  // coalescing, so a cross-reference mid-sentence ("as described below in Item
+  // 5.07") is never at the start of its own element.
+  if (ITEM_HEADING.test(t)) return true;
+
   // Sentence-ending punctuation at the end signals prose, not a heading.
   if (/[.;:]$/.test(t)) return false;
   // Mid-text sentence punctuation followed by more words also signals prose.

@@ -9,6 +9,7 @@ import { joinSplitHeadings } from "./joinSplitHeadings";
 import { depaginateWithTrace, type DroppedBlock } from "./DePaginator";
 import { buildDocument } from "./buildDocument";
 import { demoteCoverPageHeadings } from "./coverPage";
+import { demoteParentheticalHeadings } from "./parentheticalHeadings";
 import { buildSourceSpanIndex, type SourceSpanIndex } from "./sourceSpanIndex";
 import type { EdgarBlock } from "./types";
 
@@ -60,7 +61,10 @@ export function parseEdgarHtmlWithTrace(html: string, title: string): EdgarParse
   // Demoted after de-pagination: a typeset prospectus repeats "Table of
   // Contents" as a page back-link, so the first match on the raw list can be
   // furniture rather than the index the front matter ends at.
-  const clean = demoteCoverPageHeadings(depaginated);
+  // Cover page first, so its front-matter boundary is measured against the
+  // stream as de-pagination left it; the parenthetical rule is document-wide
+  // and never touches the table-of-contents heading that boundary keys on.
+  const clean = demoteParentheticalHeadings(demoteCoverPageHeadings(depaginated));
   return {
     doc: buildDocument(title, clean),
     blocks: clean,
