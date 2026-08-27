@@ -19,7 +19,16 @@ Reference for `src/storage/observation/`, `src/storage/canonical/`,
 3. **Identity link** (`PersonIdentityLinkRepo` / `CompanyIdentityLinkRepo`) — join from `observation_id` +
    `resolver_version` → `canonical_*_id`. Written inline during extraction.
 4. **Junction** (`Canonical*AddressRepo`, `Canonical*PhoneRepo`) — co-occurrence of
-   canonical entities with addresses/phones at a given resolver version.
+   canonical entities with addresses/phones at a given resolver version. Two writers keep
+   these rows: `EntityObserver`'s incremental +1/-1 during extraction, and
+   `rebuildPersonJunctions` / `rebuildCompanyJunctions`
+   (`src/resolver/rebuildJunctions.ts`), which recompute one resolver version's rows
+   wholesale from the observations and their identity links. **A rebuild expects
+   ingestion to be quiesced**: it purges the version's rows before writing the recomputed
+   ones, so an observation recorded after it read its input but before that purge has its
+   contribution deleted and not written back — self-healing on the next rebuild, wrong in
+   between. The per-row lock the junction repos take does not close that window; only not
+   ingesting during a rebuild does.
 
 **`EntityObserver`** (`src/resolver/EntityObserver.ts`) is the single entry point: form
 storage modules call `observePerson()` / `observeCompany()` rather than writing rows
@@ -54,14 +63,28 @@ titles split into separate rows) at one company (`company_cik`), with a required
 `start_date` (earliest asserting filing date), an optional `end_date` (null = current), and
 `last_seen_date` as the order-safety guard.
 
-A claim participates when it carries `filing_date`, `source_filing_issuer_cik`, and a
-`role_scope` population tag. Tenures are scoped by `(extractor_id, role_scope)`.
+A tenure's `end_date` is set only by inference: a later filing that no longer mentions the
+person reads as evidence they left. That inference is sound for a list that names everyone
+holding a role — an S-1 management section names every officer and director, so a later one
+omitting Jane Smith says she left — and it is nonsense for a list that only names whoever
+happened to appear — a Form D signature block names whoever signed, so omitting her says
+nothing. `role_scope` is the tag that tells the two apart: it names which list inside the
+form a person was read from (`form-d:related-person`, `form-d:signature`, `s1:management`,
+`section16:reporting-owner`, `cfportal:contact`, …), and tenures are keyed
+`(extractor_id, role_scope)` so one list can never close another's tenures.
 
-**Only forms enumerating a COMPLETE population call
-`observer.closeUnassertedPersonRoles(...)`** after their person loop — currently Form D
-related persons (`form-d:related-person`) and the S-1 management section (`s1:management`).
-Everything else (signatures, sales-comp recipients, Section 16 owners, CFPORTAL contacts and
-owners) is assert-only, because absence there means nothing.
+There are two kinds:
+
+- **Complete rosters** name everyone holding the role, so absence is evidence of departure.
+  These call `observer.closeUnassertedPersonRoles(...)` after their person loop — today,
+  Form D related persons (`form-d:related-person`) and the S-1 management section
+  (`s1:management`).
+- **Assert-only lists** name only whoever happened to appear — signatures, sales-comp
+  recipients, Section 16 owners, CFPORTAL contacts and owners, and so on — so absence proves
+  nothing. These never call closure.
+
+A claim participates in role-tenure tracking at all only when it carries `filing_date`,
+`source_filing_issuer_cik`, and a `role_scope`.
 
 Closure is guarded by `filing_date > last_seen_date` (re-checked under a per-tenure lock), so
 out-of-order replays never close a role a newer filing asserts. The full set of behaviours:
@@ -73,9 +96,6 @@ out-of-order replays never close a role a newer filing asserts. The full set of 
   non-asserting filing;
 - a departure-and-return yields two tenure rows.
 
-Roster closure is **completeness-gated**: S-1 management only when no extracted row was
-dropped by filtering, Form D only when at least one person was actually observed.
-
 Placeholder titles ("Signer", "Authorized Representative", "Sales Compensation Recipient",
 "Connection") stay on the observation title rows but never mint tenures. Closure is
 alias-aware: a roster asserting a merged person under the alias target does not close the
@@ -83,6 +103,36 @@ retired id's open tenure.
 
 `person_role` rows are resolver-versioned like the junctions: purged by `dropPrevious`
 (person), rebuilt by re-extraction replays (batch `resolve` rebuilds identity links only).
+
+### Roster completeness
+
+Roster closure is **completeness-gated**, and the gate lives inside
+`closeUnassertedPersonRoles`, not at the call site. Each complete-roster caller hands over
+a `complete` verdict — S-1 management `meta.complete && dropped === 0`, Form D
+`observedRelatedPersons > 0 && droppedRelatedPersons === 0` — and always calls, so the
+verdict is written down whichever way it went. A `false` verdict closes nothing.
+
+The verdict lands in **`role_roster_completeness`** (`RoleRosterCompletenessRepo`,
+`src/storage/canonical/`), keyed
+`(accession_number, extractor_id, role_scope, company_cik)` — the same tuple the closure
+runs over — and carrying the filing date it ran with plus the boolean. It is **not**
+resolver-versioned: it is a property of the filing's extraction, so a re-key ceremony
+leaves it alone and a re-extraction rewrites it.
+
+The row exists because the decision is otherwise unrecoverable. A person the extractor
+declines — junk name field, overlong name, under a confidence floor — never reaches
+`observePerson`, so no observation anywhere records that the filing named them. A later
+pass reading the stored observations sees a roster that looks whole, and closing from it
+would end the roles of everyone the dropped row still asserted.
+
+That later pass is `rebuildPersonRoles` (`src/resolver/rebuildPersonRoles.ts`), which
+recomputes a resolver version's tenures wholesale from the observations, reading these
+rows rather than re-deriving them. **Existing data carries no such rows, and a rebuild
+over an un-backfilled corpus does not merely decline to close: the purge runs
+unconditionally before the re-insert, so it DELETES every `end_date` the incremental path
+recorded and re-opens every departure the corpus knew about.** Backfill by re-extracting
+the filings before running it. Like the junction rebuilds, it also expects ingestion to be
+quiesced.
 
 ```bash
 sec query person-roles <cik> [--current]
@@ -109,6 +159,8 @@ has three: `previous`, `current`, `next`.
 sec resolve --kind person  --resolver-version 1.0.0 --all
 sec resolve --kind company --resolver-version 1.0.0 --all
 sec resolve --kind company --resolver-version 1.0.0 --all --renormalize
+# person only — the company line refuses it
+sec resolve --kind person  --resolver-version 1.0.0 --all --rebuild-roles
 
 sec version coverage resolver person|company|sponsor-family|underwriter-family
 sec version drop-previous resolver person|company
@@ -120,6 +172,31 @@ resolving, so a normalizer change takes effect without re-extraction. It calls t
 helpers the extraction path writes with (`normalizePersonNameParts`, `normalizeCompanyName`)
 precisely so a second implementation cannot drift and re-key half the tier to a generation
 nothing else produces.
+
+`sec resolve` then recomputes the tables derived from the links it just wrote — **the
+resolved kind's tables and no others**. A person run rebuilds the person junctions (and,
+on request, `person_role`); a company run rebuilds the company junctions. The junctions are
+grouped afresh from `(observation → identity_link → canonical_id)` at that version, because
+a re-resolve otherwise leaves them counted against the previous pass's canonical ids. Each
+projection is isolated the way a single row is: one that raises — a link whose observation
+is gone, an observation whose `filings` row is gone — is reported on its own line and the
+others still run. Both of those raises land before the projection purges anything, so a
+failure of that kind leaves its table exactly as it was rather than emptied.
+
+The per-kind scoping is load-bearing, not tidiness. A resolver version is a per-kind
+number that carries no per-kind name, and `db setup` seeds **every** resolver id at
+`1.0.0`, so on a default install the person and company versions are the same string:
+an off-kind rebuild does not find an empty table at that version, it finds the other
+tier's live rows and recomputes them from links the run never wrote.
+
+`--rebuild-roles` adds `person_role` to that set, on `--kind person` only — asking for it
+on a company run is **refused**, because `person_role` is the person tier's and a company
+pass writes no link that feeds it. It is off by default even on a person run because it is
+not symmetric with the junctions: it **deletes** every tenure at the version before
+re-deriving them, and it can only re-close a tenure whose filing recorded a complete roster
+in `role_roster_completeness`. Over a corpus ingested before those rows were written it
+finds no complete roster, closes nothing, and so re-opens every departure the incremental
+path had recorded. Re-extract the roster filings first.
 
 ### The family tiers
 

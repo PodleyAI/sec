@@ -48,6 +48,12 @@ interface LeafOpts {
   readonly only?: ReturnType<typeof parseSpacProcessOnly>;
   readonly concurrency?: number;
   readonly simple?: boolean;
+  readonly types?: string;
+  readonly since?: string;
+  readonly limit?: number;
+  readonly cik?: number;
+  readonly all8k?: boolean;
+  readonly downloadOnly?: boolean;
 }
 
 /**
@@ -98,6 +104,43 @@ function applyLeafOptions(cmd: Command, leafId: string): Command {
       );
   }
 
+  if (leafId === "documents") {
+    cmd
+      .option(
+        "--types <list>",
+        "Comma-separated forms to convert (default: the narrative set in CONVERTIBLE_FORMS)"
+      )
+      .option("--since <date>", "Only filings filed on or after this date (YYYY-MM-DD)")
+      .option(
+        "--cik <cik>",
+        "Convert only this issuer's filings — what you want after `spac process <cik>`, " +
+          "since the unfiltered sweep works newest-first across every filer",
+        parseIntOption
+      )
+      .option(
+        "--limit <n>",
+        "How many filings to convert in this run (default 500) — a backfill is many runs",
+        parseIntOption
+      )
+      .option(
+        "--all-8k",
+        "Convert 8-Ks from every filer, not just CIKs in the spac table — the default " +
+          "skips them because every reporting company files them",
+        false
+      )
+      .option(
+        "--download-only",
+        "Fetch each selected filing into the accession-doc cache and stop — no parsing, " +
+          "no rows written; re-running converts them with no further requests",
+        false
+      )
+      .option(
+        "--force",
+        "Re-convert filings already stored at the current converter version",
+        false
+      );
+  }
+
   if (leafId === "portals" || leafId === "crowdfunding" || leafId === "reg-a") {
     cmd.option(
       "--shard <i/N>",
@@ -145,6 +188,22 @@ async function runLeaf(leaf: SyncLeaf, opts: LeafOpts, stepId: string | undefine
 
       if (leaf.id === "facts") {
         ctx = { ...ctx, force: opts.force ?? false, retryFailed: opts.retryFailed ?? false };
+      }
+
+      if (leaf.id === "documents") {
+        ctx = {
+          ...ctx,
+          force: opts.force ?? false,
+          from: opts.since,
+          formTypes: opts.types === undefined ? undefined : opts.types.split(","),
+          limit: opts.limit,
+          all8k: opts.all8k ?? false,
+          downloadOnly: opts.downloadOnly ?? false,
+          // Rejected by `parseIntOption` at parse time rather than here: a
+          // mistyped CIK that fell through would convert the newest 500 filings
+          // of every filer, which looks like success and is not what was asked.
+          cik: opts.cik,
+        };
       }
 
       if (leaf.id === "spacs") {

@@ -130,6 +130,42 @@ export class CanonicalJunctionRepo<TRow extends CanonicalJunctionRow> {
     });
   }
 
+  /**
+   * Write one already-aggregated junction row outright — no read-modify-write,
+   * unlike {@link record}'s increment. For a projection that recomputes
+   * `observation_count` and the seen-at bounds from the current observations
+   * and replaces a resolver version's rows wholesale rather than reconciling
+   * them one observation at a time.
+   *
+   * Serialised per composite PK, like `record`/`remove`, so this one write
+   * cannot land inside another caller's read-modify-write of the same key.
+   * That is the whole of the guarantee: the lock spans a single row, not a
+   * caller's purge-then-write sequence, so an observation recorded after a
+   * projection read its input but before {@link deleteForResolverVersion}
+   * runs has its contribution deleted and never written back — self-healing
+   * on the next rebuild, wrong in between. A projection rebuild therefore
+   * expects ingestion to be quiesced.
+   */
+  protected putRow(row: TRow): Promise<void> {
+    const idValue = (row as any)[this.idColumn];
+    const assocValue = (row as any)[this.assocColumn];
+    return junctionLocks.lock(this.lockKey(idValue, assocValue, row.resolver_version), async () => {
+      await this.repo.put(row);
+    });
+  }
+
+  /**
+   * The projection's public replace path — one row, already aggregated, in
+   * place of whatever the resolver version held for that composite PK. See
+   * {@link putRow} for what the serialisation does and does not cover. `TRow`
+   * is the subclass's own row type, so each
+   * `Canonical{Person,Company}{Address,Phone}Repo` exposes this concretely
+   * typed without restating it.
+   */
+  replaceAggregate(row: TRow): Promise<void> {
+    return this.putRow(row);
+  }
+
   /** All junction rows for a canonical entity at a resolver version. */
   async listForCanonical(idValue: string, resolver_version: string): Promise<TRow[]> {
     return (await this.repo.query({ [this.idColumn]: idValue, resolver_version } as any)) ?? [];

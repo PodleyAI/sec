@@ -28,6 +28,9 @@ import { ENTITY_TICKER_REPOSITORY_TOKEN } from "../storage/entity/EntityTickerSc
 import { SIC_CODE_REPOSITORY_TOKEN } from "../storage/entity/SicCodeSchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../storage/facts/CompanyFactsSchema";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
+import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../storage/document/FilingDocumentSchema";
+import { EXTRACTION_CACHE_REPOSITORY_TOKEN } from "../storage/extraction/ExtractionCacheSchema";
+import { FILING_SECTION_REPOSITORY_TOKEN } from "../storage/document/FilingSectionSchema";
 import { INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingSchema";
 import { ISSUER_REPOSITORY_TOKEN } from "../storage/investment-offering/IssuerSchema";
@@ -74,6 +77,7 @@ import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/Com
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
 import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
 import { PERSON_ROLE_REPOSITORY_TOKEN } from "../storage/canonical/PersonRoleSchema";
+import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/canonical/RoleRosterCompletenessSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
@@ -414,6 +418,9 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(SIC_CODE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(EXTRACTION_CACHE_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(FILING_SECTION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CROWDFUNDING_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CROWDFUNDING_REPORTS_REPOSITORY_TOKEN).deleteAll();
@@ -440,6 +447,7 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(PERSON_ROLE_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CANONICAL_PERSON_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CANONICAL_COMPANY_REPOSITORY_TOKEN).deleteAll();

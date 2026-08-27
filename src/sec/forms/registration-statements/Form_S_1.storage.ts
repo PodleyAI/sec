@@ -8,6 +8,7 @@ import { globalServiceRegistry, type IExecuteContext, type ModelConfig } from "w
 import { normalizeFamilyName } from "../../../resolver/FamilyResolver";
 import { SponsorFamilyResolver } from "../../../resolver/SponsorFamilyResolver";
 import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
+import { COMPLETE_ROSTER_ROLE_SCOPES } from "../../../resolver/roleScopes";
 import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/BeneficialOwnershipRepo";
 import { CanonicalSponsorFamilyAliasRepo } from "../../../storage/canonical/CanonicalSponsorFamilyAliasRepo";
 import { CanonicalSponsorFamilyRepo } from "../../../storage/canonical/CanonicalSponsorFamilyRepo";
@@ -837,7 +838,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           titles: r.titles,
           relationship: r.relationship ?? "s1:management",
           filing_date: args.filing_date,
-          role_scope: "s1:management",
+          role_scope: COMPLETE_ROSTER_ROLE_SCOPES.s1Management,
           // Store birth_year (not age) so present age stays recomputable; a
           // stated age is relative to the filing date.
           birth_year: birthYearFromAge(r.age, args.filing_date),
@@ -866,15 +867,18 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       // it cannot see a row this loop itself declined. A name over the leader
       // slug cap is dropped here, and closing on the remainder would write the
       // departure of everyone that row still asserts.
-      if (meta.complete && dropped === 0) {
-        await observer.closeUnassertedPersonRoles({
-          accession_number,
-          extractor_id: EXTRACTOR_ID,
-          role_scope: "s1:management",
-          company_cik: cik,
-          filing_date: args.filing_date,
-        });
-      }
+      //
+      // The verdict is handed to the closure rather than gating the call, so
+      // it is recorded either way: a declined row leaves no observation, so
+      // nothing else would remember that this roster was partial.
+      await observer.closeUnassertedPersonRoles({
+        accession_number,
+        extractor_id: EXTRACTOR_ID,
+        role_scope: COMPLETE_ROSTER_ROLE_SCOPES.s1Management,
+        company_cik: cik,
+        filing_date: args.filing_date,
+        complete: meta.complete && dropped === 0,
+      });
       return rows.length - dropped;
     },
   });

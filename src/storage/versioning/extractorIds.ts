@@ -29,7 +29,15 @@ export const EXTRACTOR_IDS = [
   "25-15",
   "RW",
 ] as const;
-export type ExtractorId = (typeof EXTRACTOR_IDS)[number];
+/**
+ * An extractor's id. Deliberately a plain string, not a union over
+ * {@link EXTRACTOR_IDS}: a downstream package registers its own extractors
+ * through the form-extractor registry, and a closed union would make that
+ * impossible without editing this file. {@link EXTRACTOR_IDS} remains the list
+ * sec itself ships — what `db setup` seeds `component_versions` from, and what
+ * the CLI offers for completion.
+ */
+export type ExtractorId = string;
 
 /**
  * The extractors that call `EntityObserver.observePerson`, and so are the only
@@ -361,17 +369,27 @@ export function isNonfatalTimelineExtractor(extractorId: string): boolean {
  *
  * Forms not listed here have no such dependency and run afterwards.
  */
-const SWEEP_PRIORITY: readonly ExtractorId[] = ["S-1", "RW", "424", "8-K", "merger-proxy", "25-15"];
+export const SWEEP_PRIORITY: readonly ExtractorId[] = [
+  "S-1",
+  "RW",
+  "424",
+  "8-K",
+  "merger-proxy",
+  "25-15",
+];
 
 /**
  * Sort forms into {@link SWEEP_PRIORITY} order, stably.
  *
- * Not merely cosmetic: the default form list is `Object.keys(FORM_TO_EXTRACTOR_ID)`,
- * and JS enumerates integer-like keys first in ascending numeric order — so the
- * bare `"25"` came fourth, ahead of every registration statement. Ranks are
- * assigned by extractor id, and unranked forms (including any with no
- * registered extractor, which the caller filters and warns about separately)
- * keep their declaration order at the end.
+ * Not merely cosmetic: the default form list comes from the form-extractor
+ * registry (`ComputeFormsWorklistTask`'s `allForms`, built from
+ * `listFormExtractorKeys()`) in whatever order `registerFormExtractors.ts`
+ * happened to register each extractor — an accident of import order, not a
+ * dependency order. Without this sort, a SPAC-gated form (8-K, merger-proxy,
+ * 25-15) can land ahead of the registration statement that mints the `spac`
+ * row it depends on. Ranks are assigned by extractor id, and unranked forms
+ * (including any with no registered extractor, which the caller filters and
+ * warns about separately) keep their declaration order at the end.
  */
 export function sortFormsForSweep(forms: readonly string[]): string[] {
   const rank = (form: string): number => {

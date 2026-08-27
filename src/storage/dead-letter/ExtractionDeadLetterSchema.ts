@@ -71,7 +71,14 @@ export const DEAD_LETTER_REASON_CODES = [
   // recovering a filing is not the same as the converter having worked.
   "CONVERTER_NO_STRUCTURE",
 ] as const;
-export type DeadLetterReasonCode = (typeof DEAD_LETTER_REASON_CODES)[number];
+
+/**
+ * A dead letter's reason code. A plain string rather than a union over the
+ * codes above: an extractor registered outside this repo fails in ways this
+ * file cannot enumerate. The constants remain the vocabulary sec's own
+ * extractors use, and the retry policy still switches on them.
+ */
+export type DeadLetterReasonCode = string;
 
 /**
  * Reason codes that reflect a transient model/provider *availability* failure

@@ -89,7 +89,16 @@ export function parseSecHeader(txt: string): FormS1Header {
   return { sic, sicDescription, cik, companyName, filingDate };
 }
 
-interface DocBlock {
+/**
+ * One `<DOCUMENT>` block of an EDGAR submission: the primary document, or one
+ * of the exhibits, graphics and XBRL payloads filed alongside it.
+ *
+ * Exported because a submission is a directory, not a file. The converter
+ * renders more than the primary document, and the only place the sibling list
+ * exists is here — EDGAR's submissions API names `primaryDocument` and nothing
+ * else.
+ */
+export interface SubmissionDocument {
   readonly type: string | null;
   readonly sequence: number | null;
   readonly filename: string | null;
@@ -97,8 +106,9 @@ interface DocBlock {
   readonly body: string;
 }
 
-function parseDocuments(txt: string): DocBlock[] {
-  const blocks: DocBlock[] = [];
+/** Every `<DOCUMENT>` block in a full-submission `.txt`, in filed order. */
+export function parseSubmissionDocuments(txt: string): SubmissionDocument[] {
+  const blocks: SubmissionDocument[] = [];
   const re = /<DOCUMENT>([\s\S]*?)<\/DOCUMENT>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(txt)) !== null) {
@@ -132,7 +142,7 @@ const EXHIBIT_DETAIL_MAX = 1024;
 
 export function parseSubmissionExhibits(txt: string): SubmissionExhibit[] {
   const out: SubmissionExhibit[] = [];
-  for (const d of parseDocuments(txt)) {
+  for (const d of parseSubmissionDocuments(txt)) {
     if (d.type == null) continue;
     const type = d.type.trim();
     if (SKIP_EXHIBIT_TYPES.test(type) || SKIP_EXHIBIT_TYPE_PREFIX.test(type)) continue;
@@ -178,7 +188,7 @@ export function formatExhibitDetail(exhibits: readonly SubmissionExhibit[]): str
  * the EDGAR exhibit type `EX-101.INS`, or any `.xml` member whose body opens
  * an `xbrl` root element (filers vary in how they label the exhibit).
  */
-function findXbrlInstance(docs: readonly DocBlock[]): string | null {
+function findXbrlInstance(docs: readonly SubmissionDocument[]): string | null {
   const byType = docs.find((d) => d.type !== null && d.type.toUpperCase().startsWith("EX-101.INS"));
   if (byType) return byType.body;
   const byFilename = docs.find(
@@ -191,11 +201,32 @@ function findXbrlInstance(docs: readonly DocBlock[]): string | null {
 }
 
 /** Finds the iXBRL-tagged `EX-FILING FEES` exhibit (filing-fee table) when present. */
-function findFeeExhibit(docs: readonly DocBlock[]): string | null {
+function findFeeExhibit(docs: readonly SubmissionDocument[]): string | null {
   const doc = docs.find(
     (d) => d.type !== null && d.type.toUpperCase().startsWith("EX-FILING FEES")
   );
   return doc ? doc.body : null;
+}
+
+/**
+ * The submission's primary document — the filing as a person reads it.
+ *
+ * The block whose `<TYPE>` equals the form, else `<SEQUENCE> 1`, else the
+ * first. Undefined only for an empty list, which callers with a bare
+ * primary-doc body handle before asking.
+ *
+ * One rule in one place because three callers depend on agreeing: the S-1
+ * parser, the 8-K slicer, and the markdown converter, which records WHICH file
+ * it converted. Two spellings of "primary" would put one filename in the
+ * database and render a different document.
+ */
+export function selectPrimaryDocument(
+  docs: readonly SubmissionDocument[],
+  form: string
+): SubmissionDocument | undefined {
+  const byType = docs.find((d) => d.type !== null && d.type.toUpperCase() === form.toUpperCase());
+  const bySeq = docs.find((d) => d.sequence === 1);
+  return byType ?? bySeq ?? docs[0];
 }
 
 /**
@@ -206,7 +237,7 @@ function findFeeExhibit(docs: readonly DocBlock[]): string | null {
  */
 export function parseRegistrationSubmission(form: string, txt: string): FormS1Parsed {
   const header = parseSecHeader(txt);
-  const docs = parseDocuments(txt);
+  const docs = parseSubmissionDocuments(txt);
   if (docs.length === 0) {
     // No <DOCUMENT> envelope: treat the input as a bare body. If a SEC-HEADER is
     // present (a malformed/truncated submission missing its document blocks), drop
@@ -214,9 +245,7 @@ export function parseRegistrationSubmission(form: string, txt: string): FormS1Pa
     const html = bodyAfterHeader(txt);
     return { header, html, xbrlInstanceXml: null, feeExhibitHtml: null };
   }
-  const byType = docs.find((d) => d.type !== null && d.type.toUpperCase() === form.toUpperCase());
-  const bySeq = docs.find((d) => d.sequence === 1);
-  const primary = byType ?? bySeq ?? docs[0];
+  const primary = selectPrimaryDocument(docs, form)!;
   return {
     header,
     html: primary.body,
@@ -239,14 +268,12 @@ export interface EightKSubmissionDocs {
  * input is the primary body and there are no exhibits.
  */
 export function parseEightKSubmission(form: string, txt: string): EightKSubmissionDocs {
-  const docs = parseDocuments(txt);
+  const docs = parseSubmissionDocuments(txt);
   if (docs.length === 0) {
     const html = bodyAfterHeader(txt);
     return { primaryHtml: html, exhibitsHtml: [] };
   }
-  const byType = docs.find((d) => d.type !== null && d.type.toUpperCase() === form.toUpperCase());
-  const bySeq = docs.find((d) => d.sequence === 1);
-  const primary = byType ?? bySeq ?? docs[0];
+  const primary = selectPrimaryDocument(docs, form)!;
   const exhibitsHtml = docs
     .filter((d) => d.type !== null && d.type.toUpperCase().startsWith("EX-99"))
     .map((d) => d.body);

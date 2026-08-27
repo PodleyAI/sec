@@ -19,6 +19,9 @@ import { ENTITY_TICKER_REPOSITORY_TOKEN } from "../storage/entity/EntityTickerSc
 import { SIC_CODE_REPOSITORY_TOKEN } from "../storage/entity/SicCodeSchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../storage/facts/CompanyFactsSchema";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
+import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../storage/document/FilingDocumentSchema";
+import { EXTRACTION_CACHE_REPOSITORY_TOKEN } from "../storage/extraction/ExtractionCacheSchema";
+import { FILING_SECTION_REPOSITORY_TOKEN } from "../storage/document/FilingSectionSchema";
 import { INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingSchema";
 import { ISSUER_REPOSITORY_TOKEN } from "../storage/investment-offering/IssuerSchema";
@@ -89,6 +92,7 @@ import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KE
 import { migrateLegacyForm8KEventsTable } from "../storage/form-8k-event/Form8KEventLegacyMigration";
 import { migrateAddressRegionNullable } from "../storage/address/AddressRegionNullableMigration";
 import { alignPostgresColumnTypes } from "./alignPostgresColumnTypes";
+import { dropStaleCheckConstraints } from "./dropStaleCheckConstraints";
 import {
   addMissingColumnsPostgres,
   addMissingColumnsSqlite,
@@ -109,6 +113,7 @@ import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/Com
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
 import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
 import { PERSON_ROLE_REPOSITORY_TOKEN } from "../storage/canonical/PersonRoleSchema";
+import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/canonical/RoleRosterCompletenessSchema";
 import { FIELD_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/FieldProvenanceSchema";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
@@ -164,6 +169,9 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(SIC_CODE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(EXTRACTION_CACHE_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(FILING_SECTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CROWDFUNDING_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CROWDFUNDING_REPORTS_REPOSITORY_TOKEN).setupDatabase();
@@ -216,6 +224,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(PERSON_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PERSON_ROLE_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN).setupDatabase();
@@ -251,8 +260,9 @@ export async function setupAllDatabases(): Promise<void> {
   for (const token of listDatabaseExtensionTokens()) {
     await globalServiceRegistry.get(token).setupDatabase();
   }
-  // Add any column an existing database is missing outright, then widen / relax
-  // any it still has at a narrower or stricter shape than the schema declares.
+  // Add any column an existing database is missing outright, widen / relax any
+  // it still has at a narrower or stricter shape than the schema declares, then
+  // drop any CHECK bound the schema has since removed.
   // Both run after the extension loop, because the table registry is only fully
   // populated once every superset has built its repos through createStorage.
   //
@@ -263,6 +273,11 @@ export async function setupAllDatabases(): Promise<void> {
     await addMissingColumnsPostgres();
   }
   await alignPostgresColumnTypes();
+  // Third: drop a `CHECK (col >= 0)` the schema has since relaxed. Last of the
+  // three because it removes a guarantee rather than adding one, and because a
+  // column the first pass just added is already unbounded — there is nothing
+  // for this to find on it.
+  await dropStaleCheckConstraints();
   // View DDL is created here only on the SQLite path; the Postgres backend
   // owns its own view bootstrap (and getDb() now throws when SEC_DB_TYPE
   // isn't sqlite). Tests use the in-memory backend where views don't apply.

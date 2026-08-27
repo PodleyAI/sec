@@ -55,6 +55,13 @@ export const PersonObservationSchema = Type.Object({
   // The person's titles live in `person_observation_titles` (one row per single
   // title, keyed by observation_id) — see PersonObservationTitleSchema.
   relationship: TypeNullable(Type.String({ maxLength: 64 })),
+  /**
+   * Which list inside the form this person was read from, e.g.
+   * `form-d:related-person`, `s1:management`. Null for a claim that carries
+   * none, which is also a claim that mints no tenure. Two lists never close
+   * each other's tenures.
+   */
+  role_scope: TypeNullable(Type.String({ maxLength: 64 })),
   // Leadership enrichment (embarc-facing). `birth_year` is derived from a stated
   // age in the filing (filing_year − age) so present age stays recomputable;
   // `bio` is the person's biography prose from the management section.

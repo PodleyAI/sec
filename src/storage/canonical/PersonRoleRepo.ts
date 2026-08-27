@@ -58,8 +58,11 @@ export function personRoleAssertionKey(canonical_person_id: string, title: strin
 /**
  * The tenure match key: lowercased and clamped to the stored column width, so
  * an overlong title matches the row it created instead of minting duplicates.
+ *
+ * Exported so a batch pass recomputing tenures from stored observations keys
+ * them exactly as the assertion path did.
  */
-function normalizeRoleTitle(title: string): string {
+export function normalizeRoleTitle(title: string): string {
   return title.trim().toLowerCase().slice(0, 256);
 }
 
@@ -235,11 +238,11 @@ export class PersonRoleRepo {
   }
 
   /**
-   * A roster filing enumerated the complete `(extractor_id, role_scope)`
-   * population for the company; close every open tenure it did not assert.
-   * Guarded by `filing_date > last_seen_date` (strict), so an out-of-order
-   * older filing can never close a role a newer filing asserts, and same-day
-   * filings never close each other's assertions. Returns the number closed.
+   * This filing enumerated the complete `(extractor_id, role_scope)` roster
+   * for the company; close every open tenure it did not assert. Guarded by
+   * `filing_date > last_seen_date` (strict), so an out-of-order older filing
+   * can never close a role a newer filing asserts, and same-day filings
+   * never close each other's assertions. Returns the number closed.
    */
   async closeUnasserted(args: CloseUnassertedArgs): Promise<number> {
     const candidates =
@@ -344,6 +347,32 @@ export class PersonRoleRepo {
 
   async count(criteria?: SearchCriteria<PersonRole>): Promise<number> {
     return await this.repo.count(criteria);
+  }
+
+  /**
+   * Write one already-computed tenure outright, with no read-modify-write of
+   * whatever the natural key currently holds — for a pass that derives the
+   * whole tenure (its bounds, its supporting accessions) from the current
+   * observations and replaces a resolver version's rows wholesale rather than
+   * reconciling them one assertion at a time. `role_id` is the storage's to
+   * assign and `created_at` is stamped here, so neither is a caller's to
+   * carry over.
+   *
+   * Serialised per tenure natural key like {@link recordAssertion}, so one
+   * write cannot land inside another caller's read-modify-write of the same
+   * key. That is the whole of the guarantee: the lock spans a single row, not
+   * a caller's purge-then-write sequence, so a rebuild expects ingestion to be
+   * quiesced.
+   */
+  async insertTenure(tenure: Omit<PersonRole, "role_id" | "created_at">): Promise<PersonRole> {
+    return tenureLocks.lock(
+      this.tenureLockKey(tenure, tenure.normalized_title),
+      async () =>
+        await this.repo.put({
+          ...tenure,
+          created_at: new Date().toISOString(),
+        } as Parameters<typeof this.repo.put>[0])
+    );
   }
 
   async deleteForResolverVersion(resolver_version: string): Promise<number> {

@@ -188,11 +188,16 @@ export class VerifyFilingTask extends Task<
       };
     }
 
-    await context.updateProgress(0.1, "Parsing");
+    await context.updateProgress(10, "Parsing");
     const parsed = parseEdgarHtmlWithTrace(source.html, source.label);
-    const parseTrace = buildParseTrace(source.html, source.label, parsed);
     let parse: ParseSummary | undefined;
     if (stages.includes("parse")) {
+      // Built only for the stage that reads it. `buildParseTrace` runs the
+      // coverage measurement, which loads the filing into cheerio a SECOND time
+      // (`visibleTextRuns`) and sweeps every visible run against every block —
+      // seconds of work on a multi-megabyte filing, and none of it is what
+      // `verify sections` or `verify chunks` were asked for.
+      const parseTrace = buildParseTrace(source.html, source.label, parsed);
       write("parse", parseTrace);
       const drops = new Map<string, { blocks: number; chars: number }>();
       for (const d of parseTrace.dropped) {
@@ -227,7 +232,7 @@ export class VerifyFilingTask extends Task<
     let sections: SectionSummary | undefined;
     let chunks: ChunkSummary | undefined;
     if (stages.includes("sections") || stages.includes("chunks")) {
-      await context.updateProgress(0.5, "Segmenting");
+      await context.updateProgress(50, "Segmenting");
       const segmentation = new DocumentTreeSegmenter().segmentDocument(
         parsed.doc,
         parsed.sourceByNodeId
@@ -252,7 +257,7 @@ export class VerifyFilingTask extends Task<
         };
       }
       if (stages.includes("chunks")) {
-        await context.updateProgress(0.8, "Chunking");
+        await context.updateProgress(80, "Chunking");
         const risk = segmentation.sections.find((s) => s.name === S1_SECTIONS.RISK_FACTORS);
         if (risk !== undefined) {
           const chunkTrace = buildChunkTrace(risk.text);

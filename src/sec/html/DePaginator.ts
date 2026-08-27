@@ -3,9 +3,9 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { renderMarkdown } from "workglow";
+import { NodeKind, renderMarkdown, uuid4 } from "workglow";
 import type { TableCell, TableNode } from "workglow";
-import { SECTION_HEADING_PATTERNS } from "../forms/registration-statements/s1/DocumentSegmenter";
+import { isTargetSectionLine } from "./joinSplitHeadings";
 import { isPageNumber } from "./pageFurniture";
 import type { EdgarBlock, SourceSpan } from "./types";
 
@@ -29,6 +29,45 @@ function furnitureKey(b: EdgarBlock): string | undefined {
 }
 
 /**
+ * A table carrying exactly one non-empty cell, as the paragraph it really is.
+ *
+ * EDGAR filers wrap page furniture in tables constantly — a footer page number,
+ * the per-page "Table of Contents" back-link — and a one-cell table is not a
+ * table at all, it is a layout box with a line of text in it. `isLayoutTable`
+ * does not catch these: it looks for a cell holding BLOCK children, and these
+ * cells hold bare text.
+ *
+ * That mattered more than it looks. Every furniture rule below reads
+ * paragraphs, so anything the walk emitted as a table was never even tested:
+ * across the 42-filing fixture corpus, 1,338 of 1,741 single-cell tables
+ * already matched `isPageNumber` or `isTocBackLink` and survived anyway, and
+ * each one reached the reader as a phantom one-column grid. Unwrapping first
+ * puts them in front of the rules that were always meant to catch them.
+ *
+ * A table with a caption is left alone: the caption is information a paragraph
+ * has nowhere to put.
+ */
+function unwrapSingleCellTable(b: EdgarBlock): EdgarBlock {
+  if (b.type !== "table" || b.node.caption) return b;
+  const cells = [...b.node.headerRows, ...b.node.rows].flat();
+  const filled = cells.filter((c) => c.text.trim() !== "");
+  if (filled.length !== 1) return b;
+  const text = filled[0].text.trim();
+  return {
+    type: "paragraph",
+    node: {
+      nodeId: uuid4(),
+      kind: NodeKind.PARAGRAPH,
+      range: { startOffset: 0, endOffset: text.length },
+      text,
+    },
+    // The span is the TABLE's, so the unwrapped text still points at the bytes
+    // it came from and a drop of it stays attributable.
+    source: b.source,
+  };
+}
+
+/**
  * Whether a heading names a section the segmenter builds sections from. Such a
  * heading is exempt from the repetition rule entirely: a prospectus that prints
  * its section title as the running header of every page inside that section
@@ -40,11 +79,7 @@ function furnitureKey(b: EdgarBlock): string | undefined {
  * there is protected here without a second list to keep in sync.
  */
 function isTargetSectionHeading(b: EdgarBlock): boolean {
-  if (b.type !== "heading") return false;
-  const line = b.text.replace(/\s+/g, " ").trim();
-  return Object.values(SECTION_HEADING_PATTERNS).some((patterns) =>
-    patterns.some((re) => re.test(line))
-  );
+  return b.type === "heading" && isTargetSectionLine(b.text);
 }
 
 /**
@@ -100,7 +135,13 @@ export function depaginate(blocks: EdgarBlock[]): EdgarBlock[] {
  * is either a walk that never emitted it or a rule here that ate it, and
  * without this there is no way to tell those apart.
  */
-export function depaginateWithTrace(blocks: EdgarBlock[]): DepaginateResult {
+export function depaginateWithTrace(input: EdgarBlock[]): DepaginateResult {
+  // --- Pass 0: a one-cell table is a paragraph in a layout box ---
+  // Before the tally, so an unwrapped block votes in it: the per-page "Table of
+  // Contents" back-link is table-wrapped in most filings, and it is the
+  // repetition rule rather than any pattern that identifies it.
+  const blocks = input.map(unwrapSingleCellTable);
+
   // --- Pass 1: frequency table of short prose and short heading text ---
   const freq = new Map<string, number>();
   for (const b of blocks) {

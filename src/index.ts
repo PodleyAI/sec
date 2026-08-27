@@ -65,6 +65,12 @@ export {
 export * from "./config/Constants";
 export { createStorage } from "./config/createStorage";
 export { DefaultDI } from "./config/DefaultDI";
+export {
+  defineStorage,
+  registerStorages,
+  type StorageDefinition,
+  type StorageFactory,
+} from "./config/storageRegistry";
 export { EnvToDI, SecCliConfigurationError } from "./config/EnvToDI";
 export { bootstrapSecRuntime } from "./config/bootstrapSecRuntime";
 export { registerSecModels } from "./config/registerModels";
@@ -144,6 +150,21 @@ export {
   registerResolverExtension,
   type ResolverExtension,
 } from "./resolver/resolverExtensions";
+export {
+  extractorKey,
+  extractorReadsFullSubmission,
+  extractorsForForm,
+  formNeedsDocument,
+  formNeedsFullSubmission,
+  formsForExtractorKeys,
+  getFormExtractor,
+  listFormExtractorKeys,
+  registerFormExtractor,
+  type FormExtractor,
+  type FormExtractorStoreArgs,
+  type FullSubmissionProbe,
+} from "./sec/forms/formExtractors";
+export { registerSecFormExtractors } from "./config/registerFormExtractors";
 
 // ── Family-tier primitives for downstream resolvers ────────────────────────
 export { FamilyResolver, normalizeFamilyName } from "./resolver/FamilyResolver";
@@ -235,6 +256,7 @@ export {
   clearEnvDerivedTokensForTesting,
   resetDependencyInjectionsForTesting,
 } from "./config/TestingDI";
+export { clearFormExtractorsForTesting } from "./sec/forms/formExtractors";
 
 // The web console's contributed UI (pickers, panels, status rail, cost badges).
 // `AddCommands` already calls this; exported so a superset can compose its own

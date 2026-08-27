@@ -47,18 +47,34 @@ const DI_EXEMPT_COMMANDS: ReadonlySet<string> = new Set(["init", "golden-fixture
  * database. A path cannot collide, so new entries belong here.
  *
  * These read a committed fixture, a local file, or a trace directory and touch
- * nothing else. The accession form of the same commands does need the database
- * and says so: `loadFilingHtml` checks the repository token before using it,
- * rather than letting an unregistered token surface as an internal error.
+ * nothing else.
  */
-const DI_EXEMPT_COMMAND_PATHS: ReadonlySet<string> = new Set([
+const DI_EXEMPT_COMMAND_PATHS: ReadonlySet<string> = new Set(["verify fixtures", "verify calls"]);
+
+/**
+ * Verify stages that run without a database ONLY in their fixture/file form.
+ *
+ * Their accession form reads `filings.primary_doc`, the on-disk fetch cache and
+ * (with `--fetch`) the rate-limited fetch queue — all of which the bootstrap
+ * registers. Exempting them unconditionally does not make that form degrade
+ * gracefully, it makes it impossible: `loadFilingHtml` finds no filing
+ * repository token and refuses on every machine, configured or not.
+ *
+ * The invocation is what decides, and a `Command` carries it: a positional
+ * accession or a `--cik` means the accession form, and the database is needed.
+ */
+const DI_EXEMPT_UNLESS_ACCESSION: ReadonlySet<string> = new Set([
   "verify parse",
   "verify sections",
   "verify chunks",
   "verify all",
-  "verify fixtures",
-  "verify calls",
 ]);
+
+/** True when a verify stage was invoked in its fixture/file form. */
+function isSourcedFromDisk(command: Command): boolean {
+  const { cik } = command.opts() as { cik?: number | undefined };
+  return cik === undefined && command.args.length === 0;
+}
 
 /** A command's path from the program root, e.g. `verify parse`. */
 function commandPath(command: Command): string {
@@ -89,9 +105,10 @@ function commandPath(command: Command): string {
  * a new exemption of any shape is picked up by every caller for free.
  */
 export function isDiExemptCommand(command: Command): boolean {
-  return (
-    DI_EXEMPT_COMMANDS.has(command.name()) || DI_EXEMPT_COMMAND_PATHS.has(commandPath(command))
-  );
+  if (DI_EXEMPT_COMMANDS.has(command.name())) return true;
+  const path = commandPath(command);
+  if (DI_EXEMPT_COMMAND_PATHS.has(path)) return true;
+  return DI_EXEMPT_UNLESS_ACCESSION.has(path) && isSourcedFromDisk(command);
 }
 
 export const AddCommands = (program: Command): void => {

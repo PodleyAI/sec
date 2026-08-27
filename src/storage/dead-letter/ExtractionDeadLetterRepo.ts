@@ -47,12 +47,16 @@ export interface DeadLetterInput {
   readonly accession_number: string;
   readonly section_name: string;
   /**
-   * Constrained to the declared vocabulary rather than left as `string`. The
-   * stored column is a plain string, so a code written here but missing from
-   * {@link DEAD_LETTER_REASON_CODES} used to persist silently — which is how
+   * **No longer constrained to the declared vocabulary.**
+   * {@link DeadLetterReasonCode} was opened to a plain string so an extractor
+   * registered outside this repo can fail in ways this file cannot enumerate,
+   * and the stored column was always a plain string — so a code missing from
+   * {@link DEAD_LETTER_REASON_CODES} persists silently again. That is how
    * `UNVERIFIED_SOURCE_SPAN` and `SOURCE_SPAN_TOO_LONG` were both written for
-   * some time without ever appearing in the list an operator reads. Typing the
-   * input makes that drift a compile error.
+   * some time without ever appearing in the list an operator reads, and the
+   * type no longer catches it. Anything sec itself writes must be spelled
+   * exactly as {@link DEAD_LETTER_REASON_CODES} spells it, and the retry policy
+   * only recognises codes from that list.
    */
   readonly reason_code: DeadLetterReasonCode;
   readonly detail: string | null;

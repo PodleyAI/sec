@@ -100,6 +100,29 @@ export interface RealDocument {
 const documentText = new Map<string, string>();
 
 /**
+ * Elements whose CONTENTS are not rendered prose — the same set
+ * `stripNonProse` removes at the DOM level, matched textually here because this
+ * reads tens of megabytes of fixture and needs no DOM to answer a substring
+ * question. A `<script>` or `<style>` body left in the haystack would let a
+ * label be "grounded" by a stylesheet.
+ */
+const NON_PROSE_ELEMENTS =
+  /<(script|style|noscript|textarea|template|xmp|plaintext|iframe|noembed|noframes|title|svg|math)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
+const HTML_COMMENTS = /<!--[\s\S]*?-->/g;
+
+/** The filing's readable text: non-prose subtrees dropped, tags and entities resolved. */
+function documentPlainText(html: string): string {
+  return decodeHtmlEntities(
+    html
+      .replace(HTML_COMMENTS, " ")
+      .replace(NON_PROSE_ELEMENTS, " ")
+      .replace(/<[^>]*>/g, " ")
+  )
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+/**
  * The whole filing as plain text, for callers that must check a value against
  * the DOCUMENT rather than one section.
  *
@@ -123,9 +146,7 @@ export function loadRealS1Documents(dir?: string, ciks?: readonly string[]): Rea
     const path = join(resolvedDir, file);
     let text = documentText.get(path);
     if (text === undefined) {
-      text = decodeHtmlEntities(readFileSync(path, "utf8").replace(/<[^>]*>/g, " "))
-        .replace(/\u00a0/g, " ")
-        .replace(/\s+/g, " ");
+      text = documentPlainText(readFileSync(path, "utf8"));
       documentText.set(path, text);
     }
     out.push({ filing, text });

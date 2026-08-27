@@ -10,6 +10,11 @@ import { getGlobalModelRepository, globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { registerFakeStructuredProvider } from "../../sec/forms/registration-statements/s1/testing/fakeStructuredProvider";
+import {
+  getFormExtractor,
+  registerFormExtractor,
+  type FormExtractorWithDocument,
+} from "../../sec/forms/formExtractors";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
@@ -28,6 +33,31 @@ class CapturingTask extends ProcessAccessionDocFormTask {
     this.fetched.push(fileName);
     return "<SEC-HEADER></SEC-HEADER>";
   }
+}
+
+/**
+ * Records what the driver hands the REAL 8-K extractor, without displacing it:
+ * the wrapper carries the same axis declarations and delegates to the original
+ * `store`, so the filing is processed exactly as it would be unwrapped.
+ */
+function captureEightKInput(): {
+  readonly seen: Array<string | undefined>;
+  readonly restore: () => void;
+} {
+  const original = getFormExtractor("8-K");
+  if (original === undefined || original.needsDocument === false) {
+    throw new Error("expected a document-reading 8-K extractor to be registered");
+  }
+  const documentExtractor: FormExtractorWithDocument<unknown> = original;
+  const seen: Array<string | undefined> = [];
+  registerFormExtractor<unknown>({
+    ...documentExtractor,
+    store: async (args) => {
+      seen.push(args.fullSubmissionText);
+      await documentExtractor.store(args);
+    },
+  });
+  return { seen, restore: () => registerFormExtractor<unknown>(documentExtractor) };
 }
 
 async function seedSpac(cik: number): Promise<void> {
@@ -69,18 +99,29 @@ async function seedFiling(opts: {
   } as never);
 }
 
-describe("ProcessAccessionDocFormTask redemption fetch escalation", () => {
+/**
+ * The 8-K fetch policy and the redemption gate, which used to be one flag.
+ *
+ * Fetching the whole submission is now unconditional for 8-K; handing its EX-99
+ * exhibits to the redemption extractor is still gated on a known SPAC with a
+ * trigger item. Pinning both halves together is the point — a single flag is
+ * how "fetch more" and "feed the model more" became impossible to do
+ * separately.
+ */
+describe("ProcessAccessionDocFormTask 8-K fetch policy and redemption gate", () => {
   let escCleanup: (() => void) | undefined;
   let escPrevRedemptionModel: string | undefined;
+  let capture: ReturnType<typeof captureEightKInput> | undefined;
 
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
     // processRedemption8K now reaches `getRedemptionModel()` on the
     // known-SPAC + trigger-item path; register a fake model so the call
-    // doesn't throw before the assertion this suite cares about (fetch
-    // escalation). The fake provider is wired in only for the trigger-item
-    // test that actually reaches the AI extractor.
+    // doesn't throw before the assertions this suite cares about (which file
+    // is fetched, and what the extractor is then handed). The fake provider is
+    // wired in only for the trigger-item test that actually reaches the AI
+    // extractor.
     escPrevRedemptionModel = process.env.SEC_REDEMPTION_MODEL;
     process.env.SEC_REDEMPTION_MODEL = "fake-s1-model";
     await getGlobalModelRepository().addModel({
@@ -92,17 +133,20 @@ describe("ProcessAccessionDocFormTask redemption fetch escalation", () => {
       provider_config: {},
       metadata: {},
     } as any);
+    capture = captureEightKInput();
   });
 
   afterEach(async () => {
     escCleanup?.();
     escCleanup = undefined;
+    capture?.restore();
+    capture = undefined;
     await getGlobalModelRepository().removeModel("fake-s1-model");
     if (escPrevRedemptionModel === undefined) delete process.env.SEC_REDEMPTION_MODEL;
     else process.env.SEC_REDEMPTION_MODEL = escPrevRedemptionModel;
   });
 
-  it("fetches the full .txt for a known-SPAC trigger-item 8-K", async () => {
+  it("fetches the full .txt for a known-SPAC trigger-item 8-K and feeds it to the extractor", async () => {
     const accession = "0000000000-26-000007";
     await seedSpac(7);
     await seedFiling({
@@ -113,8 +157,7 @@ describe("ProcessAccessionDocFormTask redemption fetch escalation", () => {
       items: "5.07,9.01",
     });
     // The fake provider must be registered before the run so the redemption
-    // AI extractor can complete (its output is irrelevant here; we assert
-    // only fetch escalation).
+    // AI extractor can complete; its output is irrelevant here.
     const reg = registerFakeStructuredProvider([
       {
         redemption_shares: 0,
@@ -128,9 +171,12 @@ describe("ProcessAccessionDocFormTask redemption fetch escalation", () => {
     const task = new CapturingTask();
     await task.run({ accessionNumber: accession });
     expect(task.fetched).toContain(`${accession}.txt`);
+    expect(capture?.seen).toEqual(["<SEC-HEADER></SEC-HEADER>"]);
   });
 
-  it("keeps the primary-doc fetch for a non-trigger item", async () => {
+  // The two below are the pair the split exists for: the fetch widened for
+  // every 8-K, and what the extractor reads did not move with it.
+  it("fetches the full .txt for a non-trigger item without feeding it to the extractor", async () => {
     const accession = "0000000000-26-000008";
     await seedSpac(7);
     await seedFiling({
@@ -142,11 +188,15 @@ describe("ProcessAccessionDocFormTask redemption fetch escalation", () => {
     });
     const task = new CapturingTask();
     await task.run({ accessionNumber: accession });
-    expect(task.fetched).toContain("primary.htm");
-    expect(task.fetched).not.toContain(`${accession}.txt`);
+    expect(task.fetched).toContain(`${accession}.txt`);
+    expect(task.fetched).not.toContain("primary.htm");
+    expect(capture?.seen).toEqual([undefined]);
   });
 
-  it("keeps the primary-doc fetch for a non-SPAC CIK", async () => {
+  it("fetches the full .txt for a non-SPAC CIK without feeding it to the extractor", async () => {
+    // The two halves of the split, in one filing. It has a trigger item and no
+    // `spac` row: the fetch is unconditional so the exhibits reach disk, and the
+    // gate is unchanged so nothing reaches the model.
     const accession = "0000000000-26-000010";
     await seedFiling({
       cik: 99,
@@ -157,8 +207,12 @@ describe("ProcessAccessionDocFormTask redemption fetch escalation", () => {
     });
     const task = new CapturingTask();
     await task.run({ accessionNumber: accession });
-    expect(task.fetched).toContain("primary.htm");
-    expect(task.fetched).not.toContain(`${accession}.txt`);
+    expect(task.fetched).toContain(`${accession}.txt`);
+    expect(task.fetched).not.toContain("primary.htm");
+    expect(capture?.seen).toEqual([undefined]);
+
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    expect(await runRepo.findRun(99, accession, "redemption", "1.0.0")).toBeUndefined();
   });
 });
 

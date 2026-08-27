@@ -18,6 +18,7 @@ import type { CanonicalCompanyAddressRepo } from "../storage/canonical/Canonical
 import type { CanonicalCompanyPhoneRepo } from "../storage/canonical/CanonicalCompanyPhoneRepo";
 import { personRoleAssertionKey } from "../storage/canonical/PersonRoleRepo";
 import type { PersonRoleRepo } from "../storage/canonical/PersonRoleRepo";
+import { RoleRosterCompletenessRepo } from "../storage/canonical/RoleRosterCompletenessRepo";
 import type { PersonResolver } from "./PersonResolver";
 import type { CompanyResolver } from "./CompanyResolver";
 
@@ -45,8 +46,10 @@ export interface PersonClaim {
    */
   readonly filing_date?: string | null;
   /**
-   * Stable population tag for role tenures (e.g. `form-d:related-person`,
-   * `s1:management`). Claims without it record titles but no tenure.
+   * Which list inside the form this claim was read from (e.g.
+   * `form-d:related-person`, `s1:management`); tenures are keyed
+   * `(extractor_id, role_scope)` so one list can never close another's.
+   * Claims without it record titles but no tenure.
    */
   readonly role_scope?: string | null;
   readonly birth_year?: number | null;
@@ -71,22 +74,84 @@ export interface CompanyClaim {
   readonly source_context?: string | null;
 }
 
-interface EntityObserverOptions {
+/** Where an observation and its titles are written, whoever resolves them. */
+export interface EntityObserverObservationOptions {
   personObservationRepo: PersonObservationRepo;
   personObservationTitleRepo: PersonObservationTitleRepo;
   companyObservationRepo: CompanyObservationRepo;
+}
+
+/**
+ * The person half of the resolver tier: what turns a stored observation into
+ * a canonical id, an identity link, dated tenures and junction counts.
+ */
+export interface EntityObserverPersonResolverOptions {
   personIdentityLinkRepo: PersonIdentityLinkRepo;
-  companyIdentityLinkRepo: CompanyIdentityLinkRepo;
   personResolver: PersonResolver;
-  companyResolver: CompanyResolver;
   canonicalPersonAddressRepo: CanonicalPersonAddressRepo;
   canonicalPersonPhoneRepo: CanonicalPersonPhoneRepo;
-  canonicalCompanyAddressRepo: CanonicalCompanyAddressRepo;
-  canonicalCompanyPhoneRepo: CanonicalCompanyPhoneRepo;
   personRoleRepo: PersonRoleRepo;
   activeResolverPersonVersion: string;
+}
+
+/** The company half of the resolver tier. */
+export interface EntityObserverCompanyResolverOptions {
+  companyIdentityLinkRepo: CompanyIdentityLinkRepo;
+  companyResolver: CompanyResolver;
+  canonicalCompanyAddressRepo: CanonicalCompanyAddressRepo;
+  canonicalCompanyPhoneRepo: CanonicalCompanyPhoneRepo;
   activeResolverCompanyVersion: string;
 }
+
+export interface EntityObserverResolverOptions
+  extends EntityObserverPersonResolverOptions, EntityObserverCompanyResolverOptions {}
+
+/**
+ * What an observer may be built with. The resolver tier is optional: given it,
+ * both observe methods do everything they always have; without it they stop
+ * after the observation row and its titles, leaving a canonical id, a link, a
+ * junction count and a tenure to a later batch pass over what was stored.
+ * Which half is present is read per method, so a person-only caller need not
+ * hand over a company resolver it will never use.
+ *
+ * Because the tier is optional HERE, nothing about this type would stop a
+ * caller that means to build the full one from leaving a resolver out. What
+ * does is the constructor blocking inference of its own type argument, so
+ * omitting the tier is a type error rather than a narrower observer.
+ */
+export interface EntityObserverOptions
+  extends EntityObserverObservationOptions, Partial<EntityObserverResolverOptions> {}
+
+/** An observer carrying the whole resolver tier — how every caller builds one. */
+export interface ResolvingEntityObserverOptions
+  extends EntityObserverObservationOptions, EntityObserverResolverOptions {}
+
+/** What recording an observation yields with no resolver tier to key it to. */
+export interface ObservationResult {
+  readonly observation_id: number;
+}
+
+export interface ResolvedPersonObservation extends ObservationResult {
+  readonly canonical_person_id: string;
+}
+
+export interface ResolvedCompanyObservation extends ObservationResult {
+  readonly canonical_company_id: string;
+}
+
+/**
+ * {@link EntityObserver.observePerson}'s result, which is the canonical id and
+ * the observation id for an observer holding the person resolver tier, and the
+ * observation id alone for one built to record only.
+ */
+export type ObservePersonResult<TOptions> = TOptions extends EntityObserverPersonResolverOptions
+  ? ResolvedPersonObservation
+  : ObservationResult;
+
+/** {@link EntityObserver.observeCompany}'s counterpart of {@link ObservePersonResult}. */
+export type ObserveCompanyResult<TOptions> = TOptions extends EntityObserverCompanyResolverOptions
+  ? ResolvedCompanyObservation
+  : ObservationResult;
 
 /**
  * Column-width clamp for filer-authored free text. EDGAR name/role fields are
@@ -135,6 +200,22 @@ function expandBoardSeatDirector(titles: readonly string[]): string[] {
 }
 
 /**
+ * The canonical titles one claim's filed titles mint tenures from: compound
+ * titles split and canonicalized, placeholders dropped, an implied board
+ * directorship re-added. An empty result means the claim names a person the
+ * filing's roster is not complete without.
+ *
+ * Exported so a batch pass over stored observations derives tenures from the
+ * SAME code that wrote them — a second implementation that drifted would mint
+ * duplicate tenures under titles nothing else produces.
+ */
+export function canonicalRoleTitles(titles: readonly string[]): readonly string[] {
+  return expandBoardSeatDirector(
+    normalizeManagementTitles(titles).filter((t) => !PLACEHOLDER_TITLES.has(t.toLowerCase()))
+  );
+}
+
+/**
  * Shared helper that form storage modules call to normalize, upsert, resolve,
  * and link person and company observations. Centralizes the observe→resolve→link
  * pipeline so each form storage module doesn't repeat it.
@@ -177,31 +258,71 @@ export function normalizePersonNameParts(parts: PersonNameParts): {
   };
 }
 
-export class EntityObserver {
+export class EntityObserver<
+  TOptions extends EntityObserverOptions = ResolvingEntityObserverOptions,
+> {
   /**
-   * Role-assertion keys accumulated per filing+population, so a roster
-   * filing's closure pass ({@link closeUnassertedPersonRoles}) knows which
-   * (person, title) pairs the filing DID assert. Keyed by the same tuple the
-   * closure runs over.
+   * Role-assertion keys accumulated per filing and role_scope, so a
+   * complete-roster filing's closure pass ({@link closeUnassertedPersonRoles})
+   * knows which (person, title) pairs the filing DID assert. Keyed by the
+   * same tuple the closure runs over.
    */
   private readonly assertedRoleKeys = new Map<string, Set<string>>();
 
   /**
    * Groups where a participating claim contributed no assertions (all titles
-   * filtered/empty): the filing names the person, so its roster is not a
-   * complete population and closure must not run.
+   * filtered/empty): the filing names the person, so its roster is incomplete
+   * and closure must not run.
    */
   private readonly incompleteRoleGroups = new Set<string>();
 
-  constructor(private readonly opts: EntityObserverOptions) {}
+  /**
+   * Where roster completeness decisions land, resolved from DI at first use
+   * and memoized (`null` once resolution has failed). Best-effort in exactly
+   * the way `PersonRoleRepo`'s alias lookup is: every registry `DefaultDI` and
+   * `TestingDI` build registers the token, so a miss means a hand-assembled
+   * unit-test registry — and an unrecorded decision reads downstream as "not
+   * known to be complete", which closes nothing.
+   */
+  private completenessRepo: RoleRosterCompletenessRepo | null | undefined;
 
-  async observePerson(
-    claim: PersonClaim
-  ): Promise<{ canonical_person_id: string; observation_id: number }> {
+  /**
+   * `NoInfer` is what makes the resolver tier mandatory. Without it `TOptions`
+   * is inferred from the literal, so a site that left `personResolver` out
+   * would simply get an observe-only type — no error here, and downstream only
+   * observations with no canonical id, link, tenure or junction count behind
+   * them. Blocking inference lets `TOptions` fall to its default,
+   * {@link ResolvingEntityObserverOptions}, so the omission is a type error on
+   * the argument; a caller that genuinely wants an observe-only observer says
+   * so with an explicit type argument or a declared return type. An explicit
+   * `EntityObserver<any>` still opts out, as `any` does everywhere.
+   */
+  constructor(private readonly opts: NoInfer<TOptions>) {}
+
+  /**
+   * The person resolver tier, or undefined when this observer was built to
+   * record observations only. The resolver is what the caller either supplied
+   * or did not; the rest of the half travels with it.
+   */
+  private personTier(): EntityObserverPersonResolverOptions | undefined {
+    return this.opts.personResolver === undefined
+      ? undefined
+      : (this.opts as EntityObserverPersonResolverOptions);
+  }
+
+  /** Company counterpart of {@link personTier}. */
+  private companyTier(): EntityObserverCompanyResolverOptions | undefined {
+    return this.opts.companyResolver === undefined
+      ? undefined
+      : (this.opts as EntityObserverCompanyResolverOptions);
+  }
+
+  async observePerson(claim: PersonClaim): Promise<ObservePersonResult<TOptions>> {
+    const tier = this.personTier();
     // Re-observing this natural key would blindly +1 the address/phone
     // co-occurrence counts. Remove the prior observation's contribution first
     // so a replay nets out to the same count (idempotent) instead of inflating.
-    await this.removePriorPersonJunctions(claim);
+    if (tier !== undefined) await this.removePriorPersonJunctions(claim, tier);
 
     const { normalized, parsedSuffixDisplay } = normalizePersonNameParts(claim);
 
@@ -232,6 +353,7 @@ export class EntityObserver {
       // identify one. See `splitSuffixParts`.
       normalized_suffix: clamp(normalized?.suffix ?? null, 32),
       relationship: clamp(claim.relationship ?? null, 64),
+      role_scope: claim.role_scope ?? null,
       birth_year: claim.birth_year ?? null,
       bio: claim.bio ?? null,
       raw_address_id: claim.address_id ?? null,
@@ -247,57 +369,68 @@ export class EntityObserver {
       claim.titles ?? []
     );
 
+    // With no resolver tier there is no canonical id to link the observation
+    // to, count a junction against, or anchor a tenure on: the observation row
+    // and its titles are the whole of what this observer records.
+    if (tier === undefined) {
+      return { observation_id: upserted.observation_id } as ObservePersonResult<TOptions>;
+    }
+
     // Resolve to canonical person
-    const canonical_person_id = await this.opts.personResolver.resolve(upserted);
+    const canonical_person_id = await tier.personResolver.resolve(upserted);
 
     // Write identity link
-    await this.opts.personIdentityLinkRepo.upsert(
+    await tier.personIdentityLinkRepo.upsert(
       upserted.observation_id,
-      this.opts.activeResolverPersonVersion,
+      tier.activeResolverPersonVersion,
       canonical_person_id
     );
 
-    await this.recordPersonRoles(claim, canonical_person_id);
+    await this.recordPersonRoles(claim, canonical_person_id, tier);
 
     // Record address and phone junctions
     const seen_at = now;
     if (claim.address_id) {
-      await this.opts.canonicalPersonAddressRepo.recordObservation({
+      await tier.canonicalPersonAddressRepo.recordObservation({
         canonical_person_id,
         address_hash_id: claim.address_id,
-        resolver_version: this.opts.activeResolverPersonVersion,
+        resolver_version: tier.activeResolverPersonVersion,
         seen_at,
       });
     }
     if (claim.international_number) {
-      await this.opts.canonicalPersonPhoneRepo.recordObservation({
+      await tier.canonicalPersonPhoneRepo.recordObservation({
         canonical_person_id,
         international_number: claim.international_number,
-        resolver_version: this.opts.activeResolverPersonVersion,
+        resolver_version: tier.activeResolverPersonVersion,
         seen_at,
       });
     }
 
-    return { canonical_person_id, observation_id: upserted.observation_id };
+    return {
+      canonical_person_id,
+      observation_id: upserted.observation_id,
+    } as ObservePersonResult<TOptions>;
   }
 
   /**
    * Record dated role tenures for a person claim. Requires the filing date
    * (tenure anchor), the issuer CIK (the company side of the role), and a
-   * role_scope (the population tag closure compares within); claims missing
-   * any of these record titles but no tenure. Titles are canonicalized here
-   * (compound split, canonical casing) so `person_role` rows are uniform
-   * regardless of writer — the observation child rows keep the writer's text
-   * (trimmed and de-duplicated, not canonicalized).
+   * role_scope (which list the claim was read from, and therefore which
+   * tenures closure may compare it against); claims missing any of these
+   * record titles but no tenure. Titles are canonicalized here (compound
+   * split, canonical casing) so `person_role` rows are uniform regardless of
+   * writer — the observation child rows keep the writer's text (trimmed and
+   * de-duplicated, not canonicalized).
    */
-  private async recordPersonRoles(claim: PersonClaim, canonical_person_id: string): Promise<void> {
+  private async recordPersonRoles(
+    claim: PersonClaim,
+    canonical_person_id: string,
+    tier: EntityObserverPersonResolverOptions
+  ): Promise<void> {
     const company_cik = claim.source_filing_issuer_cik;
     if (!claim.filing_date || !claim.role_scope || company_cik == null) return;
-    const titles = expandBoardSeatDirector(
-      normalizeManagementTitles(claim.titles ?? []).filter(
-        (t) => !PLACEHOLDER_TITLES.has(t.toLowerCase())
-      )
-    );
+    const titles = canonicalRoleTitles(claim.titles ?? []);
     const groupKey = this.roleGroupKey(
       claim.accession_number,
       claim.extractor_id,
@@ -317,9 +450,9 @@ export class EntityObserver {
       this.assertedRoleKeys.set(groupKey, asserted);
     }
     for (const title of titles) {
-      await this.opts.personRoleRepo.recordAssertion({
+      await tier.personRoleRepo.recordAssertion({
         canonical_person_id,
-        resolver_version: this.opts.activeResolverPersonVersion,
+        resolver_version: tier.activeResolverPersonVersion,
         company_cik,
         extractor_id: claim.extractor_id,
         role_scope: claim.role_scope,
@@ -332,12 +465,19 @@ export class EntityObserver {
   }
 
   /**
-   * Roster closure: after a filing that enumerates the COMPLETE population of
+   * Roster closure: after a filing that enumerates the COMPLETE roster of
    * `(extractor_id, role_scope)` for the company has had all its persons
-   * observed, close every open tenure in that population the filing did not
+   * observed, close every open tenure in that roster the filing did not
    * assert (`end_date = filing_date`). Only storage modules whose filing type
-   * genuinely lists the whole population may call this — for everything else,
+   * genuinely lists the whole roster may call this — for everything else,
    * absence means nothing and tenures stay open. Returns the number closed.
+   *
+   * `complete` is the caller's own verdict on its extraction of the roster,
+   * and it is RECORDED whichever way it went, in `role_roster_completeness`.
+   * Deciding it and recording it are the same act on purpose: a caller that
+   * weighed completeness and then simply declined to call left the fact
+   * nowhere, and a batch pass reading only the observations cannot tell that
+   * filing from a whole roster.
    */
   async closeUnassertedPersonRoles(args: {
     readonly accession_number: string;
@@ -345,7 +485,30 @@ export class EntityObserver {
     readonly role_scope: string;
     readonly company_cik: number;
     readonly filing_date: string;
+    /**
+     * Whether the extraction that fed this roster named every role holder the
+     * filing lists. False when a named row was declined before it could be
+     * observed — a junk name field, an overlong name, a row under a confidence
+     * floor: that person is still in the filing, so closing from the remainder
+     * would record a departure that never happened.
+     *
+     * Defaults to true, which is what calling this method has always asserted.
+     */
+    readonly complete?: boolean;
   }): Promise<number> {
+    const complete = args.complete ?? true;
+    const tier = this.personTier();
+    const completenessRepo = this.rosterCompletenessRepo();
+    if (completenessRepo !== null) {
+      await completenessRepo.record({
+        accession_number: args.accession_number,
+        extractor_id: args.extractor_id,
+        role_scope: args.role_scope,
+        company_cik: args.company_cik,
+        filing_date: args.filing_date,
+        complete,
+      });
+    }
     if (!args.filing_date) return 0;
     const groupKey = this.roleGroupKey(
       args.accession_number,
@@ -358,13 +521,23 @@ export class EntityObserver {
     const asserted = this.assertedRoleKeys.get(groupKey);
     this.assertedRoleKeys.delete(groupKey);
     const incomplete = this.incompleteRoleGroups.delete(groupKey);
-    // No recorded assertions means nobody observed this population through
-    // this observer (or every title filtered away): treating that as "the
-    // filing asserts no one" would mass-close the company's roles. An
-    // incomplete group (a named person contributed nothing) is equally unsafe.
-    if (incomplete || asserted === undefined || asserted.size === 0) return 0;
-    return await this.opts.personRoleRepo.closeUnasserted({
-      resolver_version: this.opts.activeResolverPersonVersion,
+    // No recorded assertions means nobody observed this roster through this
+    // observer (or every title filtered away): treating that as "the filing
+    // asserts no one" would mass-close the company's roles. An incomplete
+    // group (a named person contributed nothing) is equally unsafe, and so is
+    // a roster the caller already knows it did not extract whole.
+    if (!complete || incomplete || asserted === undefined || asserted.size === 0) return 0;
+    // Narrowing for the call below, and defensive rather than load-bearing: an
+    // observer with no resolver tier minted no tenure to close, and it also
+    // recorded no assertion to reach this line with — `recordPersonRoles`
+    // writes the only ones there are, and it runs after `observePerson`'s own
+    // tier stop, so an observe-only observer has already returned above on
+    // `asserted === undefined`. What such an observer leaves behind is the
+    // completeness decision recorded at the top, which is what lets a later
+    // batch pass close from this filing.
+    if (tier === undefined) return 0;
+    return await tier.personRoleRepo.closeUnasserted({
+      resolver_version: tier.activeResolverPersonVersion,
       company_cik: args.company_cik,
       extractor_id: args.extractor_id,
       role_scope: args.role_scope,
@@ -372,6 +545,17 @@ export class EntityObserver {
       accession_number: args.accession_number,
       asserted,
     });
+  }
+
+  private rosterCompletenessRepo(): RoleRosterCompletenessRepo | null {
+    if (this.completenessRepo === undefined) {
+      try {
+        this.completenessRepo = new RoleRosterCompletenessRepo();
+      } catch {
+        this.completenessRepo = null;
+      }
+    }
+    return this.completenessRepo;
   }
 
   private roleGroupKey(
@@ -383,11 +567,10 @@ export class EntityObserver {
     return `${accession_number}\x00${extractor_id}\x00${role_scope}\x00${company_cik}`;
   }
 
-  async observeCompany(
-    claim: CompanyClaim
-  ): Promise<{ canonical_company_id: string; observation_id: number }> {
+  async observeCompany(claim: CompanyClaim): Promise<ObserveCompanyResult<TOptions>> {
+    const tier = this.companyTier();
     // Idempotent replay: drop the prior contribution before re-recording.
-    await this.removePriorCompanyJunctions(claim);
+    if (tier !== undefined) await this.removePriorCompanyJunctions(claim, tier);
 
     const normalized_name = claim.name ? normalizeCompanyName(claim.name) : null;
     const now = new Date().toISOString();
@@ -410,36 +593,44 @@ export class EntityObserver {
       created_at: now,
     });
 
+    // The company twin of the stop in `observePerson`.
+    if (tier === undefined) {
+      return { observation_id: upserted.observation_id } as ObserveCompanyResult<TOptions>;
+    }
+
     // Resolve to canonical company
-    const canonical_company_id = await this.opts.companyResolver.resolve(upserted);
+    const canonical_company_id = await tier.companyResolver.resolve(upserted);
 
     // Write identity link
-    await this.opts.companyIdentityLinkRepo.upsert(
+    await tier.companyIdentityLinkRepo.upsert(
       upserted.observation_id,
-      this.opts.activeResolverCompanyVersion,
+      tier.activeResolverCompanyVersion,
       canonical_company_id
     );
 
     // Record address and phone junctions
     const seen_at = now;
     if (claim.address_id) {
-      await this.opts.canonicalCompanyAddressRepo.recordObservation({
+      await tier.canonicalCompanyAddressRepo.recordObservation({
         canonical_company_id,
         address_hash_id: claim.address_id,
-        resolver_version: this.opts.activeResolverCompanyVersion,
+        resolver_version: tier.activeResolverCompanyVersion,
         seen_at,
       });
     }
     if (claim.international_number) {
-      await this.opts.canonicalCompanyPhoneRepo.recordObservation({
+      await tier.canonicalCompanyPhoneRepo.recordObservation({
         canonical_company_id,
         international_number: claim.international_number,
-        resolver_version: this.opts.activeResolverCompanyVersion,
+        resolver_version: tier.activeResolverCompanyVersion,
         seen_at,
       });
     }
 
-    return { canonical_company_id, observation_id: upserted.observation_id };
+    return {
+      canonical_company_id,
+      observation_id: upserted.observation_id,
+    } as ObserveCompanyResult<TOptions>;
   }
 
   /**
@@ -449,59 +640,65 @@ export class EntityObserver {
    * subsequent re-record nets out instead of double-counting. No-op on first
    * sight or when the prior observation has no link at the active version.
    */
-  private async removePriorPersonJunctions(claim: PersonClaim): Promise<void> {
+  private async removePriorPersonJunctions(
+    claim: PersonClaim,
+    tier: EntityObserverPersonResolverOptions
+  ): Promise<void> {
     const prior = await this.opts.personObservationRepo.getByNaturalKey(
       claim.accession_number,
       claim.extractor_id,
       claim.observation_index
     );
     if (!prior) return;
-    const link = await this.opts.personIdentityLinkRepo.getForObservation(
+    const link = await tier.personIdentityLinkRepo.getForObservation(
       prior.observation_id,
-      this.opts.activeResolverPersonVersion
+      tier.activeResolverPersonVersion
     );
     if (!link) return;
     if (prior.raw_address_id) {
-      await this.opts.canonicalPersonAddressRepo.removeObservation({
+      await tier.canonicalPersonAddressRepo.removeObservation({
         canonical_person_id: link.canonical_person_id,
         address_hash_id: prior.raw_address_id,
-        resolver_version: this.opts.activeResolverPersonVersion,
+        resolver_version: tier.activeResolverPersonVersion,
       });
     }
     if (prior.raw_phone_id) {
-      await this.opts.canonicalPersonPhoneRepo.removeObservation({
+      await tier.canonicalPersonPhoneRepo.removeObservation({
         canonical_person_id: link.canonical_person_id,
         international_number: prior.raw_phone_id,
-        resolver_version: this.opts.activeResolverPersonVersion,
+        resolver_version: tier.activeResolverPersonVersion,
       });
     }
   }
 
   /** Company counterpart of {@link removePriorPersonJunctions}. */
-  private async removePriorCompanyJunctions(claim: CompanyClaim): Promise<void> {
+  private async removePriorCompanyJunctions(
+    claim: CompanyClaim,
+    tier: EntityObserverCompanyResolverOptions
+  ): Promise<void> {
     const prior = await this.opts.companyObservationRepo.getByNaturalKey(
       claim.accession_number,
       claim.extractor_id,
       claim.observation_index
     );
     if (!prior) return;
-    const link = await this.opts.companyIdentityLinkRepo.getForObservation(
+    const link = await tier.companyIdentityLinkRepo.getForObservation(
       prior.observation_id,
-      this.opts.activeResolverCompanyVersion
+      tier.activeResolverCompanyVersion
     );
     if (!link) return;
     if (prior.raw_address_id) {
-      await this.opts.canonicalCompanyAddressRepo.removeObservation({
+      await tier.canonicalCompanyAddressRepo.removeObservation({
         canonical_company_id: link.canonical_company_id,
         address_hash_id: prior.raw_address_id,
-        resolver_version: this.opts.activeResolverCompanyVersion,
+        resolver_version: tier.activeResolverCompanyVersion,
       });
     }
     if (prior.raw_phone_id) {
-      await this.opts.canonicalCompanyPhoneRepo.removeObservation({
+      await tier.canonicalCompanyPhoneRepo.removeObservation({
         canonical_company_id: link.canonical_company_id,
         international_number: prior.raw_phone_id,
-        resolver_version: this.opts.activeResolverCompanyVersion,
+        resolver_version: tier.activeResolverCompanyVersion,
       });
     }
   }

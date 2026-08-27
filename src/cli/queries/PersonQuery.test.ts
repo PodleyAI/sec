@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import {
-  PERSON_OBSERVATION_REPOSITORY_TOKEN,
-  type PersonObservationRepositoryStorage,
+    PERSON_OBSERVATION_REPOSITORY_TOKEN,
+    type PersonObservationRepositoryStorage,
 } from "../../storage/observation/PersonObservationSchema";
 import { queryPersons } from "./PersonQuery";
 
@@ -27,6 +27,7 @@ function makeObservation(overrides: Partial<Parameters<typeof repo.put>[0]> = {}
     normalized_last: null,
     normalized_suffix: null,
     relationship: null,
+    role_scope: null,
     raw_address_id: null,
     raw_phone_id: null,
     source_context: null,

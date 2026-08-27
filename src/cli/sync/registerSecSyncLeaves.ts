@@ -7,6 +7,10 @@
 import { reportSpacProcessRows, spacProcessFailureCount } from "../../commands/spac";
 import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
 import { CatchUpDailyIndexTask } from "../../task/index/CatchUpDailyIndexTask";
+import {
+  ConvertFilingDocumentsTask,
+  DEFAULT_CONVERT_LIMIT,
+} from "../../task/document/ConvertFilingDocumentsTask";
 import { IdentifySpacsTask } from "../../task/spac/IdentifySpacsTask";
 import { ProcessSpacTimelineTask } from "../../task/spac/ProcessSpacTimelineTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
@@ -98,6 +102,7 @@ export function registerSecSyncLeaves(): void {
           await runFormsSweep({
             formTypes: formsForExtractorIds([...SYNC_FORM_DOMAINS.portals]),
             shard: ctx.shard,
+            requestedFrom: "sync domain 'portals'",
           });
         },
       },
@@ -117,6 +122,7 @@ export function registerSecSyncLeaves(): void {
           await runFormsSweep({
             formTypes: formsForExtractorIds([...SYNC_FORM_DOMAINS.crowdfunding]),
             shard: ctx.shard,
+            requestedFrom: "sync domain 'crowdfunding'",
           });
         },
       },
@@ -136,6 +142,7 @@ export function registerSecSyncLeaves(): void {
           await runFormsSweep({
             formTypes: formsForExtractorIds([...SYNC_FORM_DOMAINS["reg-a"]]),
             shard: ctx.shard,
+            requestedFrom: "sync domain 'reg-a'",
           });
         },
       },
@@ -155,7 +162,11 @@ export function registerSecSyncLeaves(): void {
           if (!ctx.formTypes?.length) {
             throw new Error("sync forms requires a comma-separated type list");
           }
-          await runFormsSweep({ formTypes: expandFormTypes(ctx.formTypes), shard: ctx.shard });
+          await runFormsSweep({
+            formTypes: expandFormTypes(ctx.formTypes),
+            shard: ctx.shard,
+            requestedFrom: `tokens '${ctx.formTypes.join(",")}'`,
+          });
         },
       },
     ],
@@ -263,5 +274,36 @@ export function registerSecSyncLeaves(): void {
         throw new Error(`${failed} of ${total} issuer(s) had failed filings`);
       }
     },
+  });
+
+  registerSyncLeaf({
+    id: "documents",
+    description: "Convert filing documents to markdown sections",
+    order: 70,
+    inAll: true,
+    steps: [
+      {
+        id: "convert",
+        title: "Convert filings to markdown",
+        run: async (ctx: SyncRunContext) => {
+          await runWorkflowCli([
+            new ConvertFilingDocumentsTask({
+              defaults: {
+                // `sync forms --types` already means "narrow to these forms";
+                // reusing it here keeps one vocabulary rather than inventing a
+                // second spelling of the same idea.
+                forms: ctx.formTypes?.length ? expandFormTypes(ctx.formTypes) : undefined,
+                since: ctx.from,
+                cik: ctx.cik,
+                force: ctx.force,
+                all8k: ctx.all8k,
+                downloadOnly: ctx.downloadOnly,
+                limit: ctx.limit ?? DEFAULT_CONVERT_LIMIT,
+              },
+            }),
+          ]);
+        },
+      },
+    ],
   });
 }

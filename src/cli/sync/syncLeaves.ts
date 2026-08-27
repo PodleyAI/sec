@@ -30,6 +30,27 @@ export interface SyncRunContext {
    * {@link isolatedStep} targets the adv `form-d` step; ignored elsewhere.
    */
   readonly simple: boolean;
+  /**
+   * `sync documents --limit`: how many filings one conversion run takes.
+   * Undefined means the leaf's own default — a backfill is many bounded runs
+   * rather than one that holds a process for a day.
+   */
+  readonly limit: number | undefined;
+  /** `sync documents --cik`: convert one issuer's filings rather than a sweep. */
+  readonly cik: number | undefined;
+  /**
+   * `sync documents --all-8k`: convert 8-Ks from every filer rather than only
+   * from CIKs in `spac`. Off by default, because every reporting company files
+   * them and the SPAC lifecycle is the only reason they are convertible at all.
+   */
+  readonly all8k: boolean;
+  /**
+   * `sync documents --download-only`: fetch each selected filing into the
+   * accession-doc cache and stop, writing no rows. The download half is
+   * rate-limited by EDGAR and the conversion half is not, so they are worth
+   * running — and resuming — separately.
+   */
+  readonly downloadOnly: boolean;
 }
 
 export interface SyncStep {
@@ -69,6 +90,10 @@ export const EMPTY_SYNC_CONTEXT: SyncRunContext = {
   concurrency: DEFAULT_SPAC_ISSUER_CONCURRENCY,
   isolatedStep: false,
   simple: false,
+  limit: undefined,
+  cik: undefined,
+  all8k: false,
+  downloadOnly: false,
 };
 
 const syncLeaves = new Map<string, SyncLeaf>();
