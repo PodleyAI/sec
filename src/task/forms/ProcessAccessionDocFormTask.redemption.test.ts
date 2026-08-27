@@ -69,7 +69,16 @@ async function seedFiling(opts: {
   } as never);
 }
 
-describe("ProcessAccessionDocFormTask redemption fetch escalation", () => {
+/**
+ * The 8-K fetch policy and the redemption gate, which used to be one flag.
+ *
+ * Fetching the whole submission is now unconditional for 8-K; handing its EX-99
+ * exhibits to the redemption extractor is still gated on a known SPAC with a
+ * trigger item. Pinning both halves together is the point — a single flag is
+ * how "fetch more" and "feed the model more" became impossible to do
+ * separately.
+ */
+describe("ProcessAccessionDocFormTask 8-K fetch policy and redemption gate", () => {
   let escCleanup: (() => void) | undefined;
   let escPrevRedemptionModel: string | undefined;
 
@@ -130,7 +139,7 @@ describe("ProcessAccessionDocFormTask redemption fetch escalation", () => {
     expect(task.fetched).toContain(`${accession}.txt`);
   });
 
-  it("keeps the primary-doc fetch for a non-trigger item", async () => {
+  it("fetches the full .txt for a known SPAC's NON-trigger 8-K", async () => {
     const accession = "0000000000-26-000008";
     await seedSpac(7);
     await seedFiling({
@@ -142,11 +151,14 @@ describe("ProcessAccessionDocFormTask redemption fetch escalation", () => {
     });
     const task = new CapturingTask();
     await task.run({ accessionNumber: accession });
-    expect(task.fetched).toContain("primary.htm");
-    expect(task.fetched).not.toContain(`${accession}.txt`);
+    expect(task.fetched).toContain(`${accession}.txt`);
+    expect(task.fetched).not.toContain("primary.htm");
   });
 
-  it("keeps the primary-doc fetch for a non-SPAC CIK", async () => {
+  it("fetches the full .txt for a non-SPAC 8-K, and still runs no redemption extractor", async () => {
+    // The two halves of the split, in one filing. It has a trigger item and no
+    // `spac` row: the fetch is unconditional so the exhibits reach disk, and the
+    // gate is unchanged so nothing reaches the model.
     const accession = "0000000000-26-000010";
     await seedFiling({
       cik: 99,
@@ -157,8 +169,11 @@ describe("ProcessAccessionDocFormTask redemption fetch escalation", () => {
     });
     const task = new CapturingTask();
     await task.run({ accessionNumber: accession });
-    expect(task.fetched).toContain("primary.htm");
-    expect(task.fetched).not.toContain(`${accession}.txt`);
+    expect(task.fetched).toContain(`${accession}.txt`);
+    expect(task.fetched).not.toContain("primary.htm");
+
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    expect(await runRepo.findRun(99, accession, "redemption", "1.0.0")).toBeUndefined();
   });
 });
 

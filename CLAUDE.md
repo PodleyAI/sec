@@ -190,6 +190,25 @@ and the run returns `{ success: false }`; cooperative cancellation (Ctrl-C) is r
 rather than dead-lettered, so an interrupted sweep does not stamp version-gated failures on
 filings it merely stopped mid-flight. See `docs/extraction.md`.
 
+**One rule decides which FILE a filing is fetched as, and it is not the same rule as
+what an extractor reads.** `submissionFetchKind` (`src/task/forms/submissionFetchPolicy.ts`)
+is the single definition: the registration/prospectus family, Reg A annual reports, and
+**every 8-K** are fetched as the full-submission `.txt`; everything else as its primary
+document. Four sites used to answer this and gave three answers, so what was on disk for a
+given 8-K was a function of ingest history rather than of the form.
+
+8-K is unconditional on purpose. Its primary document is routinely four sentences pointing
+at the EX-99.1 press release that carries the news, so the exhibits are not an extra — for
+this form they are the filing — and only the `.txt` carries them, or the
+`<TYPE>`/`<DESCRIPTION>`/`<FILENAME>` manifest saying what each one is. It costs one
+request either way.
+
+What an extractor SEES stays separate and unchanged: the known-SPAC-plus-trigger-item
+predicate still gates whether `processForm8K` receives `fullSubmissionText`. Those were one
+flag once, which is what made "fetch more" and "feed the model more" impossible to do
+separately — widening a model's input is an evaluable behavior change with its own golden
+truth.
+
 **A recorded successful run is what stops a filing being re-selected.** Handlers that
 no-op behind a gate (known-SPAC checks) still record success, so recovering them needs a
 descriptor that widens or replaces the anti-join — never a bare re-run. See

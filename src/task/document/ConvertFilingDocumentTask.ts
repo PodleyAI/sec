@@ -16,7 +16,7 @@ import {
 } from "../../storage/document/FilingSectionSchema";
 import type { FilingDocument } from "../../storage/document/FilingDocumentSchema";
 import { cachedAccessionDocPath, resolvePrimaryDocName } from "../../util/accessionDocPath";
-import { REGISTRATION_PROSPECTUS_FORMS } from "../forms/ProcessAccessionDocFormTask";
+import { fullSubmissionFileName, submissionFetchKind } from "../forms/submissionFetchPolicy";
 import { SecFetchAccessionDocTask } from "../forms/SecFetchAccessionDocTask";
 import {
   convertFilingSubmission,
@@ -48,18 +48,21 @@ export type ConvertFilingDocumentTaskOutput = {
 const WRITE_BATCH = 200;
 
 /**
- * The candidate filenames for one filing, in the order they should be tried.
+ * The cached filenames to look for, in the order they should be tried.
  *
- * The full-submission `.txt` first, always. It is the only shape that carries
- * the sibling `<DOCUMENT>` blocks, and those ARE the filing for an 8-K, whose
+ * The full submission first, always. It is the only shape that carries the
+ * sibling `<DOCUMENT>` blocks, and those ARE the filing for an 8-K, whose
  * primary document is four sentences pointing at the EX-99.1 press release
  * holding the news. Reading the primary document alone stores the pointer.
  *
  * The bare primary document stays as a fallback, because a cache populated by
  * an older route holds that shape for plenty of filings and one document is
  * better than none. Such a filing converts to a single-document submission and
- * says so — {@link FilingDocument.section_count} counts what is there, not what
- * a `.txt` would have had.
+ * says so — {@link FilingDocument.section_count} counts what is there.
+ *
+ * Probing both is free: a cache probe is a `stat`, not a request. What is NOT
+ * free is FETCHING, which is why a miss falls to
+ * {@link conversionFetchFileName} rather than to this list's head — see there.
  */
 export function conversionCandidates(
   form: string | null | undefined,
@@ -67,7 +70,36 @@ export function conversionCandidates(
   primaryDoc: string | null | undefined
 ): string[] {
   const primary = resolvePrimaryDocName(primaryDoc);
-  return [`${accessionNumber}.txt`, primary].filter((n): n is string => n !== undefined);
+  return [fullSubmissionFileName(accessionNumber), primary].filter(
+    (n): n is string => n !== undefined
+  );
+}
+
+/**
+ * What to fetch when NOTHING is cached — the shared policy's answer, not this
+ * module's preference.
+ *
+ * The converter would rather have the whole submission for every form. It must
+ * not act on that: fetching a `.txt` for a form the rest of the pipeline caches
+ * as a primary document would put two shapes on disk for one filing, which is
+ * precisely the drift {@link submissionFetchKind} exists to end. So the
+ * converter reads the richest thing already cached and fetches only what the
+ * pipeline would have fetched anyway.
+ *
+ * For the forms that matter here that is the same file: 8-K, the registration
+ * family and Reg A annual reports are all full-submission forms. A proxy
+ * converts from its primary document and shows one document, which is what it
+ * has.
+ */
+export function conversionFetchFileName(
+  form: string | null | undefined,
+  accessionNumber: string,
+  primaryDoc: string | null | undefined
+): string | undefined {
+  if (form !== null && form !== undefined && submissionFetchKind(form) === "full-submission") {
+    return fullSubmissionFileName(accessionNumber);
+  }
+  return resolvePrimaryDocName(primaryDoc) ?? fullSubmissionFileName(accessionNumber);
 }
 
 /** The primary document's filename, falling back to the file that was loaded. */
@@ -159,9 +191,14 @@ export class ConvertFilingDocumentTask extends Task<
       if (cached !== undefined) return { text: cached, docFile: fileName };
     }
 
-    // Nothing cached: fetch the file the forms pipeline would have fetched,
-    // which is the first candidate.
-    const fileName = candidates[0];
+    // Nothing cached: fetch the file the forms pipeline would have fetched, not
+    // the one this module would prefer.
+    const fileName = conversionFetchFileName(
+      input.form ?? null,
+      input.accessionNumber,
+      input.primaryDoc ?? null
+    );
+    if (fileName === undefined) return undefined;
     const fetchTask = context.own(
       new SecFetchAccessionDocTask(
         { cik: input.cik, accessionNumber: input.accessionNumber, fileName },

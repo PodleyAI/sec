@@ -27,23 +27,60 @@ export interface ConvertibleDocument {
 /**
  * Document types that are not prose and never will be.
  *
- * `GRAPHIC` is a JPEG, `XML`/`EX-101.*` are the XBRL payload, `EX-FILING FEES`
- * is an iXBRL fee table already parsed structurally elsewhere, and `ZIP` is the
- * iXBRL bundle. Run through the markdown converter each produces either nothing
- * or a page of noise, and the XBRL ones are large enough to matter at rest.
+ * A DENYLIST, so a member EDGAR invents next year is readable by default rather
+ * than silently absent. The trade is stated rather than assumed: the failure
+ * mode of a denylist is a junk document appearing in a filing's directory
+ * listing, and the failure mode of an allowlist is a real exhibit disappearing
+ * from one with nothing to indicate it. The first is visible and cheap to fix;
+ * the second is invisible.
+ *
+ * The axis is NOT-PROSE, and only that. Everything here is machine data,
+ * markup, or binary — nothing is excluded for being dull. Boilerplate that is
+ * genuinely prose (an auditor's consent, a SOX certification) stays: a
+ * directory listing that quietly omits documents a filing contains is not a
+ * listing of that filing.
+ *
+ * Built from EDGAR's published document-type vocabulary rather than measured
+ * against a corpus — there is no local document cache to count. Anything it
+ * misses is one regex away, and the {@link isBinaryEnvelope} check catches the
+ * mislabelled cases this cannot see.
  *
  * The narrower list `parseSubmissionExhibits` uses is not reusable here: it
  * also drops the primary document and everything that is not an `EX-`, which is
  * the opposite of what a directory listing wants.
  */
-const SKIP_TYPES = /^(graphic|zip|xml|excel|ex-101\b|ex-filing fees\b)/i;
+const SKIP_TYPES = new RegExp(
+  [
+    // Binary and media. `GRAPHIC` is EDGAR's own type for an embedded image.
+    "^(graphic|zip|excel|pdf|audio|video)$",
+    // Markup and structured data submitted as a member in its own right.
+    "^(xml|xsd|json|sgml)$",
+    // XBRL, in every generation EDGAR has shipped: EX-100 (the 2005 voluntary
+    // program), EX-101 (INS/SCH/CAL/DEF/LAB/PRE), EX-104 (cover-page iXBRL).
+    "^ex-10[014]\\b",
+    // The iXBRL filing-fee table. Tagged data with a rendering, not a document,
+    // and the fee figures are already parsed structurally elsewhere.
+    "^ex-filing fees\\b",
+    // The legacy Article 5 financial data schedule: a fixed-field numeric dump.
+    "^ex-27\\b",
+  ].join("|"),
+  "i"
+);
 
 /**
- * Filename extensions that are not prose either, for the submissions whose
- * `<TYPE>` is missing or lies. A filer mislabelling a JPEG `EX-99.1` is rarer
- * than one omitting the type entirely, and both end the same way without this.
+ * Filename extensions that are not prose either, for the members whose `<TYPE>`
+ * is missing or lies.
+ *
+ * Checked in addition to the type rather than instead of it. A filer omitting
+ * `<TYPE>` entirely is commoner than one mislabelling a JPEG `EX-99.1`, and
+ * both end the same way without this.
+ *
+ * Applied to non-primary members only. The primary document is the filing
+ * whatever it is named — and the one shape that would matter, a `.xml` cover
+ * page, belongs to forms this converter is not asked about.
  */
-const SKIP_EXTENSIONS = /\.(jpe?g|gif|png|bmp|tiff?|pdf|zip|xlsx?|xsd|json|css|js)$/i;
+const SKIP_EXTENSIONS =
+  /\.(jpe?g|gif|png|bmp|tiff?|svg|webp|ico|pdf|zip|gz|tar|xlsx?|xlsm|xsd|xml|json|sgml|css|js|mp[34]|wav|mov)$/i;
 
 /**
  * A member whose `<TEXT>` body is a binary envelope rather than the file.

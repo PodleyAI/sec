@@ -201,24 +201,8 @@ describe("filingDocumentTitle", () => {
 });
 
 describe("conversionCandidates", () => {
-  it("prefers the full submission for every form, since it is the only shape carrying exhibits", () => {
-    expect(conversionCandidates("S-1", "0001234567-26-000001", "example-s1.htm")).toEqual([
-      "0001234567-26-000001.txt",
-      "example-s1.htm",
-    ]);
-    expect(conversionCandidates("8-K", "0001234567-26-000001", "form8k.htm")).toEqual([
-      "0001234567-26-000001.txt",
-      "form8k.htm",
-    ]);
-  });
-
-  it("strips EDGAR's inline-XBRL viewer prefix so both halves of the round trip agree", () => {
-    expect(conversionCandidates("4", "0001-26-1", "xslF345X03/wf-form4.xml")).toEqual([
-      "0001-26-1.txt",
-      "wf-form4.xml",
-    ]);
-  });
-
+  // The probe order and the fetch choice are pinned in
+  // `submissionFetchPolicy.test.ts`, alongside the policy they follow.
   it("still offers the full submission when the filing names no primary document", () => {
     expect(conversionCandidates("8-K", "0001-26-1", null)).toEqual(["0001-26-1.txt"]);
     expect(conversionCandidates("8-K", "0001-26-1", "  ")).toEqual(["0001-26-1.txt"]);
