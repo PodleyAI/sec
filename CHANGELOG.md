@@ -1,5 +1,157 @@
 # Changelog
 
+## 0.1.4
+
+### Features
+
+#### resolver
+
+- derive person-role tenures as a projection
+- rebuild address and phone junctions as a projection
+
+#### observation
+
+- persist which list a person was read from
+
+#### config
+
+- export the storage descriptor and its registration loop
+- register sec's form extractors
+
+#### index
+
+- export the form-extractor registry
+
+#### forms
+
+- carry the filing body and the escalation on the extractor
+- carry the filing body and the escalation on the extractor
+- add the form-extractor registry
+
+#### sync
+
+- add tests for spacs and submissions leaf runAll functionality
+
+#### verify
+
+- trace what each extraction call sent and what came back
+- account for what the pipeline did to a filing
+
+#### s1
+
+- give a Section the filing HTML it was rendered from
+
+#### html
+
+- carry source spans from the filing HTML on every block
+
+### Bug Fixes
+
+- type errors
+- type errors
+- type errors
+- over zealous on version
+- export one DI-exemption predicate, not the sets behind it
+- export DI_EXEMPT_COMMAND_PATHS alongside its sibling
+- make dateOfFirstSale optional in Form D schema and update related processing
+
+#### resolver
+
+- close mutation-tested gaps in the junction rebuild's evidence
+
+#### forms
+
+- wire extractor.parse, guard id vocab, and empty-sweep fallback
+- register the extractors once per registry generation
+- resolve TypeScript type error in form-extractor registry
+
+#### verify
+
+- stop reporting information-free runs as lost content
+
+### Refactors
+
+- update type definitions and enhance test coverage
+- update type definitions and enhance test coverage
+- update type definitions and enhance test coverage
+- simplify task execution by replacing Workflow with ProcessAccessionDocFormTask
+- streamline forms sweep processing and remove batch size parameter
+
+#### sync
+
+- expand form tokens from the registry
+
+#### forms
+
+- compute the worklist per (form, extractor)
+- delete the ParsedFormDocument union
+- dispatch storage through the extractor registry
+
+#### dead-letter
+
+- open the reason code to a string
+
+#### versioning
+
+- open ExtractorId to a plain string
+
+### Performance
+
+#### filings
+
+- index file_number, and cover streamMatchingRows
+
+### Tests
+
+#### query
+
+- give the person fixture the column its table now requires
+
+#### resolver
+
+- cover the junction purge's scoping and empty case
+
+#### config
+
+- pin the descriptor shape a downstream package reads
+
+#### html
+
+- pin the rendered table markdown, not just the grid
+
+#### eval
+
+- assert every golden label appears in its own section
+
+### Documentation
+
+- refresh the typecheck-tests debt count
+- refresh the typecheck-tests debt count
+- name the version the colspan fix shipped in
+- describe sec verify, source spans, and the coverage measure
+- fold main's fetch-layer rewrite into the split docs
+- split CLAUDE.md into a guide plus five topic references
+
+#### resolver
+
+- finish settling roster vocabulary in EntityObserver
+
+### Chores
+
+- update deps
+- update deps
+
+### CI
+
+- match ci version and fix format
+
+### Updated Dependencies
+
+- `@sroussey/parse-full-name`: ^3.0.1
+- `@workglow/cli`: 0.4.3
+- `typebox`: 1.3.19
+- `workglow`: 0.4.3
+
 ## 0.1.3
 
 ### Features
