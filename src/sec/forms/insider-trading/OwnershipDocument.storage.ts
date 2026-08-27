@@ -32,7 +32,6 @@ import type {
 } from "../../../storage/section16/Section16Schema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
-import { formToExtractorId } from "../../../storage/versioning/extractorIds";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
 import { parseCikSafely } from "../../../util/parseCik";
@@ -193,6 +192,7 @@ export async function processOwnershipForm({
   accession_number,
   filing_date,
   form,
+  extractor_id,
   doc,
 }: {
   cik: number;
@@ -201,6 +201,15 @@ export async function processOwnershipForm({
   filing_date: string;
   primary_doc: string;
   form: string;
+  /**
+   * The extractor running this store, carried from the registry entry that
+   * dispatched it. Forms 3, 4 and 5 register three separate extractors over
+   * this one handler precisely so each keeps its own version slot, so the id
+   * has to arrive with the dispatch: re-deriving it from the form symbol
+   * cannot answer which extractor is running, and observation rows and
+   * `extractor_runs` would disagree the moment one form carries two.
+   */
+  extractor_id: string;
   doc: OwnershipDocument;
 }): Promise<void> {
   const versionRegistry = new VersionRegistry(
@@ -219,11 +228,6 @@ export async function processOwnershipForm({
   // unrelated filers via the 0 sentinel. Patch bump — same dev cycle.
   const extractor_version = "1.0.1";
 
-  // Use the same canonical extractor id the dispatch task records against
-  // (amendments share the base extractor), so observation rows and
-  // extractor_runs/version slots never disagree. Fall back to the bare
-  // document type only for forms not in the mapping.
-  const extractor_id = formToExtractorId(form) ?? (str(doc.documentType) ?? form).replace("/A", "");
   // The XML issuerCik is authoritative. We must NOT fall back to the filing's
   // own CIK: ownership filings are ingested from a submission feed that may be
   // the reporting owner's, not the issuer's, so that fallback could stamp the

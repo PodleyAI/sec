@@ -27,7 +27,6 @@ import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/Com
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import {
-  formToExtractorId,
   isNonfatalTimelineExtractor,
   isSpacRowGatedExtractor,
 } from "../../storage/versioning/extractorIds";
@@ -501,10 +500,25 @@ function emptyOutcome(cik: number, error: string): ProcessSpacTimelineTaskOutput
 
 /**
  * Per-filing outcomes for one issuer's replay, matching the form-fetch
- * counter: the form's own extractor, newest run by `ran_at`, and every
- * pending dead-letter on those accessions (including sub-extractors). A
- * filing with no run row for its extractor counts as failed, except ownership
- * forms (3/4/5/144) which count as `nonfatal`.
+ * counter: the form's own extractors, newest run by `ran_at` for each, and
+ * every pending dead-letter on those accessions (including sub-extractors).
+ *
+ * A form carries a SET of extractors, not one — a de-SPAC `S-4` is both a
+ * registration statement and the merger proxy for the same vote — so the
+ * filing's outcome is a rollup and the rule is worst-outcome-wins:
+ *
+ * - an extractor with no run row, or a run that is neither `success` nor
+ *   `partial`, is FAILING;
+ * - any failing extractor makes the filing `failed`, unless EVERY failing one
+ *   is a nonfatal timeline extractor (ownership forms 3/4/5/144, off the SPAC
+ *   critical path), in which case the filing is `nonfatal`;
+ * - otherwise any `partial` extractor makes the filing `partial`;
+ * - otherwise every extractor succeeded and the filing is `succeeded`.
+ *
+ * Only a form NO extractor handles still counts straight to `failed`.
+ * Deriving one id per form instead counted a filing the registry handles
+ * perfectly well as `failed` purely because a closed map had no entry for its
+ * form symbol.
  */
 async function countTimelineOutcomes(
   cik: number,
@@ -526,16 +540,24 @@ async function countTimelineOutcomes(
   let triage = 0;
   const extractorIds = new Set<string>();
   for (const filing of timeline) {
-    const extractorId = filing.form !== null ? formToExtractorId(filing.form) : undefined;
-    if (extractorId === undefined) {
+    const formExtractorIds = filing.form !== null ? extractorIdsForForm(filing.form) : [];
+    if (formExtractorIds.length === 0) {
       failed++;
       continue;
     }
-    const latest = await runRepo.findLatestRun(cik, filing.accession_number, extractorId);
-    if (latest?.outcome === "success") succeeded++;
-    else if (latest?.outcome === "partial") partial++;
-    else if (isNonfatalTimelineExtractor(extractorId)) nonfatal++;
-    else failed++;
+    const failing: string[] = [];
+    let anyPartial = false;
+    for (const extractorId of formExtractorIds) {
+      const latest = await runRepo.findLatestRun(cik, filing.accession_number, extractorId);
+      if (latest?.outcome === "success") continue;
+      if (latest?.outcome === "partial") anyPartial = true;
+      else failing.push(extractorId);
+    }
+    if (failing.length > 0) {
+      if (failing.every(isNonfatalTimelineExtractor)) nonfatal++;
+      else failed++;
+    } else if (anyPartial) partial++;
+    else succeeded++;
 
     const pending =
       (await deadLetterRepo.query({

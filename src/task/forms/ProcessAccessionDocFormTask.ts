@@ -35,7 +35,6 @@ import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDe
 import type { DeadLetterReasonCode } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
-import { formToExtractorId } from "../../storage/versioning/extractorIds";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { getActiveSlot, type ActiveSlot } from "../../storage/versioning/getActiveSlot";
@@ -102,14 +101,29 @@ type ProcessAccessionDocFormTaskOutput = Static<
 >;
 
 /**
- * A form reached the storage dispatch with no extractor registered for it. That
- * is a wiring error — a form added to `FORM_TO_EXTRACTOR_ID` without a matching
- * registration — not a property of the filing, so it escapes the store
- * containment instead of becoming a `STORE_ERROR`. No retry or version bump can
- * fix it, and dead-lettering it would mark every filing of that form as an
- * ordinary extraction failure rather than failing loudly on the first one.
+ * A filing reached this task with no extractor registered for its form. That is
+ * a wiring error — the worklist selected a form nothing is registered to store
+ * — not a property of the filing, so it fails the task outright instead of
+ * becoming a `STORE_ERROR`. No retry or version bump can fix it, and
+ * dead-lettering it would mark every filing of that form as an ordinary
+ * extraction failure rather than failing loudly on the first one.
+ *
+ * Raised before the fetch, and again from the dispatch itself: the registry is
+ * process-global and can be rebuilt between the two, and the second guard is
+ * inside the store containment, which is what the dedicated type is for.
  */
 class MissingStorageHandlerError extends TaskError {}
+
+/**
+ * One extractor of a filing's form, with the version slot its run is recorded
+ * under. The unit everything this filing writes down is keyed by: a filing has
+ * as many of these as its form has extractors, and never one canonical id.
+ */
+interface LedgerTarget {
+  readonly id: string;
+  readonly extractor_version: string;
+  readonly slot_at_run: ActiveSlot["slot"];
+}
 
 export class ProcessAccessionDocFormTask extends Task<
   ProcessAccessionDocFormTaskInput,
@@ -292,26 +306,28 @@ export class ProcessAccessionDocFormTask extends Task<
     // The two used to be one flag, which is what made "fetch more" and "feed
     // the model more" impossible to do separately.
 
-    // The id the run ledger and the filing-level dead letters are keyed by.
-    // `FORM_TO_EXTRACTOR_ID` is the historical answer and still the one that
-    // wins for every form sec ships, but it is a closed literal map: a form a
-    // downstream package registers through `registerFormExtractor` is selected
-    // by the (registry-driven) worklist and would otherwise reach here with no
-    // key at all — a throw that escapes the store containment and takes the
-    // rest of the sweep with it. Falling back to the registry's own first
-    // extractor keys the ledger by something real instead.
-    const extractorId = formToExtractorId(form) ?? extractorsForForm(form)[0]?.id;
-    if (!extractorId) {
-      throw new TaskError(`No extractor registered for form '${form}'`);
+    // WHICH EXTRACTORS run, and the ids everything this filing writes down is
+    // keyed by. There is no single one: a form carries a SET of extractors, and
+    // an id that gets WRITTEN DOWN — an `extractor_runs` row, a dead letter, an
+    // observation reap — has to be the id of the extractor that did or failed
+    // the work. Re-deriving one from the form symbol answers a different
+    // question, and answers it arbitrarily the moment a form carries two.
+    const registeredExtractors = extractorsForForm(form);
+    if (registeredExtractors.length === 0) {
+      throw new MissingStorageHandlerError(
+        `No extractor registered for form '${form}': the form has no storage handler`
+      );
     }
+    // Deduped: an extractor split into sections holds several registry keys
+    // under ONE id, and the run ledger and the version slots key on the id.
+    const extractorIds = [...new Set(registeredExtractors.map((e) => e.id))];
 
     const versionRegistry = new VersionRegistry(
       globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
     );
-    // One `component_versions` lookup per extractor id per filing. The
-    // filing-level id below and the dispatch's per-extractor resolution ask for
-    // the same slot on every single-extractor form — which is every form sec
-    // ships — so without this each filing paid the round trip twice.
+    // One `component_versions` lookup per extractor id per filing. The ledger
+    // resolution below and the dispatch's own per-extractor resolution ask for
+    // the same slots, so without this each filing paid every round trip twice.
     const slotCache = new Map<string, ActiveSlot>();
     const activeSlotFor = async (id: string): Promise<ActiveSlot> => {
       let slot = slotCache.get(id);
@@ -326,9 +342,15 @@ export class ProcessAccessionDocFormTask extends Task<
       }
       return slot;
     };
-    const activeSlot = await activeSlotFor(extractorId);
-    const extractorVersion = activeSlot.semver;
-    const slotAtRun = activeSlot.slot;
+    // Resolved for EVERY extractor up front. An unseeded version slot is a
+    // wiring error, not a property of this filing, so it fails loudly here
+    // rather than inside the store containment, where it would wear the same
+    // reason code as a genuine extraction failure on every filing of the form.
+    const ledgerTargets: LedgerTarget[] = [];
+    for (const id of extractorIds) {
+      const slot = await activeSlotFor(id);
+      ledgerTargets.push({ id, extractor_version: slot.semver, slot_at_run: slot.slot });
+    }
 
     const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
 
@@ -338,31 +360,76 @@ export class ProcessAccessionDocFormTask extends Task<
     // different version than the filing's most recent prior run so the reap
     // gate below can tell "true version bump" (safe to reap superseded rows)
     // from "same-version re-run" (LLM sampling variance alone must not delete
-    // observations that are still legitimately present).
-    const priorRun = await runRepo.findLatestRun(cik!, accessionNumber, extractorId);
-    const versionChanged =
-      priorRun !== undefined && priorRun.extractor_version !== extractorVersion;
+    // observations that are still legitimately present). Per extractor: two
+    // extractors over one form hold independent version slots, so one of them
+    // being bumped says nothing about the other's rows.
+    const versionChanged = new Map<string, boolean>();
+    for (const target of ledgerTargets) {
+      const priorRun = await runRepo.findLatestRun(cik!, accessionNumber, target.id);
+      versionChanged.set(
+        target.id,
+        priorRun !== undefined && priorRun.extractor_version !== target.extractor_version
+      );
+    }
 
     const deadLetters = new ExtractionDeadLetterRepo();
 
+    /**
+     * How many registry entries each extractor id holds for this form. An
+     * extractor split into sections registers several entries under ONE id, and
+     * the run ledger keys on the id — so that id has run this filing only once
+     * every one of its entries has stored, not after the first.
+     */
+    const entriesPerId = new Map<string, number>();
+    for (const ext of registeredExtractors) {
+      entriesPerId.set(ext.id, (entriesPerId.get(ext.id) ?? 0) + 1);
+    }
+
+    /**
+     * How many of each id's entries have completed their store, so the run
+     * ledger is keyed by the extractor that actually did the work. Declared
+     * before the failure recorders because it is what tells them which
+     * extractors a filing-level failure is actually the failure OF.
+     */
+    const storedEntries = new Map<string, number>();
+
+    /** Whether every registry entry under this id has stored. */
+    const idFinished = (id: string): boolean =>
+      (storedEntries.get(id) ?? 0) >= (entriesPerId.get(id) ?? 0);
+
+    /**
+     * The extractors a filing-level failure is recorded against: every one that
+     * has not finished storing.
+     *
+     * Before the dispatch — an unresolved primary document, a fetch error, a
+     * parse error — that is all of them, and each genuinely failed. Mid-dispatch
+     * it is the extractor that threw plus those still queued behind it: the
+     * siblings that already returned did not fail, and stamping them with a
+     * version-gated failure would dead-letter work that succeeded.
+     */
+    const unfinishedTargets = (): readonly LedgerTarget[] =>
+      ledgerTargets.filter((t) => !idFinished(t.id));
+
     const recordRunFailed = async (message: string): Promise<void> => {
-      try {
-        await runRepo.recordRun({
-          cik: cik!,
-          accession_number: accessionNumber,
-          form: form!,
-          extractor_id: extractorId,
-          extractor_version: extractorVersion,
-          slot_at_run: slotAtRun,
-          success: false,
-          outcome: "failure",
-          error: message.slice(0, 4096),
-        });
-      } catch (recordErr) {
-        console.error(
-          `Failed to record extractor_runs row for ${cik}/${accessionNumber}@${extractorId}:${extractorVersion}:`,
-          recordErr
-        );
+      for (const target of unfinishedTargets()) {
+        try {
+          await runRepo.recordRun({
+            cik: cik!,
+            accession_number: accessionNumber,
+            form: form!,
+            extractor_id: target.id,
+            extractor_version: target.extractor_version,
+            slot_at_run: target.slot_at_run,
+            success: false,
+            outcome: "failure",
+            error: message.slice(0, 4096),
+          });
+        } catch (recordErr) {
+          console.error(
+            `Failed to record extractor_runs row for ${cik}/${accessionNumber}@${target.id}:${target.extractor_version}:`,
+            recordErr
+          );
+        }
       }
     };
 
@@ -370,40 +437,96 @@ export class ProcessAccessionDocFormTask extends Task<
       reason_code: DeadLetterReasonCode,
       detail: string
     ): Promise<void> => {
-      try {
-        await deadLetters.record({
-          extractor_id: extractorId,
-          accession_number: accessionNumber,
-          section_name: "",
-          reason_code,
-          detail,
-          failed_extractor_version: extractorVersion,
-          source_run_id: null,
-        });
-      } catch (dlErr) {
-        console.error(
-          `Failed to record dead-letter ${reason_code} for ${accessionNumber}@${extractorId}:`,
-          dlErr
-        );
+      for (const target of unfinishedTargets()) {
+        try {
+          await deadLetters.record({
+            extractor_id: target.id,
+            accession_number: accessionNumber,
+            section_name: "",
+            reason_code,
+            detail,
+            failed_extractor_version: target.extractor_version,
+            source_run_id: null,
+          });
+        } catch (dlErr) {
+          console.error(
+            `Failed to record dead-letter ${reason_code} for ${accessionNumber}@${target.id}:`,
+            dlErr
+          );
+        }
+      }
+    };
+
+    /** The ids a filing-level failure message names, for the console trace. */
+    const unfinishedLabel = (): string =>
+      unfinishedTargets()
+        .map((t) => t.id)
+        .join(",");
+
+    /**
+     * Clears the filing-level dead-letter entry (section_name "") for every
+     * extractor of the form. A filing that previously failed at the fetch layer
+     * left one per extractor, and each is keyed by its own id.
+     */
+    const markFilingLevelResolved = async (): Promise<void> => {
+      for (const id of extractorIds) {
+        try {
+          await deadLetters.markResolved(id, accessionNumber, "");
+        } catch (dlErr) {
+          console.error(
+            `Failed to resolve filing-level dead-letter for ${accessionNumber}@${id}:`,
+            dlErr
+          );
+        }
       }
     };
 
     /**
-     * What each extractor that completed its store ran as, so the run ledger
-     * can be keyed by the extractor that actually did the work and not only by
-     * the filing-level id. See {@link recordSecondaryRuns}.
+     * Records a run row for every extractor that completed its store, each
+     * under its OWN id and version slot.
+     *
+     * `ComputeFormsWorklistTask` selects a filing when ANY extractor registered
+     * for its form has no successful run at that extractor's OWN active
+     * version, so an extractor with no row of its own keeps the anti-join
+     * matching and every sweep re-dispatches the filing — re-paying the whole
+     * dispatch, model calls included, forever.
+     *
+     * Every row carries the SAME outcome, because the outcome is read from a
+     * scan of the filing's pending dead letters as a whole: a `partial` run
+     * leaves a section dead-lettered somewhere in this filing, and claiming
+     * success for a sibling extractor would let the worklist skip work that
+     * scan says is unfinished.
      */
-    const storedExtractors = new Map<
-      string,
-      { readonly extractor_version: string; readonly slot_at_run: ActiveSlot["slot"] }
-    >();
+    const recordRunsStored = async (outcome: "success" | "partial"): Promise<void> => {
+      for (const target of ledgerTargets) {
+        if (!idFinished(target.id)) continue;
+        try {
+          await runRepo.recordRun({
+            cik: cik!,
+            accession_number: accessionNumber,
+            form: form!,
+            extractor_id: target.id,
+            extractor_version: target.extractor_version,
+            slot_at_run: target.slot_at_run,
+            success: outcome === "success",
+            outcome,
+            error: null,
+          });
+        } catch (recordErr) {
+          console.error(
+            `Failed to record extractor_runs row for ${cik}/${accessionNumber}@${target.id}:${target.extractor_version}:`,
+            recordErr
+          );
+        }
+      }
+    };
 
     /**
      * The single dispatch point for the filing: every extractor registered for
      * the form, in the order the registry hands them back. Each resolves its
      * OWN version slot — two extractors over one form have independent gates —
-     * where the filing-level `extractorId` above is what the run ledger and the
-     * filing-level dead letters stay keyed by.
+     * and each is recorded in {@link storedEntries} under its own id, which
+     * is what the run ledger and the dead letters are then keyed by.
      *
      * `parsed` is undefined and `body` empty for the extractors that work from
      * the submissions metadata alone: nothing was fetched for them to read, and
@@ -463,54 +586,9 @@ export class ProcessAccessionDocFormTask extends Task<
           context,
           parsed: extractorParsed,
         });
-        // Recorded only once the store returned, so a throw leaves the
-        // extractor unrecorded and the worklist re-selects the filing for it.
-        storedExtractors.set(extractor.id, {
-          extractor_version: slot.semver,
-          slot_at_run: slot.slot,
-        });
-      }
-    };
-
-    /**
-     * Records a SUCCESSFUL `extractor_runs` row for every extractor that ran
-     * beyond the filing-level one.
-     *
-     * `ComputeFormsWorklistTask` selects a filing when ANY extractor registered
-     * for its form has no successful run at that extractor's OWN active
-     * version. The filing-level `extractorId` row alone therefore never
-     * satisfies a form carrying more than one extractor: the second id has no
-     * row, the anti-join keeps matching, and every sweep re-dispatches the
-     * filing — re-paying the whole dispatch, model calls included, forever.
-     * Empty for every form sec ships today, where the only extractor IS the
-     * filing-level one.
-     *
-     * Carries the SAME outcome as the filing-level row: a `partial` run leaves
-     * a section dead-lettered somewhere in this filing, and claiming success
-     * for a sibling extractor would let the worklist skip work the primary row
-     * says is unfinished.
-     */
-    const recordSecondaryRuns = async (outcome: "success" | "partial"): Promise<void> => {
-      for (const [id, run] of storedExtractors) {
-        if (id === extractorId) continue;
-        try {
-          await runRepo.recordRun({
-            cik: cik!,
-            accession_number: accessionNumber,
-            form: form!,
-            extractor_id: id,
-            extractor_version: run.extractor_version,
-            slot_at_run: run.slot_at_run,
-            success: outcome === "success",
-            outcome,
-            error: null,
-          });
-        } catch (recordErr) {
-          console.error(
-            `Failed to record extractor_runs row for ${cik}/${accessionNumber}@${id}:${run.extractor_version}:`,
-            recordErr
-          );
-        }
+        // Counted only once the store returned, so a throw leaves the extractor
+        // unrecorded and the worklist re-selects the filing for it.
+        storedEntries.set(extractor.id, (storedEntries.get(extractor.id) ?? 0) + 1);
       }
     };
 
@@ -539,38 +617,13 @@ export class ProcessAccessionDocFormTask extends Task<
         }
         const message = err instanceof Error ? err.message : String(err);
         const detail = `Store failed for form '${form}': ${message}`;
-        console.error(`STORE_ERROR ${accessionNumber}@${extractorId}:`, err);
+        console.error(`STORE_ERROR ${accessionNumber}@${unfinishedLabel()}:`, err);
         await recordDeadLetterSafe("STORE_ERROR", detail.slice(0, 1024));
         await recordRunFailed(`STORE_ERROR: ${detail}`);
         return { success: false };
       }
-      try {
-        await deadLetters.markResolved(extractorId, accessionNumber, "");
-      } catch (dlErr) {
-        console.error(
-          `Failed to resolve filing-level dead-letter for ${accessionNumber}@${extractorId}:`,
-          dlErr
-        );
-      }
-      try {
-        await runRepo.recordRun({
-          cik: cik!,
-          accession_number: accessionNumber,
-          form: form!,
-          extractor_id: extractorId,
-          extractor_version: extractorVersion,
-          slot_at_run: slotAtRun,
-          success: true,
-          outcome: "success",
-          error: null,
-        });
-      } catch (recordErr) {
-        console.error(
-          `Failed to record extractor_runs row for ${cik}/${accessionNumber}@${extractorId}:${extractorVersion}:`,
-          recordErr
-        );
-      }
-      await recordSecondaryRuns("success");
+      await markFilingLevelResolved();
+      await recordRunsStored("success");
       return { success: true };
     }
 
@@ -653,14 +706,7 @@ export class ProcessAccessionDocFormTask extends Task<
       // that pending entry cleared, so the version-gated retry sweep doesn't
       // reprocess it after a bump. No-op when no such entry exists; best-effort
       // like recordRun so a storage hiccup can't mask the successful outcome.
-      try {
-        await deadLetters.markResolved(extractorId, accessionNumber, "");
-      } catch (dlErr) {
-        console.error(
-          `Failed to resolve filing-level dead-letter for ${accessionNumber}@${extractorId}:`,
-          dlErr
-        );
-      }
+      await markFilingLevelResolved();
       // One pending-dead-letter scan drives two independent decisions:
       //
       // 1. Reap superseded observation rows (a smaller or reclassified entity
@@ -702,7 +748,12 @@ export class ProcessAccessionDocFormTask extends Task<
       let transientSectionFailure = false;
       let outcome: "success" | "partial" = "success";
       try {
-        const pending = await deadLetters.listPending(extractorId);
+        // Scanned across every extractor of the form: a section dead letter is
+        // keyed by the extractor that recorded it, so asking one id's list
+        // would miss a sibling's failure on this same filing.
+        const pending = (
+          await Promise.all(extractorIds.map((id) => deadLetters.listPending(id)))
+        ).flat();
         transientSectionFailure = hasBlockingSectionFailure(pending, accessionNumber, runStart);
         outcome = transientSectionFailure ? "partial" : "success";
       } catch (dlErr) {
@@ -711,44 +762,32 @@ export class ProcessAccessionDocFormTask extends Task<
         // "success": a transient listPending failure must not mark a clean run
         // partial and force endless reprocessing.
         console.error(
-          `Failed to check section dead-letters for ${accessionNumber}@${extractorId}:`,
+          `Failed to check section dead-letters for ${accessionNumber}@${extractorIds.join(",")}:`,
           dlErr
         );
         transientSectionFailure = true;
       }
-      if (!transientSectionFailure && versionChanged) {
-        try {
-          await reapStaleObservations({
-            accession_number: accessionNumber,
-            extractor_id: extractorId,
-            before: runStart,
-          });
-        } catch (reapErr) {
-          console.error(
-            `Failed to reap stale observations for ${accessionNumber}@${extractorId}:`,
-            reapErr
-          );
+      if (!transientSectionFailure) {
+        // Per extractor, and only where THAT extractor's version moved. The
+        // reap deletes by `extractor_id`, so one extractor's bump is no licence
+        // to hard-delete a sibling's rows at an unchanged version.
+        for (const id of extractorIds) {
+          if (versionChanged.get(id) !== true) continue;
+          try {
+            await reapStaleObservations({
+              accession_number: accessionNumber,
+              extractor_id: id,
+              before: runStart,
+            });
+          } catch (reapErr) {
+            console.error(
+              `Failed to reap stale observations for ${accessionNumber}@${id}:`,
+              reapErr
+            );
+          }
         }
       }
-      try {
-        await runRepo.recordRun({
-          cik: cik!,
-          accession_number: accessionNumber,
-          form: form!,
-          extractor_id: extractorId,
-          extractor_version: extractorVersion,
-          slot_at_run: slotAtRun,
-          success: outcome === "success",
-          outcome,
-          error: null,
-        });
-      } catch (recordErr) {
-        console.error(
-          `Failed to record extractor_runs row for ${cik}/${accessionNumber}@${extractorId}:${extractorVersion}:`,
-          recordErr
-        );
-      }
-      await recordSecondaryRuns(outcome);
+      await recordRunsStored(outcome);
       return { success: true };
     }
 
@@ -778,7 +817,7 @@ export class ProcessAccessionDocFormTask extends Task<
 
     const message = storeError instanceof Error ? storeError.message : String(storeError);
     const detail = `Store failed for form '${form}': ${message}`;
-    console.error(`STORE_ERROR ${accessionNumber}@${extractorId}:`, storeError);
+    console.error(`STORE_ERROR ${accessionNumber}@${unfinishedLabel()}:`, storeError);
     await recordDeadLetterSafe("STORE_ERROR", detail.slice(0, 1024));
     await recordRunFailed(`STORE_ERROR: ${detail}`);
     return { success: false };

@@ -30,7 +30,6 @@ import { PersonRoleRepo } from "../../../storage/canonical/PersonRoleRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
-import { formToExtractorId } from "../../../storage/versioning/extractorIds";
 import { Form144Repo } from "../../../storage/form144/Form144Repo";
 import type { Form144 } from "./Form_144.schema";
 import { numScalar as num, strScalar as str } from "../_valueHelpers";
@@ -81,6 +80,7 @@ export async function processForm144({
   accession_number,
   filing_date,
   form,
+  extractor_id,
   doc,
 }: {
   cik: number;
@@ -89,6 +89,13 @@ export async function processForm144({
   filing_date: string;
   primary_doc: string;
   form: string;
+  /**
+   * The extractor running this store, carried from the registry entry that
+   * dispatched it. Observation rows are keyed by it, so it is the id of the
+   * extractor that actually produced them — a form symbol cannot answer that
+   * once one form carries two extractors, and the answer is written down.
+   */
+  extractor_id: string;
   doc: Form144;
 }): Promise<void> {
   const versionRegistry = new VersionRegistry(
@@ -105,7 +112,6 @@ export async function processForm144({
   // 1.1.0: num() now treats whitespace-only numeric elements as null instead
   // of fabricating 0 via Number("   "). Bumped to force production re-extract.
   const extractor_version = "1.1.0";
-  const extractor_id = formToExtractorId(form) ?? "144";
 
   const formData = doc.formData ?? {};
   const issuerInfo = formData.issuerInfo;
