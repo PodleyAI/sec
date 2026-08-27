@@ -12,11 +12,13 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
+import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { CrowdfundingRepo } from "../../../storage/portal/CrowdfundingRepo";
+import { CROWDFUNDING_HISTORY_REPOSITORY_TOKEN } from "../../../storage/portal/CrowdfundingHistorySchema";
 import { CrowdfundingTemporalRepo } from "../../../storage/portal/CrowdfundingTemporalRepo";
 import { Form_C } from "./Form_C";
 import { processFormC } from "./Form_C.storage";
@@ -117,7 +119,10 @@ describe("Form_C pipeline", () => {
   it("populates the crowdfunding history (temporal) table", async () => {
     const ingested = await ingestAll();
     // CrowdfundingTemporalRepo writes one row per call to saveCrowdfundingWithHistory.
-    const allHistory = (await temporalRepo.crowdfundingHistoryRepository.getAll()) || [];
+    // Read the history table through its token rather than off the repo: the
+    // repo resolves the same binding in its constructor, and the field is private.
+    const historyRepository = globalServiceRegistry.get(CROWDFUNDING_HISTORY_REPOSITORY_TOKEN);
+    const allHistory = (await historyRepository.getAll()) ?? [];
     expect(allHistory.length).toBeGreaterThanOrEqual(ingested.length);
   });
 

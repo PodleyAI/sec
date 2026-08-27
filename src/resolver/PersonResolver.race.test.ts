@@ -86,11 +86,12 @@ function obs(overrides: Partial<PersonObservation>): PersonObservation {
     normalized_middle: null,
     normalized_last: null,
     normalized_suffix: null,
-    titles: null,
     relationship: null,
+    birth_year: null,
     raw_address_id: null,
     raw_phone_id: null,
     source_context: null,
+    bio: null,
     created_at: "2026-05-22T00:00:00.000Z",
     ...overrides,
   };
@@ -119,7 +120,7 @@ describe("PersonResolver concurrent resolution", () => {
       resolver.resolve(obs({ cik: 1234, observation_id: 2 })),
     ]);
     expect(a).toBe(b);
-    const rows = await setup.canonStorage.getAll();
+    const rows = (await setup.canonStorage.getAll()) ?? [];
     expect(rows.length).toBe(1);
   });
 
@@ -134,7 +135,7 @@ describe("PersonResolver concurrent resolution", () => {
       resolver.resolve({ ...claim, observation_id: 2 }),
     ]);
     expect(a).toBe(b);
-    const rows = await setup.canonStorage.getAll();
+    const rows = (await setup.canonStorage.getAll()) ?? [];
     expect(rows.length).toBe(1);
   });
 
@@ -150,7 +151,7 @@ describe("PersonResolver concurrent resolution", () => {
     );
     const uniqueIds = new Set(results);
     expect(uniqueIds.size).toBe(1);
-    const rows = await setup.canonStorage.getAll();
+    const rows = (await setup.canonStorage.getAll()) ?? [];
     expect(rows.length).toBe(1);
   });
 
@@ -162,7 +163,7 @@ describe("PersonResolver concurrent resolution", () => {
       resolver.resolve(obs({ cik: 2222, observation_id: 2 })),
     ]);
     expect(a).not.toBe(b);
-    const rows = await setup.canonStorage.getAll();
+    const rows = (await setup.canonStorage.getAll()) ?? [];
     expect(rows.length).toBe(2);
   });
 });
@@ -258,7 +259,7 @@ async function runMultiProcessRace(opts: {
       return r.resolve(obs({ cik: 5555, observation_id: i + 1 }));
     })
   );
-  const rows = await setup.canonStorage.getAll();
+  const rows = (await setup.canonStorage.getAll()) ?? [];
   expect(rows.length).toBe(1);
   return { uniqueRejections, ids: new Set(results) };
 }

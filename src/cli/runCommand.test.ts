@@ -36,7 +36,7 @@ describe("runCommand", () => {
 
   it("returns 1 on error and logs to stderr when no onError provided", async () => {
     const action = vi.fn(() => Promise.reject(new Error("fail")));
-    const stderrWrite = vi.fn(() => true);
+    const stderrWrite = vi.fn((_chunk: string | Uint8Array) => true);
     const origWrite = process.stderr.write;
     process.stderr.write = stderrWrite as typeof process.stderr.write;
     try {
@@ -56,7 +56,7 @@ describe("runCommand", () => {
     const { SEC_JSON_OUTPUT } = await import("../config/tokens");
     globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, true);
     const action = vi.fn(() => Promise.reject(new Error("kaboom")));
-    const stderrWrite = vi.fn(() => true);
+    const stderrWrite = vi.fn((_chunk: string | Uint8Array) => true);
     const origWrite = process.stderr.write;
     process.stderr.write = stderrWrite as typeof process.stderr.write;
     try {

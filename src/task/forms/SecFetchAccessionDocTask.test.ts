@@ -31,7 +31,7 @@ describe("SecFetchAccessionDocTask", () => {
         cik: 2097288,
         accessionNumber: "0001213900-26-012345",
         fileName: "ea123.htm",
-      } as FetchUrlTaskInput,
+      } as unknown as FetchUrlTaskInput,
       {} as IExecuteContext
     );
     expect(resolved.url).toBe(
@@ -67,7 +67,7 @@ describe("SecFetchAccessionDocTask", () => {
         accessionNumber: "0001213900-26-012345",
         fileName: "ea123.htm",
         response_type: "stream",
-      } as FetchUrlTaskInput,
+      } as unknown as FetchUrlTaskInput,
       {} as IExecuteContext
     );
     expect(resolved.response_type).toBe("stream");

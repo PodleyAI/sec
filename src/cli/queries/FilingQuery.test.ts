@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import {
+  FILING_REPOSITORY_TOKEN,
+  type FilingRepositoryStorage,
+} from "../../storage/filing/FilingSchema";
 import { queryFilings } from "./FilingQuery";
 
 function makeFiling(overrides: Partial<Parameters<typeof repo.put>[0]> = {}) {
@@ -25,7 +28,7 @@ function makeFiling(overrides: Partial<Parameters<typeof repo.put>[0]> = {}) {
   };
 }
 
-let repo: ReturnType<typeof globalServiceRegistry.get<typeof FILING_REPOSITORY_TOKEN>>;
+let repo: FilingRepositoryStorage;
 
 describe("queryFilings", () => {
   beforeEach(() => {

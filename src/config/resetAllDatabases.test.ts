@@ -184,7 +184,7 @@ describe("resetAllDatabases migration-ledger scoping", () => {
   it("reports the ledger among the tables it left standing", async () => {
     await resetAllDatabases();
 
-    const warnings = warn.mock.calls.map((args) => String(args[0])).join("\n");
+    const warnings = warn.mock.calls.map((args: readonly unknown[]) => String(args[0])).join("\n");
     expect(warnings).toContain("does not own");
     expect(warnings).toContain(LEDGER);
   });

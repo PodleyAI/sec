@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../../storage/investment-offering/InvestmentOfferingSchema";
+import {
+  INVESTMENT_OFFERING_REPOSITORY_TOKEN,
+  type InvestmentOfferingRepositoryStorage,
+} from "../../storage/investment-offering/InvestmentOfferingSchema";
 import { queryOfferings } from "./OfferingQuery";
 
 function makeOffering(overrides: Partial<Parameters<typeof repo.put>[0]> = {}) {
@@ -27,7 +30,7 @@ function makeOffering(overrides: Partial<Parameters<typeof repo.put>[0]> = {}) {
   };
 }
 
-let repo: ReturnType<typeof globalServiceRegistry.get<typeof INVESTMENT_OFFERING_REPOSITORY_TOKEN>>;
+let repo: InvestmentOfferingRepositoryStorage;
 
 describe("queryOfferings", () => {
   beforeEach(() => {

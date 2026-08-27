@@ -16,8 +16,8 @@ import {
 afterEach(() => clearDatabaseExtensionsForTesting());
 
 test("registered tokens are listed once, in order (deduped)", () => {
-  const a = createServiceToken<ITabularStorage>("test.a");
-  const b = createServiceToken<ITabularStorage>("test.b");
+  const a = createServiceToken<ITabularStorage<any, any>>("test.a");
+  const b = createServiceToken<ITabularStorage<any, any>>("test.b");
   registerDatabaseExtension([a]);
   registerDatabaseExtension([b, a]); // dedupe a
   expect(listDatabaseExtensionTokens()).toEqual([a, b]);

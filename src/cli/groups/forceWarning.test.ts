@@ -76,8 +76,12 @@ function spawnUntilWarning(
     };
     proc.stdout.on("data", onData);
     proc.stderr.on("data", onData);
-    proc.on("close", finish);
-    proc.on("error", finish);
+    // Same cast as `runCliProcess`: `ChildProcessWithoutNullStreams` is missing
+    // EventEmitter's methods under this tsconfig (TypeScript 6 + DOM +
+    // @types/bun), while the events themselves are unchanged.
+    const events = proc as unknown as NodeJS.EventEmitter;
+    events.on("close", finish);
+    events.on("error", finish);
 
     const timeoutHandle = setTimeout(finish, timeoutMs);
   });

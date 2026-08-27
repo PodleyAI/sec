@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
+import {
+  COMPANY_FACTS_REPOSITORY_TOKEN,
+  type CompanyFactsRepositoryStorage,
+} from "../../storage/facts/CompanyFactsSchema";
 import { queryFacts } from "./FactsQuery";
 
 function makeFact(overrides: Partial<Parameters<typeof repo.put>[0]> = {}) {
@@ -23,7 +26,7 @@ function makeFact(overrides: Partial<Parameters<typeof repo.put>[0]> = {}) {
   };
 }
 
-let repo: ReturnType<typeof globalServiceRegistry.get<typeof COMPANY_FACTS_REPOSITORY_TOKEN>>;
+let repo: CompanyFactsRepositoryStorage;
 
 describe("queryFacts", () => {
   beforeEach(() => {

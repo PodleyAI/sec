@@ -88,6 +88,7 @@ const result = (
     rows: 1,
     score: { score: 1 } as never,
     cost: {} as never,
+    raw: undefined,
     run,
     fingerprint,
     contentFingerprint,

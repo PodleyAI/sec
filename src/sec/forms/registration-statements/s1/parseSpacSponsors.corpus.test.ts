@@ -5,7 +5,7 @@
  */
 
 import { beforeAll, describe, expect, it } from "vitest";
-import { getGoldenLabels } from "../../../../eval/goldenS1Labels";
+import { getGoldenFieldRows } from "../../../../eval/goldenS1Labels";
 import { loadS1Corpus, S1_CORPUS_TIMEOUT_MS, type S1CorpusFiling } from "./testing/s1Corpus";
 import { S1_SECTIONS } from "./DocumentSegmenter";
 import { parseSpacSponsors } from "./parseSpacSponsors";
@@ -23,7 +23,7 @@ function coveredName(n: string, allowed: Set<string>): boolean {
   return false;
 }
 
-function sponsorText(byName: Map<string, string>): string {
+function sponsorText(byName: ReadonlyMap<string, string>): string {
   return (
     byName.get(S1_SECTIONS.THE_SPONSOR) ??
     [...byName.entries()]
@@ -50,7 +50,7 @@ describe("parseSpacSponsors golden corpus", () => {
 
   it("never false-hits a golden empty spac-sponsors label", () => {
     for (const { filing, byName } of cases) {
-      const labels = getGoldenLabels(filing, "spac-sponsors");
+      const labels = getGoldenFieldRows(filing, "spac-sponsors");
       if (!labels || labels.length !== 0) continue;
       expect(parseSpacSponsors(sponsorText(byName)), filing).toEqual([]);
     }
@@ -58,7 +58,7 @@ describe("parseSpacSponsors golden corpus", () => {
 
   it("does not invent names outside the golden set when it hits a labelled filing", () => {
     for (const { filing, byName } of cases) {
-      const labels = getGoldenLabels(filing, "spac-sponsors");
+      const labels = getGoldenFieldRows(filing, "spac-sponsors");
       if (!labels || labels.length === 0) continue;
       const parsed = parseSpacSponsors(sponsorText(byName));
       if (parsed.length === 0) continue;
@@ -82,7 +82,7 @@ describe("parseSpacSponsors golden corpus", () => {
   it("finds every golden sponsor on a filing it hits", () => {
     const misses: string[] = [];
     for (const { filing, byName } of cases) {
-      const labels = getGoldenLabels(filing, "spac-sponsors");
+      const labels = getGoldenFieldRows(filing, "spac-sponsors");
       if (!labels || labels.length === 0) continue;
       const parsed = parseSpacSponsors(sponsorText(byName));
       if (parsed.length === 0) continue;

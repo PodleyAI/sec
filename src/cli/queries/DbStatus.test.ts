@@ -140,7 +140,9 @@ describe("getDbStats", () => {
 
   it("reports progress through every counted table", async () => {
     const progress: Array<[number, string]> = [];
-    await getDbStats((value, message) => progress.push([value, message]));
+    await getDbStats((value, message) => {
+      progress.push([value, message]);
+    });
 
     expect(progress.length).toBeGreaterThan(0);
     expect(progress[0]).toEqual([0, expect.stringContaining("counting cik_names")]);
