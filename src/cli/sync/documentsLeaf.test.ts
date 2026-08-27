@@ -17,9 +17,9 @@
 import { Command } from "commander";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const runWorkflowCli = vi.fn(async () => undefined);
+const runWorkflowCli = vi.fn(async (..._args: readonly unknown[]) => undefined);
 vi.mock("../runWorkflow", () => ({
-  runWorkflowCli: (...args: unknown[]) => runWorkflowCli(...args),
+  runWorkflowCli: (...args: readonly unknown[]) => runWorkflowCli(...args),
 }));
 
 import { addSyncCommand } from "../groups/sync";
