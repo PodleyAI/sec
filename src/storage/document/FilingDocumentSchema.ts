@@ -21,11 +21,16 @@ import { TypeSecCik } from "../../util/TypeSecCik";
  * megabyte followed by a scroll. Storing the document markdown here as well
  * would double the table for a copy nothing reads on its own.
  *
- * One converted document per filing, keyed by the filing. A submission carries
- * many files — exhibits, graphics, the XBRL payload — and only the PRIMARY
- * document is the filing as a person reads it; {@link FilingDocumentSchema.doc_file}
- * records which file that was so a later change of mind is visible rather than
- * silent.
+ * One row per DOCUMENT, not per filing. A submission is a directory: the
+ * primary document plus the exhibits filed with it, and for an 8-K the
+ * disclosure is routinely in the exhibit rather than the four sentences of
+ * primary that point at it. {@link FilingDocumentSchema.doc_file} is part of
+ * the key, and {@link FilingDocumentSchema.is_primary} marks the one a bare
+ * `/filings/{cik}/{accession}` URL renders — the directory's index.
+ *
+ * Graphics, XBRL payloads and the fee exhibit are not rows here. They are
+ * members of the submission but not prose, and a directory listing of things
+ * that render to noise is worse than one that admits its scope.
  */
 export const FilingDocumentSchema = Type.Object({
   cik: TypeSecCik({ description: "Central Index Key (CIK) - unique identifier for entity" }),
@@ -34,11 +39,31 @@ export const FilingDocumentSchema = Type.Object({
     description: "SEC accession number - unique identifier for the filing",
   }),
   /**
-   * The submission file that was converted, e.g. `tm2412345-1_s1.htm`. Bare
-   * name, with EDGAR's inline-XBRL viewer prefix already stripped, matching
-   * what the fetch cache is keyed by.
+   * The submission member this row is, e.g. `tm2412345-1_s1.htm` or
+   * `ex99-1.htm` — the `<FILENAME>` EDGAR serves it under, so the URL segment
+   * naming a document here is the same string EDGAR uses.
+   *
+   * Part of the primary key. For a submission cached as a bare primary-document
+   * body, with no `<DOCUMENT>` envelopes to read a name out of, this is the
+   * filename the fetch cache is keyed by.
    */
-  doc_file: Type.String({ maxLength: 128, description: "Primary document filename converted" }),
+  doc_file: Type.String({ maxLength: 128, description: "Submission filename converted" }),
+  /**
+   * EDGAR's `<TYPE>` for this member: the form for the primary document,
+   * `EX-99.1` and friends for the exhibits. Null when the submission declares
+   * none.
+   */
+  doc_type: TypeNullable(Type.String({ maxLength: 32, description: "EDGAR document type" })),
+  /** The filer's `<DESCRIPTION>`, which is what a reader recognises an exhibit by. */
+  description: TypeNullable(Type.String({ maxLength: 512, description: "Document description" })),
+  /** EDGAR's `<SEQUENCE>`; the order the submission lists its members in. */
+  sequence: TypeNullable(Type.Integer({ minimum: 0, description: "Position in the submission" })),
+  /**
+   * Whether this is the document the filing IS, as opposed to something filed
+   * with it. Exactly one row per accession carries it, and it is the row a URL
+   * with no document segment resolves to.
+   */
+  is_primary: Type.Boolean({ description: "The submission's primary document" }),
   form: TypeNullable(Type.String({ maxLength: 32, description: "Form type, as filed" })),
   filing_date: TypeNullable(
     Type.String({ description: "Date the filing was submitted (YYYY-MM-DD)" })
@@ -69,7 +94,7 @@ export const FilingDocumentSchema = Type.Object({
 
 export type FilingDocument = Static<typeof FilingDocumentSchema>;
 
-export const FilingDocumentPrimaryKeyNames = ["cik", "accession_number"] as const;
+export const FilingDocumentPrimaryKeyNames = ["cik", "accession_number", "doc_file"] as const;
 
 export type FilingDocumentRepositoryStorage = ITabularStorage<
   typeof FilingDocumentSchema,

@@ -41,11 +41,19 @@ const filing = (accession: string, form: string, filingDate: string) => ({
   items: null,
 });
 
-async function markConverted(accession: string, version: string): Promise<void> {
+async function markConverted(
+  accession: string,
+  version: string,
+  { docFile = "doc.htm", isPrimary = true }: { docFile?: string; isPrimary?: boolean } = {}
+): Promise<void> {
   await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).put({
     cik: CIK,
     accession_number: accession,
-    doc_file: "doc.htm",
+    doc_file: docFile,
+    doc_type: isPrimary ? "S-1" : "EX-99.1",
+    description: null,
+    sequence: isPrimary ? 1 : 2,
+    is_primary: isPrimary,
     form: "S-1",
     filing_date: "2026-02-01",
     title: "S-1",
@@ -112,5 +120,37 @@ describe("selectFilingsToConvert (repository path)", () => {
   it("asks for nothing when asked for nothing", async () => {
     expect(await select({ limit: 0 })).toEqual([]);
     expect(await select({ forms: [] })).toEqual([]);
+  });
+});
+
+describe("selectFilingsToConvert primary gate (repository path)", () => {
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    const filings = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+    await filings.setupDatabase();
+    await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).setupDatabase();
+    await filings.putBulk([filing("0001213900-26-000001", "S-1", "2026-02-01")]);
+  });
+
+  it("re-selects a filing whose exhibits landed but whose primary document did not", async () => {
+    // The converter writes the primary LAST, so exhibit rows on their own mean
+    // an interrupted run. "Has any row" would call this done and nothing would
+    // ever come back for the document a reader actually opens.
+    await markConverted("0001213900-26-000001", VERSION, {
+      docFile: "ex99-1.htm",
+      isPrimary: false,
+    });
+    const selected = await selectFilingsToConvert({ limit: 10, converterVersion: VERSION });
+    expect(selected.map((f) => f.accession_number)).toContain("0001213900-26-000001");
+  });
+
+  it("skips it once the primary document is stored alongside them", async () => {
+    await markConverted("0001213900-26-000001", VERSION, {
+      docFile: "ex99-1.htm",
+      isPrimary: false,
+    });
+    await markConverted("0001213900-26-000001", VERSION);
+    const selected = await selectFilingsToConvert({ limit: 10, converterVersion: VERSION });
+    expect(selected.map((f) => f.accession_number)).not.toContain("0001213900-26-000001");
   });
 });

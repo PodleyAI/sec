@@ -14,10 +14,15 @@ import {
   FILING_SECTION_REPOSITORY_TOKEN,
   type FilingSection,
 } from "../../storage/document/FilingSectionSchema";
+import type { FilingDocument } from "../../storage/document/FilingDocumentSchema";
 import { cachedAccessionDocPath, resolvePrimaryDocName } from "../../util/accessionDocPath";
 import { REGISTRATION_PROSPECTUS_FORMS } from "../forms/ProcessAccessionDocFormTask";
 import { SecFetchAccessionDocTask } from "../forms/SecFetchAccessionDocTask";
-import { convertFilingDocument, FILING_CONVERTER_VERSION } from "./convertFilingDocument";
+import {
+  convertFilingSubmission,
+  FILING_CONVERTER_VERSION,
+  type ConvertedFilingDocument,
+} from "./convertFilingDocument";
 
 export type ConvertFilingDocumentTaskInput = {
   readonly cik: number;
@@ -30,9 +35,12 @@ export type ConvertFilingDocumentTaskInput = {
 
 export type ConvertFilingDocumentTaskOutput = {
   readonly success: boolean;
+  /** Members of the submission converted: the primary document plus exhibits. */
+  readonly documents: number;
+  /** Sections across every converted member. */
   readonly sections: number;
   readonly chars: number;
-  /** The submission file converted, or empty when nothing was. */
+  /** The PRIMARY document's filename, or empty when nothing was converted. */
   readonly docFile: string;
 };
 
@@ -42,30 +50,34 @@ const WRITE_BATCH = 200;
 /**
  * The candidate filenames for one filing, in the order they should be tried.
  *
- * The prospectus forms are cached by the forms pipeline as the full submission
- * `.txt` — `Form.parse()` needs the sibling `<DOCUMENT>` blocks, not just the
- * primary document — so for those the `.txt` is what is already on disk and
- * asking for the primary document alone would be a guaranteed cache miss and a
- * needless EDGAR fetch. Everything else is cached as its primary document.
+ * The full-submission `.txt` first, always. It is the only shape that carries
+ * the sibling `<DOCUMENT>` blocks, and those ARE the filing for an 8-K, whose
+ * primary document is four sentences pointing at the EX-99.1 press release
+ * holding the news. Reading the primary document alone stores the pointer.
  *
- * Both are listed either way, because a cache populated by a different route
- * (the Feed tarball bootstrap, an earlier sweep) may hold the other one, and
- * the converter reads both shapes.
+ * The bare primary document stays as a fallback, because a cache populated by
+ * an older route holds that shape for plenty of filings and one document is
+ * better than none. Such a filing converts to a single-document submission and
+ * says so — {@link FilingDocument.section_count} counts what is there, not what
+ * a `.txt` would have had.
  */
 export function conversionCandidates(
   form: string | null | undefined,
   accessionNumber: string,
   primaryDoc: string | null | undefined
 ): string[] {
-  const fullSubmission = `${accessionNumber}.txt`;
   const primary = resolvePrimaryDocName(primaryDoc);
-  const prospectus = form !== null && form !== undefined && REGISTRATION_PROSPECTUS_FORMS.has(form);
-  const ordered = prospectus ? [fullSubmission, primary] : [primary, fullSubmission];
-  return ordered.filter((name): name is string => name !== undefined);
+  return [`${accessionNumber}.txt`, primary].filter((n): n is string => n !== undefined);
+}
+
+/** The primary document's filename, falling back to the file that was loaded. */
+function primaryDocFile(converted: readonly ConvertedFilingDocument[], fallback: string): string {
+  return converted.find((doc) => doc.isPrimary)?.docFile ?? fallback;
 }
 
 /**
- * Convert one filing's primary document to markdown and store it as sections.
+ * Convert every narrative document of one submission to markdown and store
+ * them as sections.
  *
  * Reads the on-disk fetch cache first and only reaches EDGAR on a miss, for the
  * same reason the forms pipeline does: a cache hit touches no network, so
@@ -99,6 +111,7 @@ export class ConvertFilingDocumentTask extends Task<
   public static outputSchema() {
     return Type.Object({
       success: Type.Boolean(),
+      documents: Type.Integer(),
       sections: Type.Integer(),
       chars: Type.Integer(),
       docFile: Type.String(),
@@ -168,80 +181,112 @@ export class ConvertFilingDocumentTask extends Task<
     context: IExecuteContext
   ): Promise<ConvertFilingDocumentTaskOutput> {
     if (!input.accessionNumber) throw new TaskError("Invalid input");
-    const empty = { success: false, sections: 0, chars: 0, docFile: "" } as const;
+    const empty = { success: false, documents: 0, sections: 0, chars: 0, docFile: "" } as const;
 
     const source = await this.loadSource(input, context);
     if (source === undefined) return empty;
 
-    const converted = convertFilingDocument(input.form ?? null, input.accessionNumber, source.text);
-    // A filing that parses to nothing is not a conversion. Storing a header row
-    // with no sections would make the sweep consider it done and would render
-    // as a blank page rather than as the honest "not converted" state.
-    if (converted.sections.length === 0) return empty;
+    const converted = convertFilingSubmission(
+      input.form ?? null,
+      input.accessionNumber,
+      source.text,
+      source.docFile
+    );
+    // A submission that parses to nothing is not a conversion. Storing header
+    // rows with no sections would make the sweep consider it done and would
+    // render as a blank page rather than as the honest "not converted" state.
+    if (converted.length === 0) return empty;
+    // Nor is one whose primary document parsed to nothing while an exhibit did.
+    // The anti-join keys on the primary row, so a submission with no primary
+    // would be re-selected on every sweep forever.
+    if (!converted.some((doc) => doc.isPrimary)) return empty;
 
     if (isDryRun()) {
+      const sections = converted.reduce((sum, doc) => sum + doc.sections.length, 0);
       console.log(
-        `Would convert ${input.accessionNumber} (${source.docFile}) to ${converted.sections.length} sections`
+        `Would convert ${input.accessionNumber} (${source.docFile}) to ` +
+          `${converted.length} documents, ${sections} sections`
       );
       return {
         success: true,
-        sections: converted.sections.length,
-        chars: converted.charCount,
-        docFile: source.docFile,
+        documents: converted.length,
+        sections,
+        chars: converted.reduce((sum, doc) => sum + doc.charCount, 0),
+        docFile: primaryDocFile(converted, source.docFile),
       };
     }
 
     const sectionRepo = globalServiceRegistry.get(FILING_SECTION_REPOSITORY_TOKEN);
     const documentRepo = globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN);
 
-    // Sections are replaced wholesale, not merged: a re-conversion can produce
-    // FEWER sections than the last one, and merging would leave the tail of the
-    // previous render stranded behind the new document with no way to notice.
-    await sectionRepo.deleteSearch({
-      cik: input.cik,
-      accession_number: input.accessionNumber,
-    } as never);
+    // Both tables are replaced wholesale for this accession, not merged. A
+    // re-conversion can produce FEWER documents or fewer sections than the last
+    // one — a filer's exhibit dropped from the skip list, a heading no longer
+    // recognised — and merging would leave the tail of the previous render
+    // stranded behind the new one with no way to notice.
+    const key = { cik: input.cik, accession_number: input.accessionNumber };
+    await sectionRepo.deleteSearch(key as never);
+    await documentRepo.deleteSearch(key as never);
 
-    const rows: FilingSection[] = converted.sections.map((section) => ({
-      cik: input.cik,
-      accession_number: input.accessionNumber,
-      ordinal: section.ordinal,
-      slug: section.slug,
-      title: section.title,
-      depth: section.depth,
-      char_count: section.markdown.length,
-      markdown: section.markdown,
-    }));
-    for (let i = 0; i < rows.length; i += WRITE_BATCH) {
-      await sectionRepo.putBulk(rows.slice(i, i + WRITE_BATCH));
+    const convertedAt = new Date().toISOString();
+    const headers: FilingDocument[] = [];
+    let written = 0;
+    let sectionTotal = 0;
+    let charTotal = 0;
+    for (const doc of converted) {
+      const rows: FilingSection[] = doc.sections.map((section) => ({
+        cik: input.cik,
+        accession_number: input.accessionNumber,
+        doc_file: doc.docFile,
+        ordinal: section.ordinal,
+        slug: section.slug,
+        title: section.title,
+        depth: section.depth,
+        char_count: section.markdown.length,
+        markdown: section.markdown,
+      }));
+      for (let i = 0; i < rows.length; i += WRITE_BATCH) {
+        await sectionRepo.putBulk(rows.slice(i, i + WRITE_BATCH));
+      }
+      written += 1;
+      sectionTotal += rows.length;
+      charTotal += doc.charCount;
       context.updateProgress(
-        Math.floor((Math.min(i + WRITE_BATCH, rows.length) / rows.length) * 100),
-        `${Math.min(i + WRITE_BATCH, rows.length)}/${rows.length} sections`
+        Math.floor((written / converted.length) * 100),
+        `${written}/${converted.length} documents`
       );
+      headers.push({
+        cik: input.cik,
+        accession_number: input.accessionNumber,
+        doc_file: doc.docFile,
+        doc_type: doc.docType,
+        description: doc.description,
+        sequence: doc.sequence,
+        is_primary: doc.isPrimary,
+        form: input.form ?? null,
+        filing_date: input.filingDate ?? null,
+        title: doc.title,
+        section_count: rows.length,
+        char_count: doc.charCount,
+        converter_version: FILING_CONVERTER_VERSION,
+        converted_at: convertedAt,
+      });
     }
 
-    // Written LAST, so the header row's existence means the sections behind it
-    // are already there. The sweep's anti-join keys on this row, so writing it
-    // first would let an interruption mark a filing done with half a document
-    // stored — and nothing would ever revisit it.
-    await documentRepo.put({
-      cik: input.cik,
-      accession_number: input.accessionNumber,
-      doc_file: source.docFile,
-      form: input.form ?? null,
-      filing_date: input.filingDate ?? null,
-      title: converted.title,
-      section_count: rows.length,
-      char_count: converted.charCount,
-      converter_version: FILING_CONVERTER_VERSION,
-      converted_at: new Date().toISOString(),
-    });
+    // Header rows written LAST, and the PRIMARY last of all, because the
+    // sweep's anti-join keys on the primary row: its presence has to mean every
+    // document behind it is already stored. Writing it first would let an
+    // interruption mark a filing done with half a submission on disk, and
+    // nothing would ever revisit it.
+    for (const header of headers.filter((h) => !h.is_primary)) await documentRepo.put(header);
+    for (const header of headers.filter((h) => h.is_primary)) await documentRepo.put(header);
 
     return {
       success: true,
-      sections: rows.length,
-      chars: converted.charCount,
-      docFile: source.docFile,
+      documents: written,
+      sections: sectionTotal,
+      chars: charTotal,
+      docFile: primaryDocFile(converted, source.docFile),
     };
   }
 }

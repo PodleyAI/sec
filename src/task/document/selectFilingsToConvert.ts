@@ -92,8 +92,13 @@ function documentRepoIfRegistered(): FilingDocumentRepositoryStorage | undefined
 }
 
 /**
- * Filings of the named forms that have no `filing_document` row at the current
- * converter version.
+ * Filings of the named forms that have no PRIMARY `filing_document` row at the
+ * current converter version.
+ *
+ * Primary specifically, because a submission stores one row per document and
+ * the converter writes the primary LAST. "Has a row" would call a filing done
+ * the moment its first exhibit landed, so an interruption between the exhibits
+ * and the primary would leave a half-stored submission nothing ever revisits.
  *
  * An anti-join, so it is raw SQL on the two durable backends: set difference
  * across two tables is the one shape `ITabularStorage` cannot express, and the
@@ -149,6 +154,7 @@ export async function selectFilingsToConvert(
              ON d.\`cik\` = f.\`cik\`
             AND d.\`accession_number\` = f.\`accession_number\`
             AND d.\`converter_version\` = ?
+            AND d.\`is_primary\` = 1
           WHERE ${clauses.join(" AND ")}
           ORDER BY f.\`filing_date\` DESC, f.\`accession_number\` DESC
           LIMIT ?`
@@ -177,6 +183,7 @@ export async function selectFilingsToConvert(
            ON d."cik" = f."cik"
           AND d."accession_number" = f."accession_number"
           AND d."converter_version" = $1
+          AND d."is_primary" = true
         WHERE ${clauses.join(" AND ")}
         ORDER BY f."filing_date" DESC, f."accession_number" DESC
         LIMIT $${params.length}`,
@@ -214,13 +221,17 @@ export async function selectFilingsToConvert(
   for (const filing of matches) {
     if (selected.length >= options.limit) break;
     if (options.force !== true) {
-      const existing = await documents.get({
+      // `doc_file` joined the primary key, so this is a query rather than a
+      // `get`: what decides "done" is whether the PRIMARY row is present at the
+      // current version, and its filename is not known here.
+      const existing = await documents.query({
         cik: filing.cik,
         accession_number: filing.accession_number,
-      });
-      if (existing !== undefined && existing.converter_version === options.converterVersion) {
-        continue;
-      }
+      } as never);
+      const done = (existing ?? []).some(
+        (row) => row.is_primary && row.converter_version === options.converterVersion
+      );
+      if (done) continue;
     }
     selected.push(filing);
   }

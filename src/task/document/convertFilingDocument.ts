@@ -8,7 +8,10 @@ import {
   splitDocumentSections,
   type FilingSectionSlice,
 } from "../../sec/document/documentSections";
-import { parseRegistrationSubmission } from "../../sec/forms/registration-statements/s1/parseSubmission";
+import {
+  listConvertibleDocuments,
+  type ConvertibleDocument,
+} from "../../sec/document/submissionDocuments";
 import { parseEdgarHtml } from "../../sec/html/parseEdgarHtml";
 
 /**
@@ -20,48 +23,84 @@ import { parseEdgarHtml } from "../../sec/html/parseEdgarHtml";
  * truncate — and a half-finished re-run leaves the old rows readable instead of
  * leaving a hole.
  */
-export const FILING_CONVERTER_VERSION = "2";
+export const FILING_CONVERTER_VERSION = "3";
 
-/** What one conversion produced, before it is written anywhere. */
+/** What converting one member of a submission produced, before it is stored. */
 export interface ConvertedFilingDocument {
+  readonly docFile: string;
+  readonly docType: string | null;
+  readonly description: string | null;
+  readonly sequence: number | null;
+  readonly isPrimary: boolean;
   readonly title: string;
   readonly sections: readonly FilingSectionSlice[];
   readonly charCount: number;
 }
 
 /**
- * A human-readable title for the document tree's root.
+ * A human-readable title for one document's tree root.
  *
- * The form and accession rather than the filer's name: this is what the parser
- * labels the root with and what the reader sees above the first heading, and
- * the filer's name is already on the page around it.
+ * The primary document is titled by form and accession rather than by the
+ * filer's name: that is what the parser labels the root with and what the
+ * reader sees above the first heading, and the filer's name is already on the
+ * page around it. An exhibit is titled by what EDGAR calls it and what the
+ * filer said it was — `EX-99.1 Press release dated March 3, 2026` — because
+ * "8-K 0001493152-26-025047" repeated down a list of six exhibits identifies
+ * none of them.
  */
-export const filingDocumentTitle = (form: string | null, accessionNumber: string): string =>
-  `${(form ?? "Filing").trim() || "Filing"} ${accessionNumber}`;
+export function filingDocumentTitle(
+  form: string | null,
+  accessionNumber: string,
+  doc?: Pick<ConvertibleDocument, "isPrimary" | "docType" | "description"> | undefined
+): string {
+  const filingTitle = `${(form ?? "Filing").trim() || "Filing"} ${accessionNumber}`;
+  if (doc === undefined || doc.isPrimary) return filingTitle;
+  const type = (doc.docType ?? "").trim();
+  const description = (doc.description ?? "").trim();
+  // A description that only restates the type adds nothing; plenty of filers
+  // set `<DESCRIPTION>EX-99.1`.
+  const restates = description === "" || description.toLowerCase() === type.toLowerCase();
+  if (type === "") return description === "" ? filingTitle : description;
+  return restates ? type : `${type} ${description}`;
+}
 
 /**
- * Convert one filing's source text into ordered markdown sections.
+ * Convert every narrative member of one submission into ordered markdown
+ * sections, primary document first.
  *
  * `text` is whatever the fetch cache holds for the filing — a full-submission
- * `.txt` for the prospectus forms, a bare primary document for everything else.
- * `parseRegistrationSubmission` accepts both and answers with the primary
- * document body either way, which is what lets this take the cached file as it
+ * `.txt` for most forms, a bare primary document for a filing cached by an
+ * older route. {@link listConvertibleDocuments} accepts both and answers with
+ * the members either way, which is what lets this take the cached file as it
  * finds it rather than re-deriving the forms pipeline's fetch branch (a branch
  * that, for 8-Ks, depends on a SPAC lookup that has nothing to do with reading
  * a filing).
+ *
+ * A member that parses to no sections is dropped rather than stored empty: an
+ * exhibit that is a signature page of images has nothing to render, and a row
+ * claiming otherwise makes a blank page instead of an honest absence.
  */
-export function convertFilingDocument(
+export function convertFilingSubmission(
   form: string | null,
   accessionNumber: string,
-  text: string
-): ConvertedFilingDocument {
-  const title = filingDocumentTitle(form, accessionNumber);
-  const { html } = parseRegistrationSubmission(form ?? "", text);
-  const doc = parseEdgarHtml(html, title);
-  const sections = splitDocumentSections(doc);
-  return {
-    title,
-    sections,
-    charCount: sections.reduce((sum, section) => sum + section.markdown.length, 0),
-  };
+  text: string,
+  fallbackDocFile: string
+): ConvertedFilingDocument[] {
+  const out: ConvertedFilingDocument[] = [];
+  for (const doc of listConvertibleDocuments(form, text, fallbackDocFile)) {
+    const title = filingDocumentTitle(form, accessionNumber, doc);
+    const sections = splitDocumentSections(parseEdgarHtml(doc.html, title));
+    if (sections.length === 0) continue;
+    out.push({
+      docFile: doc.docFile,
+      docType: doc.docType,
+      description: doc.description,
+      sequence: doc.sequence,
+      isPrimary: doc.isPrimary,
+      title,
+      sections,
+      charCount: sections.reduce((sum, section) => sum + section.markdown.length, 0),
+    });
+  }
+  return out;
 }

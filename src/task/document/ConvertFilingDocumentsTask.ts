@@ -25,6 +25,8 @@ export type ConvertFilingDocumentsTaskOutput = {
   readonly selected: number;
   readonly converted: number;
   readonly skipped: number;
+  /** Members of the converted submissions: primary documents plus exhibits. */
+  readonly documents: number;
   readonly sections: number;
 };
 
@@ -68,6 +70,7 @@ export class ConvertFilingDocumentsTask extends Task<
       selected: Type.Integer(),
       converted: Type.Integer(),
       skipped: Type.Integer(),
+      documents: Type.Integer(),
       sections: Type.Integer(),
     });
   }
@@ -87,6 +90,7 @@ export class ConvertFilingDocumentsTask extends Task<
 
     let converted = 0;
     let skipped = 0;
+    let documents = 0;
     let sections = 0;
 
     for (const [index, filing] of filings.entries()) {
@@ -107,6 +111,7 @@ export class ConvertFilingDocumentsTask extends Task<
         const result = await task.run();
         if (result.success) {
           converted += 1;
+          documents += result.documents;
           sections += result.sections;
         } else {
           skipped += 1;
@@ -125,6 +130,13 @@ export class ConvertFilingDocumentsTask extends Task<
       );
     }
 
-    return { success: skipped === 0, selected: filings.length, converted, skipped, sections };
+    return {
+      success: skipped === 0,
+      selected: filings.length,
+      converted,
+      skipped,
+      documents,
+      sections,
+    };
   }
 }

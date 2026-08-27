@@ -230,12 +230,26 @@ Bring local SEC data forward to today. `sync` is a **command group** — bare `s
 
 Form-domain leaves do not refresh submissions first — run `sync submissions` (or `sync all`) before them when filings may be stale.
 
-**`documents`** converts each filing's primary document to markdown and stores it as `filing_section`
-rows (one per heading, flat, concatenating back to the filing in `ordinal` order) under a
-`filing_document` header row. Selection is an anti-join against the stored `converter_version`, so
-the leaf is resumable and bounded at 500 filings per run — a backfill is many runs, not one. It reads
-the accession-doc fetch cache first and only reaches EDGAR on a miss, and it runs LAST in `sync all`
-so the documents it wants are already cached by the sweeps before it.
+**`documents`** converts a filing's narrative documents to markdown and stores them as
+`filing_section` rows (one per heading, flat, concatenating back to the document in `ordinal` order)
+under one `filing_document` header row per document.
+
+A submission is a **directory**, not a file: the primary document plus the exhibits filed with it.
+An 8-K's primary document is routinely four sentences pointing at the EX-99.1 press release that
+carries the news, so the converter stores every member whose body is prose — graphics, the XBRL
+payload and the fee exhibit are skipped — and marks the primary with `is_primary`. That flag is what
+a URL with no document segment resolves to, and it is written LAST: its presence means every
+document behind it already landed, which is what makes an interrupted run resumable rather than
+silently half-stored.
+
+Because only the full-submission `<accession>.txt` carries the sibling `<DOCUMENT>` blocks, it is
+now the first file tried for every form, with the bare primary document as a fallback for filings an
+older route cached that way.
+
+Selection is an anti-join against the stored `converter_version` on the PRIMARY row, so the leaf is
+resumable and bounded at 500 filings per run — a backfill is many runs, not one. It reads the
+accession-doc fetch cache first and only reaches EDGAR on a miss, and it runs LAST in `sync all` so
+the documents it wants are already cached by the sweeps before it.
 
 **One issuer, end to end.** To get a single SPAC's filings — and their readable text — into the
 database:

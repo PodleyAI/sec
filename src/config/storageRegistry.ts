@@ -610,10 +610,11 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     table: "filing_document",
     schema: FilingDocumentSchema,
     primaryKeyNames: FilingDocumentPrimaryKeyNames,
-    // The sweep's anti-join asks "which filings of this form have no row at the
-    // current converter version", which reads `form` and `converter_version`
-    // together and nothing else off this table.
-    indexes: [["form", "converter_version"], ["converted_at"]],
+    // The sweep's anti-join asks "which filings of this form have no PRIMARY row
+    // at the current converter version" — the primary is written last, so its
+    // presence is what means the whole submission landed. `converted_at` serves
+    // the recency listing.
+    indexes: [["form", "converter_version", "is_primary"], ["converted_at"]],
   }),
   defineStorage({
     token: FILING_SECTION_REPOSITORY_TOKEN,
@@ -625,7 +626,7 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     // slug. The unique index is the correctness half: two sections of one
     // filing sharing a slug would make `?section=` ambiguous, and the splitter
     // deduplicates precisely so this holds.
-    uniqueIndexes: [["cik", "accession_number", "slug"]],
+    uniqueIndexes: [["cik", "accession_number", "doc_file", "slug"]],
   }),
   // ------------------------------ Crowdfunding --------------------------------
   defineStorage({

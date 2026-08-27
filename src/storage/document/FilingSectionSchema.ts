@@ -10,8 +10,8 @@ import { createServiceToken } from "workglow";
 import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
- * One heading's worth of a filing's markdown. These rows ARE the document —
- * concatenated in `ordinal` order they reproduce it exactly — and they are the
+ * One heading's worth of one document's markdown. These rows ARE the document —
+ * concatenated in `ordinal` order within a `doc_file` they reproduce it exactly — and they are the
  * unit everything downstream reads: a section link, a highlight, and (later) a
  * full-text index.
  *
@@ -33,10 +33,16 @@ export const FilingSectionSchema = Type.Object({
     maxLength: 25,
     description: "SEC accession number - unique identifier for the filing",
   }),
+  /**
+   * Which member of the submission these sections came from, matching
+   * `filing_document.doc_file`. Part of the key: an 8-K's primary document and
+   * its EX-99.1 press release are two documents, each with its own ordinal 0.
+   */
+  doc_file: Type.String({ maxLength: 128, description: "Submission filename converted" }),
   /** Document order, 0-based. The sort key that rebuilds the filing. */
   ordinal: Type.Integer({ minimum: 0, description: "Position in document order" }),
   /**
-   * URL-safe identifier, unique within the filing — what `?section=` names.
+   * URL-safe identifier, unique within one document — what `?section=` names.
    *
    * Derived from the heading rather than from {@link FilingSectionSchema.ordinal}
    * because a link outlives a conversion: an ordinal shifts the moment the
@@ -53,7 +59,12 @@ export const FilingSectionSchema = Type.Object({
 
 export type FilingSection = Static<typeof FilingSectionSchema>;
 
-export const FilingSectionPrimaryKeyNames = ["cik", "accession_number", "ordinal"] as const;
+export const FilingSectionPrimaryKeyNames = [
+  "cik",
+  "accession_number",
+  "doc_file",
+  "ordinal",
+] as const;
 
 export type FilingSectionRepositoryStorage = ITabularStorage<
   typeof FilingSectionSchema,
