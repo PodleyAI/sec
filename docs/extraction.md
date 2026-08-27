@@ -546,11 +546,32 @@ one leaf element's whole text, before prose coalescing, so a mid-sentence cross-
 (`as described below in Item 5.07 to this Current Report`) is never at the start of its own
 element and cannot open a section.
 
-**Item headings typeset as tables are not covered.** 8 of the 15 fixtures write the item as
-a two-cell row — `| Item 8.01 | Other Events. |` — which is a table block the candidate test
-never sees. Telling those from a table-of-contents row that carries the same text plus a page
-number (`| ITEM 1.01. ENTRY INTO A MATERIAL DEFINITIVE AGREEMENT. | 3 |`) is a separate rule
-and is not attempted here.
+Item headings **typeset as tables** are recovered separately, by
+`itemHeadingFromTable` (`src/sec/html/itemHeadingTables.ts`). 8 of the 15 fixtures write the
+item as a two-cell row — the number pinned to a tab stop, the title beside it — which is a
+layout box rather than data and which the candidate test never sees, since it runs on leaf
+text elements.
+
+What identifies one is the title, not the shape. Form 8-K prescribes the wording of every
+item, so `Form_8_K_ITEMS` is a closed vocabulary and an **exact** match against it is a fact
+rather than a heuristic: 35 of the 37 blocks leading with `Item N.NN` across the 8-K, 424B3
+and S-1 corpora carry precisely the prescribed title. The two that do not are both a table of
+contents, which prints the same text and then runs on into a page number and the next item —
+so ending the match where the regulation ends the title rejects an index by construction. A
+prefix test would not: all 37 pass that.
+
+Shape was measured as the alternative and is much worse. "One non-empty row, one or two
+cells" catches 15 of the 17 item-shaped tables, but sweeps up **8,258 of the 12,092 tables**
+in the S-1 corpus, because two-column layout is how a prospectus is typeset generally. The
+exact-title rule touches nothing outside an 8-K.
+
+This runs at the end of `parseToBlocks`, **before** heading levels are assigned, and that
+placement is load-bearing: a heading minted after that pass keeps `level: 1` and outranks
+every real section heading. It is also why this does not live with the de-paginator's
+single-cell unwrap, which runs later and produces paragraphs.
+
+Together with the prose rule above, every one of the 15 committed 8-K fixtures now carries
+its items as headings — 30 in total, against none before either change.
 
 ### Line-scan fallback
 

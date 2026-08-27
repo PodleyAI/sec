@@ -9,6 +9,7 @@ import type { ImageNode, ListNode, ParagraphNode } from "workglow";
 import type { EdgarBlock, ResolvedStyle, SourceSpan } from "./types";
 import { resolveStyle } from "./StyleResolver";
 import { isHeadingCandidate, assignHeadingLevels } from "./HeadingDetector";
+import { itemHeadingFromTable, itemHeadingStyle } from "./itemHeadingTables";
 import { isPageFurniture } from "./pageFurniture";
 import { extractTable, isLayoutTable, leadingOfferingCaption } from "./TableExtractor";
 import { consumeCssTwoColumnRun } from "./cssTwoColumnTable";
@@ -334,6 +335,23 @@ export function parseToBlocks(html: string): EdgarBlock[] {
 
   walk(root);
   flushProse();
+
+  // A Form 8-K item heading typeset as a table is a heading; recovering it here
+  // rather than in the de-paginator is what lets the pass below rank it, since a
+  // heading minted later keeps level 1 and outranks the real section headings.
+  for (let i = 0; i < out.length; i++) {
+    const block = out[i]!;
+    if (block.type !== "table") continue;
+    const text = itemHeadingFromTable(block.node);
+    if (text === undefined) continue;
+    out[i] = {
+      type: "heading",
+      text,
+      style: itemHeadingStyle(text),
+      level: 1,
+      source: block.source,
+    };
+  }
 
   // Second pass: assign heading levels by first-appearance style ordering.
   const headingStyles: ResolvedStyle[] = out

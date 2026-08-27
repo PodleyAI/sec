@@ -23,7 +23,7 @@ import { parseEdgarHtml } from "../../sec/html/parseEdgarHtml";
  * truncate — and a half-finished re-run leaves the old rows readable instead of
  * leaving a hole.
  */
-export const FILING_CONVERTER_VERSION = "4";
+export const FILING_CONVERTER_VERSION = "5";
 
 /** What converting one member of a submission produced, before it is stored. */
 export interface ConvertedFilingDocument {
