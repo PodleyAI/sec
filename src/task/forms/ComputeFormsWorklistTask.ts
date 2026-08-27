@@ -20,9 +20,9 @@ import {
   type FilingRepositoryStorage,
 } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
-import { sortFormsForSweep } from "../../storage/versioning/extractorIds";
 import { ExtractorRunRepo, filingRunKey } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { sortFormsForSweep } from "../../storage/versioning/formsSweepOrder";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { SecFetchMaxPerSec } from "../../config/Constants";

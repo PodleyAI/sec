@@ -320,21 +320,14 @@ export function formToExtractorId(form: string): ExtractorId | undefined {
   return FORM_TO_EXTRACTOR_ID[form];
 }
 
-export function formsForExtractorIds(ids: readonly ExtractorId[]): string[] {
-  const want = new Set<string>(ids);
-  return Object.entries(FORM_TO_EXTRACTOR_ID)
-    .filter(([, extractorId]) => want.has(extractorId))
-    .map(([form]) => form);
-}
-
 /**
  * The extractors whose storage handlers are gated on an existing `spac` row and
  * record a SUCCESSFUL run when they find none — writing nothing while looking
  * processed to every anti-join.
  *
  * A sweep that reaches these before the registration statement that mints the
- * row therefore drops their events permanently. {@link sortFormsForSweep} keeps
- * a single sweep in dependency order; this set is what lets `spac process`
+ * row therefore drops their events permanently. `sortFormsForSweep` keeps a
+ * single sweep in dependency order; this set is what lets `spac process`
  * re-select a filing that was gated in an EARLIER sweep, once the row exists.
  */
 export const SPAC_ROW_GATED_EXTRACTORS: ReadonlySet<string> = new Set([
@@ -367,7 +360,9 @@ export function isNonfatalTimelineExtractor(extractorId: string): boolean {
  * anti-join never revisits it. A sweep that reaches them first therefore drops
  * their events permanently rather than deferring them.
  *
- * Forms not listed here have no such dependency and run afterwards.
+ * Forms not listed here have no such dependency and run afterwards. Applied by
+ * `sortFormsForSweep` in `formsSweepOrder.ts`, which ranks a form through the
+ * form-extractor registry and so cannot live in this import-free module.
  */
 export const SWEEP_PRIORITY: readonly ExtractorId[] = [
   "S-1",
@@ -377,28 +372,3 @@ export const SWEEP_PRIORITY: readonly ExtractorId[] = [
   "merger-proxy",
   "25-15",
 ];
-
-/**
- * Sort forms into {@link SWEEP_PRIORITY} order, stably.
- *
- * Not merely cosmetic: the default form list comes from the form-extractor
- * registry (`ComputeFormsWorklistTask`'s `allForms`, built from
- * `listFormExtractorKeys()`) in whatever order `registerFormExtractors.ts`
- * happened to register each extractor — an accident of import order, not a
- * dependency order. Without this sort, a SPAC-gated form (8-K, merger-proxy,
- * 25-15) can land ahead of the registration statement that mints the `spac`
- * row it depends on. Ranks are assigned by extractor id, and unranked forms
- * (including any with no registered extractor, which the caller filters and
- * warns about separately) keep their declaration order at the end.
- */
-export function sortFormsForSweep(forms: readonly string[]): string[] {
-  const rank = (form: string): number => {
-    const extractorId = FORM_TO_EXTRACTOR_ID[form];
-    const i = extractorId === undefined ? -1 : SWEEP_PRIORITY.indexOf(extractorId);
-    return i === -1 ? SWEEP_PRIORITY.length : i;
-  };
-  return [...forms]
-    .map((form, i) => ({ form, i, rank: rank(form) }))
-    .sort((a, b) => a.rank - b.rank || a.i - b.i)
-    .map((e) => e.form);
-}

@@ -5,7 +5,15 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { FORM_TO_EXTRACTOR_ID, sortFormsForSweep } from "./extractorIds";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
+import { FORM_TO_EXTRACTOR_ID } from "./extractorIds";
+import { sortFormsForSweep } from "./formsSweepOrder";
+
+// `sortFormsForSweep` ranks a form through the form-extractor registry, so an
+// empty registry would rank every form the same and the order under test would
+// not exist. Registering once per registry generation, this is a no-op wherever
+// the extractors are already registered.
+registerSecFormExtractors();
 
 /** Index of the first form in `order` routed to `extractorId`. */
 function firstIndexOf(order: readonly string[], extractorId: string): number {

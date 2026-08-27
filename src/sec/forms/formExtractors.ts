@@ -329,6 +329,25 @@ export function formsForExtractorKeys(keys: readonly string[]): string[] {
 }
 
 /**
+ * The de-duplicated union of every form the given extractor IDS handle.
+ *
+ * The id-keyed twin of {@link formsForExtractorKeys}. The registry is keyed
+ * `(id, section)`, so an extractor split into sections holds several keys and
+ * a caller naming the extractor cannot know which of them to ask for. Matching
+ * on the id answers for all of them, and a form handled by two extractors is
+ * named once whichever of them was asked about.
+ */
+export function formsForExtractorIds(ids: readonly string[]): string[] {
+  const want = new Set(ids);
+  const out = new Set<string>();
+  for (const ext of REGISTRY.values()) {
+    if (!want.has(ext.id)) continue;
+    for (const form of ext.forms) out.add(form);
+  }
+  return [...out];
+}
+
+/**
  * Whether the filing's body is fetched as the whole submission `.txt`: the
  * union of {@link FormExtractorCommon.needsFullSubmission} across the form's
  * extractors. Async because an extractor may decide per filing.

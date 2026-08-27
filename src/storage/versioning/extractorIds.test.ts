@@ -8,13 +8,18 @@ import { describe, expect, it } from "vitest";
 import { ALL_FORMS_MAP, isFormParsingSupported } from "../../sec/forms/all-forms";
 import { Form_DRS } from "../../sec/forms/registration-statements/Form_DRS";
 import { Form_DRSLTR } from "../../sec/forms/registration-statements/Form_DRSLTR";
+import { formsForExtractorIds } from "../../sec/forms/formExtractors";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import {
   EXTRACTOR_IDS,
   FORM_TO_EXTRACTOR_ID,
-  formsForExtractorIds,
   formToExtractorId,
   isNonfatalTimelineExtractor,
 } from "./extractorIds";
+
+// `formsForExtractorIds` answers from the form-extractor registry, which is
+// empty until something registers into it.
+registerSecFormExtractors();
 
 describe("extractorIds", () => {
   it("exposes the canonical extractor ids", () => {

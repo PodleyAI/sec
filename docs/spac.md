@@ -157,7 +157,7 @@ ignores liquidation/deregistration entirely when the stream carries a completion
 The whole 8-K / proxy / 25-15 tier is gated on the `spac` row the registration statement
 mints, and **each handler records a successful run when the row is missing** — so a sweep
 reaching them first drops their events with nothing to re-select the filing.
-`sortFormsForSweep` (`storage/versioning/extractorIds.ts`) gives `sec sync` form-domain
+`sortFormsForSweep` (`storage/versioning/formsSweepOrder.ts`) gives `sec sync` form-domain
 leaves an explicit registration → prospectus → 8-K → proxies → 25/15 order rather than
 relying on `Object.keys` (which enumerates the integer-like `"25"` fourth).
 
