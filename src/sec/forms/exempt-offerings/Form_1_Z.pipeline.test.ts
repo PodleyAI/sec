@@ -54,7 +54,7 @@ describe("Form_1_Z pipeline", () => {
       const form1Z = await Form_1_Z.parse(formCode, xml);
       const accession = accessionFromFixtureName(file);
       const item1 = form1Z.formData.item1;
-      const cik = safeCikToInt(item1.cik);
+      const cik = safeCikToInt(form1Z.headerData.filerInfo.filer.issuerCredentials.cik);
       const fileNumber = deriveFileNumber(accession);
       await processForm1Z({
         cik,
@@ -128,7 +128,7 @@ describe("Form_1_Z pipeline", () => {
       const xml = readFixture("form-1-z-a", file);
       const form1Z = await Form_1_Z.parse("1-Z/A", xml);
       const accession = accessionFromFixtureName(file);
-      const cik = safeCikToInt(form1Z.formData.item1.cik);
+      const cik = safeCikToInt(form1Z.headerData.filerInfo.filer.issuerCredentials.cik);
       const fileNumber = deriveFileNumber(accession);
       await processForm1Z({
         cik,

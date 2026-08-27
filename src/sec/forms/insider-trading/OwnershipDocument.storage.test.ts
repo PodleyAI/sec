@@ -371,9 +371,9 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
     docB.issuer!.issuerCik = undefined;
     // Rewrite each filing's first reporting owner to the same name with no CIK
     // so the resolver hits the name-fallback path (not the CIK fast-path).
-    docA.reportingOwner![0].reportingOwnerId!.rptOwnerName = { value: SHARED_NAME };
+    docA.reportingOwner![0].reportingOwnerId!.rptOwnerName = SHARED_NAME;
     docA.reportingOwner![0].reportingOwnerId!.rptOwnerCik = undefined;
-    docB.reportingOwner![0].reportingOwnerId!.rptOwnerName = { value: SHARED_NAME };
+    docB.reportingOwner![0].reportingOwnerId!.rptOwnerName = SHARED_NAME;
     docB.reportingOwner![0].reportingOwnerId!.rptOwnerCik = undefined;
 
     const accessionA = "0001493152-26-025476";

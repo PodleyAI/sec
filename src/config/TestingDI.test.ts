@@ -34,6 +34,6 @@ describe("resetDependencyInjectionsForTesting", () => {
       (definition) => !globalServiceRegistry.has(definition.token)
     ).map((definition) => definition.token.id);
     expect(unbound).toEqual([]);
-    expect(globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).isDurable()).toBe(false);
+    expect(globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).isDurable?.()).toBe(false);
   });
 });

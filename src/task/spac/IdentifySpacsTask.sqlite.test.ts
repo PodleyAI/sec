@@ -51,6 +51,7 @@ describe("IdentifySpacsTask pruning (sqlite)", () => {
         name: `Gone Acquisition Corp ${cik}`,
         current_sic: 6770,
         signal_sic_6770: true,
+        signal_filed_sic_6770: null,
         signal_name_match: true,
         signal_renamed_from: null,
         first_reg_form: null,

@@ -5,7 +5,7 @@
  */
 
 import { beforeAll, describe, expect, it } from "vitest";
-import { getGoldenLabels } from "../../../../eval/goldenS1Labels";
+import { getGoldenFieldRows } from "../../../../eval/goldenS1Labels";
 import { loadS1Corpus, S1_CORPUS_TIMEOUT_MS, type S1CorpusFiling } from "./testing/s1Corpus";
 import { S1_SECTIONS } from "./DocumentSegmenter";
 import { parseSpacClassification } from "./parseSpacClassification";
@@ -30,7 +30,7 @@ describe("parseSpacClassification golden corpus", () => {
 
   it("never false-hits a golden empty spac-classification label", () => {
     for (const { filing, summary } of cases) {
-      const labels = getGoldenLabels(filing, "spac-classification");
+      const labels = getGoldenFieldRows(filing, "spac-classification");
       if (!labels || labels.length !== 0) continue;
       expect(parseSpacClassification(summary), filing).toBeNull();
     }
@@ -43,7 +43,7 @@ describe("parseSpacClassification golden corpus", () => {
   it("agrees with the golden classification on every filing it answers", () => {
     const disagreements: string[] = [];
     for (const { filing, summary } of cases) {
-      const labels = getGoldenLabels(filing, "spac-classification");
+      const labels = getGoldenFieldRows(filing, "spac-classification");
       if (!labels || labels.length === 0) continue;
       const parsed = parseSpacClassification(summary);
       if (parsed === null) continue;

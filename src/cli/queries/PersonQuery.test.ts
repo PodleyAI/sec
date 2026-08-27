@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationSchema";
+import {
+  PERSON_OBSERVATION_REPOSITORY_TOKEN,
+  type PersonObservationRepositoryStorage,
+} from "../../storage/observation/PersonObservationSchema";
 import { queryPersons } from "./PersonQuery";
 
 let nextId = 1;
@@ -34,7 +37,7 @@ function makeObservation(overrides: Partial<Parameters<typeof repo.put>[0]> = {}
   };
 }
 
-let repo: ReturnType<typeof globalServiceRegistry.get<typeof PERSON_OBSERVATION_REPOSITORY_TOKEN>>;
+let repo: PersonObservationRepositoryStorage;
 
 describe("queryPersons", () => {
   beforeEach(() => {

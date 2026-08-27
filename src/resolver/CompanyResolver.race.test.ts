@@ -118,7 +118,7 @@ describe("CompanyResolver concurrent resolution", () => {
       resolver.resolve(obs({ cik: 1234, observation_id: 2 })),
     ]);
     expect(a).toBe(b);
-    expect((await setup.canonStorage.getAll()).length).toBe(1);
+    expect(((await setup.canonStorage.getAll()) ?? []).length).toBe(1);
   });
 
   it("two parallel resolves on the same CRD collapse to one canonical row", async () => {
@@ -127,7 +127,7 @@ describe("CompanyResolver concurrent resolution", () => {
       resolver.resolve(obs({ crd_number: "CRD-A1", observation_id: 2 })),
     ]);
     expect(a).toBe(b);
-    expect((await setup.canonStorage.getAll()).length).toBe(1);
+    expect(((await setup.canonStorage.getAll()) ?? []).length).toBe(1);
   });
 
   it("two parallel resolves on the same normalized name collapse to one canonical row", async () => {
@@ -136,7 +136,7 @@ describe("CompanyResolver concurrent resolution", () => {
       resolver.resolve(obs({ normalized_name: "acme holdings llc", observation_id: 2 })),
     ]);
     expect(a).toBe(b);
-    expect((await setup.canonStorage.getAll()).length).toBe(1);
+    expect(((await setup.canonStorage.getAll()) ?? []).length).toBe(1);
   });
 
   it("many parallel resolves on the same CIK still produce one canonical row", async () => {
@@ -148,7 +148,7 @@ describe("CompanyResolver concurrent resolution", () => {
       )
     );
     expect(new Set(results).size).toBe(1);
-    expect((await setup.canonStorage.getAll()).length).toBe(1);
+    expect(((await setup.canonStorage.getAll()) ?? []).length).toBe(1);
   });
 
   it("parallel resolves on distinct CIKs each get their own canonical row", async () => {
@@ -157,7 +157,7 @@ describe("CompanyResolver concurrent resolution", () => {
       resolver.resolve(obs({ cik: 2222, observation_id: 2 })),
     ]);
     expect(a).not.toBe(b);
-    expect((await setup.canonStorage.getAll()).length).toBe(2);
+    expect(((await setup.canonStorage.getAll()) ?? []).length).toBe(2);
   });
 });
 
@@ -245,7 +245,7 @@ async function runMultiProcessRace(opts: {
       return r.resolve(claim);
     })
   );
-  const rows = await setup.canonStorage.getAll();
+  const rows = (await setup.canonStorage.getAll()) ?? [];
   expect(rows.length).toBe(1);
   return { uniqueRejections, ids: new Set(results) };
 }

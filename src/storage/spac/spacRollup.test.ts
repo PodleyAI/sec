@@ -33,6 +33,7 @@ function deal(p: Pick<SpacDeal, "deal_index" | "outcome"> & Partial<SpacDeal>): 
     target_name: null,
     target_cik: null,
     target_description: null,
+    loi_date: null,
     announced_date: null,
     definitive_agreement_date: null,
     proxy_date: null,

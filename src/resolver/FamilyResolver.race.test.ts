@@ -183,7 +183,7 @@ function describeFamilyRaces<R>(
         kit.resolve(resolver, "Goldman   Sachs"),
       ]);
       expect(a).toBe(b);
-      const rows = await kit.canonStorage.getAll();
+      const rows = (await kit.canonStorage.getAll()) ?? [];
       expect(rows.length).toBe(1);
     });
 
@@ -193,7 +193,7 @@ function describeFamilyRaces<R>(
         Array.from({ length: fanout }, () => kit.resolve(resolver, "Pershing Square Sponsor"))
       );
       expect(new Set(results).size).toBe(1);
-      const rows = await kit.canonStorage.getAll();
+      const rows = (await kit.canonStorage.getAll()) ?? [];
       expect(rows.length).toBe(1);
     });
 
@@ -243,7 +243,7 @@ function describeFamilyRaces<R>(
 
         const ids = new Set(results);
         expect(ids.size).toBe(1);
-        const rows = await localKit.canonStorage.getAll();
+        const rows = (await localKit.canonStorage.getAll()) ?? [];
         expect(rows.length).toBe(1);
         // At least one storage-level UNIQUE rejection must have fired —
         // otherwise the two instances accidentally never raced and the

@@ -28,7 +28,7 @@ import { ExtractorRunSchema } from "./ExtractorRunSchema";
  */
 describe("ExtractorRunSchema.form width", () => {
   const formCodes = Object.keys(FORM_TO_EXTRACTOR_ID);
-  const maxLength = ExtractorRunSchema.properties.form.maxLength;
+  const maxLength = (ExtractorRunSchema.properties.form as { maxLength?: number }).maxLength;
 
   it("declares a maxLength", () => {
     expect(typeof maxLength).toBe("number");

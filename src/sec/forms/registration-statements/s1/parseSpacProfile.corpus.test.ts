@@ -5,7 +5,7 @@
  */
 
 import { beforeAll, describe, expect, it } from "vitest";
-import { getGoldenLabels } from "../../../../eval/goldenS1Labels";
+import { getGoldenFieldRows } from "../../../../eval/goldenS1Labels";
 import { loadS1Corpus, S1_CORPUS_TIMEOUT_MS, type S1CorpusFiling } from "./testing/s1Corpus";
 import { S1_SECTIONS } from "./DocumentSegmenter";
 import { parseSpacProfile } from "./parseSpacProfile";
@@ -42,7 +42,7 @@ describe("parseSpacProfile golden corpus", () => {
 
   it("never false-hits a golden empty spac-profile label", () => {
     for (const { filing, summary } of cases) {
-      const labels = getGoldenLabels(filing, "spac-profile");
+      const labels = getGoldenFieldRows(filing, "spac-profile");
       if (!emptyProfile(labels)) continue;
       expect(parseSpacProfile(summary), filing).toBeNull();
     }
@@ -50,7 +50,7 @@ describe("parseSpacProfile golden corpus", () => {
 
   it("does not invent tags outside the golden set when it hits a labelled filing", () => {
     for (const { filing, summary } of cases) {
-      const labels = getGoldenLabels(filing, "spac-profile");
+      const labels = getGoldenFieldRows(filing, "spac-profile");
       if (emptyProfile(labels)) continue;
       const parsed = parseSpacProfile(summary);
       if (parsed === null) continue;

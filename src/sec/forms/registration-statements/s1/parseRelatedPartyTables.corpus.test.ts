@@ -5,7 +5,7 @@
  */
 
 import { beforeAll, describe, expect, it } from "vitest";
-import { getGoldenLabels } from "../../../../eval/goldenS1Labels";
+import { getGoldenFieldRows } from "../../../../eval/goldenS1Labels";
 import { loadS1Corpus, S1_CORPUS_TIMEOUT_MS, type S1CorpusFiling } from "./testing/s1Corpus";
 import { S1_SECTIONS } from "./DocumentSegmenter";
 import { parseRelatedPartyTables } from "./parseRelatedPartyTables";
@@ -44,7 +44,7 @@ describe("parseRelatedPartyTables golden corpus", () => {
 
   it("never false-hits a golden empty related-party label", () => {
     for (const { filing, byName } of cases) {
-      const labels = getGoldenLabels(filing, "related-party");
+      const labels = getGoldenFieldRows(filing, "related-party");
       if (!labels || labels.length !== 0) continue;
       const text = byName.get(S1_SECTIONS.RELATED_PARTY) ?? "";
       expect(parseRelatedPartyTables(text), filing).toEqual([]);
@@ -53,7 +53,7 @@ describe("parseRelatedPartyTables golden corpus", () => {
 
   it("does not invent caption-like names outside the golden set when it hits", () => {
     for (const { filing, byName } of cases) {
-      const labels = getGoldenLabels(filing, "related-party");
+      const labels = getGoldenFieldRows(filing, "related-party");
       if (!labels || labels.length === 0) continue;
       const text = byName.get(S1_SECTIONS.RELATED_PARTY) ?? "";
       const parsed = parseRelatedPartyTables(text);

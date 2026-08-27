@@ -5,7 +5,7 @@
  */
 
 import { beforeAll, describe, expect, it } from "vitest";
-import { getGoldenLabels } from "../../../../eval/goldenS1Labels";
+import { getGoldenFieldRows } from "../../../../eval/goldenS1Labels";
 import { loadS1Corpus, S1_CORPUS_TIMEOUT_MS, type S1CorpusFiling } from "./testing/s1Corpus";
 import { S1_SECTIONS } from "./DocumentSegmenter";
 import { parseSpacUnderwriters } from "./parseSpacUnderwriters";
@@ -36,7 +36,7 @@ describe("parseSpacUnderwriters golden corpus", () => {
 
   it("never false-hits a golden empty underwriters label", () => {
     for (const { filing, byName } of cases) {
-      const labels = getGoldenLabels(filing, "underwriters");
+      const labels = getGoldenFieldRows(filing, "underwriters");
       if (!labels || labels.length !== 0) continue;
       const text = byName.get(S1_SECTIONS.UNDERWRITING) ?? "";
       expect(
@@ -48,7 +48,7 @@ describe("parseSpacUnderwriters golden corpus", () => {
 
   it("does not invent names outside the golden set when it hits", () => {
     for (const { filing, byName } of cases) {
-      const labels = getGoldenLabels(filing, "underwriters");
+      const labels = getGoldenFieldRows(filing, "underwriters");
       if (!labels || labels.length === 0) continue;
       const text = byName.get(S1_SECTIONS.UNDERWRITING) ?? "";
       const parsed = parseSpacUnderwriters(text);

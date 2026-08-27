@@ -28,7 +28,7 @@ function ctx(): IExecuteContext {
       register: (_k: string, _fn: () => Promise<void>) => {},
       dispose: async () => {},
     } as any,
-  } as IExecuteContext;
+  } as unknown as IExecuteContext;
 }
 
 /**

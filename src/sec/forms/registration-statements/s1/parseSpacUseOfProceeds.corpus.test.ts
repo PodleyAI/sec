@@ -5,7 +5,7 @@
  */
 
 import { beforeAll, describe, expect, it } from "vitest";
-import { getGoldenLabels } from "../../../../eval/goldenS1Labels";
+import { getGoldenFieldRows } from "../../../../eval/goldenS1Labels";
 import { loadS1Corpus, S1_CORPUS_TIMEOUT_MS, type S1CorpusFiling } from "./testing/s1Corpus";
 import { S1_SECTIONS } from "./DocumentSegmenter";
 import { parseSpacUseOfProceeds, useOfProceedsIsComplete } from "./parseSpacUseOfProceeds";
@@ -31,7 +31,7 @@ describe("parseSpacUseOfProceeds golden corpus", () => {
 
   it("never false-hits a golden empty use-of-proceeds label", () => {
     for (const { filing, byName } of cases) {
-      const labels = getGoldenLabels(filing, "use-of-proceeds");
+      const labels = getGoldenFieldRows(filing, "use-of-proceeds");
       if (!labels || labels.length !== 0) continue;
       const text = byName.get(S1_SECTIONS.USE_OF_PROCEEDS) ?? "";
       expect(parseSpacUseOfProceeds(text), filing).toEqual([]);
@@ -40,7 +40,7 @@ describe("parseSpacUseOfProceeds golden corpus", () => {
 
   it("does not invent purposes outside the golden set when it hits", () => {
     for (const { filing, byName } of cases) {
-      const labels = getGoldenLabels(filing, "use-of-proceeds");
+      const labels = getGoldenFieldRows(filing, "use-of-proceeds");
       if (!labels || labels.length === 0) continue;
       const text = byName.get(S1_SECTIONS.USE_OF_PROCEEDS) ?? "";
       const parsed = parseSpacUseOfProceeds(text);
@@ -64,7 +64,7 @@ describe("parseSpacUseOfProceeds golden corpus", () => {
   it("finds every golden line item on a filing it claims to have enumerated", () => {
     const misses: string[] = [];
     for (const { filing, byName } of cases) {
-      const labels = getGoldenLabels(filing, "use-of-proceeds");
+      const labels = getGoldenFieldRows(filing, "use-of-proceeds");
       if (!labels || labels.length === 0) continue;
       const text = byName.get(S1_SECTIONS.USE_OF_PROCEEDS) ?? "";
       if (!useOfProceedsIsComplete(text)) continue;

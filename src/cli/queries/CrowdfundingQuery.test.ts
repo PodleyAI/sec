@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { CROWDFUNDING_REPOSITORY_TOKEN } from "../../storage/portal/CrowdfundingSchema";
+import {
+  CROWDFUNDING_REPOSITORY_TOKEN,
+  type CrowdfundingRepositoryStorage,
+} from "../../storage/portal/CrowdfundingSchema";
 import { queryCrowdfunding } from "./CrowdfundingQuery";
 
 function makeCrowdfunding(overrides: Partial<Parameters<typeof repo.put>[0]> = {}) {
@@ -22,7 +25,7 @@ function makeCrowdfunding(overrides: Partial<Parameters<typeof repo.put>[0]> = {
   };
 }
 
-let repo: ReturnType<typeof globalServiceRegistry.get<typeof CROWDFUNDING_REPOSITORY_TOKEN>>;
+let repo: CrowdfundingRepositoryStorage;
 
 describe("queryCrowdfunding", () => {
   beforeEach(() => {
