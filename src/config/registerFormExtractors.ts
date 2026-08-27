@@ -10,7 +10,6 @@ import {
 import { processDeregistration } from "../sec/forms/exchange-listing-withdrawal/processDeregistration";
 import { processForm1A } from "../sec/forms/exempt-offerings/Form_1_A.storage";
 import { processForm1K } from "../sec/forms/exempt-offerings/Form_1_K.storage";
-import { processForm1SA } from "../sec/forms/exempt-offerings/Form_1_SA.storage";
 import { processForm1U } from "../sec/forms/exempt-offerings/Form_1_U.storage";
 import { processForm1Z } from "../sec/forms/exempt-offerings/Form_1_Z.storage";
 import { processFormC } from "../sec/forms/exempt-offerings/Form_C.storage";
@@ -30,7 +29,6 @@ import { processWithdrawal } from "../sec/forms/registration-withdrawal-terminat
 import { SpacRepo } from "../storage/spac/SpacRepo";
 import type { Form1A } from "../sec/forms/exempt-offerings/Form_1_A.schema";
 import type { ParsedForm1K } from "../sec/forms/exempt-offerings/Form_1_K";
-import type { ParsedForm1SA } from "../sec/forms/exempt-offerings/Form_1_SA";
 import type { FormC } from "../sec/forms/exempt-offerings/Form_C.schema";
 import type { FormD } from "../sec/forms/exempt-offerings/Form_D.schema";
 import type { FormQualif } from "../sec/forms/exempt-offerings/Form_QUALIF.schema";
@@ -128,14 +126,6 @@ export function registerSecFormExtractors(): void {
     readsFullSubmission: true,
     store: async ({ parsed, form, ...args }) => {
       await processForm1K({ ...args, form, form1K: parsed });
-    },
-  });
-
-  registerFormExtractor<ParsedForm1SA>({
-    id: "1-SA",
-    forms: ["1-SA", "1-SA/A"],
-    store: async ({ cik, accession_number, filing_date, form, parsed }) => {
-      await processForm1SA({ cik, accession_number, form, filing_date, form1SA: parsed });
     },
   });
 

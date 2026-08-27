@@ -13,7 +13,6 @@ import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHis
 import { extractServiceProviders } from "./RegA_shared";
 import type { Form1K } from "./Form_1_K.schema";
 import type { ParsedForm1K } from "./Form_1_K";
-import { storeRegAFinancialStatements } from "./regAFinancialStatements.storage";
 import { numScalar } from "../_valueHelpers";
 import { EntityObserver } from "../../../resolver/EntityObserver";
 import { PersonResolver } from "../../../resolver/PersonResolver";
@@ -179,7 +178,6 @@ export async function processForm1K({
   accession_number,
   filing_date,
   primary_doc,
-  form,
   form1K,
 }: {
   cik: number;
@@ -187,13 +185,17 @@ export async function processForm1K({
   accession_number: string;
   filing_date: string;
   primary_doc: string;
+  /**
+   * The form as filed — `1-K` or `1-K/A`. Part of the shape every extractor's
+   * `store` is handed and accepted here so the dispatcher's arguments spread in
+   * unchanged; nothing below distinguishes an amendment from an original,
+   * because a 1-K amendment restates the same cover page.
+   */
   form: string;
   form1K: ParsedForm1K;
 }): Promise<void> {
-  // The cover page (`primary_doc.xml`) drives everything below; the annual
-  // report's financial statements are stored separately at the end. They arrive
-  // together because they are two documents of ONE submission — see
-  // {@link ParsedForm1K}.
+  // The cover page (`primary_doc.xml`) is the whole of what a 1-K parses to
+  // here — see {@link ParsedForm1K}.
   const cover = form1K.cover;
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
@@ -286,15 +288,4 @@ export async function processForm1K({
 
   await processIssuer(cik, cover, ctx, 0);
   await processOfferingHistory(cik, file_number, accession_number, filing_date, cover, ctx, 100);
-
-  // The financial statements — the reason the 1-K fetch was escalated to the
-  // full submission. Stored last so a parse that yielded none still leaves the
-  // cover data committed.
-  await storeRegAFinancialStatements({
-    cik,
-    accession_number,
-    form,
-    filing_date,
-    statements: form1K.statements,
-  });
 }

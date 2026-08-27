@@ -42,7 +42,6 @@ describe("extractorIds", () => {
       "1-A",
       "1-A-W",
       "1-K",
-      "1-SA",
       "1-U",
       "1-Z",
       "144",

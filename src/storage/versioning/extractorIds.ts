@@ -10,7 +10,6 @@ export const EXTRACTOR_IDS = [
   "CFPORTAL",
   "1-A",
   "1-K",
-  "1-SA",
   "253G",
   "1-A-W",
   "1-Z",

@@ -7,22 +7,20 @@
 import Value from "typebox/value";
 import { Form } from "../Form";
 import { Form1K, Form1KSchema, Form1KSubmission, Form1KSubmissionSchema } from "./Form_1_K.schema";
-import { parseRegAFinancialStatements, type RegAStatement } from "./regAFinancialStatements";
-import { selectRegACoverDocument, selectRegAReportDocument } from "./regAReportDocument";
+import { selectRegACoverDocument } from "./regAReportDocument";
 
 /**
- * A parsed Form 1-K: the XSD cover page, plus the annual report's financial
- * statements.
+ * A parsed Form 1-K: the XSD cover page.
  *
- * The two come from DIFFERENT documents of the same submission, which is the
- * whole reason 1-K is fetched as the full `.txt`. The cover is
- * `primary_doc.xml`, and its XSD has no financial elements at all — which is why
- * 1-K produced 0 financial rows across all 2,997 filings. The annual report
- * lives beside it as `<TYPE>PART II`.
+ * The cover is `primary_doc.xml`, and its XSD has no financial elements at all.
+ * The annual report itself lives beside it in the submission as
+ * `<TYPE>PART II` — reading it is scanning human-authored HTML tables, which
+ * this package does not do, so what a 1-K parses to here is the cover and
+ * nothing else. `selectRegAReportDocument` still resolves that report document
+ * for whatever reads it.
  */
 export interface ParsedForm1K {
   readonly cover: Form1K;
-  readonly statements: readonly RegAStatement[];
 }
 
 export class Form_1_K extends Form {
@@ -35,9 +33,9 @@ export class Form_1_K extends Form {
    *
    * Accepts a bare `primary_doc.xml` too, so a caller holding just the cover
    * document (a fixture, a cached primary doc from before the fetch was
-   * escalated) still parses — it simply yields no statements. The two are told
-   * apart by looking for the SGML `<DOCUMENT>` envelope rather than by trusting
-   * the caller, because both arrive as a string and getting it wrong is silent.
+   * escalated) still parses. The two are told apart by looking for the SGML
+   * `<DOCUMENT>` envelope rather than by trusting the caller, because both
+   * arrive as a string and getting it wrong is silent.
    */
   static async parse(form: (typeof Form_1_K.forms)[number], text: string): Promise<ParsedForm1K> {
     if (!Form_1_K.forms.includes(form)) {
@@ -54,13 +52,6 @@ export class Form_1_K extends Form {
     const json = parser.parse(coverXml) as Form1KSubmission;
     const cover = Value.Convert(Form1KSchema, json.edgarSubmission) as Form1K;
 
-    // A report that carries no parseable statements is not a failure: a filing
-    // may incorporate its financials by reference, or file them as a scanned
-    // PDF. The cover data is still worth storing, so this degrades to an empty
-    // list rather than throwing.
-    const report = isFullSubmission ? selectRegAReportDocument(text, form) : undefined;
-    const statements = report ? parseRegAFinancialStatements(report.body) : [];
-
-    return { cover, statements };
+    return { cover };
   }
 }

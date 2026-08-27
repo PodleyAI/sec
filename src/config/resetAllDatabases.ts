@@ -51,7 +51,6 @@ import { DAILY_INDEX_CURSOR_REPOSITORY_TOKEN } from "../storage/processing/Daily
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFactsSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedSubmissionsSchema";
 import { REGA_CURRENT_REPORT_REPOSITORY_TOKEN } from "../storage/reg-a/RegACurrentReportSchema";
-import { REGA_FINANCIAL_LINE_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinancialLineSchema";
 import { REGA_OFFERING_EVENT_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingEventSchema";
 import { REGA_EQUITY_CLASS_REPOSITORY_TOKEN } from "../storage/reg-a/RegAEquityClassSchema";
 import { REGA_FINANCIAL_DATA_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinancialDataSchema";
@@ -434,7 +433,6 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(REGA_FINANCIAL_DATA_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_EQUITY_CLASS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_CURRENT_REPORT_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_FINANCIAL_LINE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_OFFERING_EVENT_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN).deleteAll();

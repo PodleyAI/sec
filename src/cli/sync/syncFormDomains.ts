@@ -57,7 +57,11 @@ export function expandFormTypes(tokens: readonly string[]): string[] {
 export const SYNC_FORM_DOMAINS = {
   portals: ["CFPORTAL"],
   crowdfunding: ["C"],
-  "reg-a": ["1-A", "1-K", "1-Z", "1-SA", "1-U", "QUALIF", "253G", "1-A-W"],
+  // 1-SA is absent because sec ships no extractor for it: a semiannual report
+  // is nothing but its financial statements, and reading those is a scan of
+  // human-authored tables a downstream package owns. A sweep that wants it
+  // names the form (or that package's extractor id) directly.
+  "reg-a": ["1-A", "1-K", "1-Z", "1-U", "QUALIF", "253G", "1-A-W"],
   "form-d": ["D"],
   spacs: ["S-1", "424", "8-K", "merger-proxy", "25-15"],
 } as const satisfies Record<string, readonly ExtractorId[]>;

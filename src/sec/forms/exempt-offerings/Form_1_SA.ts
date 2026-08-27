@@ -5,51 +5,37 @@
  */
 
 import { Form } from "../Form";
-import { parseRegAFinancialStatements, type RegAStatement } from "./regAFinancialStatements";
-import { selectRegAReportDocument } from "./regAReportDocument";
 
 /**
- * A parsed Form 1-SA: the semiannual report's financial statements.
+ * Form 1-SA — the Regulation A semiannual report.
  *
- * There is no cover half here, unlike the 1-K. A 1-SA has NO XSD-tagged
- * primary document — every one of the 2,792 filings records a `.htm` primary
- * doc where every one of the 3,001 1-K filings records a `.xml` — so the report
- * document is the entire filing and the statements are all there is to extract.
+ * Catalogued here but not extracted. A 1-SA is nothing BUT its financial
+ * statements: there is no XSD-tagged cover page — every one of the 2,792 filings
+ * records a `.htm` primary doc where every one of the 3,001 1-K filings records
+ * a `.xml` — so the report document is the entire filing and reading it means
+ * scanning human-authored HTML tables. That scan is not part of this package,
+ * and neither is any extractor over this form.
+ *
+ * The catalogue entry stays because it is what the dispatcher resolves a form to
+ * before running whatever extractors are registered over it, and an extractor
+ * registered downstream still needs the form to resolve. That extractor supplies
+ * its own reading of the document.
+ *
+ * Unlike the 1-K, this form is deliberately NOT fetched as the full submission —
+ * see `submissionFetchKind`. Its primary document IS its report, so escalating
+ * would download a whole submission to arrive at the file already in hand.
  */
-export interface ParsedForm1SA {
-  readonly statements: readonly RegAStatement[];
-}
-
 export class Form_1_SA extends Form {
   static readonly name = "Semiannual Report (Regulation A)";
   static readonly description = "Semiannual report pursuant to Regulation A.";
   static readonly forms = ["1-SA", "1-SA/A"] as const;
 
   /**
-   * Parses a 1-SA from its PRIMARY DOCUMENT — the report HTML itself.
-   *
-   * Unlike the 1-K, this form is NOT fetched as the full submission, because
-   * there is nothing extra to get: every one of the 2,792 filings records a
-   * `.htm` primary doc, and that document is the report. Escalating would
-   * download a whole submission to arrive at the file already in hand, and would
-   * invalidate a document cache that is already correct.
-   *
-   * A full submission is still accepted, and that is tolerance rather than the
-   * path: `sec fetch form` and the bulk cache can both hand over a `.txt` (a
-   * filing with no primary document at all falls back to one), and selecting by
-   * `<TYPE>1-SA` reads the right document out of it.
+   * Reads nothing. sec has no reading of a 1-SA to share, and an empty object
+   * rather than a throw is what keeps a filing dispatched to a downstream
+   * extractor a clean run instead of a `PARSE_ERROR` dead letter.
    */
-  static async parse(form: (typeof Form_1_SA.forms)[number], text: string): Promise<ParsedForm1SA> {
-    if (!Form_1_SA.forms.includes(form)) {
-      throw new Error(`Invalid form: ${form}`);
-    }
-
-    const html = /<DOCUMENT>/i.test(text) ? selectRegAReportDocument(text, form)?.body : text;
-    // No report document is not a failure — a filing may incorporate its
-    // financials by reference, or file them as a scanned PDF the selector
-    // refuses. An empty list lets the run record a clean success.
-    if (html === undefined) return { statements: [] };
-
-    return { statements: parseRegAFinancialStatements(html) };
+  static async parse(_form: string, _text: string): Promise<Record<string, never>> {
+    return {};
   }
 }
