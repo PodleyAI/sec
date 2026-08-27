@@ -25,24 +25,6 @@ registerSecFormExtractors();
 // any NEW duplicate fails this suite.
 const KNOWN_DUPLICATE_FORM_CODES = new Set(["AW WD", "PREM14A", "PREC14A"]);
 
-/**
- * Forms this package catalogues but deliberately ships no extractor for,
- * because reading them is a scan of human-authored prose or tables that lives
- * in a downstream package instead.
- *
- * They still need a class here, and that class still needs a parse that
- * returns rather than throws: `ProcessAccessionDocFormTask` resolves the form's
- * class and runs its parse BEFORE any registered extractor, and does so
- * uncontained — a form absent from `ALL_FORMS_MAP` throws out of the sweep
- * rather than dead-lettering one filing. So the entry is what lets a
- * downstream extractor reach the filing at all, and the parse yields an empty
- * object because sec has nothing of its own to read.
- *
- * Pinned by name so a form that loses its extractor by accident still fails
- * this suite.
- */
-const FORMS_LEFT_TO_A_DOWNSTREAM_EXTRACTOR = new Set(["1-SA", "1-SA/A"]);
-
 describe("form wiring", () => {
   it("registers 1-A POS to the parsing Form_1_A class (not a stub)", () => {
     expect(ALL_FORMS_MAP.get("1-A POS")).toBe(Form_1_A as any);
@@ -62,7 +44,6 @@ describe("form wiring", () => {
     // (`parse: yes`) whose dispatch then throws "No extractor registered".
     for (const form of ALL_FORM_NAMES) {
       if (!isFormParsingSupported(form)) continue;
-      if (FORMS_LEFT_TO_A_DOWNSTREAM_EXTRACTOR.has(form)) continue;
       expect({ form, mapped: formHasExtractor(form) }).toEqual({
         form,
         mapped: true,
