@@ -5618,3 +5618,20 @@ export function getGoldenLabels(
 ): readonly GoldenRow[] | undefined {
   return GOLDEN_S1_LABELS[goldenLabelKey(filing, extractor)];
 }
+
+/**
+ * The same rows as {@link getGoldenLabels}, viewed as the field bags the scorer
+ * itself works in.
+ *
+ * {@link GoldenRow} is a union, so `row.purpose` does not typecheck against it
+ * even though that is exactly how a label is read — one scored field at a time,
+ * behind a `typeof` guard, never knowing which member shape it landed on.
+ * `EvalS1Task` already widens to `Record<string, unknown>` at the same seam; this
+ * puts the widening in one place instead of a cast at every call.
+ */
+export function getGoldenFieldRows(
+  filing: string,
+  extractor: string
+): readonly GoldenFieldRow[] | undefined {
+  return getGoldenLabels(filing, extractor) as readonly GoldenFieldRow[] | undefined;
+}

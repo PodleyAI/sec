@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import "workglow";
-import type { SafeFetchFn } from "workglow";
+import type { SafeFetchFn, TaskTypeName } from "workglow";
 import { globalServiceRegistry, registerSafeFetch } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
@@ -34,7 +34,10 @@ interface DocInput {
 }
 
 class TestCachedFetchTask extends SecCachedFetchTask<DocInput> {
-  static readonly type = "TestCachedFetchTask";
+  // Annotated, not inferred: this suite subclasses it below to narrow the
+  // schema, and a literal type here would make that subclass's own `type` a
+  // static-side mismatch.
+  static readonly type: TaskTypeName = "TestCachedFetchTask";
   static readonly category = "Hidden";
   static readonly title = "Test cached fetch";
 
@@ -49,7 +52,7 @@ class TestCachedFetchTask extends SecCachedFetchTask<DocInput> {
 let raw: string;
 let restoreFetch: SafeFetchFn;
 
-function serve(body: Uint8Array, contentType: string): SafeFetchFn {
+function serve(body: Uint8Array<ArrayBuffer>, contentType: string): SafeFetchFn {
   return (async () =>
     new Response(body, {
       status: 200,

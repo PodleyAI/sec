@@ -106,7 +106,8 @@ describe("Form C narrative widths match the EDGAR XSD", () => {
  * column cannot leave this test pinned to the old width.
  */
 describe("determineStatus output fits crowdfunding.status", () => {
-  const maxLength = CrowdfundingSchema.properties.status.maxLength as number;
+  const maxLength = (CrowdfundingSchema.properties.status as { maxLength?: number })
+    .maxLength as number;
   const formCodes = EXEMPT_OFFERING_FORM_CODES.filter((f) => f.startsWith("C"));
 
   it("declares a maxLength", () => {

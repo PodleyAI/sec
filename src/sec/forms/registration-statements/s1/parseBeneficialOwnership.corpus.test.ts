@@ -5,7 +5,7 @@
  */
 
 import { beforeAll, describe, expect, it } from "vitest";
-import { getGoldenLabels } from "../../../../eval/goldenS1Labels";
+import { getGoldenFieldRows } from "../../../../eval/goldenS1Labels";
 import { loadS1Corpus, S1_CORPUS_TIMEOUT_MS, type S1CorpusFiling } from "./testing/s1Corpus";
 import { S1_SECTIONS } from "./DocumentSegmenter";
 import { parseBeneficialOwnership } from "./parseBeneficialOwnership";
@@ -47,7 +47,7 @@ describe("parseBeneficialOwnership golden corpus", () => {
 
   it("never false-hits a golden empty beneficial-ownership label", () => {
     for (const { filing, byName } of cases) {
-      const labels = getGoldenLabels(filing, "beneficial-ownership");
+      const labels = getGoldenFieldRows(filing, "beneficial-ownership");
       if (!labels || labels.length !== 0) continue;
       const text = byName.get(S1_SECTIONS.BENEFICIAL_OWNERSHIP) ?? "";
       expect(parseBeneficialOwnership(text), filing).toEqual([]);
@@ -56,7 +56,7 @@ describe("parseBeneficialOwnership golden corpus", () => {
 
   it("does not invent owners outside the golden set when it hits", () => {
     for (const { filing, byName } of cases) {
-      const labels = getGoldenLabels(filing, "beneficial-ownership");
+      const labels = getGoldenFieldRows(filing, "beneficial-ownership");
       if (!labels || labels.length === 0) continue;
       const text = byName.get(S1_SECTIONS.BENEFICIAL_OWNERSHIP) ?? "";
       const parsed = parseBeneficialOwnership(text);
@@ -94,7 +94,7 @@ describe("parseBeneficialOwnership golden corpus", () => {
   it("misses only the owners its own filters are known to drop", () => {
     const misses: string[] = [];
     for (const { filing, byName } of cases) {
-      const labels = getGoldenLabels(filing, "beneficial-ownership");
+      const labels = getGoldenFieldRows(filing, "beneficial-ownership");
       if (!labels || labels.length === 0) continue;
       const text = byName.get(S1_SECTIONS.BENEFICIAL_OWNERSHIP) ?? "";
       const parsed = parseBeneficialOwnership(text);

@@ -64,7 +64,8 @@ function rowKey(extractor: string, row: GoldenRow): string {
   const bag = row as Record<string, unknown>;
   const keyField = spec?.keyField;
   if (keyField && typeof bag[keyField] === "string") return bag[keyField] as string;
-  return JSON.stringify(spec ? spec.compareFields.map((f) => bag[f]) : bag);
+  const compareFields = spec?.compareFields;
+  return JSON.stringify(compareFields ? compareFields.map((f) => bag[f]) : bag);
 }
 
 /** The name-ish key for the two hand-written shapes. */
@@ -110,7 +111,7 @@ describe("goldenS1Labels", () => {
       // (whose schema makes it required) and matches nothing, so it is required
       // here exactly like a compareField.
       const required = [
-        ...spec!.compareFields,
+        ...(spec!.compareFields ?? []),
         ...(spec!.entityKindField ? [spec!.entityKindField] : []),
       ].sort();
       for (const row of rows) {

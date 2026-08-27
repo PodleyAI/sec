@@ -79,7 +79,7 @@ describe("recomputeSpacDeals (sqlite) transactional rollback", () => {
             redemption_amount: 1234,
           }),
           // @ts-expect-error — intentionally injecting a NOT NULL violation.
-          deal(320193, 2, { outcome: null as unknown as "pending", source_accession: "newer-2" }),
+          deal(320193, 2, { outcome: null, source_accession: "newer-2" }),
         ],
       })
     ).rejects.toThrow();

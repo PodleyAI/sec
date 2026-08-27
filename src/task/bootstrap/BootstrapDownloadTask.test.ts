@@ -157,7 +157,7 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask.execute zip c
     const realSpawn = Bun.spawn;
     const realWhich = Bun.which;
     (Bun as unknown as { spawn: typeof Bun.spawn }).spawn = ((cmd: readonly string[]) =>
-      opts.spawn(cmd)) as typeof Bun.spawn;
+      opts.spawn(cmd)) as unknown as typeof Bun.spawn;
     (Bun as unknown as { which: typeof Bun.which }).which = ((_name: string) =>
       "/usr/bin/unzip") as typeof Bun.which;
     return () => {

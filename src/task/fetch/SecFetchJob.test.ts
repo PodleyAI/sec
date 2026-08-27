@@ -59,21 +59,21 @@ function expectRetryWaitMs(error: RetryableJobError, expectedMs: number, slackMs
 
 describe("SecFetchJob", () => {
   it("merges SEC User-Agent onto job input", () => {
-    const job = new SecFetchJob({
-      input: {
-        url: "https://data.sec.gov/submissions/CIK0000320193.json",
-      } satisfies FetchUrlTaskInput,
-    });
+    const input: FetchUrlTaskInput = {
+      url: "https://data.sec.gov/submissions/CIK0000320193.json",
+      response_type: "json",
+    };
+    const job = new SecFetchJob({ input });
     expect(job.input.headers?.["User-Agent"]).toBe(SecUserAgent);
   });
 
   it("lets caller headers extend defaults without replacing unrelated keys", () => {
-    const job = new SecFetchJob({
-      input: {
-        url: "https://example.com/",
-        headers: { Accept: "application/json" },
-      } satisfies FetchUrlTaskInput,
-    });
+    const input: FetchUrlTaskInput = {
+      url: "https://example.com/",
+      headers: { Accept: "application/json" },
+      response_type: "json",
+    };
+    const job = new SecFetchJob({ input });
     expect(job.input.headers?.["User-Agent"]).toBe(SecUserAgent);
     expect(job.input.headers?.Accept).toBe("application/json");
   });

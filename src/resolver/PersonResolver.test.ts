@@ -60,11 +60,12 @@ function obs(overrides: Partial<PersonObservation>): PersonObservation {
     normalized_middle: null,
     normalized_last: null,
     normalized_suffix: null,
-    titles: null,
     relationship: null,
+    birth_year: null,
     raw_address_id: null,
     raw_phone_id: null,
     source_context: null,
+    bio: null,
     created_at: "2026-05-22T00:00:00.000Z",
     ...overrides,
   };

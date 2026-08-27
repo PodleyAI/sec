@@ -238,13 +238,13 @@ describe("Form_1_Z storage test", () => {
         const form1Z = await Form_1_Z.parse("1-Z", xmlContent);
         const offerings = form1Z.formData.summaryInfoOffering;
         if (!offerings) continue;
-        const target = offerings.find(
-          (o): o is Record<string, unknown> & { pricePerSecurity?: unknown } =>
-            typeof o === "object" && o !== null
-        );
+        const target = offerings.find((o) => typeof o === "object" && o !== null);
         if (!target) continue;
 
-        target.pricePerSecurity = "   ";
+        // Written through the widened view: `pricePerSecurity` is a declared
+        // optional string on the parsed shape, and the case being set up is the
+        // whitespace-only value a filer can actually put there.
+        (target as Record<string, unknown>).pricePerSecurity = "   ";
 
         const cik = 990101;
         const fileNumber = "024-h-ws-z";
@@ -277,12 +277,9 @@ describe("Form_1_Z storage test", () => {
         const form1Z = await Form_1_Z.parse("1-Z", xmlContent);
         const offerings = form1Z.formData.summaryInfoOffering;
         if (!offerings) continue;
-        const target = offerings.find(
-          (o): o is Record<string, unknown> & { pricePerSecurity?: unknown } =>
-            typeof o === "object" && o !== null
-        );
+        const target = offerings.find((o) => typeof o === "object" && o !== null);
         if (!target) continue;
-        target.pricePerSecurity = "";
+        (target as Record<string, unknown>).pricePerSecurity = "";
 
         const cik = 990102;
         const fileNumber = "024-h-empty-z";
@@ -315,12 +312,9 @@ describe("Form_1_Z storage test", () => {
         const form1Z = await Form_1_Z.parse("1-Z", xmlContent);
         const offerings = form1Z.formData.summaryInfoOffering;
         if (!offerings) continue;
-        const target = offerings.find(
-          (o): o is Record<string, unknown> & { pricePerSecurity?: unknown } =>
-            typeof o === "object" && o !== null
-        );
+        const target = offerings.find((o) => typeof o === "object" && o !== null);
         if (!target) continue;
-        target.pricePerSecurity = "0";
+        (target as Record<string, unknown>).pricePerSecurity = "0";
 
         const cik = 990103;
         const fileNumber = "024-h-zero-z";

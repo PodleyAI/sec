@@ -12,6 +12,7 @@ import {
   Task,
   TaskAbortedError,
   TaskError,
+  type TaskTypeName,
 } from "workglow";
 import { SecCliConfigurationError } from "../../config/EnvToDI";
 import { registerSecFormExtractors } from "../../config/registerFormExtractors";
@@ -155,7 +156,10 @@ export class ProcessAccessionDocFormTask extends Task<
   ProcessAccessionDocFormTaskInput,
   ProcessAccessionDocFormTaskOutput
 > {
-  static readonly type = "ProcessAccessionDocFormTask";
+  // Annotated rather than inferred as its own literal: the sweep tests subclass
+  // this to expose a protected step, and a literal type on the base's static
+  // makes every subclass's own `type` a static-side mismatch.
+  static readonly type: TaskTypeName = "ProcessAccessionDocFormTask";
   static readonly category = "SEC";
   static readonly title = "Process filing document";
   static readonly cacheable = true;

@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { DETERMINISTIC_MODEL_ID } from "../../../../config/Constants";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { makeRunSection } from "./sectionRunner";
-import type { SectionPersistMeta } from "./sectionRunner";
+import type { SectionOutcome, SectionPersistMeta } from "./sectionRunner";
 
 interface RecordedLetter {
   section_name: string;
@@ -52,7 +52,7 @@ function harness(overrides: {
   readonly walkLast?: boolean;
   readonly omitWalk?: boolean;
 }): {
-  readonly run: () => Promise<void>;
+  readonly run: () => Promise<SectionOutcome>;
   readonly modelCalls: () => number;
   readonly detCalls: () => number;
   readonly persisted: Array<{ rows: Row[]; meta: SectionPersistMeta }>;

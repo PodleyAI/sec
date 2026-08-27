@@ -65,7 +65,8 @@ describe("PersonObservationTitleRepo.listForObservations (sqlite)", () => {
     // No single query may carry more ids than the bound, whatever the engine
     // would have tolerated.
     for (const [criteria] of querySpy.mock.calls) {
-      const criterion = (criteria as { observation_id: { value: number[] } }).observation_id;
+      const criterion = (criteria as { observation_id: { readonly value: readonly number[] } })
+        .observation_id;
       expect(criterion.value.length).toBeLessThanOrEqual(CHUNK);
     }
 
