@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { extractorIdsForForm } from "../../sec/forms/formExtractors";
 import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { filingRunKey } from "../../storage/versioning/ExtractorRunRepo";
-import { formToExtractorId, isSpacRowGatedExtractor } from "../../storage/versioning/extractorIds";
+import { isSpacRowGatedExtractor } from "../../storage/versioning/extractorIds";
 import type { SpacProcessForce } from "./parseSpacProcessForce";
 
 export function shouldReplaySpacFiling(args: {
@@ -24,14 +25,19 @@ export function shouldReplaySpacFiling(args: {
    */
   readonly gatedNoOpAccessions: ReadonlySet<string>;
 }): boolean {
-  const extractorId = formToExtractorId(args.form);
-  if (extractorId === undefined) return false;
+  // Every clause below asks about the SET of extractors the form routes to, not
+  // about one of them: a filing is replayed when any of its extractors is
+  // forced, is gated, or still owes a successful run. Reading a single id would
+  // answer each of those for whichever extractor happened to be named first and
+  // silently drop the rest of the form's work.
+  const extractorIds = extractorIdsForForm(args.form);
+  if (extractorIds.length === 0) return false;
   if (args.force.kind === "all") return true;
   if (args.force.kind === "extractors") {
     const forced = new Set<string>(args.force.ids);
-    if (forced.has(extractorId)) return true;
+    if (extractorIds.some((id) => forced.has(id))) return true;
     if (
-      extractorId === "8-K" &&
+      extractorIds.includes("8-K") &&
       ((forced.has("redemption") && hasRedemptionTriggerItem(args.items)) ||
         (forced.has("loi") && hasLoiTriggerItem(args.items)))
     ) {
@@ -42,9 +48,15 @@ export function shouldReplaySpacFiling(args: {
   // exists for: a gated handler's success row says only that it ran, not that
   // it wrote anything. Selection is evidence-based per filing, so a filing that
   // genuinely had nothing to write stays skipped.
-  if (isSpacRowGatedExtractor(extractorId) && args.gatedNoOpAccessions.has(args.accession_number)) {
+  if (
+    extractorIds.some(isSpacRowGatedExtractor) &&
+    args.gatedNoOpAccessions.has(args.accession_number)
+  ) {
     return true;
   }
-  const keys = args.successfulKeys.get(extractorId);
-  return keys === undefined || !keys.has(filingRunKey(args));
+  const runKey = filingRunKey(args);
+  return extractorIds.some((id) => {
+    const keys = args.successfulKeys.get(id);
+    return keys === undefined || !keys.has(runKey);
+  });
 }

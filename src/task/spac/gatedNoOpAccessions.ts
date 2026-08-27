@@ -5,6 +5,7 @@
  */
 
 import { listingRemovalNeedsWork } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
+import { extractorIdsForForm } from "../../sec/forms/formExtractors";
 import { LOI_TRIGGER_ITEMS } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
 import { REDEMPTION_TRIGGER_ITEMS } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
@@ -14,7 +15,7 @@ import { SpacLoiExtractionRepo } from "../../storage/spac/SpacLoiExtractionRepo"
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
 import { SpacRedemptionExtractionRepo } from "../../storage/spac/SpacRedemptionExtractionRepo";
 import { SpacRepo } from "../../storage/spac/SpacRepo";
-import { formToExtractorId, isSpacRowGatedExtractor } from "../../storage/versioning/extractorIds";
+import { isSpacRowGatedExtractor } from "../../storage/versioning/extractorIds";
 
 /**
  * 8-K item codes `mapItemCodesToSpacEvents` maps to an event UNCONDITIONALLY.
@@ -51,6 +52,17 @@ const GATED_8K_ITEM_CODES: ReadonlySet<string> = new Set([
 
 /** The detectors whose dead-letter entries answer for a trigger 8-K. */
 const DETECTOR_EXTRACTOR_IDS: readonly string[] = ["redemption", "loi"];
+
+/**
+ * A filing whose form routes to at least one known-SPAC-gated extractor, paired
+ * with the ids that form routes to. The ids are carried rather than re-derived
+ * because the branches below ask which of them is present, and a form may route
+ * to several.
+ */
+interface GatedFiling {
+  readonly filing: Filing;
+  readonly extractorIds: readonly string[];
+}
 
 function itemCodes(items: string | null | undefined): string[] {
   if (!items) return [];
@@ -105,12 +117,14 @@ export async function loadGatedNoOpAccessions(
   cik: number,
   timeline: readonly Filing[]
 ): Promise<ReadonlySet<string>> {
-  const gated: Filing[] = [];
+  const gated: GatedFiling[] = [];
   for (const filing of timeline) {
     if (filing.form === null) continue;
-    const extractorId = formToExtractorId(filing.form);
-    if (extractorId === undefined) continue;
-    if (isSpacRowGatedExtractor(extractorId)) gated.push(filing);
+    // ANY of the form's extractors being gated makes the filing gated: the
+    // question is whether a known-SPAC gate could have swallowed this filing's
+    // work, and one gated extractor among several is enough for that.
+    const extractorIds = extractorIdsForForm(filing.form);
+    if (extractorIds.some(isSpacRowGatedExtractor)) gated.push({ filing, extractorIds });
   }
   if (gated.length === 0) return new Set();
 
@@ -128,9 +142,8 @@ export async function loadGatedNoOpAccessions(
   // timeline rather than by the whole extractor's table.
   const detectorCandidates: string[] = [];
 
-  for (const filing of gated) {
-    const extractorId = formToExtractorId(filing.form!)!;
-    if (extractorId === "25-15") {
+  for (const { filing, extractorIds } of gated) {
+    if (extractorIds.includes("25-15")) {
       const needsWork = await listingRemovalNeedsWork({
         cik,
         form: filing.form,
@@ -142,7 +155,7 @@ export async function loadGatedNoOpAccessions(
       if (needsWork) out.add(filing.accession_number);
       continue;
     }
-    if (extractorId === "merger-proxy") {
+    if (extractorIds.includes("merger-proxy")) {
       mergerProxies.push(filing.accession_number);
       continue;
     }

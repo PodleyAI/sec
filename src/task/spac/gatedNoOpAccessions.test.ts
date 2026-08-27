@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry } from "workglow";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { registerFormExtractor } from "../../sec/forms/formExtractors";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import type { Filing } from "../../storage/filing/FilingSchema";
@@ -18,6 +20,22 @@ import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { loadGatedNoOpAccessions } from "./gatedNoOpAccessions";
 
 const CIK = 1800001;
+const S4 = "S-4";
+
+const noopStore = async (): Promise<void> => {};
+
+beforeAll(() => {
+  // The gate reads the form-extractor registry, so sec's own extractors have to
+  // be in it before any case runs.
+  registerSecFormExtractors();
+  // A de-SPAC `S-4` is a registration statement AND the merger proxy for the
+  // same vote, so it carries two extractors — and the ROW-GATED one is not the
+  // first. `S-4` is deliberately a form the shipped 1:1 map has no entry for.
+  registerFormExtractor({ id: "S-4", forms: [S4], store: noopStore });
+  // A second registry key under an EXISTING id, so the shipped `merger-proxy`
+  // registration is widened rather than replaced.
+  registerFormExtractor({ id: "merger-proxy", section: "de-spac", forms: [S4], store: noopStore });
+});
 
 function filing(accession: string, form: string, items: string | null = null): Filing {
   return {
@@ -287,6 +305,48 @@ describe("loadGatedNoOpAccessions", () => {
     const out = await loadGatedNoOpAccessions(CIK, [filing("0000000000-26-000001", "DEF 14A")]);
 
     expect([...out]).toEqual(["0000000000-26-000001"]);
+  });
+
+  it("selects a filing whose SECOND extractor is the row-gated one", async () => {
+    // The gate is a question about the SET of extractors a form routes to. Asked
+    // of one id, this `S-4` answers with the registration extractor — which is
+    // not row-gated — and the merger-proxy work it also owes is dropped.
+    await mintSpacRow();
+
+    const out = await loadGatedNoOpAccessions(CIK, [filing("0000000000-26-000001", S4)]);
+
+    expect([...out]).toEqual(["0000000000-26-000001"]);
+  });
+
+  it("still deselects that filing once its merger extraction row exists", async () => {
+    // The monotone half: reaching the filing through its second extractor must
+    // still be deselected by the artifact that extractor writes.
+    await mintSpacRow();
+    await new SpacMergerExtractionRepo().save({
+      accession_number: "0000000000-26-000001",
+      cik: CIK,
+      form: S4,
+      filing_date: "2022-03-01",
+      extractor_id: "merger-proxy",
+      extractor_version: "1.0.0",
+      target_name: "Acme",
+      target_cik: null,
+      target_observation_id: null,
+      target_description: null,
+      pipe_amount: null,
+      equity_value: null,
+      enterprise_value: null,
+      merger_consideration: null,
+      confidence: 0.9,
+      source_span: null,
+      seeks_combination_approval: null,
+      model_id: null,
+      created_at: new Date().toISOString(),
+    });
+
+    const out = await loadGatedNoOpAccessions(CIK, [filing("0000000000-26-000001", S4)]);
+
+    expect([...out]).toEqual([]);
   });
 
   it("reads dead letters scoped to the issuer's accessions", async () => {

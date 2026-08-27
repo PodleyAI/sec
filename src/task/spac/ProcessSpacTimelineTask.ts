@@ -14,6 +14,11 @@ import {
 } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
 import { SecCliConfigurationError } from "../../config/EnvToDI";
+import {
+  extractorIdsForForm,
+  formHandledByExtractor,
+  formHasExtractor,
+} from "../../sec/forms/formExtractors";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
@@ -205,7 +210,7 @@ export class ProcessSpacTimelineTask extends Task<
     // Only forms an extractor handles. Anything else has no storage handler and
     // would dead-letter as a wiring error rather than advance the timeline.
     const timeline = all
-      .filter((f: Filing) => f.form !== null && formToExtractorId(f.form) !== undefined)
+      .filter((f: Filing) => f.form !== null && formHasExtractor(f.form))
       // Sort by filing_date, then accession, so same-day filings still have a
       // deterministic order — two 8-Ks filed the same day must not race.
       .sort((a: Filing, b: Filing) => {
@@ -240,14 +245,12 @@ export class ProcessSpacTimelineTask extends Task<
     const toProcess = timeline.filter((f) => {
       if (f.form === null) return false;
       if (!filingMeetsDateFloor(f.filing_date, filedOnOrAfter)) return false;
-      const extractorId = formToExtractorId(f.form);
       // `--force 8-K` / `--force redemption` is an explicit request to run the
       // gated handler anyway; `--force all` still waits so the S-1 can mint.
       if (
         !hasSpacRow &&
         force.kind !== "extractors" &&
-        extractorId !== undefined &&
-        isSpacRowGatedExtractor(extractorId)
+        extractorIdsForForm(f.form).some(isSpacRowGatedExtractor)
       ) {
         return false;
       }
@@ -425,8 +428,7 @@ async function loadActiveExtractorVersions(
   const extractorIds = new Set<string>();
   for (const f of timeline) {
     if (f.form === null) continue;
-    const id = formToExtractorId(f.form);
-    if (id !== undefined) extractorIds.add(id);
+    for (const id of extractorIdsForForm(f.form)) extractorIds.add(id);
   }
   const versions = new Map<string, string>();
   for (const id of extractorIds) {
@@ -454,7 +456,9 @@ async function loadSuccessfulKeys(
   for (const [id, semver] of activeVersionByExtractorId) {
     // Only the filings this extractor actually routes: asking about the whole
     // timeline would read every other extractor's rows for the CIK too.
-    const candidates = timeline.filter((f) => f.form !== null && formToExtractorId(f.form) === id);
+    const candidates = timeline.filter(
+      (f) => f.form !== null && formHandledByExtractor(f.form, id)
+    );
     successfulKeys.set(id, await runRepo.successfulRunKeysForFilings(candidates, id, semver));
   }
   return successfulKeys;

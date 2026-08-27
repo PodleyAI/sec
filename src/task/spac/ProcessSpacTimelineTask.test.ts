@@ -7,22 +7,41 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { SEC_DRY_RUN, SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { registerFormExtractor } from "../../sec/forms/formExtractors";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../storage/spac/SpacCandidateSchema";
+import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
 import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
 import { SpacRepo } from "../../storage/spac/SpacRepo";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { ProcessAccessionDocFormTask } from "../forms/ProcessAccessionDocFormTask";
 import { MAX_RETAINED_FILING_ROWS, ProcessSpacTimelineTask } from "./ProcessSpacTimelineTask";
 
 const CIK = 1800001;
+const S4 = "S-4";
+
+const noopStore = async (): Promise<void> => {};
+
+/**
+ * A de-SPAC `S-4` is a registration statement AND the merger proxy for the same
+ * vote, so one form carries two extractors — and `S-4` is deliberately a symbol
+ * the shipped 1:1 map has no entry for at all.
+ */
+beforeAll(() => {
+  registerFormExtractor({ id: "S-4", forms: [S4], store: noopStore });
+  // A second registry key under an EXISTING id, so the shipped `merger-proxy`
+  // registration is widened rather than replaced.
+  registerFormExtractor({ id: "merger-proxy", section: "de-spac", forms: [S4], store: noopStore });
+});
 
 const GOOD_FORM_D = readFileSync(
   path.join(
@@ -96,6 +115,49 @@ async function seedSuccessfulRun(
     slot_at_run: "current",
     success: true,
     error: null,
+  });
+}
+
+/** Gives an extractor id a `current` slot, as `db setup` does for the shipped ids. */
+async function seedExtractorVersion(id: string): Promise<void> {
+  await new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)).putSlot({
+    component_kind: "extractor",
+    component_id: id,
+    slot: "current",
+    semver: "1.0.0",
+    bump_type: null,
+    started_at: "2021-01-01T00:00:00.000Z",
+    coverage_complete: true,
+    target_count: null,
+  });
+}
+
+/**
+ * Records the merger extraction the `S-4`'s second extractor produces, so the
+ * known-SPAC-gated repair pass has its artifact and leaves the filing alone —
+ * which is what makes the already-succeeded skip the thing under test.
+ */
+async function seedMergerExtraction(accession: string): Promise<void> {
+  await new SpacMergerExtractionRepo().save({
+    accession_number: accession,
+    cik: CIK,
+    form: S4,
+    filing_date: "2021-02-04",
+    extractor_id: "merger-proxy",
+    extractor_version: "1.0.0",
+    target_name: "Acme",
+    target_cik: null,
+    target_observation_id: null,
+    target_description: null,
+    pipe_amount: null,
+    equity_value: null,
+    enterprise_value: null,
+    merger_consideration: null,
+    confidence: 0.9,
+    source_span: null,
+    seeks_combination_approval: null,
+    model_id: null,
+    created_at: new Date().toISOString(),
   });
 }
 
@@ -743,5 +805,84 @@ describe("ProcessSpacTimelineTask", () => {
     await new ProcessSpacTimelineTask().run({ cik: CIK, filedOnOrAfter: "2026-08-19" });
 
     expect(spy.mock.calls.map((c) => c[0]?.accessionNumber)).toEqual(["0000000000-26-000001"]);
+  });
+
+  it("puts a filing on the timeline when only the registry knows its form", async () => {
+    // `S-4` has no entry in the 1:1 map, so a map lookup drops the filing from
+    // the timeline entirely — no count, no replay, and nothing saying so.
+    await seedFiling("0000000000-26-000001", S4, "2021-02-04", "s4.htm");
+    vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute").mockResolvedValue({ success: true });
+
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    expect(out.matched).toBe(1);
+  });
+
+  it("holds back a filing whose SECOND extractor is row-gated until the spac row exists", async () => {
+    // The gate asks whether ANY of the form's extractors is known-SPAC-gated.
+    // Answered for the first alone this `S-4` reads as ungated, and its
+    // merger-proxy half runs before the registration statement mints the row —
+    // recording a success while writing nothing, which is unrecoverable.
+    await seedFiling("0000000000-26-000001", S4, "2021-02-04", "s4.htm");
+    const spy = vi
+      .spyOn(ProcessAccessionDocFormTask.prototype, "execute")
+      .mockResolvedValue({ success: true });
+
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(out.skipped).toBe(1);
+  });
+
+  it("skips a two-extractor filing only once every one of them has succeeded", async () => {
+    await seedExtractorVersion("S-4");
+    await new SpacReportWriter().recordRegistration({
+      cik: CIK,
+      accession_number: "0000000000-26-000001",
+      filing_date: "2021-01-04",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Two Extractor SPAC",
+      spac_sic: 6770,
+    });
+    await seedFiling("0000000000-26-000002", S4, "2021-02-04", "s4.htm");
+    await seedSuccessfulRun("0000000000-26-000002", S4, "S-4");
+    await seedSuccessfulRun("0000000000-26-000002", S4, "merger-proxy");
+    await seedMergerExtraction("0000000000-26-000002");
+    const spy = vi
+      .spyOn(ProcessAccessionDocFormTask.prototype, "execute")
+      .mockResolvedValue({ success: true });
+
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(out.matched).toBe(1);
+    expect(out.skipped).toBe(1);
+  });
+
+  it("replays a two-extractor filing when only its first extractor has succeeded", async () => {
+    // The mirror of the case above, and the one a single-id lookup gets wrong:
+    // the second extractor still owes its run, so the filing is not done.
+    await seedExtractorVersion("S-4");
+    await new SpacReportWriter().recordRegistration({
+      cik: CIK,
+      accession_number: "0000000000-26-000001",
+      filing_date: "2021-01-04",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Two Extractor SPAC",
+      spac_sic: 6770,
+    });
+    await seedFiling("0000000000-26-000002", S4, "2021-02-04", "s4.htm");
+    await seedSuccessfulRun("0000000000-26-000002", S4, "S-4");
+    await seedMergerExtraction("0000000000-26-000002");
+    const spy = vi
+      .spyOn(ProcessAccessionDocFormTask.prototype, "execute")
+      .mockResolvedValue({ success: true });
+
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    expect(spy.mock.calls.map((c) => c[0]?.accessionNumber)).toEqual(["0000000000-26-000002"]);
+    expect(out.skipped).toBe(0);
   });
 });
