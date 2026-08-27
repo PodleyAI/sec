@@ -34,9 +34,10 @@ export function addResolveCommands(program: Command): void {
     )
     .option(
       "--rebuild-roles",
-      "also recompute person_role at the target version: DELETES every tenure there and " +
-        "re-derives it from the observations. A tenure closed by a filing carrying no " +
-        "role_roster_completeness row re-opens — re-extract those filings first",
+      "--kind person only: also recompute person_role at the target version, which " +
+        "DELETES every tenure there and re-derives it from the observations. A tenure " +
+        "closed by a filing carrying no role_roster_completeness row re-opens — " +
+        "re-extract those filings first",
       false
     )
     .action(
@@ -73,6 +74,20 @@ export function addResolveCommands(program: Command): void {
           }
           if (!opts.all) {
             throw new Error("--all is required (no other mode supported in v1)");
+          }
+          // Refused, not warned past. `person_role` is the person tier's, and
+          // the resolver versions of the two kinds are the same string on a
+          // default install, so the flag's only reachable effect on a company
+          // run is to purge the person tier's tenures at that version. The
+          // ceremony in docs/identity.md is a person line followed by a
+          // company line, which is exactly the shape that gets a flag copied
+          // onto both — and a warning on a line an operator already pasted is
+          // read after the deletion, if at all.
+          if (opts.rebuildRoles && kind !== "person") {
+            throw new Error(
+              `--rebuild-roles applies to --kind person only: it rebuilds person_role, ` +
+                `which a '${kind}' pass writes no link for. Run it on the person pass.`
+            );
           }
           // Default to the ACTIVE slot ("next if a dev cycle exists, else
           // current"), as `version coverage` and the role query already do.
@@ -118,11 +133,13 @@ export function addResolveCommands(program: Command): void {
           // which is worth an operator's attention even though the resolve
           // itself succeeded.
           for (const rebuild of rebuilds) {
-            console.log(
-              rebuild.error === null
-                ? `rebuilt ${rebuild.kind}: ${rebuild.rows} row(s) at v${resolverVersion}`
-                : `rebuild of ${rebuild.kind} FAILED: ${rebuild.error}`
-            );
+            if (rebuild.error === null) {
+              console.log(`rebuilt ${rebuild.kind}: ${rebuild.rows} row(s) at v${resolverVersion}`);
+            } else {
+              // stderr: a failure is not part of the result a caller pipes,
+              // and the task has already said the same thing there.
+              console.error(`rebuild of ${rebuild.kind} FAILED: ${rebuild.error}`);
+            }
           }
         });
       }

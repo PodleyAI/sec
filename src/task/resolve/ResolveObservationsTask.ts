@@ -42,13 +42,16 @@ export type ResolveObservationsTaskInput = {
    */
   readonly renormalize?: boolean;
   /**
-   * Also recompute the resolver version's `person_role` tenures. Off by
-   * default because {@link rebuildPersonRoles} purges the version's rows
-   * before re-deriving them, and it can only re-close a tenure whose filing
-   * recorded a complete roster in `role_roster_completeness`: over a corpus
-   * ingested before those rows were written, every departure the incremental
-   * path had recorded re-opens. The junction projections carry no such
-   * asymmetry and always run.
+   * Also recompute the resolver version's `person_role` tenures. Person runs
+   * only — asking for it on a company run is refused, since `person_role` is
+   * keyed by the PERSON resolver version and a company pass writes nothing
+   * that feeds it. Off by default even there because
+   * {@link rebuildPersonRoles} purges the version's rows before re-deriving
+   * them, and it can only re-close a tenure whose filing recorded a complete
+   * roster in `role_roster_completeness`: over a corpus ingested before those
+   * rows were written, every departure the incremental path had recorded
+   * re-opens. The junction projection carries no such asymmetry and always
+   * runs.
    */
   readonly rebuildRoles?: boolean;
 };
@@ -90,19 +93,32 @@ async function runRebuild(
 }
 
 /**
- * Recomputes the derived projections at the resolver version the links were
- * just written at. The junctions are keyed by canonical id, so re-resolving
+ * Recomputes the projections derived from the links this run just wrote, and
+ * only those. The junctions are keyed by canonical id, so re-resolving
  * without them leaves rows keyed to the ids of the previous pass.
+ *
+ * Scoped to the kind that was resolved, because the resolver version is a
+ * per-kind number that carries no per-kind name: `bootstrapComponentVersions`
+ * seeds person and company alike at `1.0.0`, so on a default install the two
+ * are the same string and an off-kind rebuild does not harmlessly find an
+ * empty table — it finds the OTHER tier's live rows at that version and
+ * recomputes them from links this run never touched. For `person_role`, whose
+ * rebuild purges first, that is the other tier's tenures deleted by a command
+ * about companies.
  */
 async function rebuildProjections(input: ResolveObservationsTaskInput): Promise<RebuildReport[]> {
   const version = input.resolverVersion;
+  if (input.kind === "company") {
+    return [
+      await runRebuild("company-junctions", async () => {
+        const result = await rebuildCompanyJunctions(version);
+        return result.addressRows + result.phoneRows;
+      }),
+    ];
+  }
   const reports = [
     await runRebuild("person-junctions", async () => {
       const result = await rebuildPersonJunctions(version);
-      return result.addressRows + result.phoneRows;
-    }),
-    await runRebuild("company-junctions", async () => {
-      const result = await rebuildCompanyJunctions(version);
       return result.addressRows + result.phoneRows;
     }),
   ];
@@ -247,6 +263,17 @@ export class ResolveObservationsTask extends Task<
   }
 
   async execute(input: ResolveObservationsTaskInput): Promise<ResolveObservationsTaskOutput> {
+    // Refused rather than ignored: `person_role` belongs to the person tier,
+    // and a caller that asked a company pass to rebuild it is working from a
+    // model of the run that is wrong. Raising here costs nothing — the flag
+    // had no honest effect on this kind — and the alternative reading of it
+    // deletes person tenures.
+    if (input.kind !== "person" && input.rebuildRoles) {
+      throw new Error(
+        `rebuildRoles applies to kind 'person' only: person_role is keyed by the person ` +
+          `resolver version, and a '${input.kind}' pass writes no link that feeds it`
+      );
+    }
     if (input.kind === "person") {
       const observations = new PersonObservationRepo();
       // Before resolving, not after: the resolver matches on these columns, so

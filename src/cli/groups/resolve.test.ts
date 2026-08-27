@@ -173,6 +173,31 @@ describe("sec resolve CLI", () => {
     }
   }, 15000);
 
+  it("resolve --kind company --rebuild-roles is refused before anything runs", async () => {
+    // person_role is the person tier's, and `db setup` bootstraps both
+    // resolvers at 1.0.0 — so on this very database the flag's only reachable
+    // effect on a company run would be to purge the person tier's tenures.
+    const dir = mkdtempSync(join(tmpdir(), "sec-resolve-test-"));
+    try {
+      const setup = await runCli(["db", "setup"], dir);
+      expect(setup.exitCode).toBe(0);
+
+      const result = await runCli(
+        ["resolve", "--kind", "company", "--resolver-version", "1.0.0", "--all", "--rebuild-roles"],
+        dir
+      );
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr + result.stdout).toMatch(
+        /--rebuild-roles applies to --kind person only/
+      );
+      // Refused, not attempted-then-reported: no resolve and no rebuild ran.
+      expect(result.stdout).not.toContain("resolved 0 company observation(s)");
+      expect(result.stdout).not.toContain("rebuilt");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 15000);
+
   it("resolve without --all exits with error", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-resolve-test-"));
     try {

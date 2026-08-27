@@ -159,6 +159,8 @@ has three: `previous`, `current`, `next`.
 sec resolve --kind person  --resolver-version 1.0.0 --all
 sec resolve --kind company --resolver-version 1.0.0 --all
 sec resolve --kind company --resolver-version 1.0.0 --all --renormalize
+# person only — the company line refuses it
+sec resolve --kind person  --resolver-version 1.0.0 --all --rebuild-roles
 
 sec version coverage resolver person|company|sponsor-family|underwriter-family
 sec version drop-previous resolver person|company
@@ -171,21 +173,30 @@ helpers the extraction path writes with (`normalizePersonNameParts`, `normalizeC
 precisely so a second implementation cannot drift and re-key half the tier to a generation
 nothing else produces.
 
-`sec resolve` then recomputes the tables derived from the links it just wrote. The
-address/phone junctions are grouped afresh from `(observation → identity_link →
-canonical_id)` at that version, because a re-resolve otherwise leaves them counted against
-the previous pass's canonical ids. Each projection is isolated the way a single row is:
-one that raises — a link whose observation is gone, an observation whose `filings` row is
-gone — is reported on its own line and the others still run. Both of those raises land
-before the projection purges anything, so a failure of that kind leaves its table exactly
-as it was rather than emptied.
+`sec resolve` then recomputes the tables derived from the links it just wrote — **the
+resolved kind's tables and no others**. A person run rebuilds the person junctions (and,
+on request, `person_role`); a company run rebuilds the company junctions. The junctions are
+grouped afresh from `(observation → identity_link → canonical_id)` at that version, because
+a re-resolve otherwise leaves them counted against the previous pass's canonical ids. Each
+projection is isolated the way a single row is: one that raises — a link whose observation
+is gone, an observation whose `filings` row is gone — is reported on its own line and the
+others still run. Both of those raises land before the projection purges anything, so a
+failure of that kind leaves its table exactly as it was rather than emptied.
 
-`--rebuild-roles` adds `person_role` to that set. It is off by default because it is not
-symmetric with the junctions: it **deletes** every tenure at the version before re-deriving
-them, and it can only re-close a tenure whose filing recorded a complete roster in
-`role_roster_completeness`. Over a corpus ingested before those rows were written it finds
-no complete roster, closes nothing, and so re-opens every departure the incremental path
-had recorded. Re-extract the roster filings first.
+The per-kind scoping is load-bearing, not tidiness. A resolver version is a per-kind
+number that carries no per-kind name, and `db setup` seeds **every** resolver id at
+`1.0.0`, so on a default install the person and company versions are the same string:
+an off-kind rebuild does not find an empty table at that version, it finds the other
+tier's live rows and recomputes them from links the run never wrote.
+
+`--rebuild-roles` adds `person_role` to that set, on `--kind person` only — asking for it
+on a company run is **refused**, because `person_role` is the person tier's and a company
+pass writes no link that feeds it. It is off by default even on a person run because it is
+not symmetric with the junctions: it **deletes** every tenure at the version before
+re-deriving them, and it can only re-close a tenure whose filing recorded a complete roster
+in `role_roster_completeness`. Over a corpus ingested before those rows were written it
+finds no complete roster, closes nothing, and so re-opens every departure the incremental
+path had recorded. Re-extract the roster filings first.
 
 ### The family tiers
 

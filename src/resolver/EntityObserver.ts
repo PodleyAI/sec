@@ -113,6 +113,13 @@ export interface EntityObserverResolverOptions
  * junction count and a tenure to a later batch pass over what was stored.
  * Which half is present is read per method, so a person-only caller need not
  * hand over a company resolver it will never use.
+ *
+ * Because the tier is optional HERE, a caller that means to build the full one
+ * gets no error for leaving a resolver out — its options type is inferred from
+ * the literal it passed. Production construction sites therefore name
+ * {@link ResolvingEntityObserverOptions} explicitly, through the class's
+ * default type argument (`const observer: EntityObserver = …`) or a declared
+ * return type; `entityObserverConstruction.test.ts` holds them to it.
  */
 export interface EntityObserverOptions
   extends EntityObserverObservationOptions, Partial<EntityObserverResolverOptions> {}
@@ -511,9 +518,14 @@ export class EntityObserver<
     // group (a named person contributed nothing) is equally unsafe, and so is
     // a roster the caller already knows it did not extract whole.
     if (!complete || incomplete || asserted === undefined || asserted.size === 0) return 0;
-    // An observer with no resolver tier minted no tenure to close either. The
-    // decision recorded above is the whole of what it leaves behind, and is
-    // what lets a later batch pass close from this filing.
+    // Narrowing for the call below, and defensive rather than load-bearing: an
+    // observer with no resolver tier minted no tenure to close, and it also
+    // recorded no assertion to reach this line with — `recordPersonRoles`
+    // writes the only ones there are, and it runs after `observePerson`'s own
+    // tier stop, so an observe-only observer has already returned above on
+    // `asserted === undefined`. What such an observer leaves behind is the
+    // completeness decision recorded at the top, which is what lets a later
+    // batch pass close from this filing.
     if (tier === undefined) return 0;
     return await tier.personRoleRepo.closeUnasserted({
       resolver_version: tier.activeResolverPersonVersion,
