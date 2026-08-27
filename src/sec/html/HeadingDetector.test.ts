@@ -38,6 +38,32 @@ describe("isHeadingCandidate", () => {
   it("rejects single-trait inline emphasis", () => {
     expect(isHeadingCandidate("important", style({ bold: true }))).toBe(false);
   });
+  it("accepts an Exchange Act item heading despite its sentence punctuation", () => {
+    // The two prose rules would both reject this: it ends in a period and
+    // carries mid-text punctuation followed by more words.
+    expect(
+      isHeadingCandidate("Item 2.02. Results of Operations and Financial Condition.", style({}))
+    ).toBe(true);
+    expect(
+      isHeadingCandidate("ITEM 1.01. ENTRY INTO A MATERIAL DEFINITIVE AGREEMENT.", style({}))
+    ).toBe(true);
+  });
+  it("does not take an item heading past the length gate", () => {
+    expect(isHeadingCandidate(`Item 3.01. ${"x".repeat(220)}`, style({ bold: true }))).toBe(false);
+  });
+  it("ignores registration-statement and annual-report item numbering", () => {
+    // One-part numbering: `Item 13.` is Part II of an S-1, `Item 1A.` a 10-K.
+    // Neither is the 8-K vocabulary this reaches for.
+    expect(
+      isHeadingCandidate("Item 13. Other Expenses of Issuance and Distribution.", style({}))
+    ).toBe(false);
+    expect(isHeadingCandidate("Item 1A. Risk Factors.", style({}))).toBe(false);
+  });
+  it("rejects an item number that is not at the start of the line", () => {
+    expect(
+      isHeadingCandidate("as described below in Item 5.07 to this Current Report.", style({}))
+    ).toBe(false);
+  });
   it("rejects text ending in sentence punctuation", () => {
     expect(isHeadingCandidate("We did this.", style({ bold: true, centered: true }))).toBe(false);
   });

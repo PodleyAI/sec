@@ -524,6 +524,34 @@ across 55 424B3 supplements pulled from EDGAR (5.5%). It carries no target-secti
 unlike the heading join — all 54 segmenter patterns are whole-line anchored, so a
 parenthesised line cannot match one and a guard would never fire.
 
+### Exchange Act item headings
+
+An 8-K is organised by numbered items, and its filers punctuate them as sentences —
+`Item 2.02. Results of Operations and Financial Condition.` — which `HeadingDetector`'s two
+prose rules both reject. Across the 15 committed 8-K fixtures **not one** item line was a
+heading, so an item's disclosure was filed under whichever cover-page line happened to
+precede it. In `Flux Power Holdings` (424B3 `0001493152-26-035455`, which reproduces an 8-K
+inline) that meant 4,287 characters of a Nasdaq delisting notice stored under
+`Registrant's telephone number, including area code: 877-505-3589`.
+
+`isHeadingCandidate` therefore accepts a line beginning `Item N.NN` ahead of the prose
+rules. Two-part numbering is what scopes it: Part II of a registration statement numbers
+its items `Item 13.` and a 10-K `Item 1A.`, neither of which matches, so the rule reaches
+8-K vocabulary and nothing else — measured, it moves 0 of 3,753 headings across the
+committed S-1 corpus and adds 15 across the 8-K fixtures.
+
+Emphasis is **not** required, unlike every other candidate: 7 of those 15 item headings
+carry no emphasis trait at all. The scope is the guard instead. `isHeadingCandidate` runs on
+one leaf element's whole text, before prose coalescing, so a mid-sentence cross-reference
+(`as described below in Item 5.07 to this Current Report`) is never at the start of its own
+element and cannot open a section.
+
+**Item headings typeset as tables are not covered.** 8 of the 15 fixtures write the item as
+a two-cell row — `| Item 8.01 | Other Events. |` — which is a table block the candidate test
+never sees. Telling those from a table-of-contents row that carries the same text plus a page
+number (`| ITEM 1.01. ENTRY INTO A MATERIAL DEFINITIVE AGREEMENT. | 3 |`) is a separate rule
+and is not attempted here.
+
 ### Line-scan fallback
 
 When the tree walk resolves **fewer than two** targets on a document rendering at least 50k
