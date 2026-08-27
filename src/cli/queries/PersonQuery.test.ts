@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import {
-    PERSON_OBSERVATION_REPOSITORY_TOKEN,
-    type PersonObservationRepositoryStorage,
+  PERSON_OBSERVATION_REPOSITORY_TOKEN,
+  type PersonObservationRepositoryStorage,
 } from "../../storage/observation/PersonObservationSchema";
 import { queryPersons } from "./PersonQuery";
 
