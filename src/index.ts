@@ -152,8 +152,14 @@ export {
 } from "./resolver/resolverExtensions";
 export {
   extractorKey,
+  allRegisteredExtractorIds,
+  allRegisteredForms,
+  extractorIdsForForm,
   extractorReadsFullSubmission,
   extractorsForForm,
+  formExtractorRegistryGeneration,
+  formHandledByExtractor,
+  formHasExtractor,
   formNeedsDocument,
   formNeedsFullSubmission,
   formsForExtractorKeys,
@@ -165,6 +171,11 @@ export {
   type FullSubmissionProbe,
 } from "./sec/forms/formExtractors";
 export { registerSecFormExtractors } from "./config/registerFormExtractors";
+export { selectRegAReportDocument } from "./sec/forms/exempt-offerings/regAReportDocument";
+export { parseNumeric } from "./sec/html/parseNumeric";
+export { ExtractorRunRepo } from "./storage/versioning/ExtractorRunRepo";
+export { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "./storage/versioning/ExtractorRunSchema";
+export { ExtractionDeadLetterRepo } from "./storage/dead-letter/ExtractionDeadLetterRepo";
 
 // ── Family-tier primitives for downstream resolvers ────────────────────────
 export { FamilyResolver, normalizeFamilyName } from "./resolver/FamilyResolver";
