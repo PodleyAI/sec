@@ -28,6 +28,9 @@ import { ENTITY_TICKER_REPOSITORY_TOKEN } from "../storage/entity/EntityTickerSc
 import { SIC_CODE_REPOSITORY_TOKEN } from "../storage/entity/SicCodeSchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../storage/facts/CompanyFactsSchema";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
+import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../storage/document/FilingDocumentSchema";
+import { EXTRACTION_CACHE_REPOSITORY_TOKEN } from "../storage/extraction/ExtractionCacheSchema";
+import { FILING_SECTION_REPOSITORY_TOKEN } from "../storage/document/FilingSectionSchema";
 import { INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingSchema";
 import { ISSUER_REPOSITORY_TOKEN } from "../storage/investment-offering/IssuerSchema";
@@ -415,6 +418,9 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(SIC_CODE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(EXTRACTION_CACHE_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(FILING_SECTION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CROWDFUNDING_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CROWDFUNDING_REPORTS_REPOSITORY_TOKEN).deleteAll();

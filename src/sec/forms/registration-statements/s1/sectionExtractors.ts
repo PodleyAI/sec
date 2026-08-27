@@ -38,6 +38,7 @@ import {
   type CallOutcome,
   type CallValidationAttempt,
 } from "../../../../verify/callTrace";
+import { extractionCacheKey, readExtractionCache, writeExtractionCache } from "./extractionCache";
 import { resolveModelId } from "./s1Model";
 import {
   BeneficialOwnershipOutputSchema,
@@ -950,6 +951,45 @@ async function runGuardedExtraction(
   context?: IExecuteContext,
   maxTokens?: number
 ): Promise<Record<string, unknown>> {
+  const modelId = resolveModelId(model);
+  const cacheInputs = { label, modelId, instructions, outputSchema, sectionText };
+  const cacheKey = extractionCacheKey(cacheInputs);
+  const tracing = isCallTracing();
+
+  // Answered before the attempt loop, and before any provider work: the model,
+  // the instructions, the schema and the section bytes are all in the key, so a
+  // hit is the same call this loop would have made.
+  //
+  // The nonce is not in the key and does not need to be. It is an injection
+  // defense on a round trip to the model, and a hit makes no round trip; the
+  // object being served already passed the nonce check on the run that stored
+  // it.
+  const cached = await readExtractionCache(cacheKey);
+  if (cached !== undefined) {
+    if (tracing) {
+      recordCall({
+        label,
+        modelId,
+        attempt: 1,
+        nonce: false,
+        // No prompt was built, so its length is 0 rather than a guess at what
+        // one would have been.
+        prompt: "",
+        instructions,
+        sectionText,
+        durationMs: 0,
+        outcome: "ok",
+        cached: true,
+        object: cached,
+        // Deliberately absent: a hit spent no tokens, and reporting the
+        // previous call's usage here would inflate a sweep's cost by exactly
+        // the amount the cache saved.
+        usage: undefined,
+      });
+    }
+    return cached;
+  }
+
   const local = isLocalProvider(model);
   const nonceEnabled = !local && isNonceEnabled();
   // Without a nonce the prompt is attempt-invariant, so build and defang the
@@ -959,7 +999,6 @@ async function runGuardedExtraction(
     : buildExtractionPrompt({ instructions, sectionText });
   let lastError: unknown;
   let rateLimitWaits = 0;
-  const tracing = isCallTracing();
   for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS;) {
     // Local grammar/ONNX providers cannot reliably echo a 16-hex token, and the
     // nonce is off by default besides; either way the schema must drop
@@ -971,7 +1010,7 @@ async function runGuardedExtraction(
     // what identifies the call.
     const traceBase = {
       label,
-      modelId: resolveModelId(model),
+      modelId,
       attempt,
       nonce: nonce !== undefined,
       prompt,
@@ -990,6 +1029,9 @@ async function runGuardedExtraction(
         usageSink
       );
       if (nonce !== undefined) verifyNonce(obj, nonce);
+      // Stored only here: past schema validation and past the nonce check, so
+      // nothing a later filing is served was ever rejected or unverified.
+      await writeExtractionCache(cacheKey, cacheInputs, obj);
       if (tracing) {
         recordCall({
           ...traceBase,

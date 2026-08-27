@@ -5,8 +5,11 @@
  */
 import type { DocumentRootNode } from "workglow";
 import { parseToBlocks } from "./parseToBlocks";
+import { joinSplitHeadings } from "./joinSplitHeadings";
 import { depaginateWithTrace, type DroppedBlock } from "./DePaginator";
 import { buildDocument } from "./buildDocument";
+import { demoteCoverPageHeadings } from "./coverPage";
+import { demoteParentheticalHeadings } from "./parentheticalHeadings";
 import { buildSourceSpanIndex, type SourceSpanIndex } from "./sourceSpanIndex";
 import type { EdgarBlock } from "./types";
 
@@ -51,8 +54,17 @@ export function parseEdgarHtml(html: string, title: string): DocumentRootNode {
  * extraction path changes by tracing a filing.
  */
 export function parseEdgarHtmlWithTrace(html: string, title: string): EdgarParseTrace {
-  const blocks = parseToBlocks(html);
-  const { blocks: clean, dropped } = depaginateWithTrace(blocks);
+  // Joined before de-pagination so adjacency is the walk's, not an artifact
+  // of furniture having been removed from between two headings.
+  const blocks = joinSplitHeadings(parseToBlocks(html));
+  const { blocks: depaginated, dropped } = depaginateWithTrace(blocks);
+  // Demoted after de-pagination: a typeset prospectus repeats "Table of
+  // Contents" as a page back-link, so the first match on the raw list can be
+  // furniture rather than the index the front matter ends at.
+  // Cover page first, so its front-matter boundary is measured against the
+  // stream as de-pagination left it; the parenthetical rule is document-wide
+  // and never touches the table-of-contents heading that boundary keys on.
+  const clean = demoteParentheticalHeadings(demoteCoverPageHeadings(depaginated));
   return {
     doc: buildDocument(title, clean),
     blocks: clean,

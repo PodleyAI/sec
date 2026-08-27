@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it } from "vitest";
-import { depaginate } from "./DePaginator";
+import { depaginate, depaginateWithTrace } from "./DePaginator";
 import type { EdgarBlock, ResolvedStyle } from "./types";
 import { NodeKind, uuid4 } from "workglow";
 import type { ParagraphNode, TableCell, TableNode } from "workglow";
@@ -174,5 +174,86 @@ describe("depaginate", () => {
     ];
     const out = depaginate(blocks);
     expect(out.filter((b) => b.type === "table")).toHaveLength(2);
+  });
+});
+
+/**
+ * A one-cell table: the layout box EDGAR filers wrap page furniture in. Rendered
+ * to markdown it is the `|  | / | --- | / | F-22 |` grid that litters a
+ * converted filing, which is what these tests are here to keep out.
+ */
+const boxed = (text: string, caption: string | undefined = undefined): EdgarBlock => ({
+  type: "table",
+  node: {
+    nodeId: uuid4(),
+    kind: NodeKind.TABLE,
+    range: { startOffset: 0, endOffset: 0 },
+    text: "",
+    caption,
+    columnCount: 1,
+    headerRows: [],
+    rows: [[cell(text)]],
+    stitchedFrom: 1,
+  } as TableNode,
+  source: span(),
+});
+
+describe("depaginate: single-cell tables", () => {
+  it("drops a page number the filer wrapped in a one-cell table", () => {
+    const { blocks, dropped } = depaginateWithTrace([para("Body text that stays."), boxed("F-22")]);
+    expect(blocks.filter((b) => b.type === "table")).toHaveLength(0);
+    expect(blocks).toHaveLength(1);
+    expect(dropped.map((d) => [d.reason, d.text])).toEqual([["page-number", "F-22"]]);
+  });
+
+  it("drops the empty-header-plus-one-value shape, the commonest form of it", () => {
+    // What the filer emits is a header cell holding nothing and a body cell
+    // holding the number; `filled.length` counts what is actually there.
+    const { blocks, dropped } = depaginateWithTrace([table([[cell("", true)]], [[cell("F-22")]])]);
+    expect(blocks).toHaveLength(0);
+    expect(dropped.map((d) => d.reason)).toEqual(["page-number"]);
+  });
+
+  it("attributes the drop to the table's own bytes", () => {
+    const block = boxed("F-22");
+    const { dropped } = depaginateWithTrace([block]);
+    expect(dropped[0].source).toEqual(block.source);
+  });
+
+  it("votes a table-wrapped back-link into the repetition tally", () => {
+    // The per-page "Table of Contents" link matches no pattern — only repetition
+    // identifies it — so the unwrap has to happen before the tally, not after.
+    const blocks: EdgarBlock[] = [];
+    for (let i = 0; i < 6; i++) blocks.push(boxed("Table of Contents"), para(`Page ${i} body`));
+    const out = depaginate(blocks);
+    expect(out.filter((b) => b.type === "table")).toHaveLength(0);
+    expect(
+      out.filter((b) => b.type === "paragraph" && b.node.text === "Table of Contents")
+    ).toHaveLength(1);
+  });
+
+  it("unwraps a one-cell table of prose without dropping it", () => {
+    const prose =
+      "The Company was incorporated in Delaware on March 3, 2021 for the purpose of " +
+      "effecting a merger with one or more businesses.";
+    const { blocks, dropped } = depaginateWithTrace([boxed(prose)]);
+    expect(dropped).toHaveLength(0);
+    expect(blocks).toEqual([
+      expect.objectContaining({
+        type: "paragraph",
+        node: expect.objectContaining({ text: prose }),
+      }),
+    ]);
+  });
+
+  it("leaves a captioned one-cell table alone", () => {
+    // The caption is information a paragraph has nowhere to put.
+    const out = depaginate([boxed("41", "Shares outstanding")]);
+    expect(out.filter((b) => b.type === "table")).toHaveLength(1);
+  });
+
+  it("leaves a table with more than one filled cell alone", () => {
+    const out = depaginate([table([[cell("Name", true)]], [[cell("Alice")], [cell("Bob")]])]);
+    expect(out.filter((b) => b.type === "table")).toHaveLength(1);
   });
 });

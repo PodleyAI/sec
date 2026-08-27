@@ -191,6 +191,25 @@ and the run returns `{ success: false }`; cooperative cancellation (Ctrl-C) is r
 rather than dead-lettered, so an interrupted sweep does not stamp version-gated failures on
 filings it merely stopped mid-flight. See `docs/extraction.md`.
 
+**One rule decides which FILE a filing is fetched as, and it is not the same rule as
+what an extractor reads.** `submissionFetchKind` (`src/task/forms/submissionFetchPolicy.ts`)
+is the single definition: the registration/prospectus family, Reg A annual reports, and
+**every 8-K** are fetched as the full-submission `.txt`; everything else as its primary
+document. Four sites used to answer this and gave three answers, so what was on disk for a
+given 8-K was a function of ingest history rather than of the form.
+
+8-K is unconditional on purpose. Its primary document is routinely four sentences pointing
+at the EX-99.1 press release that carries the news, so the exhibits are not an extra — for
+this form they are the filing — and only the `.txt` carries them, or the
+`<TYPE>`/`<DESCRIPTION>`/`<FILENAME>` manifest saying what each one is. It costs one
+request either way.
+
+What an extractor SEES stays separate and unchanged: the known-SPAC-plus-trigger-item
+predicate still gates whether `processForm8K` receives `fullSubmissionText`. Those were one
+flag once, which is what made "fetch more" and "feed the model more" impossible to do
+separately — widening a model's input is an evaluable behavior change with its own golden
+truth.
+
 **A recorded successful run is what stops a filing being re-selected.** Handlers that
 no-op behind a gate (known-SPAC checks) still record success, so recovering them needs a
 descriptor that widens or replaces the anti-join — never a bare re-run. See
@@ -235,6 +254,19 @@ DDL, drops, catalog probes and row-count estimates alike.
 filing — and unpinned sampling made re-processing one filing yield 138/138/109 risk factors
 whose contents differed all three times.
 
+**That is also what makes the extraction cache sound**, and the cache turns itself off
+whenever it stops being true. `runGuardedExtraction` is fronted by `extraction_cache`, keyed
+on a hash of every input to the call — label, model, instructions, output schema, and the
+section text VERBATIM — so nothing in it can go stale and a prompt edit misses rather than
+serving an old answer. It is a cache and not storage: results are still written per
+accession, so the temporal model is untouched and truncating the table costs money, not
+information. It stands down under `SEC_EXTRACTION_CACHE=0`, under a dry run, and
+automatically whenever the temperature is not 0 — above 0 the second call would legitimately
+differ, and serving the first would re-impose the determinism the operator just lifted. A
+stateful test double suspends it with `suspendExtractionCache()` for the same reason.
+Measured worth: ~21% of section-granularity calls across 25 real amendment families
+(`scripts/measureSectionReuse.ts`).
+
 ## Environment variables
 
 Set in `.env.local` (see `.env.test` for test defaults).
@@ -252,6 +284,7 @@ Set in `.env.local` (see `.env.test` for test defaults).
 | `SEC_S1_MOCK_DIR`                                                                 | Override the committed S-1 fixtures directory                                       |
 | `SEC_UNIT_TERMS_REF`                                                              | Override the embarc unit-terms reference CSV                                        |
 | `SEC_EXTRACTION_TEMPERATURE`                                                      | Sampling temperature for every extraction call (default `0`)                        |
+| `SEC_EXTRACTION_CACHE`                                                            | `0` disables the extraction cache (default on; auto-off when temperature is not 0)  |
 | `SEC_MODEL_DEFAULT` + per-extractor overrides                                     | Extraction models (built-in default `DEFAULT_SEC_MODEL`) — see `docs/extraction.md` |
 
 The two fetch limits are **independent and both needed**: the rate limiter meters starts

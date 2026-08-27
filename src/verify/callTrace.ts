@@ -59,6 +59,17 @@ export interface CallRecord {
   readonly nonce: boolean;
   readonly durationMs: number;
   readonly outcome: CallOutcome;
+  /**
+   * True when the result came from the extraction cache instead of the model.
+   *
+   * A flag rather than a new {@link CallOutcome}, because a cache hit IS an
+   * `ok` — a validated object was produced — and consumers that count `ok` as
+   * "this section succeeded" are right to keep counting it. What changes is the
+   * COST: a hit carries no `usage`, so anything doing cost arithmetic has to be
+   * able to tell the two apart, and an outcome bucket nobody knew to look in
+   * would have silently zeroed a fifth of a sweep's calls instead.
+   */
+  readonly cached: boolean;
   readonly promptChars: number;
   readonly instructions: string;
   /** Reference into `sections/`, so the prose is stored once per distinct text. */
@@ -148,6 +159,7 @@ export interface CallTraceInput {
   readonly nonce: boolean;
   readonly durationMs: number;
   readonly outcome: CallOutcome;
+  readonly cached?: boolean | undefined;
   readonly prompt: string;
   readonly instructions: string;
   readonly sectionText: string;
@@ -178,6 +190,7 @@ export function recordCall(input: CallTraceInput): void {
       nonce: input.nonce,
       durationMs: input.durationMs,
       outcome: input.outcome,
+      cached: input.cached === true,
       promptChars: input.prompt.length,
       instructions: input.instructions,
       sectionSha256: storeSection(input.sectionText, root),

@@ -188,8 +188,8 @@ byte-identical to the public per-document files, but its header is tagged SGML
 public `.txt`'s human-readable `<SEC-HEADER>` block. `parseSecHeader` reads both dialects.
 Per form, each member writes:
 
-- the verbatim `.nc` as the full-submission `.txt` for forms parsed from the full submission
-  (`REGISTRATION_PROSPECTUS_FORMS` and 8-Ks, which SPAC narrative passes read); and
+- the verbatim `.nc` as the full-submission `.txt` for the forms `submissionFetchKind`
+  names — the registration/prospectus family, Reg A annual reports, and every 8-K; and
 - the primary document, sliced **losslessly** out of the submission SGML by exact
   `<FILENAME>` match (`extractPrimaryDocFromSubmission`; binary `<PDF>`/uuencoded members are
   skipped so the cache never holds a corrupt doc), for every other form.

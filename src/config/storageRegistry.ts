@@ -67,6 +67,16 @@ import {
   FilingSchema,
 } from "../storage/filing/FilingSchema";
 import {
+  FILING_DOCUMENT_REPOSITORY_TOKEN,
+  FilingDocumentPrimaryKeyNames,
+  FilingDocumentSchema,
+} from "../storage/document/FilingDocumentSchema";
+import {
+  FILING_SECTION_REPOSITORY_TOKEN,
+  FilingSectionPrimaryKeyNames,
+  FilingSectionSchema,
+} from "../storage/document/FilingSectionSchema";
+import {
   INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN,
   InvestmentOfferingHistoryPrimaryKeyNames,
   InvestmentOfferingHistorySchema,
@@ -377,6 +387,11 @@ import {
   ExtractionDeadLetterSchema,
 } from "../storage/dead-letter/ExtractionDeadLetterSchema";
 import {
+  EXTRACTION_CACHE_REPOSITORY_TOKEN,
+  ExtractionCachePrimaryKeyNames,
+  ExtractionCacheSchema,
+} from "../storage/extraction/ExtractionCacheSchema";
+import {
   S1_CLASSIFICATION_REPOSITORY_TOKEN,
   S1ClassificationPrimaryKeyNames,
   S1ClassificationSchema,
@@ -616,6 +631,29 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     schema: FilingSchema,
     primaryKeyNames: FilingPrimaryKeyNames,
     indexes: [["form", "cik"], ["filing_date"], ["accession_number"], ["file_number"]],
+  }),
+  defineStorage({
+    token: FILING_DOCUMENT_REPOSITORY_TOKEN,
+    table: "filing_document",
+    schema: FilingDocumentSchema,
+    primaryKeyNames: FilingDocumentPrimaryKeyNames,
+    // The sweep's anti-join asks "which filings of this form have no PRIMARY row
+    // at the current converter version" — the primary is written last, so its
+    // presence is what means the whole submission landed. `converted_at` serves
+    // the recency listing.
+    indexes: [["form", "converter_version", "is_primary"], ["converted_at"]],
+  }),
+  defineStorage({
+    token: FILING_SECTION_REPOSITORY_TOKEN,
+    table: "filing_section",
+    schema: FilingSectionSchema,
+    primaryKeyNames: FilingSectionPrimaryKeyNames,
+    // Every read of this table is "the sections of one filing", either whole
+    // (ordered by ordinal, which the primary key already serves) or one by
+    // slug. The unique index is the correctness half: two sections of one
+    // filing sharing a slug would make `?section=` ambiguous, and the splitter
+    // deduplicates precisely so this holds.
+    uniqueIndexes: [["cik", "accession_number", "doc_file", "slug"]],
   }),
   // ------------------------------ Crowdfunding --------------------------------
   defineStorage({
@@ -972,6 +1010,15 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     schema: RelatedPartyTransactionSchema,
     primaryKeyNames: RelatedPartyTransactionPrimaryKeyNames,
     indexes: [["accession_number"]],
+  }),
+  defineStorage({
+    token: EXTRACTION_CACHE_REPOSITORY_TOKEN,
+    table: "extraction_cache",
+    schema: ExtractionCacheSchema,
+    primaryKeyNames: ExtractionCachePrimaryKeyNames,
+    // Every read is by primary key, which the key already serves. These are for
+    // the operator: "what is this table full of" and "what can be pruned".
+    indexes: [["label"], ["created_at"]],
   }),
   defineStorage({
     token: EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN,

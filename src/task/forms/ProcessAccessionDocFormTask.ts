@@ -42,6 +42,7 @@ import { getActiveSlot, type ActiveSlot } from "../../storage/versioning/getActi
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { cachedAccessionDocPath, stripXslPrefix } from "../../util/accessionDocPath";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
+import { fullSubmissionFileName, submissionFetchKind } from "./submissionFetchPolicy";
 
 /**
  * Storing a filing runs whatever the form-extractor registry holds for its
@@ -57,57 +58,14 @@ import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 registerSecFormExtractors();
 
 /**
- * Registration prospectus forms whose body is fetched as the full submission
- * .txt — Form.parse() needs the <SEC-HEADER> and sibling <DOCUMENT> blocks
- * (XBRL instance, EX-FILING FEES exhibit), not just the primary document.
+ * Re-exported from {@link submissionFetchKind}'s module, which owns them now.
  *
- * Read by the bulk downloader and the SPAC candidate downloader, which decide
- * which file to put in the fetch cache. This task asks the form's registered
- * extractors instead, so that one filing can escalate on more than a form name.
+ * They moved because the fetch policy has to be one definition and this module
+ * cannot host it: `spacCandidateDownload` imports these sets from here, so the
+ * policy importing back would be a cycle. Re-exporting keeps every existing
+ * importer working.
  */
-export const REGISTRATION_PROSPECTUS_FORMS = new Set([
-  "S-1",
-  "S-1/A",
-  "S-1MEF",
-  "DRS",
-  "DRS/A",
-  "F-1",
-  "F-1/A",
-  "F-1MEF",
-  "424A",
-  "424B1",
-  "424B2",
-  "424B3",
-  "424B4",
-  "424B5",
-  "424B7",
-]);
-
-/**
- * Reg A annual reports, whose body is fetched as the full submission .txt.
- *
- * The financial statements are not in the document the pipeline would otherwise
- * fetch. A 1-K's primary document is `primary_doc.xml` — an XSD cover page with
- * no financial elements at all, which is why 1-K produced 0 financial rows
- * across all 2,997 filings — and the annual report sits beside it as
- * `<TYPE>PART II`. Reading the full submission gets BOTH out of one request.
- *
- * The 1-SA is deliberately NOT here. Its primary document IS its report — every
- * one of the 2,792 filings records a `.htm` primary doc where every one of the
- * 3,001 1-K filings records a `.xml` — so escalating it would fetch the whole
- * submission to arrive at the document already being fetched, and would
- * invalidate a cache that is already holding exactly the right file. Uniformity
- * between the two forms is not worth re-downloading a corpus for.
- *
- * Read by the bulk downloader, for the same reason as
- * {@link REGISTRATION_PROSPECTUS_FORMS}.
- */
-export const REGA_FULL_SUBMISSION_FORMS = new Set(["1-K", "1-K/A"]);
-
-/** Full-submission text filename, e.g. 0001193125-21-066104 -> 0001193125-21-066104.txt */
-function fullSubmissionFileName(accessionNumber: string): string {
-  return `${accessionNumber}.txt`;
-}
+export { REGA_FULL_SUBMISSION_FORMS, REGISTRATION_PROSPECTUS_FORMS } from "./submissionFetchPolicy";
 
 const ProcessAccessionDocFormTaskInputSchema = () =>
   Type.Object({
@@ -310,25 +268,29 @@ export class ProcessAccessionDocFormTask extends Task<
     const label = `${form} ${accessionNumber}`;
     this.setTitle(label);
 
-    // Whether the body is the whole submission .txt rather than the primary
-    // document is the union of what the form's extractors need, and it decides
-    // WHICH FILE the fetch below asks for — so it is settled here, ahead of it.
-    // Registration prospectuses (S-1 / DRS family) and Reg A annual reports
-    // answer on the form symbol alone: Form.parse() needs the <SEC-HEADER> and
-    // the sibling <DOCUMENT> blocks. A known-SPAC 8-K carrying a redemption- or
-    // LOI-trigger item answers per filing, because its narrative passes read
-    // the EX-99 exhibits (vote results, LOI press releases) and not just the
-    // primary document. Every other form keeps its primary-doc fetch.
-    //
-    // The 8-K trigger check runs on the submissions-API `items` metadata alone.
-    // That is complete for 8-Ks: real 8-K bodies are HTML/text, never
-    // `edgarSubmission` XML (see Form_8_K.parse), so an item code can never
-    // appear only in a parsed `formData.items` and be missing from `items`
-    // here. The metadata item list is authoritative.
-    const isFullSubmission = await formNeedsFullSubmission({ form, cik, items });
+    // WHICH FILE to fetch. A form-level policy shared with `sec spac download`
+    // and the bootstrap paths, so what is cached for a filing stops depending
+    // on which path fetched it — unioned with what the form's registered
+    // extractors declare, so an extractor can require the whole submission for
+    // a form the policy does not already escalate. Settled here because it
+    // decides which file the fetch below asks for.
+    const isFullSubmission =
+      submissionFetchKind(form) === "full-submission" ||
+      (await formNeedsFullSubmission({ form, cik, items }));
     if (isFullSubmission) {
       fileName = fullSubmissionFileName(accessionNumber);
     }
+
+    // WHAT THE EXTRACTOR SEES is a separate question, answered per extractor by
+    // its own `readsFullSubmission` declaration where `store` is called below.
+    // Fetching an 8-K whole is unconditional; handing its EX-99 exhibits to the
+    // narrative passes stays gated on a known SPAC with a redemption- or
+    // LOI-trigger item, because widening a model's input is an evaluable
+    // behavior change with its own golden truth and does not belong in a change
+    // about which bytes land on disk.
+    //
+    // The two used to be one flag, which is what made "fetch more" and "feed
+    // the model more" impossible to do separately.
 
     // The id the run ledger and the filing-level dead letters are keyed by.
     // `FORM_TO_EXTRACTOR_ID` is the historical answer and still the one that

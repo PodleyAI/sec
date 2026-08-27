@@ -9,7 +9,8 @@ import {
   type SpacCandidateConfidence,
 } from "../../storage/spac/SpacCandidateSchema";
 import { resolvePrimaryDocName } from "../../util/accessionDocPath";
-import { REGISTRATION_PROSPECTUS_FORMS } from "../forms/ProcessAccessionDocFormTask";
+import { submissionFetchKind } from "../forms/submissionFetchPolicy";
+import type { SubmissionFetchKind } from "../forms/submissionFetchPolicy";
 import { SPAC_REGISTRATION_FORMS } from "./classifySpacCandidate";
 
 export type SpacDownloadSet = "registration" | "8k" | "all";
@@ -61,7 +62,12 @@ export function spacDownloadCikChunkSize(formCount: number): number {
   return Math.max(1, budget);
 }
 
-export type SpacDocFetchKind = "full-submission" | "primary-doc";
+/**
+ * Kept as an alias of {@link SubmissionFetchKind} rather than a second union:
+ * `sec spac download` and the forms read path ask the same question, and two
+ * spellings of the answer is how they drifted apart in the first place.
+ */
+export type SpacDocFetchKind = SubmissionFetchKind;
 
 export function formsForDownloadSet(set: SpacDownloadSet): ReadonlySet<string> | undefined {
   if (set === "all") return undefined;
@@ -69,11 +75,14 @@ export function formsForDownloadSet(set: SpacDownloadSet): ReadonlySet<string> |
   return new Set<string>(SPAC_REGISTRATION_FORMS);
 }
 
+/**
+ * Delegates to the shared policy. Kept as a named export because the download
+ * sweep and its tests read for this name, but it decides nothing of its own:
+ * the download path answering differently from the read path is exactly the
+ * drift the shared module exists to prevent.
+ */
 export function spacDocFetchKind(form: string): SpacDocFetchKind {
-  if (REGISTRATION_PROSPECTUS_FORMS.has(form) || form === "8-K" || form === "8-K/A") {
-    return "full-submission";
-  }
-  return "primary-doc";
+  return submissionFetchKind(form);
 }
 
 /**

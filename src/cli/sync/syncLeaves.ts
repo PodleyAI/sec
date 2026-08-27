@@ -30,6 +30,14 @@ export interface SyncRunContext {
    * {@link isolatedStep} targets the adv `form-d` step; ignored elsewhere.
    */
   readonly simple: boolean;
+  /**
+   * `sync documents --limit`: how many filings one conversion run takes.
+   * Undefined means the leaf's own default — a backfill is many bounded runs
+   * rather than one that holds a process for a day.
+   */
+  readonly limit: number | undefined;
+  /** `sync documents --cik`: convert one issuer's filings rather than a sweep. */
+  readonly cik: number | undefined;
 }
 
 export interface SyncStep {
@@ -69,6 +77,8 @@ export const EMPTY_SYNC_CONTEXT: SyncRunContext = {
   concurrency: DEFAULT_SPAC_ISSUER_CONCURRENCY,
   isolatedStep: false,
   simple: false,
+  limit: undefined,
+  cik: undefined,
 };
 
 const syncLeaves = new Map<string, SyncLeaf>();
