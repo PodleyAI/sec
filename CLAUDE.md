@@ -45,9 +45,10 @@ CI runs `format-check` → `build` → `test`, cheapest first.
 `typecheck-tests` is separate because test files are **excluded from the base
 `tsconfig.json`** and vitest transpiles without typechecking — `build` and `test` both
 pass over a test file whose types are wrong. It is **not in CI yet**: the suite reports
-146 errors across 47 files, and a step that is red the day it lands teaches everyone to
-ignore it. Run it locally on files you touch, and wire it into `test.yml` in the change
-that gets the count to zero.
+2 errors across 2 files, both the same `TS2719` (one structurally identical type reached by
+two paths). Run it locally on files you touch, and wire it into `test.yml` in the change
+that clears those two — the count is now close enough that landing it red would be a
+choice rather than an inheritance.
 
 The CLI entrypoint is `src/sec.ts` (Commander).
 
