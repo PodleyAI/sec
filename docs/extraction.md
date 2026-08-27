@@ -501,6 +501,29 @@ table of contents sits at block 54, the median at 32), and a heading matching
 whose front matter opens on a real section keeps the heading it hangs on. No cover-page
 heading in the corpus matches it.
 
+### Parenthesised captions
+
+A heading that is wholly one parenthetical labels the line above it rather than naming what
+follows, but it is short, bold and centered, so `HeadingDetector` reads it as a heading and it
+opens a section holding everything to the next one.
+
+`demoteParentheticalHeadings` (`src/sec/html/parentheticalHeadings.ts`) turns those back into
+prose. The whole-line condition is what separates a caption from a title carrying an aside:
+`Plan of Distribution (Conflict of Interest)` closes its parenthesis mid-line and survives, and
+so does `(a) Financial Statements (b) Exhibits`, which is two groups rather than one wrapper.
+
+What it recovers is content, not tidiness. The worst cases measured are 21,556 and 19,669
+characters of financial statements filed under `(in thousands, except share and per share
+data)`, and three prospectus supplements filing 7.5k–7.7k of Form 8-K disclosure apiece under
+`(Former name or former address, if changed since last report)`. Demoting is also the right
+merge: the text folds into the heading above, which is the caption's own subject, so the
+financials land under `CONSOLIDATED BALANCE SHEETS`.
+
+Measured share: 37 of 3,286 sections across the committed S-1 corpus (1.1%) and 21 of 381
+across 55 424B3 supplements pulled from EDGAR (5.5%). It carries no target-section guard,
+unlike the heading join — all 54 segmenter patterns are whole-line anchored, so a
+parenthesised line cannot match one and a guard would never fire.
+
 ### Line-scan fallback
 
 When the tree walk resolves **fewer than two** targets on a document rendering at least 50k
