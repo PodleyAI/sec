@@ -92,6 +92,7 @@ import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KE
 import { migrateLegacyForm8KEventsTable } from "../storage/form-8k-event/Form8KEventLegacyMigration";
 import { migrateAddressRegionNullable } from "../storage/address/AddressRegionNullableMigration";
 import { alignPostgresColumnTypes } from "./alignPostgresColumnTypes";
+import { dropStaleCheckConstraints } from "./dropStaleCheckConstraints";
 import {
   addMissingColumnsPostgres,
   addMissingColumnsSqlite,
@@ -259,8 +260,9 @@ export async function setupAllDatabases(): Promise<void> {
   for (const token of listDatabaseExtensionTokens()) {
     await globalServiceRegistry.get(token).setupDatabase();
   }
-  // Add any column an existing database is missing outright, then widen / relax
-  // any it still has at a narrower or stricter shape than the schema declares.
+  // Add any column an existing database is missing outright, widen / relax any
+  // it still has at a narrower or stricter shape than the schema declares, then
+  // drop any CHECK bound the schema has since removed.
   // Both run after the extension loop, because the table registry is only fully
   // populated once every superset has built its repos through createStorage.
   //
@@ -271,6 +273,11 @@ export async function setupAllDatabases(): Promise<void> {
     await addMissingColumnsPostgres();
   }
   await alignPostgresColumnTypes();
+  // Third: drop a `CHECK (col >= 0)` the schema has since relaxed. Last of the
+  // three because it removes a guarantee rather than adding one, and because a
+  // column the first pass just added is already unbounded — there is nothing
+  // for this to find on it.
+  await dropStaleCheckConstraints();
   // View DDL is created here only on the SQLite path; the Postgres backend
   // owns its own view bootstrap (and getDb() now throws when SEC_DB_TYPE
   // isn't sqlite). Tests use the in-memory backend where views don't apply.

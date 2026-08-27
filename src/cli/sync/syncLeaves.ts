@@ -38,6 +38,19 @@ export interface SyncRunContext {
   readonly limit: number | undefined;
   /** `sync documents --cik`: convert one issuer's filings rather than a sweep. */
   readonly cik: number | undefined;
+  /**
+   * `sync documents --all-8k`: convert 8-Ks from every filer rather than only
+   * from CIKs in `spac`. Off by default, because every reporting company files
+   * them and the SPAC lifecycle is the only reason they are convertible at all.
+   */
+  readonly all8k: boolean;
+  /**
+   * `sync documents --download-only`: fetch each selected filing into the
+   * accession-doc cache and stop, writing no rows. The download half is
+   * rate-limited by EDGAR and the conversion half is not, so they are worth
+   * running — and resuming — separately.
+   */
+  readonly downloadOnly: boolean;
 }
 
 export interface SyncStep {
@@ -79,6 +92,8 @@ export const EMPTY_SYNC_CONTEXT: SyncRunContext = {
   simple: false,
   limit: undefined,
   cik: undefined,
+  all8k: false,
+  downloadOnly: false,
 };
 
 const syncLeaves = new Map<string, SyncLeaf>();

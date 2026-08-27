@@ -196,19 +196,21 @@ Bring local SEC data forward to today. `sync` is a **command group** — bare `s
 
 **Common flags:**
 
-| Flag             | Leaves                                               | Description                                                                                                                                                                |
-| ---------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--step <name>`  | Multi-step leaves only                               | Run one step (`index` / `submissions` on `submissions`; `identify` / `process` on `spacs`). Unknown name errors with the valid list                                        |
-| `--from <date>`  | `submissions`, `all`                                 | Exclusive daily-index catch-up start (`YYYY-MM-DD`); fetch begins the day after this date, like the cursor's `last_success`                                                |
-| `--lookback <n>` | `submissions`, `all`                                 | Re-fetch the last _n_ **completed** calendar days, bypassing cache (default **3**)                                                                                         |
-| `--force`        | `submissions`, `facts`, `documents`, `all`           | Reprocess submissions/facts, ignoring processed state (`--force` on `submissions` applies to the `submissions` step; on `documents` it re-converts at the current version) |
-| `--retry-failed` | `facts`, `all`                                       | Also re-fetch CIKs whose last facts processing failed                                                                                                                      |
-| `--full`         | `spacs`                                              | Rescan every entity on the `identify` step (default is incremental)                                                                                                        |
-| `--shard <i/N>`  | `portals`, `crowdfunding`, `reg-a`, `spacs`, `forms` | Process shard _i_ of _N_ (1-based)                                                                                                                                         |
-| `--types <list>` | `documents`                                          | Narrow the forms converted (comma-separated); default is the narrative set in `CONVERTIBLE_FORMS`                                                                          |
-| `--since <date>` | `documents`                                          | Only convert filings filed on or after this date (`YYYY-MM-DD`)                                                                                                            |
-| `--cik <cik>`    | `documents`                                          | Convert only this issuer's filings — the follow-up to `spac process <cik>`, since an unfiltered sweep works newest-first across every filer                                |
-| `--limit <n>`    | `documents`                                          | Filings converted in one run (default **500**)                                                                                                                             |
+| Flag              | Leaves                                               | Description                                                                                                                                                                |
+| ----------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--step <name>`   | Multi-step leaves only                               | Run one step (`index` / `submissions` on `submissions`; `identify` / `process` on `spacs`). Unknown name errors with the valid list                                        |
+| `--from <date>`   | `submissions`, `all`                                 | Exclusive daily-index catch-up start (`YYYY-MM-DD`); fetch begins the day after this date, like the cursor's `last_success`                                                |
+| `--lookback <n>`  | `submissions`, `all`                                 | Re-fetch the last _n_ **completed** calendar days, bypassing cache (default **3**)                                                                                         |
+| `--force`         | `submissions`, `facts`, `documents`, `all`           | Reprocess submissions/facts, ignoring processed state (`--force` on `submissions` applies to the `submissions` step; on `documents` it re-converts at the current version) |
+| `--retry-failed`  | `facts`, `all`                                       | Also re-fetch CIKs whose last facts processing failed                                                                                                                      |
+| `--full`          | `spacs`                                              | Rescan every entity on the `identify` step (default is incremental)                                                                                                        |
+| `--shard <i/N>`   | `portals`, `crowdfunding`, `reg-a`, `spacs`, `forms` | Process shard _i_ of _N_ (1-based)                                                                                                                                         |
+| `--types <list>`  | `documents`                                          | Narrow the forms converted (comma-separated); default is the narrative set in `CONVERTIBLE_FORMS`                                                                          |
+| `--since <date>`  | `documents`                                          | Only convert filings filed on or after this date (`YYYY-MM-DD`)                                                                                                            |
+| `--cik <cik>`     | `documents`                                          | Convert only this issuer's filings — the follow-up to `spac process <cik>`, since an unfiltered sweep works newest-first across every filer                                |
+| `--limit <n>`     | `documents`                                          | Filings converted in one run (default **500**)                                                                                                                             |
+| `--all-8k`        | `documents`                                          | Convert 8-Ks from every filer; the default takes one only when its CIK is in `spac`                                                                                        |
+| `--download-only` | `documents`                                          | Fetch the selected filings into the accession-doc cache and stop — no parsing, no rows                                                                                     |
 
 **Daily path:** `sec sync all` (or `sec sync submissions` then other leaves as needed).
 
@@ -269,6 +271,32 @@ every filing: `filings` is hundreds of thousands of rows, most of them ownership
 Widen it with `--types`, or by adding to `CONVERTIBLE_FORMS` and re-running. Bump
 `FILING_CONVERTER_VERSION` and re-run to re-convert after a parser change — never truncate, since a
 half-finished re-run then leaves the old rows readable.
+
+**8-Ks are further scoped to known SPACs.** They are in `CONVERTIBLE_FORMS` because the SPAC
+lifecycle is built out of them — the LOI, the definitive agreement, the redemption, the closing —
+but every reporting company files one on every earnings release and every material event, and
+unfiltered they outnumber the rest of the convertible set by more than an order of magnitude. So the
+default sweep takes an 8-K only when its filer appears in `spac`, matching either `cik` or
+`current_cik` (a combination that moves the reporting entity files its closing 8-K under the new
+one). `--all-8k` converts them for every filer.
+
+**`--download-only` splits the leaf in half.** It runs the same selection and the same fetch,
+then stops: no parse, no rows. The two halves have very different costs — the download is
+metered by EDGAR at 4 requests/second and runs for hours, the conversion is local and runs for
+minutes — so separating them lets the slow half run unattended and the fast half be re-run
+freely after a `FILING_CONVERTER_VERSION` bump.
+
+Nothing records that a filing was downloaded; the cache file IS the record. A `--download-only`
+run therefore re-selects the same filings on a re-run and serves them from disk, touching no
+network, and the conversion sweep that follows makes no requests at all. The run reports
+`downloaded` (fetched this run) and `cached` (already on disk) separately — a conversion sweep
+reports them too, which is what distinguishes a run that is slow because of EDGAR from one that
+is slow because of the parser.
+
+The gate reads `spac`, the **known-SPAC** table written by `spac process` — not the
+`spac_candidate` screen, which is a guess, and this is the expensive half of the work. A deployment
+that has ingested submissions but not yet run `sec sync spacs` therefore has an empty `spac` table
+and converts **no** 8-Ks: run the SPAC leaf first, or pass `--all-8k`.
 
 ---
 

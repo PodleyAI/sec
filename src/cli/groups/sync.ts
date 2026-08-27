@@ -52,6 +52,8 @@ interface LeafOpts {
   readonly since?: string;
   readonly limit?: number;
   readonly cik?: number;
+  readonly all8k?: boolean;
+  readonly downloadOnly?: boolean;
 }
 
 /**
@@ -121,6 +123,18 @@ function applyLeafOptions(cmd: Command, leafId: string): Command {
         parseIntOption
       )
       .option(
+        "--all-8k",
+        "Convert 8-Ks from every filer, not just CIKs in the spac table — the default " +
+          "skips them because every reporting company files them",
+        false
+      )
+      .option(
+        "--download-only",
+        "Fetch each selected filing into the accession-doc cache and stop — no parsing, " +
+          "no rows written; re-running converts them with no further requests",
+        false
+      )
+      .option(
         "--force",
         "Re-convert filings already stored at the current converter version",
         false
@@ -183,6 +197,8 @@ async function runLeaf(leaf: SyncLeaf, opts: LeafOpts, stepId: string | undefine
           from: opts.since,
           formTypes: opts.types === undefined ? undefined : opts.types.split(","),
           limit: opts.limit,
+          all8k: opts.all8k ?? false,
+          downloadOnly: opts.downloadOnly ?? false,
           // Rejected by `parseIntOption` at parse time rather than here: a
           // mistyped CIK that fell through would convert the newest 500 filings
           // of every filer, which looks like success and is not what was asked.

@@ -300,9 +300,9 @@ so (`Rows (est.)`, a per-row `(est.)` marker, a footer pointing at `--exact`, an
   `db status` printed `Entities: 0 / Filings: 0` under a column labelled "Rows". Zero now
   means "no statistics yet"; a genuinely empty table pays one cheap `COUNT(*)`.
 
-### Two schema catch-up passes
+### Three schema catch-up passes
 
-`db setup` finishes with these, in order, both after the extension loop.
+`db setup` finishes with these, in order, all after the extension loop.
 
 **1. Add missing columns** (`addMissingColumns.ts` — a pure `planMissingColumns` plus a thin
 executor per backend). `CREATE TABLE IF NOT EXISTS` is a no-op on an existing table and
@@ -344,6 +344,31 @@ the ability to store a null `primary_doc`.
 A **type** change on a column a view reads is skipped with a warning naming the view and the
 exact DDL, rather than failing the whole setup; a `DROP NOT NULL` is never view-gated,
 because Postgres does not refuse it.
+
+**3. Drop stale CHECK bounds** (`dropStaleCheckConstraints`). The storage layer emits a
+`CHECK (col >= 0)` for any numeric column declared `minimum: 0`, and neither pass above
+touches a constraint — so relaxing that bound in a schema fixed every FRESH database and no
+existing one, forever. This pass reads `pg_constraint` and drops the ones the schema no
+longer declares.
+
+What made it worth its own pass is the failure mode, which is not a clean rejection.
+`crowdfunding_reports` writes its eighteen financial disclosures one row at a time in
+declaration order, with the four negative-capable ones (`netIncome` / `taxPaid`, both fiscal
+years) LAST — so a loss-making Reg CF issuer committed its parent row, stored a clean
+fifteen-row prefix, and dropped exactly the fields a reader wants. The row count looked
+plausible and nothing downstream could tell.
+
+Its one safety rail is a literal shape match: only `CHECK ((col >= 0))` on a single column
+the schema still declares, modulo the `(0)::numeric` cast Postgres renders for a numeric
+column. A hand-written multi-part check, a multi-column check, or a bound on a column sec's
+schema knows nothing about all fail to match and are left standing — the pass removes what
+the storage layer stopped declaring and has no claim on anything else. Each drop is warned,
+because unlike every other statement `db setup` issues it removes a guarantee rather than
+adding one.
+
+Postgres-only, for the same reason as the alignment pass: SQLite's CHECKs are inline in the
+`CREATE TABLE` and removing one needs the rename/recreate/copy rebuild
+(`AddressRegionNullableMigration` is the pattern).
 
 `AddressRegionNullableMigration` is the pattern for relaxing a NOT NULL on SQLite, where no
 `ALTER` can do it: rename aside, recreate at the current schema, copy back, all inside one

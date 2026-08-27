@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { DefaultDI } from "./DefaultDI";
 import { planColumnAlignment, type LiveColumn } from "./alignPostgresColumnTypes";
+import { planStaleCheckDrops, type LiveCheckConstraint } from "./dropStaleCheckConstraints";
 import { resetAllDatabases } from "./resetAllDatabases";
 import { setupAllDatabases } from "./setupAllDatabases";
 import {
@@ -99,6 +100,86 @@ describe.skipIf(!PG_URL)("postgres schema parity", () => {
     expect(
       live.find((c) => c.table === "addresses" && c.column === "state_or_country")?.isNullable
     ).toBe(true);
+  });
+
+  async function liveChecks(): Promise<LiveCheckConstraint[]> {
+    const result = await getPgPool().query(
+      `SELECT c.relname AS table_name,
+              con.conname AS constraint_name,
+              pg_get_constraintdef(con.oid) AS definition,
+              coalesce(
+                (SELECT array_agg(a.attname ORDER BY a.attnum)
+                   FROM unnest(con.conkey) AS k(attnum)
+                   JOIN pg_attribute a
+                     ON a.attrelid = con.conrelid AND a.attnum = k.attnum),
+                '{}'
+              ) AS columns
+         FROM pg_constraint con
+         JOIN pg_class c ON c.oid = con.conrelid
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE con.contype = 'c' AND n.nspname = current_schema()`
+    );
+    return (
+      result.rows as {
+        table_name: string;
+        constraint_name: string;
+        definition: string;
+        columns: string[] | null;
+      }[]
+    ).map((row) => ({
+      table: row.table_name,
+      name: row.constraint_name,
+      definition: row.definition,
+      columns: row.columns ?? [],
+    }));
+  }
+
+  /**
+   * The bound that shipped as `minimum: 0` on `crowdfunding_reports`, and the
+   * reason the drop pass exists. Recreated here exactly as the storage layer
+   * emitted it, because the pass matches on that shape and nothing else.
+   */
+  it("drops a CHECK the schema no longer declares, and keeps the ones it does", async () => {
+    const pool = getPgPool();
+    await pool.query(
+      `ALTER TABLE "crowdfunding_reports"
+         ADD CONSTRAINT "crowdfunding_reports_disclosure_value_check"
+         CHECK ("disclosure_value" >= 0)`
+    );
+    // An operator's own bound on the same relaxed column. `db setup` must not
+    // touch it: this pass removes what the storage layer stopped declaring, and
+    // has no claim on anything else in the database.
+    await pool.query(
+      `ALTER TABLE "crowdfunding_reports"
+         ADD CONSTRAINT "operator_disclosure_sanity"
+         CHECK ("disclosure_value" >= -1000000 AND "disclosure_value" <= 1000000)`
+    );
+
+    await setupAllDatabases();
+
+    const names = new Set((await liveChecks()).map((c) => c.name));
+    expect(names.has("crowdfunding_reports_disclosure_value_check")).toBe(false);
+    expect(names.has("operator_disclosure_sanity")).toBe(true);
+    // `cik` is still declared unsigned, so its emitted bound is current.
+    expect(names.has("crowdfunding_reports_cik_check")).toBe(true);
+
+    // And the negative value the stale bound rejected now stores, which is the
+    // whole point — a Reg CF issuer reporting a loss.
+    await pool.query(
+      `INSERT INTO "crowdfunding_reports"
+         ("cik", "file_number", "filing_date", "disclosure_name", "disclosure_value")
+       VALUES (1792525, '020-26773', '2020-08-17', 'netIncomeMostRecentFiscalYear', -89617)`
+    );
+
+    // Asserted through the planner, like the alignment case above: an empty
+    // plan IS "no declared column carries a bound the schema dropped".
+    expect(
+      planStaleCheckDrops(listRegisteredTables(), await liveChecks(), "public").map((s) => s.sql)
+    ).toEqual([]);
+
+    await pool.query(
+      `ALTER TABLE "crowdfunding_reports" DROP CONSTRAINT "operator_disclosure_sanity"`
+    );
   });
 
   it("round-trips the same values the sqlite suite asserts", async () => {

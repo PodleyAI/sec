@@ -296,6 +296,8 @@ export function registerSecSyncLeaves(): void {
                 since: ctx.from,
                 cik: ctx.cik,
                 force: ctx.force,
+                all8k: ctx.all8k,
+                downloadOnly: ctx.downloadOnly,
                 limit: ctx.limit ?? DEFAULT_CONVERT_LIMIT,
               },
             }),
