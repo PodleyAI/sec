@@ -479,6 +479,28 @@ predecessor predicts the compensation and offering pairs correctly and gets the 
 wrong — it names `Executive Compensation`, which is true of a headed filing and not of `TCG`,
 where that section is itself unheaded so the container moves up to `Management`.
 
+### Cover-page front matter
+
+A registration statement's cover page is typeset as a stack of short, bold, centered,
+all-caps lines — the shape a heading has — so `HeadingDetector` reads every line of it as
+one. Each then opens a section holding a single line: `UNITED STATES`, `FORM S-1`,
+`Vista, California 92081`, `Krishna Vanka`. Across the committed S-1 and 424 corpus that is
+507 headings, ~12 per filing and 14.2% of all sections, carrying 2.5% of the text.
+
+`demoteCoverPageHeadings` (`src/sec/html/coverPage.ts`) turns every heading before the table
+of contents back into prose, so the front matter lands in the document's preamble as one
+block. Demoted rather than dropped: the cover page carries the registrant's name and
+address, the agent for service and the preliminary-prospectus legend, and removing it would
+lose text the coverage measure counts.
+
+It runs **after** de-pagination, because a typeset prospectus repeats "Table of Contents" as
+a page back-link on cover pages too — on the raw block list the first match can be furniture
+rather than the index. The search is bounded to the first 200 blocks (the corpus's deepest
+table of contents sits at block 54, the median at 32), and a heading matching
+`isTargetSectionLine` is never demoted — the same guard `joinSplitHeadings` uses, so a form
+whose front matter opens on a real section keeps the heading it hangs on. No cover-page
+heading in the corpus matches it.
+
 ### Line-scan fallback
 
 When the tree walk resolves **fewer than two** targets on a document rendering at least 50k
