@@ -86,7 +86,7 @@ export async function processFormCFPORTAL({
 
   const canonicalPersonRepo = new CanonicalPersonRepo();
   const canonicalCompanyRepo = new CanonicalCompanyRepo();
-  const observer: EntityObserver = new EntityObserver({
+  const observer = new EntityObserver({
     personObservationRepo: new PersonObservationRepo(),
     personObservationTitleRepo: new PersonObservationTitleRepo(),
     companyObservationRepo: new CompanyObservationRepo(),

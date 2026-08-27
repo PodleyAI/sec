@@ -564,7 +564,7 @@ export async function processForm1A({
     activeResolverVersion: activeResolverCompanyVersion,
   });
 
-  const observer: EntityObserver = new EntityObserver({
+  const observer = new EntityObserver({
     personObservationRepo,
     personObservationTitleRepo: new PersonObservationTitleRepo(),
     companyObservationRepo,

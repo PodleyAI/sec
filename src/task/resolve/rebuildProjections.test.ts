@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
+import { CanonicalCompanyAddressRepo } from "../../storage/canonical/CanonicalCompanyAddressRepo";
 import {
   CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
   CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
@@ -24,6 +25,13 @@ import type {
 } from "./ResolveObservationsTask";
 
 const RESOLVER_VERSION = "1.0.0";
+
+/**
+ * Stamped onto the company junction row between the two passes. Deliberately
+ * not a `filing_date`, which is the only thing a rebuild of that projection
+ * writes into `last_seen_at`.
+ */
+const MARKED_SEEN_AT = "2026-02-02T00:00:00.000Z";
 
 /** The company's filing is on disk; the person's deliberately is not. */
 const COMPANY_ACCESSION = "0000000000-26-000001";
@@ -133,6 +141,23 @@ describe("ResolveObservationsTask rebuild isolation", () => {
       error: null,
     });
 
+    // Mark that row so surviving and being purged-and-re-derived can be told
+    // apart at all. Both company links and the company filing are still in
+    // place during the person pass, so an off-kind rebuild would recompute the
+    // same group and write back an identical row — a row count and an address
+    // id cannot see that happen. The projection derives `observation_count` as
+    // the group size and `last_seen_at` from the filing date, so neither of
+    // the values recorded here survives one.
+    const companyJunctions = globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN);
+    const seeded = ((await companyJunctions.getAll()) ?? [])[0];
+    expect(seeded).toBeDefined();
+    await new CanonicalCompanyAddressRepo().recordObservation({
+      canonical_company_id: seeded.canonical_company_id,
+      address_hash_id: seeded.address_hash_id,
+      resolver_version: RESOLVER_VERSION,
+      seen_at: MARKED_SEEN_AT,
+    });
+
     // What an earlier pass left at this version, which the two failing
     // projections would have replaced had they got as far as their purge.
     await new CanonicalPersonAddressRepo().recordObservation({
@@ -161,12 +186,15 @@ describe("ResolveObservationsTask rebuild isolation", () => {
     expect(report(second, "person-roles").error).toContain(
       `rebuildPersonRoles: no filing found for accession_number "${PERSON_ACCESSION}"`
     );
-    // The company junction rows the first pass wrote, untouched by a person
-    // run that recomputes nothing keyed to the company links.
-    const companyRows =
-      (await globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN).getAll()) ?? [];
+    // The company junction row the first pass wrote, still carrying the mark
+    // above: a person run recomputes nothing keyed to the company links, so
+    // this row was not merely re-derived to the same shape — it was never
+    // touched.
+    const companyRows = (await companyJunctions.getAll()) ?? [];
     expect(companyRows).toHaveLength(1);
     expect(companyRows[0].address_hash_id).toBe("addr-company");
+    expect(companyRows[0].observation_count).toBe(2);
+    expect(companyRows[0].last_seen_at).toBe(MARKED_SEEN_AT);
     // Each raise lands before its projection deletes anything, so what the
     // earlier pass left is still there — a failed whole-version rebuild does
     // not empty the table it could not replace.

@@ -114,12 +114,10 @@ export interface EntityObserverResolverOptions
  * Which half is present is read per method, so a person-only caller need not
  * hand over a company resolver it will never use.
  *
- * Because the tier is optional HERE, a caller that means to build the full one
- * gets no error for leaving a resolver out — its options type is inferred from
- * the literal it passed. Production construction sites therefore name
- * {@link ResolvingEntityObserverOptions} explicitly, through the class's
- * default type argument (`const observer: EntityObserver = …`) or a declared
- * return type; `entityObserverConstruction.test.ts` holds them to it.
+ * Because the tier is optional HERE, nothing about this type would stop a
+ * caller that means to build the full one from leaving a resolver out. What
+ * does is the constructor blocking inference of its own type argument, so
+ * omitting the tier is a type error rather than a narrower observer.
  */
 export interface EntityObserverOptions
   extends EntityObserverObservationOptions, Partial<EntityObserverResolverOptions> {}
@@ -288,7 +286,18 @@ export class EntityObserver<
    */
   private completenessRepo: RoleRosterCompletenessRepo | null | undefined;
 
-  constructor(private readonly opts: TOptions) {}
+  /**
+   * `NoInfer` is what makes the resolver tier mandatory. Without it `TOptions`
+   * is inferred from the literal, so a site that left `personResolver` out
+   * would simply get an observe-only type — no error here, and downstream only
+   * observations with no canonical id, link, tenure or junction count behind
+   * them. Blocking inference lets `TOptions` fall to its default,
+   * {@link ResolvingEntityObserverOptions}, so the omission is a type error on
+   * the argument; a caller that genuinely wants an observe-only observer says
+   * so with an explicit type argument or a declared return type. An explicit
+   * `EntityObserver<any>` still opts out, as `any` does everywhere.
+   */
+  constructor(private readonly opts: NoInfer<TOptions>) {}
 
   /**
    * The person resolver tier, or undefined when this observer was built to

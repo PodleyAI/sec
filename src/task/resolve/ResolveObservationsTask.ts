@@ -108,33 +108,43 @@ async function runRebuild(
  */
 async function rebuildProjections(input: ResolveObservationsTaskInput): Promise<RebuildReport[]> {
   const version = input.resolverVersion;
-  if (input.kind === "company") {
-    return [
-      await runRebuild("company-junctions", async () => {
-        const result = await rebuildCompanyJunctions(version);
-        return result.addressRows + result.phoneRows;
-      }),
-    ];
+  switch (input.kind) {
+    case "company":
+      return [
+        await runRebuild("company-junctions", async () => {
+          const result = await rebuildCompanyJunctions(version);
+          return result.addressRows + result.phoneRows;
+        }),
+      ];
+    case "person": {
+      const reports = [
+        await runRebuild("person-junctions", async () => {
+          const result = await rebuildPersonJunctions(version);
+          return result.addressRows + result.phoneRows;
+        }),
+      ];
+      if (input.rebuildRoles) {
+        // Said before the deletion rather than after it, and by the task rather
+        // than by one front-end, so every caller sees what it is about to spend.
+        console.warn(
+          `rebuilding person_role at v${version}: every tenure at this version is deleted and ` +
+            `re-derived from the observations. A tenure closed by a filing with no ` +
+            `role_roster_completeness row re-opens — its end_date is not restored.`
+        );
+        reports.push(
+          await runRebuild("person-roles", async () => (await rebuildPersonRoles(version)).rows)
+        );
+      }
+      return reports;
+    }
+    default: {
+      // Exhaustiveness guard, and the reason this is a switch and not an
+      // if/else: an else branch hands an unlisted kind the PERSON
+      // projections, rebuilding person junctions off links it never wrote.
+      const _exhaustive: never = input.kind;
+      throw new Error(`Unhandled resolver kind: ${JSON.stringify(_exhaustive)}`);
+    }
   }
-  const reports = [
-    await runRebuild("person-junctions", async () => {
-      const result = await rebuildPersonJunctions(version);
-      return result.addressRows + result.phoneRows;
-    }),
-  ];
-  if (input.rebuildRoles) {
-    // Said before the deletion rather than after it, and by the task rather
-    // than by one front-end, so every caller sees what it is about to spend.
-    console.warn(
-      `rebuilding person_role at v${version}: every tenure at this version is deleted and ` +
-        `re-derived from the observations. A tenure closed by a filing with no ` +
-        `role_roster_completeness row re-opens — its end_date is not restored.`
-    );
-    reports.push(
-      await runRebuild("person-roles", async () => (await rebuildPersonRoles(version)).rows)
-    );
-  }
-  return reports;
 }
 
 /**
@@ -274,38 +284,51 @@ export class ResolveObservationsTask extends Task<
           `resolver version, and a '${input.kind}' pass writes no link that feeds it`
       );
     }
-    if (input.kind === "person") {
-      const observations = new PersonObservationRepo();
-      // Before resolving, not after: the resolver matches on these columns, so
-      // recomputing them afterwards would leave the links keyed to the previous
-      // generation and report a coverage the data does not have.
-      const renormalized = input.renormalize ? await renormalizePersons(observations) : 0;
-      const resolver = new PersonResolver({
-        canonicalPersonRepo: new CanonicalPersonRepo(),
-        canonicalPersonAliasRepo: new CanonicalPersonAliasRepo(),
-        activeResolverVersion: input.resolverVersion,
-      });
-      const linkRepo = new PersonIdentityLinkRepo();
-      const resolved = await resolveAll(
-        await observations.listAll(),
-        (obs) => resolver.resolve(obs),
-        (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
-      );
-      return { ...resolved, renormalized, rebuilds: await rebuildProjections(input) };
+    switch (input.kind) {
+      case "person": {
+        const observations = new PersonObservationRepo();
+        // Before resolving, not after: the resolver matches on these columns, so
+        // recomputing them afterwards would leave the links keyed to the previous
+        // generation and report a coverage the data does not have.
+        const renormalized = input.renormalize ? await renormalizePersons(observations) : 0;
+        const resolver = new PersonResolver({
+          canonicalPersonRepo: new CanonicalPersonRepo(),
+          canonicalPersonAliasRepo: new CanonicalPersonAliasRepo(),
+          activeResolverVersion: input.resolverVersion,
+        });
+        const linkRepo = new PersonIdentityLinkRepo();
+        const resolved = await resolveAll(
+          await observations.listAll(),
+          (obs) => resolver.resolve(obs),
+          (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
+        );
+        return { ...resolved, renormalized, rebuilds: await rebuildProjections(input) };
+      }
+      case "company": {
+        const observations = new CompanyObservationRepo();
+        const renormalized = input.renormalize ? await renormalizeCompanies(observations) : 0;
+        const resolver = new CompanyResolver({
+          canonicalCompanyRepo: new CanonicalCompanyRepo(),
+          canonicalCompanyAliasRepo: new CanonicalCompanyAliasRepo(),
+          activeResolverVersion: input.resolverVersion,
+        });
+        const linkRepo = new CompanyIdentityLinkRepo();
+        const resolved = await resolveAll(
+          await observations.listAll(),
+          (obs) => resolver.resolve(obs),
+          (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
+        );
+        return { ...resolved, renormalized, rebuilds: await rebuildProjections(input) };
+      }
+      default: {
+        // Exhaustiveness guard. As if/else, this dispatcher and
+        // {@link rebuildProjections} lean OPPOSITE ways — company here, person
+        // there — so an unlisted kind resolves one tier and then rebuilds the
+        // other's junctions. Naming every kind makes a third one a compile
+        // error in both places instead.
+        const _exhaustive: never = input.kind;
+        throw new Error(`Unhandled resolver kind: ${JSON.stringify(_exhaustive)}`);
+      }
     }
-    const observations = new CompanyObservationRepo();
-    const renormalized = input.renormalize ? await renormalizeCompanies(observations) : 0;
-    const resolver = new CompanyResolver({
-      canonicalCompanyRepo: new CanonicalCompanyRepo(),
-      canonicalCompanyAliasRepo: new CanonicalCompanyAliasRepo(),
-      activeResolverVersion: input.resolverVersion,
-    });
-    const linkRepo = new CompanyIdentityLinkRepo();
-    const resolved = await resolveAll(
-      await observations.listAll(),
-      (obs) => resolver.resolve(obs),
-      (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
-    );
-    return { ...resolved, renormalized, rebuilds: await rebuildProjections(input) };
   }
 }
