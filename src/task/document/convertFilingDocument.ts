@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { parseEdgarHtml } from "../../sec/html/parseEdgarHtml";
-import { parseRegistrationSubmission } from "../../sec/forms/registration-statements/s1/parseSubmission";
 import {
   splitDocumentSections,
   type FilingSectionSlice,
 } from "../../sec/document/documentSections";
+import { parseRegistrationSubmission } from "../../sec/forms/registration-statements/s1/parseSubmission";
+import { parseEdgarHtml } from "../../sec/html/parseEdgarHtml";
 
 /**
  * Stamp written onto every converted row and compared by the sweep.
@@ -20,7 +20,7 @@ import {
  * truncate — and a half-finished re-run leaves the old rows readable instead of
  * leaving a hole.
  */
-export const FILING_CONVERTER_VERSION = "3";
+export const FILING_CONVERTER_VERSION = "2";
 
 /** What one conversion produced, before it is written anywhere. */
 export interface ConvertedFilingDocument {
