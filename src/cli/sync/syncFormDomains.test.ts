@@ -5,8 +5,18 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { FORM_TO_EXTRACTOR_ID } from "../../storage/versioning/extractorIds";
+import { allRegisteredForms, extractorIdsForForm } from "../../sec/forms/formExtractors";
 import { SYNC_FORM_DOMAINS, expandFormTypes, formsForExtractorIds } from "./syncFormDomains";
+
+// Importing `./syncFormDomains` registers sec's form extractors at its module
+// scope, so the registry reads below are already populated.
+
+/** Every (form, extractor id) pair the registry routes — a form may yield several. */
+function routedPairs(): ReadonlyArray<readonly [string, string]> {
+  return allRegisteredForms().flatMap((form) =>
+    extractorIdsForForm(form).map((id) => [form, id] as const)
+  );
+}
 
 type SyncFormDomain = keyof typeof SYNC_FORM_DOMAINS;
 
@@ -21,7 +31,7 @@ function expectPartition(extractorIds: readonly string[], domain: SyncFormDomain
   const elsewhere = formsElsewhere(domain);
   const want = new Set(extractorIds);
 
-  for (const [form, extractorId] of Object.entries(FORM_TO_EXTRACTOR_ID)) {
+  for (const [form, extractorId] of routedPairs()) {
     if (!want.has(extractorId)) {
       continue;
     }

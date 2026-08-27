@@ -11,9 +11,9 @@ import {
   MODEL_ERROR_REASON_CODES,
   NONDETERMINISTIC_REASON_CODES,
 } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
+import { allRegisteredExtractorIds } from "../../sec/forms/formExtractors";
 import {
   EXTRACTOR_IDS,
-  FORM_TO_EXTRACTOR_ID,
   PERSON_OBSERVING_EXTRACTOR_IDS,
   REKEY_REEXTRACT_EXTRACTOR_IDS,
   SWEEP_PRIORITY,
@@ -31,8 +31,8 @@ import { SYNC_FORM_DOMAINS } from "./syncFormDomains";
  * every gate keyed on it. This file is the replacement spell-check: every
  * list below may only draw from the vocabulary sec actually declares.
  *
- * Unlike `syncFormDomains.test.ts`'s `expectPartition` (which walks
- * `FORM_TO_EXTRACTOR_ID` and `continue`s past any id it doesn't recognize —
+ * Unlike `syncFormDomains.test.ts`'s `expectPartition` (which walks the
+ * registry's routings and `continue`s past any id it doesn't recognize —
  * exactly the shape that lets an unknown id pass silently), this walks each
  * list directly and fails on the first name `known` doesn't contain.
  */
@@ -48,8 +48,13 @@ function assertKnownValues(
 }
 
 describe("extractor id vocabulary — every list draws only from EXTRACTOR_IDS", () => {
-  it("FORM_TO_EXTRACTOR_ID's values", () => {
-    assertKnownValues("FORM_TO_EXTRACTOR_ID", Object.values(FORM_TO_EXTRACTOR_ID), EXTRACTOR_IDS);
+  it("the ids sec's own form extractors register under", () => {
+    // Importing `./syncFormDomains` registers them at its module scope, and
+    // vitest gives this file its own process, so nothing else is in the
+    // registry. The registry itself is open by design — a downstream package
+    // names ids sec has never heard of — which is exactly why this asks only
+    // about the registrations sec ships.
+    assertKnownValues("registerSecFormExtractors", allRegisteredExtractorIds(), EXTRACTOR_IDS);
   });
 
   it("PERSON_OBSERVING_EXTRACTOR_IDS", () => {

@@ -44,12 +44,13 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
     // same roster, and without it a shell registrant's S-1 yields no people.
     /^\s*directors,? (and )?executive officers,? promoters and control persons\s*$/i,
     // Item 6 of Form 20-F, which is the vocabulary a foreign private issuer's
-    // F-1 uses. `FORM_TO_EXTRACTOR_ID` routes F-1 here and
-    // `SPAC_REGISTRATION_FORMS` lists it ("many SPACs are Cayman"), but the
-    // heading list was domestic-only, so an F-1 yielded no roster at all. The
-    // conjunction stands alone as well as qualifying a word — `Fusion Fuel
-    // Green PLC` heads its roster `DIRECTORS AND MANAGEMENT`, which an
-    // alternation of only " senior" / " and executive" does not reach.
+    // F-1 uses. The "S-1" extractor registers F-1 among its forms, so the
+    // registry routes it here, and `SPAC_REGISTRATION_FORMS` lists it ("many
+    // SPACs are Cayman"), but the heading list was domestic-only, so an F-1
+    // yielded no roster at all. The conjunction stands alone as well as
+    // qualifying a word — `Fusion Fuel Green PLC` heads its roster `DIRECTORS
+    // AND MANAGEMENT`, which an alternation of only " senior" / " and
+    // executive" does not reach.
     /^\s*(board of )?directors,?( senior| and( executive)?)? management( and employees)?\s*$/i,
     // SPAC prospectuses often brand this section rather than titling it
     // "Management" — Constellation Acquisition I's 2021 S-1 heads it "Our Team"

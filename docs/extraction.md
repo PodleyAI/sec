@@ -626,8 +626,8 @@ sec extractor backfill <extractorId> [--force] [--dry-run]
 ```
 
 `BackfillExtractorTask` resolves a per-extractor **descriptor**
-(`src/task/forms/backfillDescriptors.ts`). Every form-routed extractor id
-(`FORM_TO_EXTRACTOR_ID` values) is backfillable by default over all filings of its forms.
+(`src/task/forms/backfillDescriptors.ts`). Every extractor id in the form-extractor
+registry is backfillable by default over all filings of its forms.
 Extractors with a narrower candidate set add a descriptor entry; extractors whose recorded
 success can be a gated no-op override `filterTodo`.
 
@@ -664,7 +664,7 @@ Fixtures: `sec fetch fixtures C-U C-AR C-TR` extends the exempt-offering mock_da
 committed ones were sourced from EDGAR daily indexes because the quarterly `form.idx` endpoint
 may 403 from cloud containers. CFPORTAL fixtures live under
 `src/sec/forms/portal/mock_data/cfportal/`. `isFormParsingSupported` and
-`FORM_TO_EXTRACTOR_ID` are kept consistent by `src/sec/forms/form-wiring.test.ts`.
+the form-extractor registry are kept consistent by `src/sec/forms/form-wiring.test.ts`.
 
 ### Portal continuation (`portal_succession` / `portals.succeeded_by_cik`)
 

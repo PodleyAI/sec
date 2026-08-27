@@ -15,7 +15,6 @@ import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import { FORM_TO_EXTRACTOR_ID } from "../../storage/versioning/extractorIds";
 import { startDev } from "../../storage/versioning/ceremonies";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
@@ -150,10 +149,11 @@ describe("ProcessAccessionDocFormTask filing-level dead-lettering", () => {
   });
 
   it("re-throws a missing storage handler rather than dead-lettering it", async () => {
-    // Simulate the wiring mistake the default arm exists to catch: a form that
-    // is routed and parseable but has no dispatch case. It cannot occur in the
-    // committed source (form-wiring.test.ts pins the two maps together), so the
-    // test injects it and restores both maps afterwards.
+    // Simulate the wiring mistake the guard exists to catch: a form the CLI
+    // advertises as parseable that no extractor is registered for. It cannot
+    // occur in the committed source (form-wiring.test.ts pins the parser
+    // catalogue and the registry together), so the test injects the parser and
+    // restores it afterwards.
     const UNWIRED_FORM = "ZZ-UNWIRED";
     class UnwiredForm {
       static async parse(): Promise<unknown> {
@@ -161,9 +161,7 @@ describe("ProcessAccessionDocFormTask filing-level dead-lettering", () => {
       }
     }
     const formMap = ALL_FORMS_MAP as Map<string, unknown>;
-    const extractorMap = FORM_TO_EXTRACTOR_ID as Record<string, string>;
     formMap.set(UNWIRED_FORM, UnwiredForm);
-    extractorMap[UNWIRED_FORM] = "D";
 
     try {
       await seedFiling(UNWIRED_FORM, "primary_doc.xml");
@@ -185,7 +183,6 @@ describe("ProcessAccessionDocFormTask filing-level dead-lettering", () => {
       expect(dl).toBeFalsy();
     } finally {
       formMap.delete(UNWIRED_FORM);
-      delete extractorMap[UNWIRED_FORM];
     }
   });
 

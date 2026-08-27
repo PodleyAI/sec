@@ -229,11 +229,11 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
   // A general proxy form with no merger section is an ordinary shareholder vote
   // — an annual meeting, a director election, an extension vote — not a failed
   // extraction. Those forms carry a SPAC's business-combination vote often
-  // enough to be worth routing here (see FORM_TO_EXTRACTOR_ID), but most of them
-  // legitimately contain no deal, and dead-lettering each one would bury the
-  // genuine failures under thousands of entries no operator can act on. Record a
-  // successful run, emit no deal, and let the deterministic proxy event below
-  // still advance the SPAC timeline.
+  // enough to be worth registering among the "merger-proxy" extractor's forms,
+  // but most of them legitimately contain no deal, and dead-lettering each one
+  // would bury the genuine failures under thousands of entries no operator can
+  // act on. Record a successful run, emit no deal, and let the deterministic
+  // proxy event below still advance the SPAC timeline.
   const mergerSectionOptional = MERGER_PROXY_OPTIONAL_FORMS.has(form);
   const skipMergerSection = mergerSectionOptional && mergerText === "";
 

@@ -54,7 +54,7 @@ describe("ProcessAccessionDocFormTask (versioned)", () => {
     await seedFiling({
       cik: 1234567,
       accession_number: "0001234567-25-000001",
-      form: "10-K", // not in FORM_TO_EXTRACTOR_ID
+      form: "10-K", // no extractor is registered for it
       primary_doc: "primary_doc.xml",
     });
     const task = new ProcessAccessionDocFormTask();

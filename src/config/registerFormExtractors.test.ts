@@ -17,7 +17,6 @@ import {
   REGA_FULL_SUBMISSION_FORMS,
   REGISTRATION_PROSPECTUS_FORMS,
 } from "../task/forms/ProcessAccessionDocFormTask";
-import { FORM_TO_EXTRACTOR_ID } from "../storage/versioning/extractorIds";
 import { registerSecFormExtractors } from "./registerFormExtractors";
 
 beforeEach(() => {
@@ -25,20 +24,6 @@ beforeEach(() => {
   registerSecFormExtractors();
 });
 afterEach(() => clearFormExtractorsForTesting());
-
-test("every form in FORM_TO_EXTRACTOR_ID resolves to at least one extractor", () => {
-  const unmapped = Object.keys(FORM_TO_EXTRACTOR_ID).filter(
-    (form) => extractorsForForm(form).length === 0
-  );
-  expect(unmapped).toEqual([]);
-});
-
-test("a registered extractor's id matches the form's mapped extractor id", () => {
-  for (const [form, id] of Object.entries(FORM_TO_EXTRACTOR_ID)) {
-    const ids = extractorsForForm(form).map((e) => e.id);
-    expect(ids, `form ${form}`).toContain(id);
-  }
-});
 
 test("registration is idempotent", () => {
   const before = extractorsForForm("D").length;

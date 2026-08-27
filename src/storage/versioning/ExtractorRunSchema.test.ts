@@ -5,13 +5,19 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { FORM_TO_EXTRACTOR_ID } from "./extractorIds";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
+import { allRegisteredForms } from "../../sec/forms/formExtractors";
 import { ExtractorRunSchema } from "./ExtractorRunSchema";
+
+// The routable form codes come from the form-extractor registry, which is empty
+// until something registers into it.
+registerSecFormExtractors();
 
 /**
  * `extractor_runs.form` must be wide enough for every form code the sweep can
- * route, and the bound is DERIVED from the routing table rather than pinned to a
- * number — so adding a longer form code fails here instead of in production.
+ * route, and the bound is DERIVED from the form-extractor registry rather than
+ * pinned to a number — so registering an extractor for a longer form code fails
+ * here instead of in production.
  *
  * The failure this guards is silent in every existing test: the storage tests
  * run on InMemoryTabularStorage, which enforces no varchar width, so a form code
@@ -27,7 +33,7 @@ import { ExtractorRunSchema } from "./ExtractorRunSchema";
  * 15F-12G/A and 15F-15D/A.
  */
 describe("ExtractorRunSchema.form width", () => {
-  const formCodes = Object.keys(FORM_TO_EXTRACTOR_ID);
+  const formCodes = allRegisteredForms();
   const maxLength = (ExtractorRunSchema.properties.form as { maxLength?: number }).maxLength;
 
   it("declares a maxLength", () => {

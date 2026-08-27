@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { registerSecFormExtractors } from "../../config/registerFormExtractors";
-import { FORM_TO_EXTRACTOR_ID } from "./extractorIds";
+import { allRegisteredForms, extractorIdsForForm } from "../../sec/forms/formExtractors";
 import { sortFormsForSweep } from "./formsSweepOrder";
 
 // `sortFormsForSweep` ranks a form through the form-extractor registry, so an
@@ -15,19 +15,36 @@ import { sortFormsForSweep } from "./formsSweepOrder";
 // the extractors are already registered.
 registerSecFormExtractors();
 
-/** Index of the first form in `order` routed to `extractorId`. */
+/**
+ * Every form any registered extractor handles — the same set the sweep's own
+ * worklist draws from.
+ */
+function allForms(): readonly string[] {
+  return allRegisteredForms();
+}
+
+/**
+ * The extractor `sortFormsForSweep` ranks `form` by: the first one the registry
+ * hands back. A form may carry several, and only one rank can be honoured in a
+ * single ordered pass.
+ */
+function leadIdOf(form: string): string | undefined {
+  return extractorIdsForForm(form)[0];
+}
+
+/** Index of the first form in `order` whose leading extractor is `extractorId`. */
 function firstIndexOf(order: readonly string[], extractorId: string): number {
-  const i = order.findIndex((form) => FORM_TO_EXTRACTOR_ID[form] === extractorId);
+  const i = order.findIndex((form) => leadIdOf(form) === extractorId);
   expect(i).toBeGreaterThanOrEqual(0);
   return i;
 }
 
 describe("sortFormsForSweep", () => {
   it("runs S-1 before RW before 424 before 8-K before proxies before 25/15", () => {
-    // Object key order puts the integer-like "25" fourth overall, so a first-pass
-    // sweep processed every issuer-filed Form 25 before its S-1 had minted the
-    // spac row the deregistration handler is gated on. Form RW is the same gate.
-    const order = sortFormsForSweep(Object.keys(FORM_TO_EXTRACTOR_ID));
+    // Registration order is an accident of import order, so an unsorted sweep
+    // could reach every issuer-filed Form 25 before its S-1 had minted the spac
+    // row the deregistration handler is gated on. Form RW is the same gate.
+    const order = sortFormsForSweep(allForms());
     const s1 = firstIndexOf(order, "S-1");
     const rw = firstIndexOf(order, "RW");
     const p424 = firstIndexOf(order, "424");
@@ -42,25 +59,25 @@ describe("sortFormsForSweep", () => {
   });
 
   it("puts every ranked form ahead of every unranked one", () => {
-    const order = sortFormsForSweep(Object.keys(FORM_TO_EXTRACTOR_ID));
+    const order = sortFormsForSweep(allForms());
     const ranked = new Set(["S-1", "RW", "424", "8-K", "merger-proxy", "25-15"]);
     const lastRanked = order.reduce(
-      (acc, form, i) => (ranked.has(FORM_TO_EXTRACTOR_ID[form]) ? i : acc),
+      (acc, form, i) => (ranked.has(leadIdOf(form) ?? "") ? i : acc),
       -1
     );
-    const firstUnranked = order.findIndex((form) => !ranked.has(FORM_TO_EXTRACTOR_ID[form]));
+    const firstUnranked = order.findIndex((form) => !ranked.has(leadIdOf(form) ?? ""));
     expect(firstUnranked).toBeGreaterThan(lastRanked);
   });
 
   it("keeps every form exactly once, so a newly wired form cannot be dropped", () => {
-    const forms = Object.keys(FORM_TO_EXTRACTOR_ID);
+    const forms = allForms();
     const order = sortFormsForSweep(forms);
     expect(order.length).toBe(forms.length);
     expect(new Set(order)).toEqual(new Set(forms));
   });
 
   it("is stable within a rank, so S-1 precedes S-1/A precedes DRS", () => {
-    const order = sortFormsForSweep(Object.keys(FORM_TO_EXTRACTOR_ID));
+    const order = sortFormsForSweep(allForms());
     expect(order.indexOf("S-1")).toBeLessThan(order.indexOf("S-1/A"));
     expect(order.indexOf("S-1/A")).toBeLessThan(order.indexOf("DRS"));
   });

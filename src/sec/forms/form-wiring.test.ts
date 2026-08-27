@@ -5,7 +5,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { FORM_TO_EXTRACTOR_ID } from "../../storage/versioning/extractorIds";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
+import { allRegisteredForms, formHasExtractor } from "./formExtractors";
 import {
   ALL_FORM_NAMES,
   ALL_FORMS_MAP,
@@ -13,6 +14,10 @@ import {
   isFormParsingSupported,
 } from "./all-forms";
 import { Form_1_A } from "./exempt-offerings/Form_1_A";
+
+// Both directions below read the form-extractor registry, which is empty until
+// something registers into it.
+registerSecFormExtractors();
 
 // Pre-existing stub-vs-stub duplicate registrations (both classes lack a
 // parse() override, so the shadowing is currently harmless). Resolving them
@@ -25,8 +30,8 @@ describe("form wiring", () => {
     expect(ALL_FORMS_MAP.get("1-A POS")).toBe(Form_1_A as any);
   });
 
-  it("every extractor-mapped form has a real parser override", () => {
-    for (const form of Object.keys(FORM_TO_EXTRACTOR_ID)) {
+  it("every form an extractor is registered for has a real parser override", () => {
+    for (const form of allRegisteredForms()) {
       expect({ form, supported: isFormParsingSupported(form) }).toEqual({
         form,
         supported: true,
@@ -34,12 +39,12 @@ describe("form wiring", () => {
     }
   });
 
-  it("every parse-supported form has an extractor mapping", () => {
+  it("every parse-supported form has a registered extractor", () => {
     // The other half of the 1-A POS incident: a parser the CLI advertises
     // (`parse: yes`) whose dispatch then throws "No extractor registered".
     for (const form of ALL_FORM_NAMES) {
       if (!isFormParsingSupported(form)) continue;
-      expect({ form, mapped: FORM_TO_EXTRACTOR_ID[form] !== undefined }).toEqual({
+      expect({ form, mapped: formHasExtractor(form) }).toEqual({
         form,
         mapped: true,
       });

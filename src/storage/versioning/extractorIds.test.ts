@@ -8,18 +8,33 @@ import { describe, expect, it } from "vitest";
 import { ALL_FORMS_MAP, isFormParsingSupported } from "../../sec/forms/all-forms";
 import { Form_DRS } from "../../sec/forms/registration-statements/Form_DRS";
 import { Form_DRSLTR } from "../../sec/forms/registration-statements/Form_DRSLTR";
-import { formsForExtractorIds } from "../../sec/forms/formExtractors";
-import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import {
-  EXTRACTOR_IDS,
-  FORM_TO_EXTRACTOR_ID,
-  formToExtractorId,
-  isNonfatalTimelineExtractor,
-} from "./extractorIds";
+  allRegisteredForms,
+  extractorIdsForForm,
+  formsForExtractorIds,
+} from "../../sec/forms/formExtractors";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
+import { EXTRACTOR_IDS, isNonfatalTimelineExtractor } from "./extractorIds";
 
-// `formsForExtractorIds` answers from the form-extractor registry, which is
-// empty until something registers into it.
+// Every routing assertion below answers from the form-extractor registry, which
+// is empty until something registers into it.
 registerSecFormExtractors();
+
+/**
+ * The extractor ids `form` routes to. Routing is a SET — a form may carry
+ * several extractors — so each assertion below asks about membership rather
+ * than about equality with whichever one happens to be first.
+ */
+function routedIds(form: string): readonly string[] {
+  return extractorIdsForForm(form);
+}
+
+/** Asserts `form` routes to `id`, and that it routes anywhere at all. */
+function expectRoutedTo(form: string, id: string): void {
+  const ids = routedIds(form);
+  expect(ids, `form ${form}`).not.toHaveLength(0);
+  expect(ids, `form ${form}`).toContain(id);
+}
 
 describe("extractorIds", () => {
   it("exposes the canonical extractor ids", () => {
@@ -52,7 +67,11 @@ describe("extractorIds", () => {
 
   it("treats ownership forms as nonfatal on the SPAC timeline", () => {
     for (const form of ["3", "3/A", "4", "4/A", "5", "5/A", "144", "144/A"]) {
-      expect(isNonfatalTimelineExtractor(formToExtractorId(form)!)).toBe(true);
+      const ids = routedIds(form);
+      expect(ids, `form ${form}`).not.toHaveLength(0);
+      for (const id of ids) {
+        expect(isNonfatalTimelineExtractor(id), `${form} routes to ${id}`).toBe(true);
+      }
     }
     expect(isNonfatalTimelineExtractor("D")).toBe(false);
     expect(isNonfatalTimelineExtractor("S-1")).toBe(false);
@@ -60,31 +79,31 @@ describe("extractorIds", () => {
 
   it("maps the merger proxies to extractor id 'merger-proxy'", () => {
     for (const form of ["DEFM14A", "PREM14A", "DEFM14C", "PREM14C", "DEFR14A", "PRER14A"]) {
-      expect(formToExtractorId(form)).toBe("merger-proxy");
+      expectRoutedTo(form, "merger-proxy");
     }
   });
 
   it("maps the 424 prospectus variants to extractor id '424'", () => {
     for (const form of ["424A", "424B1", "424B2", "424B3", "424B4", "424B5", "424B7"]) {
-      expect(formToExtractorId(form)).toBe("424");
+      expectRoutedTo(form, "424");
     }
   });
 
   it("maps Form 3/4/5 and amendments to their document-type extractor ids", () => {
     for (const form of ["3", "4", "5"]) {
-      expect(formToExtractorId(form)).toBe(form);
-      expect(formToExtractorId(`${form}/A`)).toBe(form);
+      expectRoutedTo(form, form);
+      expectRoutedTo(`${form}/A`, form);
     }
   });
 
   it("maps Form 144 and its amendment to extractor id '144'", () => {
-    expect(formToExtractorId("144")).toBe("144");
-    expect(formToExtractorId("144/A")).toBe("144");
+    expectRoutedTo("144", "144");
+    expectRoutedTo("144/A", "144");
   });
 
   it("maps Form D and amendments to extractor id 'D'", () => {
-    expect(formToExtractorId("D")).toBe("D");
-    expect(formToExtractorId("D/A")).toBe("D");
+    expectRoutedTo("D", "D");
+    expectRoutedTo("D/A", "D");
   });
 
   it("maps every Form C variant to extractor id 'C'", () => {
@@ -102,49 +121,49 @@ describe("extractorIds", () => {
       "C-TR",
       "C-TR-W",
     ]) {
-      expect(formToExtractorId(v)).toBe("C");
+      expectRoutedTo(v, "C");
     }
   });
 
   it("maps Form 1-A and amendments to extractor id '1-A'", () => {
-    expect(formToExtractorId("1-A")).toBe("1-A");
-    expect(formToExtractorId("1-A/A")).toBe("1-A");
+    expectRoutedTo("1-A", "1-A");
+    expectRoutedTo("1-A/A", "1-A");
   });
 
   it("maps Form 1-K and amendments to extractor id '1-K'", () => {
-    expect(formToExtractorId("1-K")).toBe("1-K");
-    expect(formToExtractorId("1-K/A")).toBe("1-K");
+    expectRoutedTo("1-K", "1-K");
+    expectRoutedTo("1-K/A", "1-K");
   });
 
   it("maps Form 1-U and amendments to extractor id '1-U'", () => {
     // Metadata-only, like 25-15: the item codes arrive in the submissions
     // payload, so the event is known without reading the narrative body.
-    expect(formToExtractorId("1-U")).toBe("1-U");
-    expect(formToExtractorId("1-U/A")).toBe("1-U");
+    expectRoutedTo("1-U", "1-U");
+    expectRoutedTo("1-U/A", "1-U");
   });
 
   it("maps the SEC's QUALIF notice to its own extractor id", () => {
     // Its own id rather than folding into "1-A": QUALIF is generated by the
     // Commission, not the filer, and carries the authoritative qualification
     // date. Sharing an id would make a version bump for one re-run the other.
-    expect(formToExtractorId("QUALIF")).toBe("QUALIF");
+    expectRoutedTo("QUALIF", "QUALIF");
   });
 
   it("maps Form 1-Z and amendments to extractor id '1-Z'", () => {
-    expect(formToExtractorId("1-Z")).toBe("1-Z");
-    expect(formToExtractorId("1-Z/A")).toBe("1-Z");
+    expectRoutedTo("1-Z", "1-Z");
+    expectRoutedTo("1-Z/A", "1-Z");
   });
 
-  it("returns undefined for unknown forms", () => {
-    expect(formToExtractorId("10-K")).toBeUndefined();
-    expect(formToExtractorId("")).toBeUndefined();
+  it("routes an unknown form nowhere", () => {
+    expect(routedIds("10-K")).toEqual([]);
+    expect(routedIds("")).toEqual([]);
   });
 
-  it("FORM_TO_EXTRACTOR_ID covers every variant exactly once", () => {
-    const seen = new Set(Object.keys(FORM_TO_EXTRACTOR_ID));
-    expect(seen.has("D/A")).toBe(true);
-    expect(seen.has("C-AR/A-W")).toBe(true);
-    expect(seen.has("1-Z/A")).toBe(true);
+  it("routes the amendment and withdrawal variants, not just the base symbols", () => {
+    const registered = new Set(allRegisteredForms());
+    expect(registered.has("D/A")).toBe(true);
+    expect(registered.has("C-AR/A-W")).toBe(true);
+    expect(registered.has("1-Z/A")).toBe(true);
   });
 });
 
@@ -154,16 +173,16 @@ describe("extractorIds — S-1", () => {
   });
 
   it("maps S-1 form symbols to the S-1 extractor", () => {
-    expect(formToExtractorId("S-1")).toBe("S-1");
-    expect(formToExtractorId("S-1/A")).toBe("S-1");
-    expect(formToExtractorId("S-1MEF")).toBe("S-1");
+    expectRoutedTo("S-1", "S-1");
+    expectRoutedTo("S-1/A", "S-1");
+    expectRoutedTo("S-1MEF", "S-1");
   });
 });
 
 describe("extractorIds + ALL_FORMS_MAP invariant", () => {
-  it("every form in FORM_TO_EXTRACTOR_ID is registered in ALL_FORMS_MAP", () => {
+  it("every form an extractor is registered for is registered in ALL_FORMS_MAP", () => {
     const missing: string[] = [];
-    for (const form of Object.keys(FORM_TO_EXTRACTOR_ID)) {
+    for (const form of allRegisteredForms()) {
       if (!ALL_FORMS_MAP.has(form)) {
         missing.push(form);
       }
@@ -174,9 +193,9 @@ describe("extractorIds + ALL_FORMS_MAP invariant", () => {
 
 describe("extractorIds — DRS dispatch mapping", () => {
   it("maps DRS and DRS/A to the S-1 extractor and leaves DRSLTR unmapped", () => {
-    expect(formToExtractorId("DRS")).toBe("S-1");
-    expect(formToExtractorId("DRS/A")).toBe("S-1");
-    expect(formToExtractorId("DRSLTR")).toBeUndefined();
+    expectRoutedTo("DRS", "S-1");
+    expectRoutedTo("DRS/A", "S-1");
+    expect(routedIds("DRSLTR")).toEqual([]);
   });
 });
 
@@ -186,17 +205,17 @@ describe("extractorIds — SEC STAFF ACTION withdrawal dispatch", () => {
     // unpriced registration is the same lifecycle end. processWithdrawal
     // still no-ops when a later S-1 exists (Iron Horse). EFFECT and SEC ACTION
     // are unrelated codes.
-    expect(formToExtractorId("SEC STAFF ACTION")).toBe("RW");
+    expectRoutedTo("SEC STAFF ACTION", "RW");
     expect(isFormParsingSupported("SEC STAFF ACTION")).toBe(true);
-    expect(formToExtractorId("EFFECT")).toBeUndefined();
-    expect(formToExtractorId("SEC ACTION")).toBeUndefined();
+    expect(routedIds("EFFECT")).toEqual([]);
+    expect(routedIds("SEC ACTION")).toEqual([]);
   });
 });
 
 describe("extractorIds — Form RW registration-withdrawal dispatch mapping", () => {
   it("maps Form RW to extractor id 'RW' and does not route RW WD", () => {
-    expect(formToExtractorId("RW")).toBe("RW");
-    expect(formToExtractorId("RW WD")).toBeUndefined();
+    expectRoutedTo("RW", "RW");
+    expect(routedIds("RW WD")).toEqual([]);
   });
 });
 
@@ -222,16 +241,16 @@ describe("extractorIds — Form 25/15 deregistration dispatch mapping", () => {
       "20-F",
       "20-F/A",
     ]) {
-      expect(formToExtractorId(form)).toBe("25-15");
+      expectRoutedTo(form, "25-15");
     }
   });
 });
 
 describe("extractorIds — F-1 (foreign issuer) dispatch mapping", () => {
   it("maps F-1, F-1/A, and F-1MEF to the S-1 extractor", () => {
-    expect(formToExtractorId("F-1")).toBe("S-1");
-    expect(formToExtractorId("F-1/A")).toBe("S-1");
-    expect(formToExtractorId("F-1MEF")).toBe("S-1");
+    expectRoutedTo("F-1", "S-1");
+    expectRoutedTo("F-1/A", "S-1");
+    expectRoutedTo("F-1MEF", "S-1");
   });
 });
 
@@ -243,7 +262,7 @@ describe("Form_DRS — DRSLTR catalogued separately, never extracted", () => {
     expect(ALL_FORMS_MAP.get("DRSLTR")).toBe(Form_DRSLTR);
   });
   it("being catalogued does not route DRSLTR to an extractor", () => {
-    expect(formToExtractorId("DRSLTR")).toBeUndefined();
+    expect(routedIds("DRSLTR")).toEqual([]);
     expect(isFormParsingSupported("DRSLTR")).toBe(false);
   });
 });
@@ -254,12 +273,12 @@ describe("formsForExtractorIds", () => {
 
     expect(forms).toContain("D");
     expect(forms).toContain("D/A");
-    expect(forms.every((form) => FORM_TO_EXTRACTOR_ID[form] === "D")).toBe(true);
+    expect(forms.every((form) => routedIds(form).includes("D"))).toBe(true);
   });
 
   it("returns forms for multiple extractor ids", () => {
     const forms = formsForExtractorIds(["CFPORTAL", "C"]);
-    const extractors = new Set(forms.map((form) => FORM_TO_EXTRACTOR_ID[form]));
+    const extractors = new Set(forms.flatMap((form) => routedIds(form)));
 
     expect(extractors).toEqual(new Set(["CFPORTAL", "C"]));
   });

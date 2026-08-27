@@ -13,8 +13,9 @@ import type {
 export const BLANK_CHECK_SIC = 6770;
 
 /**
- * Securities Act registration forms that a blank check IPOs on, all of which
- * route to the same "S-1" extractor (see FORM_TO_EXTRACTOR_ID):
+ * Securities Act registration forms that a blank check IPOs on. The "S-1"
+ * extractor lists every one of them in its form-extractor registration, so the
+ * registry routes them all to it:
  *
  * - `S-1` / `S-1/A` / `S-1MEF` — domestic registration
  * - `F-1` / `F-1/A` / `F-1MEF` — foreign private issuer (many SPACs are Cayman)

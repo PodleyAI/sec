@@ -110,8 +110,9 @@ describe("forms sweep wiring", () => {
   });
 
   it("drains forms in sweep order, not object-key order", async () => {
-    // JS orders integer-like keys first, so `Object.keys(FORM_TO_EXTRACTOR_ID)`
-    // puts the bare "25" fourth — long before the S-1 that mints the spac row
+    // The worklist's default form list comes back in registration order, an
+    // accident of import order rather than a dependency order, and it can put
+    // the bare "25" long before the S-1 that mints the spac row
     // `processDeregistration` is gated on. A first-pass sweep therefore dropped
     // every deregistration as a successful no-op.
     await seed({
