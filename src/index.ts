@@ -177,6 +177,27 @@ export { ExtractorRunRepo } from "./storage/versioning/ExtractorRunRepo";
 export { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "./storage/versioning/ExtractorRunSchema";
 export { ExtractionDeadLetterRepo } from "./storage/dead-letter/ExtractionDeadLetterRepo";
 
+// ── EDGAR HTML parser + section vocabulary ──────────────────────────────────
+// The form-agnostic HTML → Document pass, plus what a consumer needs to work
+// with what it returns: the block list and its `[start, end)` spans back into
+// the filing HTML, the drop report, and the heading vocabulary the parser and
+// the form segmenters share. Pure and synchronous — nothing here reads DI, the
+// database, or a model.
+export {
+  parseEdgarHtml,
+  parseEdgarHtmlWithTrace,
+  type EdgarParseTrace,
+} from "./sec/html/parseEdgarHtml";
+export type { EdgarBlock, SourceSpan } from "./sec/html/types";
+export type { DroppedBlock } from "./sec/html/DePaginator";
+export { subtreeSourceSpan, type SourceSpanIndex } from "./sec/html/sourceSpanIndex";
+export { isHidden, stripNonProse } from "./sec/html/domPrep";
+export {
+  S1_SECTIONS,
+  SECTION_HEADING_PATTERNS,
+  type S1SectionName,
+} from "./sec/html/sectionVocabulary";
+
 // ── Family-tier primitives for downstream resolvers ────────────────────────
 export { FamilyResolver, normalizeFamilyName } from "./resolver/FamilyResolver";
 export {

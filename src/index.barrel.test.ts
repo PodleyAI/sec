@@ -78,3 +78,40 @@ test("exports the person identity tier a downstream role query joins through", (
     expect(sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBeDefined();
   }
 });
+
+test("exports the EDGAR HTML parser surface", () => {
+  for (const name of [
+    "parseEdgarHtml",
+    "parseEdgarHtmlWithTrace",
+    "subtreeSourceSpan",
+    "isHidden",
+    "stripNonProse",
+    "parseNumeric",
+    "S1_SECTIONS",
+    "SECTION_HEADING_PATTERNS",
+  ]) {
+    expect(sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBeDefined();
+  }
+
+  // The types this surface hands back are erased before this file runs, so no
+  // expectation can reach them. They are pinned instead by annotating the real
+  // values below with them: an annotation whose type the barrel stopped
+  // exporting fails `tsc -p tsconfig.test.json` naming that type. The values
+  // are the ones a downstream segmenter actually holds, so the annotations are
+  // load-bearing rather than a restatement of the export list.
+  const trace: sec.EdgarParseTrace = sec.parseEdgarHtmlWithTrace(
+    "<p style='font-weight:700'>Risk Factors</p><p>The offering may not close.</p>",
+    "S-1"
+  );
+  const blocks: readonly sec.EdgarBlock[] = trace.blocks;
+  const dropped: readonly sec.DroppedBlock[] = trace.dropped;
+  const index: sec.SourceSpanIndex = trace.sourceByNodeId;
+  const span: sec.SourceSpan | undefined = sec.subtreeSourceSpan(trace.doc, index);
+  const section: sec.S1SectionName = sec.S1_SECTIONS.RISK_FACTORS;
+
+  expect(blocks.length).toBeGreaterThan(0);
+  expect(Array.isArray(dropped)).toBe(true);
+  expect(span?.end).toBeGreaterThan(0);
+  expect(sec.SECTION_HEADING_PATTERNS[section].length).toBeGreaterThan(0);
+  expect(sec.parseEdgarHtml("<p>x</p>", "S-1").title).toBe("S-1");
+});
