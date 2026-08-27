@@ -8,7 +8,7 @@ import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { parseEdgarHtml } from "../sec/html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "../sec/forms/registration-statements/s1/DocumentTreeSegmenter";
-import { S1_SECTIONS } from "../sec/forms/registration-statements/s1/DocumentSegmenter";
+import { S1_SECTIONS } from "../sec/html/sectionVocabulary";
 import { fileURLToPath } from "node:url";
 import { decode as decodeHtmlEntities } from "html-entities";
 const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it } from "vitest";
-import { S1_SECTIONS, SECTION_HEADING_PATTERNS } from "./DocumentSegmenter";
-import type { S1SectionName } from "./DocumentSegmenter";
+import { S1_SECTIONS, SECTION_HEADING_PATTERNS } from "../../../html/sectionVocabulary";
+import type { S1SectionName } from "../../../html/sectionVocabulary";
 
 /** What the segmenter does to a heading before matching it. */
 function match(heading: string): S1SectionName | null {

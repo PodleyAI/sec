@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { sectionlessResolvableSections } from "./Form_S_1.storage";
 import { offeringSectionNames } from "./s1/offeringSections";
-import { S1_SECTIONS } from "./s1/DocumentSegmenter";
+import { S1_SECTIONS } from "../../html/sectionVocabulary";
 
 /**
  * A Rule 462(b) form (`S-1MEF` / `F-1MEF`) returns before the section sweep, so

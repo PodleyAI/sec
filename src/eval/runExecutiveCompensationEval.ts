@@ -10,7 +10,7 @@ import { SecCliConfigurationError } from "../config/EnvToDI";
 import { SEC_RAW_DATA_FOLDER } from "../config/tokens";
 import { parseEdgarHtml } from "../sec/html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "../sec/forms/registration-statements/s1/DocumentTreeSegmenter";
-import { S1_SECTIONS } from "../sec/forms/registration-statements/s1/DocumentSegmenter";
+import { S1_SECTIONS } from "../sec/html/sectionVocabulary";
 import { hasSummaryCompensationTable } from "../sec/forms/registration-statements/s1/compensationHeuristic";
 import { parseSummaryCompensationTable } from "../sec/forms/registration-statements/s1/parseSummaryCompensationTable";
 import { FILING_REPOSITORY_TOKEN, type Filing } from "../storage/filing/FilingSchema";

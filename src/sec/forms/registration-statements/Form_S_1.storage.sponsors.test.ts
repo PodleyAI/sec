@@ -11,7 +11,7 @@ import { CompanyObservationRepo } from "../../../storage/observation/CompanyObse
 import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { processFormS1 } from "./Form_S_1.storage";
-import { S1_SECTIONS } from "./s1/DocumentSegmenter";
+import { S1_SECTIONS } from "../../html/sectionVocabulary";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import { DETERMINISTIC_MODEL_ID } from "./s1/parseOfferingTables";
 import { parseSpacSponsors } from "./s1/parseSpacSponsors";

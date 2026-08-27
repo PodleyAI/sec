@@ -9,7 +9,7 @@ import { join } from "path";
 import { parseInlineXbrl } from "../../xbrl/parseInlineXbrl";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
-import type { S1SectionName } from "./s1/DocumentSegmenter";
+import type { S1SectionName } from "../../html/sectionVocabulary";
 import { fileURLToPath } from "node:url";
 const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 

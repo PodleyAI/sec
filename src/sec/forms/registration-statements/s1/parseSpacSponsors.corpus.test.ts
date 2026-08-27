@@ -7,7 +7,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { getGoldenFieldRows } from "../../../../eval/goldenS1Labels";
 import { loadS1Corpus, S1_CORPUS_TIMEOUT_MS, type S1CorpusFiling } from "./testing/s1Corpus";
-import { S1_SECTIONS } from "./DocumentSegmenter";
+import { S1_SECTIONS } from "../../../html/sectionVocabulary";
 import { parseSpacSponsors } from "./parseSpacSponsors";
 
 function nameKey(s: string): string {

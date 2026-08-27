@@ -25,7 +25,7 @@ import {
   looksLikePricedIpoProspectusBody,
   parsePricedProspectusCover,
 } from "./pricedProspectusCover";
-import type { S1SectionName } from "./s1/DocumentSegmenter";
+import type { S1SectionName } from "../../html/sectionVocabulary";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import { offeringSectionNames, runOfferingSections } from "./s1/offeringSections";
 import type { FormS1Parsed } from "./s1/parseSubmission";

@@ -5,7 +5,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { S1_SECTIONS, SECTION_HEADING_PATTERNS, type S1SectionName } from "./DocumentSegmenter";
+import {
+  S1_SECTIONS,
+  SECTION_HEADING_PATTERNS,
+  type S1SectionName,
+} from "../../../html/sectionVocabulary";
 
 /** Mirrors the segmenter's own matcher: first target whose pattern spans the line. */
 function match(title: string): S1SectionName | null {

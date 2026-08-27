@@ -10,7 +10,7 @@ import { SecCliConfigurationError } from "../config/EnvToDI";
 import { SEC_RAW_DATA_FOLDER } from "../config/tokens";
 import { parseEdgarHtml } from "../sec/html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "../sec/forms/registration-statements/s1/DocumentTreeSegmenter";
-import { S1_SECTIONS } from "../sec/forms/registration-statements/s1/DocumentSegmenter";
+import { S1_SECTIONS } from "../sec/html/sectionVocabulary";
 import {
   offeringParseText,
   normalizeEntityName,

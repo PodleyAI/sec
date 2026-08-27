@@ -10,7 +10,7 @@ import {
   S1_SECTIONS,
   SECTION_HEADING_PATTERNS,
   type S1SectionName,
-} from "../sec/forms/registration-statements/s1/DocumentSegmenter";
+} from "../sec/html/sectionVocabulary";
 import type { SegmentationResult } from "../sec/forms/registration-statements/s1/DocumentTreeSegmenter";
 import type { SourceSpan } from "../sec/html/types";
 import { alphanumeric } from "./coverage";

@@ -3,7 +3,7 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { SECTION_HEADING_PATTERNS } from "../forms/registration-statements/s1/DocumentSegmenter";
+import { SECTION_HEADING_PATTERNS } from "./sectionVocabulary";
 import type { EdgarBlock, ResolvedStyle } from "./types";
 
 /**

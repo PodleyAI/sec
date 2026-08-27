@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parseEdgarHtml } from "../../../html/parseEdgarHtml";
 import { hasSummaryCompensationTable } from "./compensationHeuristic";
-import { S1_SECTIONS } from "./DocumentSegmenter";
+import { S1_SECTIONS } from "../../../html/sectionVocabulary";
 import { DocumentTreeSegmenter } from "./DocumentTreeSegmenter";
 
 const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");

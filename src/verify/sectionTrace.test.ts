@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { NodeKind, traverseDepthFirst } from "workglow";
-import { S1_SECTIONS } from "../sec/forms/registration-statements/s1/DocumentSegmenter";
+import { S1_SECTIONS } from "../sec/html/sectionVocabulary";
 import { subtreeSourceSpan } from "../sec/html/sourceSpanIndex";
 import { DocumentTreeSegmenter } from "../sec/forms/registration-statements/s1/DocumentTreeSegmenter";
 import { parseEdgarHtmlWithTrace } from "../sec/html/parseEdgarHtml";

@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { S1_SECTIONS, SECTION_HEADING_PATTERNS } from "./DocumentSegmenter";
+import { S1_SECTIONS, SECTION_HEADING_PATTERNS } from "../../../html/sectionVocabulary";
 import { lockupParseText, offeringSectionNames } from "./offeringSections";
 import { LOCKUP_ANCHORS, LOCKUP_HOLDER_CLASSES, LockupOutputSchema } from "./lockupSchema";
 import { lockupInstructions } from "./sectionExtractors";

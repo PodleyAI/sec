@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { parseEdgarHtml } from "../../../html/parseEdgarHtml";
-import { S1_SECTIONS } from "./DocumentSegmenter";
+import { S1_SECTIONS } from "../../../html/sectionVocabulary";
 import { DocumentTreeSegmenter } from "./DocumentTreeSegmenter";
 
 describe("DocumentTreeSegmenter", () => {

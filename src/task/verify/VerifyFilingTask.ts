@@ -7,7 +7,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Type } from "typebox";
 import { Task, type IExecuteContext } from "workglow";
-import { S1_SECTIONS } from "../../sec/forms/registration-statements/s1/DocumentSegmenter";
+import { S1_SECTIONS } from "../../sec/html/sectionVocabulary";
 import { DocumentTreeSegmenter } from "../../sec/forms/registration-statements/s1/DocumentTreeSegmenter";
 import { parseEdgarHtmlWithTrace } from "../../sec/html/parseEdgarHtml";
 import { buildChunkTrace } from "../../verify/chunkTrace";

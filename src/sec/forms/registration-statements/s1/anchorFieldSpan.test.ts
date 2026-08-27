@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { anchorFieldSpan, numericSurfaceForms, surfaceForms } from "./anchorFieldSpan";
 import { DocumentTreeSegmenter } from "./DocumentTreeSegmenter";
-import { S1_SECTIONS } from "./DocumentSegmenter";
+import { S1_SECTIONS } from "../../../html/sectionVocabulary";
 import { parseEdgarHtml } from "../../../html/parseEdgarHtml";
 
 describe("numericSurfaceForms", () => {

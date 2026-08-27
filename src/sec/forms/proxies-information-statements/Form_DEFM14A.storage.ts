@@ -27,7 +27,7 @@ import type { ProxyEventVerdict } from "../../../storage/spac/SpacReportWriter";
 import { SpacMergerExtractionRepo } from "../../../storage/spac/SpacMergerExtractionRepo";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "../registration-statements/s1/DocumentTreeSegmenter";
-import { S1_SECTIONS, type S1SectionName } from "../registration-statements/s1/DocumentSegmenter";
+import { S1_SECTIONS, type S1SectionName } from "../../html/sectionVocabulary";
 import { makeRunSection } from "../registration-statements/s1/sectionRunner";
 import { boundSourceSpan, classifySpan } from "../registration-statements/s1/verifySourceSpan";
 import { extractMergerDeal } from "../registration-statements/s1/sectionExtractors";

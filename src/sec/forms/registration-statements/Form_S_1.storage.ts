@@ -39,7 +39,7 @@ import { assertWithinDeclaredBounds } from "../../../util/declaredBounds";
 import { isOverlongPersonName } from "../../../util/personNameBounds";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import type { FormS1Parsed } from "./Form_S_1";
-import { S1_SECTIONS, type S1SectionName } from "./s1/DocumentSegmenter";
+import { S1_SECTIONS, type S1SectionName } from "../../html/sectionVocabulary";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
 import type { ExecutiveCompensationRow } from "./s1/executiveCompensationSchema";

@@ -18,7 +18,7 @@ import { SpacLockupTermsRepo } from "../../../../storage/offering/SpacLockupTerm
 import { IssuerTickerRepo } from "../../../../storage/offering/IssuerTickerRepo";
 import type { ObservationProvenanceRepo } from "../../../../storage/provenance/ObservationProvenanceRepo";
 import { UseOfProceedsRepo } from "../../../../storage/use-of-proceeds/UseOfProceedsRepo";
-import { S1_SECTIONS, type S1SectionName } from "./DocumentSegmenter";
+import { S1_SECTIONS, type S1SectionName } from "../../../html/sectionVocabulary";
 import type { OfferingTermsRow, OfferingTickerRow } from "./offeringTermsSchema";
 import {
   extractLockups,
