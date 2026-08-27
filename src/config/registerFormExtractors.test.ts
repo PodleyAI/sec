@@ -79,10 +79,27 @@ test("the full-submission form sets match the extractors that declare it", () =>
   // lay out the fetch cache. Adding a form to one side only makes the cached
   // file and the requested one disagree — a permanent cache miss and a network
   // fetch on every filing of that form, with nothing else failing.
+  //
+  // 8-K is named here rather than folded into either set. Both downloaders
+  // already lay its `.txt` down by branching on the form symbol itself —
+  // `BootstrapAccessionDocsTask.writeFiling`'s `isEightK`, and
+  // `spacDocFetchKind` — and neither set describes an 8-K.
   const declared = listFormExtractorKeys()
     .map((key) => getFormExtractor(key))
     .filter((ext) => ext?.needsFullSubmission === true)
     .flatMap((ext) => [...(ext?.forms ?? [])]);
-  const cached = [...REGISTRATION_PROSPECTUS_FORMS, ...REGA_FULL_SUBMISSION_FORMS];
+  const cached = [...REGISTRATION_PROSPECTUS_FORMS, ...REGA_FULL_SUBMISSION_FORMS, "8-K", "8-K/A"];
   expect([...new Set(declared)].sort()).toEqual([...new Set(cached)].sort());
+});
+
+test("8-K is fetched whole for every filing, read whole only for a known SPAC's trigger", () => {
+  // The two axes answer different questions about the same 8-K: which file to
+  // download (always the whole submission, so the exhibits are cached with it)
+  // and what the extractor is handed to read (still only a known SPAC's
+  // redemption / letter-of-intent filing, which is what the narrative passes
+  // are calibrated against). Collapsing them back into one flag widens a model
+  // input to buy a cache change.
+  const ext = getFormExtractor("8-K");
+  expect(ext?.needsFullSubmission).toBe(true);
+  expect(typeof ext?.readsFullSubmission).toBe("function");
 });

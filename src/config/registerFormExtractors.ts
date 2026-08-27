@@ -125,6 +125,7 @@ export function registerSecFormExtractors(): void {
     id: "1-K",
     forms: ["1-K", "1-K/A"],
     needsFullSubmission: true,
+    readsFullSubmission: true,
     store: async ({ parsed, form, ...args }) => {
       await processForm1K({ ...args, form, form1K: parsed });
     },
@@ -191,6 +192,7 @@ export function registerSecFormExtractors(): void {
     id: "S-1",
     forms: ["S-1", "S-1/A", "S-1MEF", "DRS", "DRS/A", "F-1", "F-1/A", "F-1MEF"],
     needsFullSubmission: true,
+    readsFullSubmission: true,
     store: async ({ parsed, form, ...args }) => {
       await processFormS1({ ...args, form, formS1: parsed });
     },
@@ -200,6 +202,7 @@ export function registerSecFormExtractors(): void {
     id: "424",
     forms: ["424A", "424B1", "424B2", "424B3", "424B4", "424B5", "424B7"],
     needsFullSubmission: true,
+    readsFullSubmission: true,
     store: async ({ parsed, form, ...args }) => {
       await processForm424({ ...args, form, form424: parsed });
     },
@@ -208,7 +211,13 @@ export function registerSecFormExtractors(): void {
   registerFormExtractor<Form8K>({
     id: "8-K",
     forms: ["8-K", "8-K/A"],
-    needsFullSubmission: async ({ cik, items }) => {
+    // Every 8-K is fetched whole, so its exhibits are in the cached body and
+    // searchable without a second request. What reaches the extractor stays
+    // narrow: those exhibits are read only for a known SPAC carrying a
+    // redemption or letter-of-intent item, which is the input the redemption
+    // and LOI passes are calibrated against.
+    needsFullSubmission: true,
+    readsFullSubmission: async ({ cik, items }) => {
       if (cik === undefined) return false;
       if (!hasRedemptionTriggerItem(items) && !hasLoiTriggerItem(items)) return false;
       return (await new SpacRepo().getSpac(cik)) !== undefined;
@@ -226,7 +235,7 @@ export function registerSecFormExtractors(): void {
         form8K: parsed,
         extractor_id: args.extractor_id,
         extractor_version: args.extractor_version,
-        fullSubmissionText: args.isFullSubmission ? args.text : undefined,
+        fullSubmissionText: args.fullSubmissionText,
         context,
       });
     },

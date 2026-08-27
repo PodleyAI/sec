@@ -14,6 +14,7 @@ import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import {
   clearFormExtractorsForTesting,
   registerFormExtractor,
+  type FormExtractorStoreArgs,
 } from "../../sec/forms/formExtractors";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
@@ -103,5 +104,50 @@ describe("ProcessAccessionDocFormTask wires a registered extractor's own `parse`
     // the driver's own `Form_D.parse` output the sibling "D" extractor uses.
     expect(parseCalls).toEqual([{ form: "D", text: GOOD_FORM_D }]);
     expect(storeCalls).toEqual([{ marker: `own-parse:${GOOD_FORM_D.length}` }]);
+  });
+
+  it("hands the full submission only to the extractor that declared it reads one", async () => {
+    const seen = new Map<string, { isFullSubmission: boolean; text: string | undefined }>();
+    const record = (section: string) => async (args: FormExtractorStoreArgs) => {
+      seen.set(section, {
+        isFullSubmission: args.isFullSubmission,
+        text: args.fullSubmissionText,
+      });
+    };
+
+    // One extractor escalates the fetch for the whole filing AND reads the
+    // wider body; its sibling on the same form escalated nothing and declared
+    // nothing, so it must still be handed no full submission — a fetch is one
+    // decision for the filing, an extractor's input is its own.
+    registerFormExtractor<unknown>({
+      id: "D",
+      section: "reads-full",
+      forms: ["D", "D/A"],
+      needsFullSubmission: true,
+      readsFullSubmission: true,
+      store: record("reads-full"),
+    });
+    registerFormExtractor<unknown>({
+      id: "D",
+      section: "reads-primary",
+      forms: ["D", "D/A"],
+      store: record("reads-primary"),
+    });
+
+    await seedFiling();
+
+    const result = await new FixedFetchTask().run({ accessionNumber: ACCESSION });
+    expect((result as { success: boolean }).success).toBe(true);
+
+    expect(seen.get("reads-full")).toEqual({
+      isFullSubmission: true,
+      text: GOOD_FORM_D,
+    });
+    // `isFullSubmission` stays a fact about the filing's body — the sibling's
+    // body IS the escalated one — while `fullSubmissionText` is per extractor.
+    expect(seen.get("reads-primary")).toEqual({
+      isFullSubmission: true,
+      text: undefined,
+    });
   });
 });

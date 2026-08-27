@@ -7,6 +7,7 @@ import { afterEach, expect, test } from "vitest";
 import {
   clearFormExtractorsForTesting,
   extractorKey,
+  extractorReadsFullSubmission,
   extractorsForForm,
   formNeedsDocument,
   formNeedsFullSubmission,
@@ -14,6 +15,7 @@ import {
   getFormExtractor,
   listFormExtractorKeys,
   registerFormExtractor,
+  type FormExtractor,
 } from "./formExtractors";
 
 afterEach(() => clearFormExtractorsForTesting());
@@ -117,6 +119,38 @@ test("a predicate decides per filing, and short-circuits behind a static true", 
   asked = 0;
   expect(await formNeedsFullSubmission({ form: "8-K", cik: 1, items: "2.02" })).toBe(true);
   expect(asked).toBe(0);
+});
+
+test("readsFullSubmission answers for one extractor and is never unioned", async () => {
+  const probe = { form: "8-K", cik: 1, items: "5.07" };
+  const reader: FormExtractor = {
+    id: "reader",
+    forms: ["8-K"],
+    readsFullSubmission: true,
+    store: noopStore,
+  };
+  const quiet: FormExtractor = { id: "quiet", forms: ["8-K"], store: noopStore };
+  const perFiling: FormExtractor = {
+    id: "per-filing",
+    forms: ["8-K"],
+    readsFullSubmission: async (p) => p.items === "5.07",
+    store: noopStore,
+  };
+  registerFormExtractor(reader);
+  registerFormExtractor(quiet);
+  registerFormExtractor(perFiling);
+
+  // All three are registered for the same form. A sibling that reads the whole
+  // submission changes nothing for the one that did not declare it — the
+  // opposite of `formNeedsFullSubmission`, which is one answer for the filing.
+  expect(await extractorReadsFullSubmission(reader, probe)).toBe(true);
+  expect(await extractorReadsFullSubmission(quiet, probe)).toBe(false);
+  expect(await extractorReadsFullSubmission(perFiling, probe)).toBe(true);
+  expect(await extractorReadsFullSubmission(perFiling, { ...probe, items: "2.02" })).toBe(false);
+
+  // And declaring what an extractor reads escalates no fetch: nothing here
+  // declared `needsFullSubmission`.
+  expect(await formNeedsFullSubmission(probe)).toBe(false);
 });
 
 test("a form needs its document unless every extractor opts out", () => {

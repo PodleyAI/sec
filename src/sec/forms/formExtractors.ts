@@ -32,6 +32,14 @@ export interface FormExtractorStoreArgs {
   /** Whether `text` is the full submission rather than the primary document. */
   readonly isFullSubmission: boolean;
   /**
+   * The whole submission `.txt`, present only when THIS extractor declared it
+   * reads one — see {@link FormExtractorCommon.readsFullSubmission}. Undefined
+   * otherwise, a filing whose body was fetched whole for a SIBLING extractor
+   * included: a wider fetch is a caching decision and must not widen what an
+   * extractor is handed to read.
+   */
+  readonly fullSubmissionText: string | undefined;
+  /**
    * The running task's context, threaded so a store step can report progress or
    * prefetch a resource. Undefined when a caller has none (tests, backfills).
    */
@@ -58,17 +66,36 @@ interface FormExtractorCommon<TParsed> {
   /** Every form symbol this handles, amendment variants included. */
   readonly forms: readonly string[];
   /**
-   * Whether the body must be the full submission `.txt` rather than the primary
-   * document. Taken as a union across a form's extractors: one extractor needing
-   * the sibling `<DOCUMENT>` blocks escalates the fetch for all of them, and the
-   * fetch is cached, so the others are unaffected.
+   * WHICH FILE IS FETCHED: the full submission `.txt` rather than the primary
+   * document. One file is fetched per filing, so this is taken as a union
+   * across the form's extractors — one extractor needing the sibling
+   * `<DOCUMENT>` blocks escalates the fetch for all of them, and the fetch is
+   * cached, so the others read the wider file for free.
    *
-   * A predicate rather than a flag where the answer depends on the filing: an
-   * 8-K is fetched whole only when it carries a redemption or letter-of-intent
-   * item AND its filer is already a known SPAC, which is a storage lookup, not
-   * something a form symbol can answer.
+   * A predicate rather than a flag where which file to fetch depends on the
+   * filing rather than on its form symbol alone.
+   *
+   * Says nothing about what any extractor is then handed — that is
+   * {@link readsFullSubmission}.
    */
   readonly needsFullSubmission?: boolean | ((probe: FullSubmissionProbe) => Promise<boolean>);
+  /**
+   * WHAT THIS EXTRACTOR SEES: whether its `store` receives the whole
+   * submission as {@link FormExtractorStoreArgs.fullSubmissionText}.
+   *
+   * Deliberately NOT unioned across a form's extractors. Two extractors over
+   * one filing may legitimately read different things, and widening what one
+   * of them reads is a change in its answers — an 8-K's narrative passes read
+   * the EX-99 exhibits only for a known SPAC carrying a redemption or
+   * letter-of-intent item, which is a storage lookup, not something a form
+   * symbol can answer. Widening a fetch costs a download; widening this
+   * changes what is extracted.
+   *
+   * Satisfied only from a body that was actually fetched whole, so declaring
+   * it without {@link needsFullSubmission} also being true for the form hands
+   * the extractor nothing.
+   */
+  readonly readsFullSubmission?: boolean | ((probe: FullSubmissionProbe) => Promise<boolean>);
   /**
    * Parses this extractor's own reading of the fetched document, in place of
    * the form's shared parse (the registered `ALL_FORMS_MAP` class). Omitted
@@ -235,8 +262,9 @@ export function formsForExtractorKeys(keys: readonly string[]): string[] {
 }
 
 /**
- * Whether any extractor registered for the filing's form wants the whole
- * submission. Async because an extractor may decide per filing.
+ * Whether the filing's body is fetched as the whole submission `.txt`: the
+ * union of {@link FormExtractorCommon.needsFullSubmission} across the form's
+ * extractors. Async because an extractor may decide per filing.
  *
  * Static flags are checked before any predicate runs, so an extractor that
  * always wants the whole submission spares every other extractor's lookup —
@@ -252,6 +280,24 @@ export async function formNeedsFullSubmission(probe: FullSubmissionProbe): Promi
     if (typeof rule === "function" && (await rule(probe))) return true;
   }
   return false;
+}
+
+/**
+ * Whether ONE extractor's `store` is handed the whole submission text for this
+ * filing.
+ *
+ * Per extractor and never unioned, which is the whole difference from
+ * {@link formNeedsFullSubmission}: that settles one fetch for the filing, this
+ * settles one extractor's input.
+ */
+export async function extractorReadsFullSubmission(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  extractor: FormExtractor<any>,
+  probe: FullSubmissionProbe
+): Promise<boolean> {
+  const rule = extractor.readsFullSubmission;
+  if (typeof rule === "function") return await rule(probe);
+  return rule === true;
 }
 
 /**

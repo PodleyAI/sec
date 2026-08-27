@@ -152,6 +152,7 @@ export {
 } from "./resolver/resolverExtensions";
 export {
   extractorKey,
+  extractorReadsFullSubmission,
   extractorsForForm,
   formNeedsDocument,
   formNeedsFullSubmission,

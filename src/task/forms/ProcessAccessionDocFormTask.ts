@@ -24,6 +24,7 @@ import {
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
 import {
+  extractorReadsFullSubmission,
   extractorsForForm,
   formNeedsDocument,
   formNeedsFullSubmission,
@@ -470,6 +471,16 @@ export class ProcessAccessionDocFormTask extends Task<
           : extractor.parse
             ? await extractor.parse(form!, body)
             : parsed;
+        // Which file was fetched is one decision for the filing; what THIS
+        // extractor is handed to read is its own, and is asked per extractor.
+        // A sibling escalating the fetch buys this one a wider cached file,
+        // never a wider input — an extractor sees the whole submission only
+        // where it declared that it reads one, and only where that whole
+        // submission is what was actually fetched.
+        const readsFullSubmission =
+          wantsDocument &&
+          isFullSubmission &&
+          (await extractorReadsFullSubmission(extractor, { form: form!, cik, items }));
         await extractor.store({
           cik: cik!,
           file_number: file_number ?? "",
@@ -483,6 +494,7 @@ export class ProcessAccessionDocFormTask extends Task<
           extractor_version: slot.semver,
           text: wantsDocument ? body : "",
           isFullSubmission,
+          fullSubmissionText: readsFullSubmission ? body : undefined,
           // Threaded to the AI form processors so a local model's download
           // renders its progress in this task's CLI UI (via `prefetchModel`).
           // Non-AI processors ignore it.
