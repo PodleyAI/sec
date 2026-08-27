@@ -252,6 +252,73 @@ export function extractorsForForm(form: string): readonly FormExtractor<any>[] {
   return sorted;
 }
 
+/**
+ * Every distinct extractor id registered for `form`, in the order
+ * {@link extractorsForForm} runs them. Empty for a form nothing handles, so a
+ * caller reads a length rather than distinguishing an absent answer from an
+ * empty one.
+ *
+ * IDS, NOT REGISTRY KEYS. The registry is keyed `(id, section)`, so one
+ * extractor split into sections holds several keys — and a key carries a
+ * section the caller never asked about. Every id here appears once however many
+ * sections it registered under; a caller that wants the sections asks
+ * {@link extractorsForForm}.
+ */
+export function extractorIdsForForm(form: string): readonly string[] {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const ext of extractorsForForm(form)) {
+    if (seen.has(ext.id)) continue;
+    seen.add(ext.id);
+    ids.push(ext.id);
+  }
+  return ids;
+}
+
+/** Whether any extractor is registered for `form`. */
+export function formHasExtractor(form: string): boolean {
+  return extractorsForForm(form).length > 0;
+}
+
+/**
+ * Whether the extractor `id` handles `form` — membership, not equality with
+ * whichever extractor happens to be first. A form may carry several, and the
+ * one asked about is rarely the one at the front.
+ */
+export function formHandledByExtractor(form: string, id: string): boolean {
+  return extractorsForForm(form).some((ext) => ext.id === id);
+}
+
+/**
+ * Every distinct extractor id in the registry, deduped across sections — the
+ * ids {@link extractorIdsForForm} answers with, not the keys
+ * {@link listFormExtractorKeys} answers with.
+ */
+export function allRegisteredExtractorIds(): readonly string[] {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const ext of REGISTRY.values()) {
+    if (seen.has(ext.id)) continue;
+    seen.add(ext.id);
+    ids.push(ext.id);
+  }
+  return ids;
+}
+
+/** Every distinct form symbol any registered extractor handles. */
+export function allRegisteredForms(): readonly string[] {
+  const seen = new Set<string>();
+  const forms: string[] = [];
+  for (const ext of REGISTRY.values()) {
+    for (const form of ext.forms) {
+      if (seen.has(form)) continue;
+      seen.add(form);
+      forms.push(form);
+    }
+  }
+  return forms;
+}
+
 /** The de-duplicated union of every form the given extractor keys handle. */
 export function formsForExtractorKeys(keys: readonly string[]): string[] {
   const out = new Set<string>();
