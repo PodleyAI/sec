@@ -698,18 +698,25 @@ const generationNodes = new WeakMap<IExecuteContext, StructuredGenerationTask>()
 const extractionUsageByContext = new WeakMap<IExecuteContext, Usage>();
 
 /**
- * Tokens the most recent {@link runStructured} billed, for the call trace.
+ * Where one {@link runStructured} call reports what it billed, for the trace.
  *
  * Separate from {@link extractionUsageByContext}, which accumulates a whole
  * section's spend across chunks and retries: a trace record prices ONE call,
- * and reading the accumulator would attribute every earlier attempt's tokens to
- * the last one. Overwritten per call and only ever read immediately after.
+ * and reading the accumulator would attribute every earlier attempt's tokens
+ * to the last one.
+ *
+ * Owned by the caller and passed in, NOT a module-level "last call" slot: the
+ * forms sweep fans out over filings concurrently, so two extractions are in
+ * flight at once and a shared slot would stamp one filing's record with the
+ * other's tokens.
  */
-let lastCallUsageValue: Usage | undefined;
+interface CallUsageSink {
+  usage: Usage | undefined;
+}
 
 /** Usage billed by the call that just returned, for a trace record. */
-function lastCallUsage(): Record<string, unknown> | undefined {
-  return lastCallUsageValue as Record<string, unknown> | undefined;
+function sinkUsage(sink: CallUsageSink): Record<string, unknown> | undefined {
+  return sink.usage as Record<string, unknown> | undefined;
 }
 
 /**
@@ -717,7 +724,10 @@ function lastCallUsage(): Record<string, unknown> | undefined {
  * different fixes: a rejected schema is the extractor's problem, a throttle is
  * the provider's, and a nonce mismatch is a possible injection.
  */
-function callFailure(e: unknown): {
+function callFailure(
+  e: unknown,
+  sink: CallUsageSink
+): {
   readonly outcome: CallOutcome;
   readonly validationAttempts: readonly CallValidationAttempt[] | undefined;
   readonly errorName: string | undefined;
@@ -734,7 +744,7 @@ function callFailure(e: unknown): {
       errorMessage,
       // Every attempt was a real request, so the error's own usage is the
       // honest price of this call — the successful-result path never sees it.
-      usage: (e.usage ?? lastCallUsageValue) as Record<string, unknown> | undefined,
+      usage: (e.usage ?? sink.usage) as Record<string, unknown> | undefined,
     };
   }
   const outcome: CallOutcome = isRateLimitError(e)
@@ -747,7 +757,7 @@ function callFailure(e: unknown): {
     validationAttempts: undefined,
     errorName,
     errorMessage,
-    usage: lastCallUsage(),
+    usage: sinkUsage(sink),
   };
 }
 /** Standalone calls (no caller context) stash here for the same take API. */
@@ -810,7 +820,8 @@ async function runStructured(
   prompt: string,
   outputSchema: object,
   callerContext?: IExecuteContext,
-  maxTokens: number = MAX_TOKENS
+  maxTokens: number = MAX_TOKENS,
+  usageSink?: CallUsageSink
 ): Promise<Record<string, unknown>> {
   // The running task's context, when the form pipeline threads one down, so the
   // generation task's `Preparing`/`Generating` phase events (and any download)
@@ -877,7 +888,7 @@ async function runStructured(
     // Capture before clearing outputs: OpenRouter (and similar) put the charged
     // credits on `runUsage.extra.cost`, which the eval harness reads via
     // {@link takeExtractionUsage}. A failed attempt still spent tokens.
-    lastCallUsageValue = task.runUsage;
+    if (usageSink !== undefined) usageSink.usage = task.runUsage;
     recordExtractionUsage(callerContext, task.runUsage);
     // `run` leaves this section's prompt in `runInputData` (and its result in
     // `runOutputData`). Clearing both keeps the idle node between sections empty
@@ -967,6 +978,7 @@ async function runGuardedExtraction(
       instructions,
       sectionText,
     };
+    const usageSink: CallUsageSink = { usage: undefined };
     try {
       const obj = await runStructured(
         label,
@@ -974,7 +986,8 @@ async function runGuardedExtraction(
         prompt,
         nonce === undefined ? stripNonceSeen(outputSchema) : outputSchema,
         context,
-        maxTokens
+        maxTokens,
+        usageSink
       );
       if (nonce !== undefined) verifyNonce(obj, nonce);
       if (tracing) {
@@ -983,13 +996,17 @@ async function runGuardedExtraction(
           durationMs: Date.now() - startedAt,
           outcome: "ok",
           object: obj,
-          usage: lastCallUsage(),
+          usage: sinkUsage(usageSink),
         });
       }
       return obj;
     } catch (e) {
       if (tracing) {
-        recordCall({ ...traceBase, durationMs: Date.now() - startedAt, ...callFailure(e) });
+        recordCall({
+          ...traceBase,
+          durationMs: Date.now() - startedAt,
+          ...callFailure(e, usageSink),
+        });
       }
       // A nonce mismatch is retried like any other failure, and deliberately so.
       // Retrying cannot weaken the check: each attempt derives its own nonce

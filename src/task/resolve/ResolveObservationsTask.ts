@@ -47,11 +47,12 @@ export type ResolveObservationsTaskInput = {
    * keyed by the PERSON resolver version and a company pass writes nothing
    * that feeds it. Off by default even there because
    * {@link rebuildPersonRoles} purges the version's rows before re-deriving
-   * them, and it can only re-close a tenure whose filing recorded a complete
-   * roster in `role_roster_completeness`: over a corpus ingested before those
-   * rows were written, every departure the incremental path had recorded
-   * re-opens. The junction projection carries no such asymmetry and always
-   * runs.
+   * them, and both of its inputs are columns older data does not carry: an
+   * observation with no `role_scope` mints no tenure at all, and a filing with
+   * no `role_roster_completeness` row re-opens every departure it had closed.
+   * Over a corpus ingested before either column existed, the purge is a loss
+   * the rebuild cannot make good. The junction projection carries no such
+   * asymmetry and always runs.
    */
   readonly rebuildRoles?: boolean;
 };
@@ -128,8 +129,10 @@ async function rebuildProjections(input: ResolveObservationsTaskInput): Promise<
         // than by one front-end, so every caller sees what it is about to spend.
         console.warn(
           `rebuilding person_role at v${version}: every tenure at this version is deleted and ` +
-            `re-derived from the observations. A tenure closed by a filing with no ` +
-            `role_roster_completeness row re-opens — its end_date is not restored.`
+            `re-derived from the observations. An observation with no person_observation.role_scope ` +
+            `mints NO tenure, and a tenure closed by a filing with no role_roster_completeness row ` +
+            `re-opens. Filings extracted before those columns existed carry neither — re-extract ` +
+            `them first, or this deletes tenures it cannot re-derive.`
         );
         reports.push(
           await runRebuild("person-roles", async () => (await rebuildPersonRoles(version)).rows)

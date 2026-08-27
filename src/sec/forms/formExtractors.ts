@@ -160,8 +160,22 @@ function keyOf(ext: FormExtractor<any>): string {
   return extractorKey(ext.id, ext.section);
 }
 
+/**
+ * Memoized {@link extractorsForForm} answers, cleared by any registration and
+ * by {@link clearFormExtractorsForTesting}.
+ *
+ * The answer is a scan of the whole registry plus a topological sort, and the
+ * dispatch path asks it three times per filing (which body to fetch, whether to
+ * fetch at all, and who to store through) on top of once per form in the
+ * worklist. Nothing else changes it between those calls, so recomputing it is
+ * pure repeated work on every filing of every sweep.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const formCache = new Map<string, readonly FormExtractor<any>[]>();
+
 export function registerFormExtractor<TParsed>(ext: FormExtractor<TParsed>): void {
   REGISTRY.set(keyOf(ext), ext);
+  formCache.clear();
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -180,6 +194,8 @@ export function listFormExtractorKeys(): readonly string[] {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function extractorsForForm(form: string): readonly FormExtractor<any>[] {
+  const cached = formCache.get(form);
+  if (cached !== undefined) return cached;
   const members = [...REGISTRY.values()].filter((e) => e.forms.includes(form));
   const byKey = new Map(members.map((e) => [keyOf(e), e]));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -205,6 +221,7 @@ export function extractorsForForm(form: string): readonly FormExtractor<any>[] {
   };
 
   for (const ext of members) visit(ext);
+  formCache.set(form, sorted);
   return sorted;
 }
 
@@ -251,5 +268,6 @@ export function formNeedsDocument(form: string): boolean {
 /** Test hook: drop all registrations so a test starts from an empty registry. */
 export function clearFormExtractorsForTesting(): void {
   REGISTRY.clear();
+  formCache.clear();
   generation++;
 }

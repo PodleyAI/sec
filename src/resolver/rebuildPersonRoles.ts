@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
 import { CanonicalPersonAliasRepo } from "../storage/canonical/CanonicalPersonAliasRepo";
 import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
 import {
@@ -13,19 +12,12 @@ import {
   personRoleAssertionKey,
 } from "../storage/canonical/PersonRoleRepo";
 import { RoleRosterCompletenessRepo } from "../storage/canonical/RoleRosterCompletenessRepo";
-import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
 import type { PersonObservation } from "../storage/observation/PersonObservationSchema";
 import { canonicalRoleTitles } from "./EntityObserver";
+import { loadFilingDates } from "./rebuildFilingDates";
 import { isCompleteRosterRoleScope } from "./roleScopes";
-
-/**
- * Accession numbers per `in`-list query — see `MAX_IDS_PER_QUERY` in
- * `PersonObservationTitleRepo` for the rationale (SQLite binds one bind
- * parameter per value).
- */
-const MAX_ACCESSIONS_PER_QUERY = 900;
 
 /** One filing's assertion of one title, as the tenure walk consumes it. */
 interface RoleAssertion {
@@ -89,22 +81,6 @@ function byFilingOrder(
     : a.accession_number > b.accession_number
       ? 1
       : 0;
-}
-
-/** `accession_number -> filing_date`, chunked for the storage layer's `in`-list bind limit. */
-async function loadFilingDates(accession_numbers: readonly string[]): Promise<Map<string, string>> {
-  const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
-  const distinct = [...new Set(accession_numbers)];
-  const byAccession = new Map<string, string>();
-  for (let start = 0; start < distinct.length; start += MAX_ACCESSIONS_PER_QUERY) {
-    const chunk = distinct.slice(start, start + MAX_ACCESSIONS_PER_QUERY);
-    const filings =
-      (await filingRepo.query({ accession_number: { value: chunk, operator: "in" } })) ?? [];
-    for (const filing of filings) {
-      byAccession.set(filing.accession_number, filing.filing_date);
-    }
-  }
-  return byAccession;
 }
 
 /**
@@ -305,19 +281,26 @@ function walkTenures(
  *   this up, and is deliberately not taken here — the raise surfaces the
  *   corruption instead of hiding it.
  *
- * Roster completeness is read, not derived. A filing may end a tenure it does
- * not assert only if `role_roster_completeness` records its extraction as
- * having read the whole roster, because a person the extractor declined leaves
- * no observation and so no trace of having been named. **Existing data carries
- * no such rows**, and a rebuild over a corpus ingested before they were written
- * does not merely decline to close: `deleteForResolverVersion` runs
- * unconditionally before the re-insert, so it DELETES every `end_date` the
- * incremental path had already recorded and re-opens every departure that
- * corpus knew about. Backfill the completeness rows — re-extract the filings —
- * before running it against such data. The direction of the remaining error is
- * safe — a missing row under-reports departures rather than inventing them, and
- * it heals as filings are re-extracted — but until they are, a rebuild destroys
- * closure history rather than declining to add to it.
+ * **Both of its inputs are columns older data does not carry, and the purge is
+ * unconditional — so a rebuild over a corpus ingested before them destroys
+ * tenures rather than declining to add to them.** Re-extract the filings first.
+ *
+ * - `person_observation.role_scope` is what says which list a person was read
+ *   from, and the three-part gate above skips every observation without one.
+ *   Rows written before that column existed are all null, so a rebuild over
+ *   them derives NO tenures at all — and `deleteForResolverVersion` has already
+ *   run, so the version's `person_role` rows are simply gone.
+ * - `role_roster_completeness` is what lets a filing end a tenure it does not
+ *   assert; roster completeness is read, not derived, because a person the
+ *   extractor declined leaves no observation and so no trace of having been
+ *   named. Without those rows a rebuild closes nothing, deleting every
+ *   `end_date` the incremental path recorded and re-opening every departure the
+ *   corpus knew about.
+ *
+ * The direction of the second error is safe on its own — a missing row
+ * under-reports departures rather than inventing them, and it heals as filings
+ * are re-extracted. The first is not: it is a whole-table loss, and nothing
+ * else can reconstruct those tenures.
  */
 export async function rebuildPersonRoles(
   resolverVersion: string
@@ -465,9 +448,15 @@ export async function rebuildPersonRoles(
 }
 
 /**
- * `canonical_person_id -> merge target`, one lookup per distinct id. Alias
- * awareness is best-effort exactly as it is in `PersonRoleRepo`: a bare
- * registry without the alias token resolves every id to itself.
+ * `canonical_person_id -> merge target`. Alias awareness is best-effort exactly
+ * as it is in `PersonRoleRepo`: a bare registry without the alias token
+ * resolves every id to itself.
+ *
+ * The alias table is read ONCE rather than a `resolve()` per id: a whole-version
+ * rebuild holds every canonical person that carries a tenure, so a per-id
+ * lookup is one serial round trip per person over the whole corpus. `add()`
+ * enforces the single-hop invariant, so one pass over the table is the same
+ * answer `resolve()` gives.
  */
 async function resolveAliasTargets(
   canonical_person_ids: readonly string[]
@@ -478,9 +467,12 @@ async function resolveAliasTargets(
   } catch {
     return new Map();
   }
+  const byAlias = new Map(
+    (await aliasRepo.list()).map((a) => [a.alias_canonical_id, a.target_canonical_id])
+  );
   const targets = new Map<string, string>();
   for (const id of canonical_person_ids) {
-    targets.set(id, await aliasRepo.resolve(id));
+    targets.set(id, byAlias.get(id) ?? id);
   }
   return targets;
 }

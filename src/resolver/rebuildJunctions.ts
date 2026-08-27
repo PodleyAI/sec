@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
-import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import type { PersonObservation } from "../storage/observation/PersonObservationSchema";
@@ -18,17 +16,19 @@ import { CanonicalPersonAddressRepo } from "../storage/canonical/CanonicalPerson
 import { CanonicalPersonPhoneRepo } from "../storage/canonical/CanonicalPersonPhoneRepo";
 import { CanonicalCompanyAddressRepo } from "../storage/canonical/CanonicalCompanyAddressRepo";
 import { CanonicalCompanyPhoneRepo } from "../storage/canonical/CanonicalCompanyPhoneRepo";
-
-/**
- * Accession numbers per `in`-list query — see `PersonObservationTitleRepo`'s
- * constant of the same name for the rationale (SQLite binds one bind
- * parameter per value).
- */
-const MAX_ACCESSIONS_PER_QUERY = 900;
+import { loadFilingDates } from "./rebuildFilingDates";
 
 export interface JunctionRebuildResult {
   readonly addressRows: number;
   readonly phoneRows: number;
+}
+
+/** What the rebuild reads off any observation, person or company. */
+interface JunctionObservation {
+  readonly observation_id: number;
+  readonly accession_number: string;
+  readonly raw_address_id: string | null;
+  readonly raw_phone_id: string | null;
 }
 
 /** Running count plus seen-at bounds for one `(canonical id, address/phone)` group. */
@@ -56,22 +56,6 @@ function accumulate(
   existing.count += 1;
   if (filing_date < existing.first_seen_at) existing.first_seen_at = filing_date;
   if (filing_date > existing.last_seen_at) existing.last_seen_at = filing_date;
-}
-
-/** `accession_number -> filing_date`, chunked for the storage layer's `in`-list bind limit. */
-async function loadFilingDates(accession_numbers: readonly string[]): Promise<Map<string, string>> {
-  const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
-  const distinct = [...new Set(accession_numbers)];
-  const byAccession = new Map<string, string>();
-  for (let start = 0; start < distinct.length; start += MAX_ACCESSIONS_PER_QUERY) {
-    const chunk = distinct.slice(start, start + MAX_ACCESSIONS_PER_QUERY);
-    const filings =
-      (await filingRepo.query({ accession_number: { value: chunk, operator: "in" } })) ?? [];
-    for (const filing of filings) {
-      byAccession.set(filing.accession_number, filing.filing_date);
-    }
-  }
-  return byAccession;
 }
 
 /**
@@ -121,6 +105,98 @@ function observationFor<TObservation>(
   return observation;
 }
 
+/** One side of an identity link, as the rebuild reads it. */
+interface RebuildInputs<TLink, TObservation> {
+  readonly links: readonly TLink[];
+  readonly observations: readonly TObservation[];
+  /** The canonical id a link points at — `canonical_person_id` or its company twin. */
+  readonly canonicalIdOf: (link: TLink) => string;
+  readonly observationIdOf: (link: TLink) => number;
+}
+
+/** Where the recomputed rows go, and under which id column. */
+interface JunctionTargets {
+  readonly addressRepo: {
+    deleteForResolverVersion(resolver_version: string): Promise<number>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    replaceAggregate(row: any): Promise<void>;
+  };
+  readonly phoneRepo: {
+    deleteForResolverVersion(resolver_version: string): Promise<number>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    replaceAggregate(row: any): Promise<void>;
+  };
+  /** `canonical_person_id` / `canonical_company_id` — the junction row's id column. */
+  readonly idColumn: string;
+}
+
+/**
+ * The shared body of {@link rebuildPersonJunctions} and
+ * {@link rebuildCompanyJunctions}.
+ *
+ * The two tiers differ only in which repositories they read and which column
+ * names the canonical id; every rule about what a junction row means — the
+ * grouping, the plain group count, the filing-date bounds, the
+ * purge-then-write — is one implementation, so a fix to either tier is a fix
+ * to both.
+ */
+async function rebuildJunctions<TLink, TObservation extends JunctionObservation>(
+  resolverVersion: string,
+  inputs: RebuildInputs<TLink, TObservation>,
+  targets: JunctionTargets
+): Promise<JunctionRebuildResult> {
+  const { links, observations, canonicalIdOf, observationIdOf } = inputs;
+  const observationById = new Map(observations.map((o) => [o.observation_id, o]));
+  const filingDates = await loadFilingDates(observations.map((o) => o.accession_number));
+
+  const addressGroups = new Map<string, JunctionAggregate>();
+  const phoneGroups = new Map<string, JunctionAggregate>();
+  const addressIds = new Map<string, { canonicalId: string; assoc: string }>();
+  const phoneIds = new Map<string, { canonicalId: string; assoc: string }>();
+
+  for (const link of links) {
+    const observation = observationFor(observationById, observationIdOf(link));
+    const filing_date = filingDateFor(filingDates, observation.accession_number);
+    const canonicalId = canonicalIdOf(link);
+
+    if (observation.raw_address_id) {
+      const key = `${canonicalId}\x00${observation.raw_address_id}`;
+      accumulate(addressGroups, key, filing_date);
+      addressIds.set(key, { canonicalId, assoc: observation.raw_address_id });
+    }
+    if (observation.raw_phone_id) {
+      const key = `${canonicalId}\x00${observation.raw_phone_id}`;
+      accumulate(phoneGroups, key, filing_date);
+      phoneIds.set(key, { canonicalId, assoc: observation.raw_phone_id });
+    }
+  }
+
+  const replaceAll = async (
+    repo: JunctionTargets["addressRepo"],
+    groups: ReadonlyMap<string, JunctionAggregate>,
+    ids: ReadonlyMap<string, { canonicalId: string; assoc: string }>,
+    assocColumn: string
+  ): Promise<void> => {
+    await repo.deleteForResolverVersion(resolverVersion);
+    for (const [key, aggregate] of groups) {
+      const { canonicalId, assoc } = ids.get(key)!;
+      await repo.replaceAggregate({
+        [targets.idColumn]: canonicalId,
+        [assocColumn]: assoc,
+        resolver_version: resolverVersion,
+        observation_count: aggregate.count,
+        first_seen_at: aggregate.first_seen_at,
+        last_seen_at: aggregate.last_seen_at,
+      });
+    }
+  };
+
+  await replaceAll(targets.addressRepo, addressGroups, addressIds, "address_hash_id");
+  await replaceAll(targets.phoneRepo, phoneGroups, phoneIds, "international_number");
+
+  return { addressRows: addressGroups.size, phoneRows: phoneGroups.size };
+}
+
 /**
  * Recomputes every person address/phone junction row at `resolverVersion`
  * from the current observations and their identity links, and replaces the
@@ -138,139 +214,48 @@ function observationFor<TObservation>(
 export async function rebuildPersonJunctions(
   resolverVersion: string
 ): Promise<JunctionRebuildResult> {
-  const linkRepo = new PersonIdentityLinkRepo();
-  const observationRepo = new PersonObservationRepo();
-  const addressRepo = new CanonicalPersonAddressRepo();
-  const phoneRepo = new CanonicalPersonPhoneRepo();
-
   const links: readonly PersonIdentityLink[] =
-    await linkRepo.listForResolverVersion(resolverVersion);
-  const observations: readonly PersonObservation[] = await observationRepo.listByIds(
+    await new PersonIdentityLinkRepo().listForResolverVersion(resolverVersion);
+  const observations: readonly PersonObservation[] = await new PersonObservationRepo().listByIds(
     links.map((link) => link.observation_id)
   );
-  const observationById = new Map(observations.map((o) => [o.observation_id, o]));
-  const filingDates = await loadFilingDates(observations.map((o) => o.accession_number));
-
-  const addressGroups = new Map<string, JunctionAggregate>();
-  const addressIds = new Map<string, { canonical_person_id: string; address_hash_id: string }>();
-  const phoneGroups = new Map<string, JunctionAggregate>();
-  const phoneIds = new Map<string, { canonical_person_id: string; international_number: string }>();
-
-  for (const link of links) {
-    const observation = observationFor(observationById, link.observation_id);
-    const filing_date = filingDateFor(filingDates, observation.accession_number);
-
-    if (observation.raw_address_id) {
-      const key = `${link.canonical_person_id}\x00${observation.raw_address_id}`;
-      accumulate(addressGroups, key, filing_date);
-      addressIds.set(key, {
-        canonical_person_id: link.canonical_person_id,
-        address_hash_id: observation.raw_address_id,
-      });
+  return await rebuildJunctions(
+    resolverVersion,
+    {
+      links,
+      observations,
+      canonicalIdOf: (link) => link.canonical_person_id,
+      observationIdOf: (link) => link.observation_id,
+    },
+    {
+      addressRepo: new CanonicalPersonAddressRepo(),
+      phoneRepo: new CanonicalPersonPhoneRepo(),
+      idColumn: "canonical_person_id",
     }
-    if (observation.raw_phone_id) {
-      const key = `${link.canonical_person_id}\x00${observation.raw_phone_id}`;
-      accumulate(phoneGroups, key, filing_date);
-      phoneIds.set(key, {
-        canonical_person_id: link.canonical_person_id,
-        international_number: observation.raw_phone_id,
-      });
-    }
-  }
-
-  await addressRepo.deleteForResolverVersion(resolverVersion);
-  for (const [key, aggregate] of addressGroups) {
-    await addressRepo.replaceAggregate({
-      ...addressIds.get(key)!,
-      resolver_version: resolverVersion,
-      observation_count: aggregate.count,
-      first_seen_at: aggregate.first_seen_at,
-      last_seen_at: aggregate.last_seen_at,
-    });
-  }
-
-  await phoneRepo.deleteForResolverVersion(resolverVersion);
-  for (const [key, aggregate] of phoneGroups) {
-    await phoneRepo.replaceAggregate({
-      ...phoneIds.get(key)!,
-      resolver_version: resolverVersion,
-      observation_count: aggregate.count,
-      first_seen_at: aggregate.first_seen_at,
-      last_seen_at: aggregate.last_seen_at,
-    });
-  }
-
-  return { addressRows: addressGroups.size, phoneRows: phoneGroups.size };
+  );
 }
 
 /** Company counterpart of {@link rebuildPersonJunctions} — the exact mirror on `canonical_company_id`. */
 export async function rebuildCompanyJunctions(
   resolverVersion: string
 ): Promise<JunctionRebuildResult> {
-  const linkRepo = new CompanyIdentityLinkRepo();
-  const observationRepo = new CompanyObservationRepo();
-  const addressRepo = new CanonicalCompanyAddressRepo();
-  const phoneRepo = new CanonicalCompanyPhoneRepo();
-
   const links: readonly CompanyIdentityLink[] =
-    await linkRepo.listForResolverVersion(resolverVersion);
-  const observations: readonly CompanyObservation[] = await observationRepo.listByIds(
+    await new CompanyIdentityLinkRepo().listForResolverVersion(resolverVersion);
+  const observations: readonly CompanyObservation[] = await new CompanyObservationRepo().listByIds(
     links.map((link) => link.observation_id)
   );
-  const observationById = new Map(observations.map((o) => [o.observation_id, o]));
-  const filingDates = await loadFilingDates(observations.map((o) => o.accession_number));
-
-  const addressGroups = new Map<string, JunctionAggregate>();
-  const addressIds = new Map<string, { canonical_company_id: string; address_hash_id: string }>();
-  const phoneGroups = new Map<string, JunctionAggregate>();
-  const phoneIds = new Map<
-    string,
-    { canonical_company_id: string; international_number: string }
-  >();
-
-  for (const link of links) {
-    const observation = observationFor(observationById, link.observation_id);
-    const filing_date = filingDateFor(filingDates, observation.accession_number);
-
-    if (observation.raw_address_id) {
-      const key = `${link.canonical_company_id}\x00${observation.raw_address_id}`;
-      accumulate(addressGroups, key, filing_date);
-      addressIds.set(key, {
-        canonical_company_id: link.canonical_company_id,
-        address_hash_id: observation.raw_address_id,
-      });
+  return await rebuildJunctions(
+    resolverVersion,
+    {
+      links,
+      observations,
+      canonicalIdOf: (link) => link.canonical_company_id,
+      observationIdOf: (link) => link.observation_id,
+    },
+    {
+      addressRepo: new CanonicalCompanyAddressRepo(),
+      phoneRepo: new CanonicalCompanyPhoneRepo(),
+      idColumn: "canonical_company_id",
     }
-    if (observation.raw_phone_id) {
-      const key = `${link.canonical_company_id}\x00${observation.raw_phone_id}`;
-      accumulate(phoneGroups, key, filing_date);
-      phoneIds.set(key, {
-        canonical_company_id: link.canonical_company_id,
-        international_number: observation.raw_phone_id,
-      });
-    }
-  }
-
-  await addressRepo.deleteForResolverVersion(resolverVersion);
-  for (const [key, aggregate] of addressGroups) {
-    await addressRepo.replaceAggregate({
-      ...addressIds.get(key)!,
-      resolver_version: resolverVersion,
-      observation_count: aggregate.count,
-      first_seen_at: aggregate.first_seen_at,
-      last_seen_at: aggregate.last_seen_at,
-    });
-  }
-
-  await phoneRepo.deleteForResolverVersion(resolverVersion);
-  for (const [key, aggregate] of phoneGroups) {
-    await phoneRepo.replaceAggregate({
-      ...phoneIds.get(key)!,
-      resolver_version: resolverVersion,
-      observation_count: aggregate.count,
-      first_seen_at: aggregate.first_seen_at,
-      last_seen_at: aggregate.last_seen_at,
-    });
-  }
-
-  return { addressRows: addressGroups.size, phoneRows: phoneGroups.size };
+  );
 }

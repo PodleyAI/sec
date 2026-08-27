@@ -73,8 +73,8 @@ let registeredGeneration = -1;
  * needs both must clear, call this, THEN register its own extractor on top.
  */
 export function registerSecFormExtractors(): void {
-  if (registeredGeneration === formExtractorRegistryGeneration()) return;
-  registeredGeneration = formExtractorRegistryGeneration();
+  const generation = formExtractorRegistryGeneration();
+  if (registeredGeneration === generation) return;
 
   registerFormExtractor<FormD>({
     id: "D",
@@ -345,4 +345,9 @@ export function registerSecFormExtractors(): void {
       await processWithdrawal({ cik, accession_number, form, filing_date });
     },
   });
+
+  // Marked done only once every registration above landed. Marking it first
+  // would let a throw partway through leave the guard armed over a
+  // half-populated registry, and every later call would decline to finish it.
+  registeredGeneration = generation;
 }

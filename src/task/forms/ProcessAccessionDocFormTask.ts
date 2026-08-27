@@ -36,7 +36,7 @@ import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/Com
 import { formToExtractorId } from "../../storage/versioning/extractorIds";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
+import { getActiveSlot, type ActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { cachedAccessionDocPath, stripXslPrefix } from "../../util/accessionDocPath";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
@@ -325,7 +325,15 @@ export class ProcessAccessionDocFormTask extends Task<
       fileName = fullSubmissionFileName(accessionNumber);
     }
 
-    const extractorId = formToExtractorId(form);
+    // The id the run ledger and the filing-level dead letters are keyed by.
+    // `FORM_TO_EXTRACTOR_ID` is the historical answer and still the one that
+    // wins for every form sec ships, but it is a closed literal map: a form a
+    // downstream package registers through `registerFormExtractor` is selected
+    // by the (registry-driven) worklist and would otherwise reach here with no
+    // key at all — a throw that escapes the store containment and takes the
+    // rest of the sweep with it. Falling back to the registry's own first
+    // extractor keys the ledger by something real instead.
+    const extractorId = formToExtractorId(form) ?? extractorsForForm(form)[0]?.id;
     if (!extractorId) {
       throw new TaskError(`No extractor registered for form '${form}'`);
     }
@@ -333,12 +341,25 @@ export class ProcessAccessionDocFormTask extends Task<
     const versionRegistry = new VersionRegistry(
       globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
     );
-    const activeSlot = await getActiveSlot(versionRegistry, "extractor", extractorId);
-    if (!activeSlot) {
-      throw new TaskError(
-        `No active slot for extractor '${extractorId}'. Run 'sec db setup' to bootstrap.`
-      );
-    }
+    // One `component_versions` lookup per extractor id per filing. The
+    // filing-level id below and the dispatch's per-extractor resolution ask for
+    // the same slot on every single-extractor form — which is every form sec
+    // ships — so without this each filing paid the round trip twice.
+    const slotCache = new Map<string, ActiveSlot>();
+    const activeSlotFor = async (id: string): Promise<ActiveSlot> => {
+      let slot = slotCache.get(id);
+      if (slot === undefined) {
+        slot = await getActiveSlot(versionRegistry, "extractor", id);
+        if (!slot) {
+          throw new TaskError(
+            `No active slot for extractor '${id}'. Run 'sec db setup' to bootstrap.`
+          );
+        }
+        slotCache.set(id, slot);
+      }
+      return slot;
+    };
+    const activeSlot = await activeSlotFor(extractorId);
     const extractorVersion = activeSlot.semver;
     const slotAtRun = activeSlot.slot;
 
@@ -401,6 +422,16 @@ export class ProcessAccessionDocFormTask extends Task<
     };
 
     /**
+     * What each extractor that completed its store ran as, so the run ledger
+     * can be keyed by the extractor that actually did the work and not only by
+     * the filing-level id. See {@link recordSecondaryRuns}.
+     */
+    const storedExtractors = new Map<
+      string,
+      { readonly extractor_version: string; readonly slot_at_run: ActiveSlot["slot"] }
+    >();
+
+    /**
      * The single dispatch point for the filing: every extractor registered for
      * the form, in the order the registry hands them back. Each resolves its
      * OWN version slot — two extractors over one form have independent gates —
@@ -417,17 +448,24 @@ export class ProcessAccessionDocFormTask extends Task<
         throw new MissingStorageHandlerError(`Form '${form}' has no storage handler`);
       }
       for (const extractor of extractors) {
-        const slot = await getActiveSlot(versionRegistry, "extractor", extractor.id);
-        if (!slot) {
-          throw new TaskError(`No active slot for extractor '${extractor.id}'`);
-        }
+        const slot = await activeSlotFor(extractor.id);
+        // An extractor that declared it needs no document is handed none, even
+        // when a SIBLING extractor on the same form caused one to be fetched.
+        // `FormExtractorMetadataOnly.store` is typed without `parsed` precisely
+        // so it cannot read one; handing it the shared parse would make the
+        // runtime contract quietly wider than the declared one.
+        const wantsDocument = extractor.needsDocument !== false;
         // Most forms register one extractor, so the shared `parsed` computed
         // above (via `ALL_FORMS_MAP`) is already this extractor's answer.
         // An extractor that supplies its own `parse` gets it invoked here on
         // the same fetched `body` instead of reusing the shared value — once
         // a form carries two extractors, each reads the document
         // independently rather than being stuck sharing one parser's output.
-        const extractorParsed = extractor.parse ? await extractor.parse(form!, body) : parsed;
+        const extractorParsed = !wantsDocument
+          ? undefined
+          : extractor.parse
+            ? await extractor.parse(form!, body)
+            : parsed;
         await extractor.store({
           cik: cik!,
           file_number: file_number ?? "",
@@ -439,7 +477,7 @@ export class ProcessAccessionDocFormTask extends Task<
           report_date,
           extractor_id: extractor.id,
           extractor_version: slot.semver,
-          text: body,
+          text: wantsDocument ? body : "",
           isFullSubmission,
           // Threaded to the AI form processors so a local model's download
           // renders its progress in this task's CLI UI (via `prefetchModel`).
@@ -447,6 +485,54 @@ export class ProcessAccessionDocFormTask extends Task<
           context,
           parsed: extractorParsed,
         });
+        // Recorded only once the store returned, so a throw leaves the
+        // extractor unrecorded and the worklist re-selects the filing for it.
+        storedExtractors.set(extractor.id, {
+          extractor_version: slot.semver,
+          slot_at_run: slot.slot,
+        });
+      }
+    };
+
+    /**
+     * Records a SUCCESSFUL `extractor_runs` row for every extractor that ran
+     * beyond the filing-level one.
+     *
+     * `ComputeFormsWorklistTask` selects a filing when ANY extractor registered
+     * for its form has no successful run at that extractor's OWN active
+     * version. The filing-level `extractorId` row alone therefore never
+     * satisfies a form carrying more than one extractor: the second id has no
+     * row, the anti-join keeps matching, and every sweep re-dispatches the
+     * filing — re-paying the whole dispatch, model calls included, forever.
+     * Empty for every form sec ships today, where the only extractor IS the
+     * filing-level one.
+     *
+     * Carries the SAME outcome as the filing-level row: a `partial` run leaves
+     * a section dead-lettered somewhere in this filing, and claiming success
+     * for a sibling extractor would let the worklist skip work the primary row
+     * says is unfinished.
+     */
+    const recordSecondaryRuns = async (outcome: "success" | "partial"): Promise<void> => {
+      for (const [id, run] of storedExtractors) {
+        if (id === extractorId) continue;
+        try {
+          await runRepo.recordRun({
+            cik: cik!,
+            accession_number: accessionNumber,
+            form: form!,
+            extractor_id: id,
+            extractor_version: run.extractor_version,
+            slot_at_run: run.slot_at_run,
+            success: outcome === "success",
+            outcome,
+            error: null,
+          });
+        } catch (recordErr) {
+          console.error(
+            `Failed to record extractor_runs row for ${cik}/${accessionNumber}@${id}:${run.extractor_version}:`,
+            recordErr
+          );
+        }
       }
     };
 
@@ -506,6 +592,7 @@ export class ProcessAccessionDocFormTask extends Task<
           recordErr
         );
       }
+      await recordSecondaryRuns("success");
       return { success: true };
     }
 
@@ -683,6 +770,7 @@ export class ProcessAccessionDocFormTask extends Task<
           recordErr
         );
       }
+      await recordSecondaryRuns(outcome);
       return { success: true };
     }
 

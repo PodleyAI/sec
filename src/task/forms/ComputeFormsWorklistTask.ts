@@ -250,45 +250,60 @@ export class ComputeFormsWorklistTask extends Task<
 
     let total = 0;
     for (const form of forms) {
-      for (const extractor of extractorsForForm(form)) {
-        const extractorId = extractor.id;
-        const extractorVersion = await resolveVersion(extractorId);
-        let from: number | undefined;
-        let seen: string | undefined;
-        for (;;) {
-          const { rows, full } = await this.readPage(filingRepo, form, from, seen, allowCiks);
-          if (rows.length === 0) break;
+      // Paged ONCE per form, not once per extractor. The worklist is a flat
+      // parallel-array list of filings carrying no extractor id, and
+      // `ProcessAccessionDocFormTask` runs every extractor registered for the
+      // form on each entry — so a second pass over the same form would enter
+      // each filing twice and pay for the whole dispatch (model calls included)
+      // twice. A filing is selected when ANY of the form's extractors has no
+      // successful run at its own active version, which is the same union the
+      // dispatch then acts on.
+      const gates = await Promise.all(
+        extractorsForForm(form).map(async (extractor) => ({
+          extractorId: extractor.id,
+          extractorVersion: await resolveVersion(extractor.id),
+        }))
+      );
+      let from: number | undefined;
+      let seen: string | undefined;
+      for (;;) {
+        const { rows, full } = await this.readPage(filingRepo, form, from, seen, allowCiks);
+        if (rows.length === 0) break;
 
-          // One chunked `extractor_runs` lookup per PAGE, over the rows that pass
-          // the cheap in-memory tests. The corpus-wide Set this replaced was built
-          // once per form and held for its whole scan; at Form D's size that is
-          // hundreds of MB resident before the first filing is fetched, and every
-          // `--shard` process paid it in full. See
-          // {@link ExtractorRunRepo.successfulRunKeysForFilings}.
-          const eligible = rows.filter((f) => this.passesCheapTests(f, cheapTestOpts));
-          const successfulKeys = await runRepo.successfulRunKeysForFilings(
-            eligible,
-            extractorId,
-            extractorVersion,
-            form
-          );
-          for (const f of eligible) {
-            if (successfulKeys.has(filingRunKey(f))) continue;
-            total++;
-            if (dryRun) continue;
-            accessionNumber.push(f.accession_number);
-            cik.push(f.cik);
-            formOut.push(f.form!);
-            // "" when the filing names no primary document: the port is a parallel
-            // array, so the row has to keep its slot. `ProcessAccessionDocFormTask`
-            // reads it as absent and dead-letters that one filing.
-            fileName.push(resolvePrimaryDocName(f.primary_doc) ?? "");
-          }
-          if (!full) break;
-          const last = rows[rows.length - 1]!;
-          from = last.cik;
-          seen = last.accession_number;
+        // One chunked `extractor_runs` lookup per PAGE and extractor, over the
+        // rows that pass the cheap in-memory tests. The corpus-wide Set this
+        // replaced was built once per form and held for its whole scan; at Form
+        // D's size that is hundreds of MB resident before the first filing is
+        // fetched, and every `--shard` process paid it in full. See
+        // {@link ExtractorRunRepo.successfulRunKeysForFilings}.
+        const eligible = rows.filter((f) => this.passesCheapTests(f, cheapTestOpts));
+        const successfulKeySets = await Promise.all(
+          gates.map((gate) =>
+            runRepo.successfulRunKeysForFilings(
+              eligible,
+              gate.extractorId,
+              gate.extractorVersion,
+              form
+            )
+          )
+        );
+        for (const f of eligible) {
+          const key = filingRunKey(f);
+          if (successfulKeySets.every((keys) => keys.has(key))) continue;
+          total++;
+          if (dryRun) continue;
+          accessionNumber.push(f.accession_number);
+          cik.push(f.cik);
+          formOut.push(f.form!);
+          // "" when the filing names no primary document: the port is a parallel
+          // array, so the row has to keep its slot. `ProcessAccessionDocFormTask`
+          // reads it as absent and dead-letters that one filing.
+          fileName.push(resolvePrimaryDocName(f.primary_doc) ?? "");
         }
+        if (!full) break;
+        const last = rows[rows.length - 1]!;
+        from = last.cik;
+        seen = last.accession_number;
       }
     }
 

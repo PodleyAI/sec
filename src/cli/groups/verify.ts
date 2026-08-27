@@ -14,19 +14,20 @@ import { callsForSection, readCallTrace } from "../../verify/readCallTrace";
 import {
   VerifyFilingTask,
   VERIFY_STAGES,
+  type VerifyFilingInput,
   type VerifyFilingResult,
 } from "../../task/verify/VerifyFilingTask";
 
 interface SourceOptions {
-  readonly fixture?: string;
-  readonly file?: string;
-  readonly cik?: number;
-  readonly out?: string;
-  readonly fetch?: boolean;
-  readonly format?: string;
+  readonly fixture: string | undefined;
+  readonly file: string | undefined;
+  readonly cik: number | undefined;
+  readonly out: string | undefined;
+  readonly fetch: boolean | undefined;
+  readonly format: string | undefined;
 }
 
-function sourceInput(accession: string | undefined, options: SourceOptions) {
+function sourceInput(accession: string | undefined, options: SourceOptions): VerifyFilingInput {
   return {
     fixture: options.fixture,
     file: options.file,

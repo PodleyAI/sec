@@ -35,9 +35,9 @@ export function addResolveCommands(program: Command): void {
     .option(
       "--rebuild-roles",
       "--kind person only: also recompute person_role at the target version, which " +
-        "DELETES every tenure there and re-derives it from the observations. A tenure " +
-        "closed by a filing carrying no role_roster_completeness row re-opens — " +
-        "re-extract those filings first",
+        "DELETES every tenure there and re-derives it from the observations. Filings " +
+        "extracted before person_observation.role_scope and role_roster_completeness " +
+        "existed mint no tenure and re-open every closed one — re-extract them first",
       false
     )
     .action(

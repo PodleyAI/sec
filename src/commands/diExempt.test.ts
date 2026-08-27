@@ -57,3 +57,34 @@ describe("isDiExemptCommand", () => {
     expect(typeof isDiExemptCommand).toBe("function");
   });
 });
+
+describe("isDiExemptCommand — verify stages", () => {
+  /** A verify stage as commander hands it to a preAction hook. */
+  function verifyStage(leaf: string, argv: readonly string[]): Command {
+    const program = new Command("sec");
+    const group = program.command("verify");
+    const cmd = group
+      .command(`${leaf} [accession]`)
+      .option("--cik <cik>", "CIK", (v) => Number(v))
+      .option("--fixture <name>", "fixture")
+      .action(() => {});
+    program.parse(["node", "sec", "verify", leaf, ...argv]);
+    return cmd;
+  }
+
+  it("exempts the fixture form, which reads a committed file", () => {
+    expect(isDiExemptCommand(verifyStage("parse", ["--fixture", "s1_1.htm"]))).toBe(true);
+  });
+
+  /**
+   * The accession form reads `filings.primary_doc` and the fetch cache, so it
+   * needs exactly the tokens the bootstrap registers. Exempting it would make
+   * it fail on every machine rather than degrade.
+   */
+  it("does not exempt the accession form", () => {
+    expect(isDiExemptCommand(verifyStage("sections", ["--cik", "1849470", "0001-21-1"]))).toBe(
+      false
+    );
+    expect(isDiExemptCommand(verifyStage("all", ["0001104659-21-035696"]))).toBe(false);
+  });
+});

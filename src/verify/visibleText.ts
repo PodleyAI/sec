@@ -5,7 +5,6 @@
  */
 import * as cheerio from "cheerio";
 import { isHidden, stripNonProse } from "../sec/html/domPrep";
-import type { SourceSpan } from "../sec/html/types";
 
 /** One run of reader-visible text, with the span of HTML it occupies. */
 export interface TextRun {
@@ -50,42 +49,4 @@ export function visibleTextRuns(html: string): readonly TextRun[] {
   };
   visit($.root().get(0));
   return runs;
-}
-
-/**
- * Merge spans into a sorted, non-overlapping cover.
- *
- * Block spans nest and overlap in real filings — a stitched table's span swallows
- * the page break between its halves, and a table peeled of its caption row still
- * spans the row — so testing containment against the raw list would count the
- * same text twice and report over 100% coverage.
- */
-export function mergeSpans(spans: readonly SourceSpan[]): readonly SourceSpan[] {
-  const sorted = [...spans]
-    .filter((s) => s.end > s.start)
-    .sort((a, b) => a.start - b.start || a.end - b.end);
-  const merged: { start: number; end: number }[] = [];
-  for (const span of sorted) {
-    const last = merged[merged.length - 1];
-    if (last !== undefined && span.start <= last.end) {
-      if (span.end > last.end) last.end = span.end;
-      continue;
-    }
-    merged.push({ start: span.start, end: span.end });
-  }
-  return merged;
-}
-
-/** True when `[start, end)` lies entirely inside one span of a merged cover. */
-export function isCovered(cover: readonly SourceSpan[], start: number, end: number): boolean {
-  let lo = 0;
-  let hi = cover.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    const span = cover[mid]!;
-    if (start < span.start) hi = mid - 1;
-    else if (start >= span.end) lo = mid + 1;
-    else return end <= span.end;
-  }
-  return false;
 }
