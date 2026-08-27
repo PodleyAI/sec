@@ -96,9 +96,6 @@ out-of-order replays never close a role a newer filing asserts. The full set of 
   non-asserting filing;
 - a departure-and-return yields two tenure rows.
 
-Roster closure is **completeness-gated**: S-1 management only when no extracted row was
-dropped by filtering, Form D only when at least one person was actually observed.
-
 Placeholder titles ("Signer", "Authorized Representative", "Sales Compensation Recipient",
 "Connection") stay on the observation title rows but never mint tenures. Closure is
 alias-aware: a roster asserting a merged person under the alias target does not close the
@@ -106,6 +103,36 @@ retired id's open tenure.
 
 `person_role` rows are resolver-versioned like the junctions: purged by `dropPrevious`
 (person), rebuilt by re-extraction replays (batch `resolve` rebuilds identity links only).
+
+### Roster completeness
+
+Roster closure is **completeness-gated**, and the gate lives inside
+`closeUnassertedPersonRoles`, not at the call site. Each complete-roster caller hands over
+a `complete` verdict — S-1 management `meta.complete && dropped === 0`, Form D
+`observedRelatedPersons > 0 && droppedRelatedPersons === 0` — and always calls, so the
+verdict is written down whichever way it went. A `false` verdict closes nothing.
+
+The verdict lands in **`role_roster_completeness`** (`RoleRosterCompletenessRepo`,
+`src/storage/canonical/`), keyed
+`(accession_number, extractor_id, role_scope, company_cik)` — the same tuple the closure
+runs over — and carrying the filing date it ran with plus the boolean. It is **not**
+resolver-versioned: it is a property of the filing's extraction, so a re-key ceremony
+leaves it alone and a re-extraction rewrites it.
+
+The row exists because the decision is otherwise unrecoverable. A person the extractor
+declines — junk name field, overlong name, under a confidence floor — never reaches
+`observePerson`, so no observation anywhere records that the filing named them. A later
+pass reading the stored observations sees a roster that looks whole, and closing from it
+would end the roles of everyone the dropped row still asserted.
+
+That later pass is `rebuildPersonRoles` (`src/resolver/rebuildPersonRoles.ts`), which
+recomputes a resolver version's tenures wholesale from the observations, reading these
+rows rather than re-deriving them. **Existing data carries no such rows, and a rebuild
+over an un-backfilled corpus does not merely decline to close: the purge runs
+unconditionally before the re-insert, so it DELETES every `end_date` the incremental path
+recorded and re-opens every departure the corpus knew about.** Backfill by re-extracting
+the filings before running it. Like the junction rebuilds, it also expects ingestion to be
+quiesced.
 
 ```bash
 sec query person-roles <cik> [--current]

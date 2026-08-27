@@ -703,11 +703,15 @@ describe("rebuildPersonRoles", () => {
     const rebuilt = await allTenures();
     expect(comparable(rebuilt)).toEqual(comparable(snapshot));
     // The two excluded columns still have to be sane: fresh surrogate keys and
-    // a timestamp stamped by this write. A shape check cannot tell a fresh
-    // stamp from one carried off the pre-rebuild row, so compare against the
-    // newest thing the incremental path left behind — every rebuilt row was
-    // written after it.
+    // a timestamp stamped by this write. Both halves are needed. A shape check
+    // cannot tell a fresh stamp from one carried off the pre-rebuild row, so
+    // compare against the newest thing the incremental path left behind —
+    // every rebuilt row was written after it; and a bound on its own admits
+    // any string that sorts high, "9999" included, so the shape stays too.
     expect(new Set(rebuilt.map((r) => r.role_id)).size).toBe(18);
+    expect(
+      rebuilt.map((r) => r.created_at).filter((at) => !/^\d{4}-\d{2}-\d{2}T/.test(at))
+    ).toEqual([]);
     const newestBefore = snapshot.map((r) => r.created_at).sort()[snapshot.length - 1];
     expect(rebuilt.filter((r) => r.created_at < newestBefore).map((r) => r.created_at)).toEqual([]);
     // Named so a failure says which person, rather than only that two arrays
@@ -779,6 +783,68 @@ describe("rebuildPersonRoles", () => {
     expect(result).toEqual({ rows: 1 });
     expect(rebuilt[0].start_date).toBe("2024-03-01");
     expect(rebuilt[0].start_accession).toBe("ACC-DATED");
+  });
+
+  it("stamps the chronologically first display spelling of a title, not the first processed", async () => {
+    // `normalizeRoleTitle` lowercases, so one group can hold two display
+    // spellings only where canonicalization is not case-preserving. It is not:
+    // `titleCaseWord` raises the first character of an already-lowercased word,
+    // and uppercasing is not a round trip for the code points that expand.
+    // U+FB01, the "fi" ligature, uppercases to the two characters "FI", so a
+    // title spelled with it canonicalizes to "Chief FInancial Officer" while
+    // the plain spelling stays "Chief Financial Officer". Both normalize to
+    // "chief financial officer", so both land in one tenure. (A title clipped
+    // at the 256-character column width is the Unicode-free counterexample:
+    // the display clamp keeps a trailing space the normalizer's second `trim`
+    // eats.) Ingested newest-first, so the two paths pick different spellings
+    // and the projection's rule is the one under test.
+    await seedFiling("ACC-LIG-OLD", 722, "2022-01-01");
+    await seedFiling("ACC-LIG-NEW", 722, "2023-01-01");
+    const observer = buildEntityObserver({
+      activeResolverPersonVersion: RESOLVER_VERSION,
+      activeResolverCompanyVersion: RESOLVER_VERSION,
+    });
+    const cliff = await observeRoleClaim(observer, {
+      accession_number: "ACC-LIG-NEW",
+      filing_date: "2023-01-01",
+      company_cik: 722,
+      person_cik: 5801,
+      last_name: "Cliff",
+      titles: ["Chief Financial Officer"],
+      role_scope: ASSERT_ONLY_SCOPE,
+      observation_index: 0,
+    });
+    await observeRoleClaim(observer, {
+      accession_number: "ACC-LIG-OLD",
+      filing_date: "2022-01-01",
+      company_cik: 722,
+      person_cik: 5801,
+      last_name: "Cliff",
+      titles: ["Chief \ufb01nancial Officer"],
+      role_scope: ASSERT_ONLY_SCOPE,
+      observation_index: 0,
+    });
+
+    const spec = {
+      canonical_person_id: cliff.canonical_person_id,
+      normalized_title: "chief financial officer",
+      role_scope: ASSERT_ONLY_SCOPE,
+    };
+    const snapshot = await allTenures();
+    expect(snapshot).toHaveLength(1);
+    // The live path writes `title` only on insert — the back-extension branch
+    // spreads the row it widens — so it kept the spelling that arrived first.
+    expect(tenureFor(snapshot, spec)?.title).toBe("Chief Financial Officer");
+    expect(tenureFor(snapshot, spec)?.start_date).toBe("2022-01-01");
+
+    expect(await rebuildPersonRoles(RESOLVER_VERSION)).toEqual({ rows: 1 });
+    const rebuilt = await allTenures();
+    // The projection reads the filings in date order and stamps the spelling
+    // the earliest one used, which under out-of-order ingest is the other one.
+    expect(tenureFor(rebuilt, spec)?.title).toBe("Chief FInancial Officer");
+    expect(tenureFor(rebuilt, spec)?.start_date).toBe("2022-01-01");
+    expect(tenureFor(rebuilt, spec)?.start_accession).toBe("ACC-LIG-OLD");
+    expect(tenureFor(rebuilt, spec)?.last_seen_accession).toBe("ACC-LIG-NEW");
   });
 
   it("closes from a roster recorded complete and never from one recorded incomplete", async () => {

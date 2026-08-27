@@ -21,8 +21,8 @@ import { canonicalRoleTitles } from "./EntityObserver";
 import { isCompleteRosterRoleScope } from "./roleScopes";
 
 /**
- * Accession numbers per `in`-list query — see `PersonObservationTitleRepo`'s
- * constant of the same name for the rationale (SQLite binds one bind
+ * Accession numbers per `in`-list query — see `MAX_IDS_PER_QUERY` in
+ * `PersonObservationTitleRepo` for the rationale (SQLite binds one bind
  * parameter per value).
  */
 const MAX_ACCESSIONS_PER_QUERY = 900;
@@ -280,11 +280,23 @@ function walkTenures(
  * before — the same result however many times it runs, and the same result
  * whether the resolver ran during ingestion or long after it.
  *
- * Two things it cannot reproduce:
+ * Three things it cannot reproduce:
  *
  * - Which of two filings sharing a date was processed second. The projection
  *   breaks such ties by accession number; the incremental path records
  *   whichever landed last.
+ * - Which display spelling a tenure's `title` carries when one group's
+ *   assertions disagree about it. The projection stamps the chronologically
+ *   first assertion's spelling; the live path writes `title` only on insert, so
+ *   it stamps the first-PROCESSED one. The two coincide unless a group holds
+ *   more than one spelling, which is narrow: `normalizeRoleTitle` groups
+ *   case- and whitespace-insensitively, so it takes either a character whose
+ *   uppercasing expands — `titleCaseWord` raises U+FB01 (the "fi" ligature) to
+ *   the two characters "FI", and "ß" to "SS", leaving a display form the same
+ *   title spelled plainly never produces — or a title clipped at the
+ *   256-character column width, where the display clamp keeps a trailing space
+ *   the normalizer's second `trim` eats. Narrow, not absent, and out-of-order
+ *   ingest is then enough to diverge.
  * - An observation whose accession has no `filings` row: it raises rather than
  *   dating a tenure from nothing. The live path tolerates that filing (it
  *   yields an empty date, which its own gate then skips), so one dangling
@@ -297,11 +309,15 @@ function walkTenures(
  * not assert only if `role_roster_completeness` records its extraction as
  * having read the whole roster, because a person the extractor declined leaves
  * no observation and so no trace of having been named. **Existing data carries
- * no such rows**: a rebuild over a corpus ingested before they were written
- * finds no complete rosters, closes nothing, and leaves every tenure open. That
- * is the safe direction — it under-reports departures rather than inventing
- * them — and it heals as filings are re-extracted, but it is a real property of
- * a rebuild run against un-backfilled data and not a rounding error.
+ * no such rows**, and a rebuild over a corpus ingested before they were written
+ * does not merely decline to close: `deleteForResolverVersion` runs
+ * unconditionally before the re-insert, so it DELETES every `end_date` the
+ * incremental path had already recorded and re-opens every departure that
+ * corpus knew about. Backfill the completeness rows — re-extract the filings —
+ * before running it against such data. The direction of the remaining error is
+ * safe — a missing row under-reports departures rather than inventing them, and
+ * it heals as filings are re-extracted — but until they are, a rebuild destroys
+ * closure history rather than declining to add to it.
  */
 export async function rebuildPersonRoles(
   resolverVersion: string

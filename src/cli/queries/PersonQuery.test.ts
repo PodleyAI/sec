@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationSchema";
+import {
+  PERSON_OBSERVATION_REPOSITORY_TOKEN,
+  type PersonObservationRepositoryStorage,
+} from "../../storage/observation/PersonObservationSchema";
 import { queryPersons } from "./PersonQuery";
 
 let nextId = 1;
@@ -35,7 +38,14 @@ function makeObservation(overrides: Partial<Parameters<typeof repo.put>[0]> = {}
   };
 }
 
-let repo: ReturnType<typeof globalServiceRegistry.get<typeof PERSON_OBSERVATION_REPOSITORY_TOKEN>>;
+/**
+ * The STORAGE the token resolves to, spelled out. `ReturnType<typeof
+ * globalServiceRegistry.get<typeof TOKEN>>` looks equivalent and is not: the
+ * explicit argument is the token, so `get<T>(token: ServiceToken<T>): T` hands
+ * back `ServiceToken<…>`, and `makeObservation`'s `Parameters<typeof repo.put>`
+ * guard then binds to nothing.
+ */
+let repo: PersonObservationRepositoryStorage;
 
 describe("queryPersons", () => {
   beforeEach(() => {

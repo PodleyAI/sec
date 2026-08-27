@@ -16,9 +16,9 @@ interface RoleRosterCompletenessRepoOptions {
 }
 
 /**
- * Accessions per `in`-list query — see `PersonObservationTitleRepo`'s constant
- * of the same name for the rationale (SQLite binds one bind parameter per
- * value).
+ * Accessions per `in`-list query — see `MAX_IDS_PER_QUERY` in
+ * `PersonObservationTitleRepo` for the rationale (SQLite binds one bind
+ * parameter per value).
  */
 const MAX_ACCESSIONS_PER_QUERY = 900;
 
