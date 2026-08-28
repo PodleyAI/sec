@@ -133,4 +133,20 @@ describe("listConvertibleDocuments type filter", () => {
     expect(out.map((d) => d.docFile)).toEqual(["form8k.htm", "ex99-1.htm"]);
     expect(out[1].docType).toBe("EX-99.1");
   });
+
+  it("keeps the PRIMARY when an earlier member claims the same filename", () => {
+    // The primary names no file of its own, so it falls back to the name the
+    // caller loaded — which an exhibit filed ahead of it also declares. Dropping
+    // "the first in document order" would drop the primary, and a submission
+    // stored with no primary row is one the sweep's anti-join re-selects on
+    // every run forever.
+    const clash = submission(
+      doc("EX-99.1", 2, "form8k.htm", "<html><body><p>Exhibit.</p></body></html>"),
+      `<DOCUMENT>\n<TYPE>8-K\n<SEQUENCE>1\n<TEXT>\n${BODY}\n</TEXT>\n</DOCUMENT>`
+    );
+    const out = listConvertibleDocuments("8-K", clash, "form8k.htm");
+    expect(out.map((d) => d.docFile)).toEqual(["form8k.htm"]);
+    expect(out[0].isPrimary).toBe(true);
+    expect(out[0].docType).toBe("8-K");
+  });
 });

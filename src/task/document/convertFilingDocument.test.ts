@@ -204,7 +204,7 @@ describe("conversionCandidates", () => {
   // The probe order and the fetch choice are pinned in
   // `submissionFetchPolicy.test.ts`, alongside the policy they follow.
   it("still offers the full submission when the filing names no primary document", () => {
-    expect(conversionCandidates("8-K", "0001-26-1", null)).toEqual(["0001-26-1.txt"]);
-    expect(conversionCandidates("8-K", "0001-26-1", "  ")).toEqual(["0001-26-1.txt"]);
+    expect(conversionCandidates("0001-26-1", null)).toEqual(["0001-26-1.txt"]);
+    expect(conversionCandidates("0001-26-1", "  ")).toEqual(["0001-26-1.txt"]);
   });
 });

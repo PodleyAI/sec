@@ -48,7 +48,7 @@ describe("conversion fetch choice", () => {
   it("probes the full submission first, whatever the form", () => {
     // A cache probe is a stat, not a request, so looking for the richer shape
     // costs nothing even for a form nothing fetches whole.
-    expect(conversionCandidates("DEFM14A", ACC, "proxy.htm")).toEqual([`${ACC}.txt`, "proxy.htm"]);
+    expect(conversionCandidates(ACC, "proxy.htm")).toEqual([`${ACC}.txt`, "proxy.htm"]);
   });
 
   it("FETCHES only what the shared policy would have fetched", () => {
