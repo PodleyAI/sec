@@ -273,7 +273,7 @@ export { isUnnamedCompanyName } from "./storage/company/CompanyNormalization";
 export { parentClauseSourceContext, splitParentClause } from "./storage/company/splitParentClause";
 export { assertWithinDeclaredBounds } from "./util/declaredBounds";
 export { legalFormTrailingCanonical } from "./util/legalForms";
-export { isOverlongPersonName } from "./util/personNameBounds";
+export { isOverlongPersonName, MAX_PERSON_NAME_CHARS } from "./util/personNameBounds";
 
 // ── Model-call tracing ──────────────────────────────────────────────────────
 // Off unless `SEC_TRACE_DIR` names a directory, and one memoized environment
