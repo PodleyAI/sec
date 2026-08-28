@@ -369,6 +369,7 @@ describe("Form 144 issuer phone", () => {
       // whole reason the junction must not use it.
       cik: 999_999_999,
       file_number: "",
+      extractor_id: "144",
       accession_number: "test-accession-144-phone",
       filing_date: "2026-05-27",
       primary_doc: file,
