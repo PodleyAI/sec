@@ -13,10 +13,21 @@ import {
   FILING_REPOSITORY_TOKEN,
   type FilingRepositoryStorage,
 } from "../../storage/filing/FilingSchema";
-import { SPAC_REPOSITORY_TOKEN, type SpacRepositoryStorage } from "../../storage/spac/SpacSchema";
+import { registerSpacFilingConversionGate } from "../../storage/spac/spacFilingConversionGate";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
 import { resolveSqlBackend } from "../../util/sqlBackend";
+import { filingConversionGate } from "./filingConversionGate";
+
+/**
+ * Registered here, at module scope, rather than from the runtime bootstrap: the
+ * sweep is reachable without one — a task invoked directly, a test wiring two
+ * tables — and a gate that is only sometimes registered would silently change
+ * which filings get converted depending on how the caller got here. This is the
+ * one line that says a deployment shipping the `spac` table gates on it; a
+ * deployment that owns those tables elsewhere registers its own gate instead.
+ */
+registerSpacFilingConversionGate();
 
 /**
  * The forms whose narrative body this product actually reads.
@@ -52,7 +63,7 @@ export const CONVERTIBLE_FORMS: readonly string[] = [
 ];
 
 /**
- * The forms only a SPAC's filings are converted for, unless asked otherwise.
+ * The forms converted only for the filers a gate admits, unless asked otherwise.
  *
  * 8-Ks are in {@link CONVERTIBLE_FORMS} because the SPAC lifecycle is built out
  * of them — the LOI, the definitive agreement, the redemption, the closing. But
@@ -61,10 +72,11 @@ export const CONVERTIBLE_FORMS: readonly string[] = [
  * than an order of magnitude. Converting all of them costs a corpus of markdown
  * to render pages for filers this product has no page for.
  *
- * So the default sweep takes an 8-K only when its filer is in `spac` — the
- * known-SPAC table, not the `spac_candidate` screen: a candidate is a guess and
- * this is the expensive half of the work. `--all-8k` converts them for every
- * filer.
+ * So the default sweep takes an 8-K only for a filer the registered
+ * {@link FilingConversionGate} admits, and takes none at all when no gate is
+ * registered. This package registers the known-SPAC table — not the
+ * `spac_candidate` screen: a candidate is a guess and this is the expensive
+ * half of the work. `--all-8k` converts them for every filer.
  */
 export const SPAC_GATED_FORMS: readonly string[] = ["8-K", "8-K/A"];
 
@@ -94,8 +106,8 @@ export interface SelectFilingsOptions {
    */
   readonly force?: boolean;
   /**
-   * Convert {@link SPAC_GATED_FORMS} for every filer rather than only for CIKs
-   * in `spac`. Off by default — see that constant for why.
+   * Convert {@link SPAC_GATED_FORMS} for every filer rather than only for the
+   * filers the gate admits. Off by default — see that constant for why.
    */
   readonly all8k?: boolean;
   /** The stamp a stored row must carry to count as done. */
@@ -111,12 +123,6 @@ function filingRepoIfRegistered(): FilingRepositoryStorage | undefined {
 function documentRepoIfRegistered(): FilingDocumentRepositoryStorage | undefined {
   return globalServiceRegistry.has(FILING_DOCUMENT_REPOSITORY_TOKEN)
     ? globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN)
-    : undefined;
-}
-
-function spacRepoIfRegistered(): SpacRepositoryStorage | undefined {
-  return globalServiceRegistry.has(SPAC_REPOSITORY_TOKEN)
-    ? globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN)
     : undefined;
 }
 
@@ -161,22 +167,28 @@ export async function selectFilingsToConvert(
 
   const filingRepo = filingRepoIfRegistered();
   const documentRepo = documentRepoIfRegistered();
-  const spacRepo = spacRepoIfRegistered();
   const gatedForms = gatedFormsInScope(forms, options.all8k);
+  // Resolved once and reused by whichever branch runs, so the SQL predicate and
+  // the streamed one are the same rule read twice rather than two rules.
+  const gate = gatedForms.length > 0 ? filingConversionGate() : undefined;
+  const pushdown = gate?.pushdown();
   // Every table the query reads gates the fast path: any one of them being
-  // non-durable makes raw SQL the wrong answer. The `spac` table joins that set
-  // only while the gate is live, so a registration-only sweep is unaffected by
-  // how the SPAC storage happens to be bound.
+  // non-durable makes raw SQL the wrong answer. A gate joins that set only
+  // while it is live, so a registration-only sweep is unaffected by how the
+  // gate's storage happens to be bound — and a gate that declines to push down
+  // sends the whole selection to the repository path rather than being dropped
+  // from the query.
   //
-  // A gate with no `spac` repository registered at all is not gated — a test
-  // wiring up two tables gets the same query it always did, rather than SQL
-  // against a table its database never created. Nothing reaches that state in
-  // production: `SEC_STORAGE_REGISTRY` binds every token at DI bootstrap.
-  const gateActive = gatedForms.length > 0 && spacRepo !== undefined;
+  // With NO gate registered the gated forms are excluded outright, not let
+  // through. The two available answers are "none of them" and "every 8-K of
+  // every filer", and the constant above says why the second is the expensive
+  // mistake: a deployment that cannot name one filer whose 8-Ks it wants should
+  // convert none of them and leave the rest of the sweep alone.
   const backend =
     resolveSqlBackend("read", filingRepo) === "repository" ||
     resolveSqlBackend("read", documentRepo) === "repository" ||
-    (gateActive && resolveSqlBackend("read", spacRepo) === "repository")
+    (gate !== undefined &&
+      (pushdown === undefined || resolveSqlBackend("read", pushdown.storage) === "repository"))
       ? "repository"
       : resolveSqlBackend("read", documentRepo);
 
@@ -197,16 +209,21 @@ export async function selectFilingsToConvert(
       params.push(options.cik);
     }
     if (options.force !== true) clauses.push("d.`accession_number` IS NULL");
-    if (gateActive) {
-      // `current_cik` as well as `cik`: a combination that moves the reporting
-      // entity to a new CIK files its closing 8-K under that one, and it is the
-      // filing the lifecycle most wants. The `spac` row records both.
+    if (gatedForms.length > 0) {
+      // The gate's own parameters follow the gated form names, because that is
+      // the order the two halves of the clause appear in the statement.
+      const admitted = pushdown?.fragment({
+        backend: "sqlite",
+        filingAlias: "f",
+        firstParamIndex: params.length + gatedForms.length + 1,
+      });
       clauses.push(
-        `(f.\`form\` NOT IN (${gatedForms.map(() => "?").join(", ")})
-            OR EXISTS (SELECT 1 FROM \`spac\` s
-                        WHERE s.\`cik\` = f.\`cik\` OR s.\`current_cik\` = f.\`cik\`))`
+        `(f.\`form\` NOT IN (${gatedForms.map(() => "?").join(", ")})${
+          admitted === undefined ? "" : `\n            OR ${admitted.sql}`
+        })`
       );
       params.push(...gatedForms);
+      if (admitted !== undefined) params.push(...admitted.params);
     }
     params.push(options.limit);
     return db
@@ -238,13 +255,19 @@ export async function selectFilingsToConvert(
       clauses.push(`f."cik" = $${params.length}`);
     }
     if (options.force !== true) clauses.push(`d."accession_number" IS NULL`);
-    if (gateActive) {
-      // See the SQLite branch for why `current_cik` counts too.
+    if (gatedForms.length > 0) {
       params.push([...gatedForms]);
+      const gatedFormsIndex = params.length;
+      const admitted = pushdown?.fragment({
+        backend: "postgres",
+        filingAlias: "f",
+        firstParamIndex: params.length + 1,
+      });
+      if (admitted !== undefined) params.push(...admitted.params);
       clauses.push(
-        `(f."form" <> ALL($${params.length})
-            OR EXISTS (SELECT 1 FROM "spac" s
-                        WHERE s."cik" = f."cik" OR s."current_cik" = f."cik"))`
+        `(f."form" <> ALL($${gatedFormsIndex})${
+          admitted === undefined ? "" : `\n            OR ${admitted.sql}`
+        })`
       );
     }
     params.push(options.limit);
@@ -272,24 +295,17 @@ export async function selectFilingsToConvert(
   const documents = documentRepo ?? globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN);
   const formSet = new Set(forms);
   const gatedSet = new Set(gatedForms);
-  // Materialized once rather than probed per filing: `spac` is the smallest of
-  // the three tables by orders of magnitude, and this path already streams every
-  // filing, so a lookup per row is the cost worth avoiding.
-  const spacCiks = new Set<number>();
-  if (gateActive && spacRepo !== undefined) {
-    for await (const spac of spacRepo.records(1000)) {
-      spacCiks.add(Number(spac.cik));
-      if (spac.current_cik !== null && spac.current_cik !== undefined) {
-        spacCiks.add(Number(spac.current_cik));
-      }
-    }
-  }
+  // Materialized once rather than probed per filing: this path already streams
+  // every filing, so a lookup per row is the cost worth avoiding. An unregistered
+  // gate admits nobody here for the same reason it excludes the gated forms from
+  // the query above.
+  const admittedCiks = gate === undefined ? new Set<number>() : await gate.admittedCiks();
   const matches: FilingToConvert[] = [];
   for await (const filing of repo.records(1000)) {
     if (filing.form === null || !formSet.has(filing.form)) continue;
     if (options.since !== undefined && (filing.filing_date ?? "") < options.since) continue;
     if (options.cik !== undefined && Number(filing.cik) !== options.cik) continue;
-    if (gatedSet.has(filing.form) && !spacCiks.has(Number(filing.cik))) continue;
+    if (gatedSet.has(filing.form) && !admittedCiks.has(Number(filing.cik))) continue;
     matches.push({
       cik: Number(filing.cik),
       accession_number: filing.accession_number,

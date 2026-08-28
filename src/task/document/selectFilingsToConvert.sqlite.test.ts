@@ -4,13 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { withSqliteDb } from "../../config/testing/withSqliteDb";
 import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../../storage/document/FilingDocumentSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { minimalSpac } from "../../config/testing/minimalSpac";
 import { SPAC_REPOSITORY_TOKEN } from "../../storage/spac/SpacSchema";
+import { registerSpacFilingConversionGate } from "../../storage/spac/spacFilingConversionGate";
+import { clearFilingConversionGateForTesting } from "./filingConversionGate";
 import { selectFilingsToConvert } from "./selectFilingsToConvert";
 
 const VERSION = "3";
@@ -182,5 +184,83 @@ describe("selectFilingsToConvert 8-K gate (sqlite)", () => {
         converterVersion: VERSION,
       })
     ).toHaveLength(0);
+  });
+});
+
+/**
+ * The gate seam on the raw-SQL path.
+ *
+ * The pushed-down half is where an unregistered gate would fall open most
+ * quietly: dropping the clause from the query leaves a statement that still
+ * runs, still binds, and returns every 8-K in the table. So the clause has to
+ * survive the gate's absence as a plain form exclusion — and the placeholder
+ * numbering has to survive it too, which is what the date floor here checks.
+ */
+describe("selectFilingsToConvert 8-K gate seam (sqlite)", () => {
+  const SPAC_CIK = 1811882;
+  const OTHER_CIK = 320193;
+
+  withSqliteDb("select_filings_to_convert_gate_seam_sqlite_test", [
+    FILING_REPOSITORY_TOKEN,
+    FILING_DOCUMENT_REPOSITORY_TOKEN,
+    SPAC_REPOSITORY_TOKEN,
+  ]);
+
+  beforeEach(async () => {
+    const filings = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+    await filings.put({ ...filing("0001493152-26-000010"), cik: SPAC_CIK } as never);
+    await filings.put({ ...filing("0001493152-26-000011"), cik: OTHER_CIK } as never);
+    await filings.put({
+      ...filing("0001493152-26-000012"),
+      cik: OTHER_CIK,
+      form: "S-1",
+    } as never);
+    await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).put(minimalSpac(SPAC_CIK));
+    clearFilingConversionGateForTesting();
+  });
+
+  afterEach(() => {
+    registerSpacFilingConversionGate();
+  });
+
+  it("selects no 8-K with no gate registered, and still selects the ungated forms", async () => {
+    expect(
+      await selectFilingsToConvert({
+        forms: ["8-K", "8-K/A"],
+        limit: 10,
+        converterVersion: VERSION,
+      })
+    ).toEqual([]);
+    const mixed = await selectFilingsToConvert({
+      forms: ["8-K", "S-1"],
+      since: "2026-01-01",
+      limit: 10,
+      converterVersion: VERSION,
+    });
+    expect(mixed.map((f) => f.accession_number)).toEqual(["0001493152-26-000012"]);
+  });
+
+  it("selects the admitted filer's 8-K again once a gate is registered", async () => {
+    registerSpacFilingConversionGate();
+    const selected = await selectFilingsToConvert({
+      forms: ["8-K"],
+      limit: 10,
+      converterVersion: VERSION,
+    });
+    expect(selected.map((f) => f.accession_number)).toEqual(["0001493152-26-000010"]);
+  });
+
+  it("still selects every filer's 8-K under all8k with no gate registered", async () => {
+    const selected = await selectFilingsToConvert({
+      forms: ["8-K"],
+      since: "2026-01-01",
+      limit: 10,
+      all8k: true,
+      converterVersion: VERSION,
+    });
+    expect(selected.map((f) => f.accession_number).sort()).toEqual([
+      "0001493152-26-000010",
+      "0001493152-26-000011",
+    ]);
   });
 });

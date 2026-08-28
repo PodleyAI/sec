@@ -566,6 +566,18 @@ export {
   type BackfillDescriptor,
 } from "./task/forms/backfillDescriptors";
 
+// The seam a package that owns the filer set contributes the documents sweep's
+// 8-K gate through. The forms are this package's call; whose 8-Ks are worth a
+// corpus of markdown is not, and with no gate registered the sweep converts
+// none of them — the cheap answer, not the expensive one.
+export {
+  registerFilingConversionGate,
+  type FilingConversionGate,
+  type GateSqlFragment,
+  type GateSqlPushdown,
+  type GateSqlRequest,
+} from "./task/document/filingConversionGate";
+
 // Human-verified truth for the committed prospectus corpus. Read here by the
 // chunker's own test, which is why it stays; anything scoring an extraction
 // against it reads the same table rather than a copy that can drift.

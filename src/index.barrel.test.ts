@@ -14,6 +14,7 @@ test("barrel exposes the sec dependencies a downstream feature package builds on
     "listResolverIds",
     "isFamilyResolverId",
     "registerDatabaseExtension",
+    "registerFilingConversionGate",
     "listDatabaseExtensionTokens",
     "VersionRegistry",
     "computeResolverCoverage",

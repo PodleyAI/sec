@@ -20,6 +20,8 @@ import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../../storage/document/FilingD
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { minimalSpac } from "../../config/testing/minimalSpac";
 import { SPAC_REPOSITORY_TOKEN } from "../../storage/spac/SpacSchema";
+import { registerSpacFilingConversionGate } from "../../storage/spac/spacFilingConversionGate";
+import { clearFilingConversionGateForTesting } from "./filingConversionGate";
 import { selectFilingsToConvert } from "./selectFilingsToConvert";
 
 const CIK = 1811882;
@@ -237,5 +239,69 @@ describe("selectFilingsToConvert 8-K gate (repository path)", () => {
     await markSpac(SPAC_CIK);
     const rows = await select({ forms: ["8-K", "8-K/A"] });
     expect(rows.map((r) => r.accession_number)).toEqual(["0001213900-26-000010"]);
+  });
+});
+
+/**
+ * The gate is contributed, not built in — and an absent one closes.
+ *
+ * The filer set comes from a lifecycle model that need not ship in the same
+ * package as the sweep, so the sweep has to behave when nothing registered one.
+ * Falling OPEN there would convert every 8-K of every filer, which is the one
+ * outcome the gate exists to prevent, and it would do it silently on a
+ * deployment that never asked for a single 8-K.
+ */
+describe("selectFilingsToConvert 8-K gate seam (repository path)", () => {
+  const SPAC_CIK = 1811882;
+  const OTHER_CIK = 320193;
+
+  const eightK = (cik: number, accession: string) => ({
+    ...filing(accession, "8-K", "2026-04-01"),
+    cik,
+  });
+
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    const filings = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+    await filings.setupDatabase();
+    await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).setupDatabase();
+    await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).setupDatabase();
+    await filings.putBulk([
+      eightK(SPAC_CIK, "0001213900-26-000010"),
+      eightK(OTHER_CIK, "0001213900-26-000011"),
+      { ...filing("0001213900-26-000012", "S-1", "2026-04-02"), cik: OTHER_CIK },
+    ]);
+    // A spac row IS present: what changes the answer below is the missing
+    // registration, not a missing filer.
+    await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).put(minimalSpac(SPAC_CIK));
+    clearFilingConversionGateForTesting();
+  });
+
+  afterEach(() => {
+    registerSpacFilingConversionGate();
+    resetDependencyInjectionsForTesting();
+  });
+
+  const select = (over: Partial<Parameters<typeof selectFilingsToConvert>[0]> = {}) =>
+    selectFilingsToConvert({ limit: 10, converterVersion: VERSION, ...over });
+
+  it("converts no 8-K at all with no gate registered, and leaves every other form alone", async () => {
+    expect((await select()).map((r) => r.accession_number)).toEqual(["0001213900-26-000012"]);
+    expect(await select({ forms: ["8-K", "8-K/A"] })).toEqual([]);
+  });
+
+  it("takes the admitted filer's 8-K again once a gate is registered", async () => {
+    registerSpacFilingConversionGate();
+    expect((await select({ forms: ["8-K"] })).map((r) => r.accession_number)).toEqual([
+      "0001213900-26-000010",
+    ]);
+  });
+
+  it("still converts everyone's 8-K under all8k, which asks for them explicitly", async () => {
+    const rows = await select({ forms: ["8-K"], all8k: true });
+    expect(rows.map((r) => r.accession_number).sort()).toEqual([
+      "0001213900-26-000010",
+      "0001213900-26-000011",
+    ]);
   });
 });
