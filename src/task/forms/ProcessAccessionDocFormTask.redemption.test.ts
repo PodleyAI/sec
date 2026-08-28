@@ -304,4 +304,80 @@ describe("ProcessAccessionDocFormTask 8-K extractor_runs recording", () => {
     expect(dispatched?.success).toBe(true);
     expect(dispatched?.error).toBeNull();
   });
+
+  // The three below pin the run row's account of WHAT the extractor was handed,
+  // which is the only place that fact survives the dispatch. Two 8-Ks of the
+  // same known SPAC, differing only in their item codes, produce classifications
+  // of different worth: one made over the EX-99 exhibits and one made over four
+  // sentences pointing at them. Without this column a stored answer carrying no
+  // merger detail cannot be told from a filing that genuinely had none, and a
+  // later pass run with the exhibits would disagree with nothing recording why.
+  it("records that the dispatched extractor read the full submission when the gate opened", async () => {
+    const cik = 51;
+    const accession = "0000000000-26-000051";
+
+    await seedSpac(cik);
+    await seedFiling({
+      cik,
+      accession_number: accession,
+      form: "8-K",
+      primary_doc: "primary.htm",
+      items: "5.07",
+    });
+
+    await new FixedBodyTask(FULL_TXT).run({ accessionNumber: accession });
+
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    const dispatched = await runRepo.findRun(cik, accession, EIGHT_K_ID, ACTIVE_VERSION);
+    expect(dispatched?.read_full_submission).toBe(true);
+  });
+
+  it("records that it did not, for a filing whose items never open the gate", async () => {
+    // Same known SPAC and the same bytes on disk — only the item codes differ,
+    // and 2.02 is not a trigger item.
+    const cik = 52;
+    const accession = "0000000000-26-000052";
+
+    await seedSpac(cik);
+    await seedFiling({
+      cik,
+      accession_number: accession,
+      form: "8-K",
+      primary_doc: "primary.htm",
+      items: "2.02",
+    });
+
+    await new FixedBodyTask(FULL_TXT).run({ accessionNumber: accession });
+
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    const dispatched = await runRepo.findRun(cik, accession, EIGHT_K_ID, ACTIVE_VERSION);
+    expect(dispatched?.read_full_submission).toBe(false);
+    expect(dispatched?.read_full_submission).not.toBeNull();
+  });
+
+  it("leaves the verdict null for a run recorded by a caller that does not state it", async () => {
+    // The gated pass writes its own row from inside the extractor's `store`,
+    // through the same call shape every writer used before the column existed.
+    // Null is what such a row must report: nobody wrote the answer down, which
+    // is not the same fact as the extractor having read the primary document
+    // alone.
+    const cik = 53;
+    const accession = "0000000000-26-000053";
+
+    await seedSpac(cik);
+    await seedFiling({
+      cik,
+      accession_number: accession,
+      form: "8-K",
+      primary_doc: "primary.htm",
+      items: "5.07",
+    });
+
+    await new FixedBodyTask(FULL_TXT).run({ accessionNumber: accession });
+
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    const gated = await runRepo.findRun(cik, accession, GATED_ID, ACTIVE_VERSION);
+    expect(gated).toBeDefined();
+    expect(gated?.read_full_submission).toBeNull();
+  });
 });

@@ -408,6 +408,23 @@ export class ProcessAccessionDocFormTask extends Task<
       (storedEntries.get(id) ?? 0) >= (entriesPerId.get(id) ?? 0);
 
     /**
+     * What each extractor id was actually handed to read, stamped by the
+     * dispatch at the moment it decided and read straight back out by the run
+     * recorders below.
+     *
+     * Whether an extractor saw the filing's exhibits changes what its output
+     * MEANS — an 8-K item 1.02 classified without them cannot be told apart
+     * from one whose filing carried no merger exhibit at all — and until this
+     * was written down the answer existed only for the length of one dispatch.
+     * A later pass reading the stored rows would derive a different answer with
+     * nothing recording why.
+     *
+     * An id with no entry here was never dispatched, so its run row records
+     * null: "not asked", which is a different fact from "handed nothing".
+     */
+    const readFullSubmissionById = new Map<string, boolean>();
+
+    /**
      * The extractors a filing-level failure is recorded against: every one that
      * has not finished storing.
      *
@@ -433,6 +450,7 @@ export class ProcessAccessionDocFormTask extends Task<
             success: false,
             outcome: "failure",
             error: message.slice(0, 4096),
+            read_full_submission: readFullSubmissionById.get(target.id) ?? null,
           });
         } catch (recordErr) {
           console.error(
@@ -521,6 +539,7 @@ export class ProcessAccessionDocFormTask extends Task<
             success: outcome === "success",
             outcome,
             error: null,
+            read_full_submission: readFullSubmissionById.get(target.id) ?? null,
           });
         } catch (recordErr) {
           console.error(
@@ -578,6 +597,16 @@ export class ProcessAccessionDocFormTask extends Task<
           wantsDocument &&
           isFullSubmission &&
           (await extractorReadsFullSubmission(extractor, { form: form!, cik, items }));
+        const fullSubmissionText = readsFullSubmission ? body : undefined;
+        // Stamped from the argument itself rather than by asking the predicate
+        // a second time, so the ledger cannot claim one input while the
+        // extractor read another. An id split into sections holds several
+        // registry entries and the run row is per id, so the id counts as
+        // having read the submission once any of its entries did.
+        readFullSubmissionById.set(
+          extractor.id,
+          (readFullSubmissionById.get(extractor.id) ?? false) || fullSubmissionText !== undefined
+        );
         await extractor.store({
           cik: cik!,
           file_number: file_number ?? "",
@@ -591,7 +620,7 @@ export class ProcessAccessionDocFormTask extends Task<
           extractor_version: slot.semver,
           text: wantsDocument ? body : "",
           isFullSubmission,
-          fullSubmissionText: readsFullSubmission ? body : undefined,
+          fullSubmissionText,
           // Threaded to the AI form processors so a local model's download
           // renders its progress in this task's CLI UI (via `prefetchModel`).
           // Non-AI processors ignore it.

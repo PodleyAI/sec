@@ -65,6 +65,7 @@ async function seedRun(row: {
     success: row.outcome === "success",
     outcome: row.outcome,
     error: null,
+    read_full_submission: null,
   } as ExtractorRun);
 }
 

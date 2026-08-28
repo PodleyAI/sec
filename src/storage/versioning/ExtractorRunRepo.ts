@@ -51,8 +51,9 @@ export class ExtractorRunRepo {
   constructor(private readonly storage: ExtractorRunRepositoryStorage) {}
 
   async recordRun(
-    row: Omit<ExtractorRun, "ran_at" | "outcome"> & {
+    row: Omit<ExtractorRun, "ran_at" | "outcome" | "read_full_submission"> & {
       outcome?: ExtractorRunOutcome;
+      read_full_submission?: boolean | null;
     }
   ): Promise<void> {
     const outcome: ExtractorRunOutcome = row.outcome ?? (row.success ? "success" : "failure");
@@ -61,6 +62,10 @@ export class ExtractorRunRepo {
       // success stays as the back-compat boolean mirror of outcome === "success".
       success: outcome === "success",
       outcome,
+      // Omitting it stores null — "nobody recorded what this run was handed" —
+      // rather than false, which would claim the extractor read the primary
+      // document alone. Only a caller that knows may say so.
+      read_full_submission: row.read_full_submission ?? null,
       ran_at: new Date().toISOString(),
     } as ExtractorRun);
   }

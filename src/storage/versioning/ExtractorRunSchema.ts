@@ -46,6 +46,14 @@ export const ExtractorRunSchema = Type.Object({
   error: Type.Union([Type.String({ maxLength: 4096 }), Type.Null()], {
     description: "Error message if success=false, else null",
   }),
+  read_full_submission: Type.Union([Type.Boolean(), Type.Null()], {
+    description:
+      "Whether this extractor's store was handed the filing's full submission text — its " +
+      "exhibits and their manifest — rather than the primary document alone. Null means NOT " +
+      "RECORDED, never 'was not handed it': a row written before this column existed, or a " +
+      "run that failed before the dispatch reached this extractor. Reading null as false " +
+      "would assert a fact about an input nobody wrote down.",
+  }),
 });
 
 export type ExtractorRun = Static<typeof ExtractorRunSchema>;
