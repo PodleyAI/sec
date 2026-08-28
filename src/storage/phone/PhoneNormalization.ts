@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { parsePhoneNumber } from "awesome-phonenumber";
+import { parsePhoneNumber } from "@sroussey/parse-phonenumber";
 import type { Phone } from "./PhoneSchema";
 
 export interface PhoneImport {

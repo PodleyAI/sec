@@ -23,7 +23,7 @@ export const PHONE_TYPE = Type.Union(
     Type.Literal("voip"),
     Type.Literal("unknown"),
   ],
-  { description: "Type of phone number as detected by awesome-phonenumber library" }
+  { description: "Type of phone number as detected by @sroussey/parse-phonenumber library" }
 );
 
 export type PhoneType = Static<typeof PHONE_TYPE>;

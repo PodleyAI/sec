@@ -1104,7 +1104,7 @@ Exit/termination filings for Reg A offerings. Updates offering status to "exit".
 
 - Converts to international format with country code
 - Classifies type (fixed-line, mobile, VOIP, toll-free, etc.)
-- Uses awesome-phonenumber library
+- Uses @sroussey/parse-phonenumber library
 
 ### 5.4 Person Name Parsing
 
