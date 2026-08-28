@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { Form144Repo } from "../../../storage/form144/Form144Repo";
+import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
 import { accessionFromFixtureName } from "../../../util/accession";
@@ -295,5 +296,57 @@ describe("Form 144 storage", () => {
 
     expect((await repo.getAcquisitions(accession)).length).toBe(1);
     expect((await repo.getRecentSales(accession)).length).toBe(0);
+  });
+});
+
+/**
+ * The issuer's contact phone, junctioned to the ISSUER — not to the filer.
+ *
+ * A Form 144 is filed BY the selling shareholder ABOUT the issuer, so the
+ * filing CIK belongs to someone else. Attaching the number there would hand a
+ * shareholder the company's phone, which is why this one case junctions on
+ * `issuerInfo.issuerCik` rather than the `cik` argument.
+ */
+describe("Form 144 issuer phone", () => {
+  let phoneRepo: PhoneRepo;
+
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    await setupAllDatabases();
+    phoneRepo = new PhoneRepo();
+  });
+
+  it("stores issuerContactPhone against the issuer CIK", async () => {
+    const file = "000166326626000003-primary_doc.xml";
+    const xml = readFileSync(join(__dirname, "mock_data", "form-144", file), "utf-8");
+    const doc = await Form_144.parse("144", xml);
+    const raw = doc.formData?.issuerInfo?.issuerContactPhone;
+    expect(raw).toBeTruthy();
+    const issuerCik = parseCikSafely(doc.formData?.issuerInfo?.issuerCik);
+    expect(issuerCik).toBeTruthy();
+
+    await processForm144({
+      // A DIFFERENT filer CIK, which is the normal shape for this form and the
+      // whole reason the junction must not use it.
+      cik: 999_999_999,
+      file_number: "",
+      accession_number: "test-accession-144-phone",
+      filing_date: "2026-05-27",
+      primary_doc: file,
+      form: "144",
+      doc,
+    });
+
+    const stored = ((await phoneRepo.phoneRepository.getAll()) ?? []).find(
+      (row) => row.raw_phone === raw
+    );
+    expect(stored).toBeDefined();
+
+    const junction =
+      (await phoneRepo.phoneEntityJunctionRepository.query({
+        international_number: stored!.international_number,
+      })) ?? [];
+    expect(junction.some((j) => Number(j.cik) === issuerCik)).toBe(true);
+    expect(junction.some((j) => Number(j.cik) === 999_999_999)).toBe(false);
   });
 });

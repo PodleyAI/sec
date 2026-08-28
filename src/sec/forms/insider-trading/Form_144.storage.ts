@@ -34,6 +34,8 @@ import { formToExtractorId } from "../../../storage/versioning/extractorIds";
 import { Form144Repo } from "../../../storage/form144/Form144Repo";
 import type { Form144 } from "./Form_144.schema";
 import { numScalar as num, strScalar as str } from "../_valueHelpers";
+import { resolveCountryCode } from "../../../storage/address/resolveCountryCode";
+import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 
 type AddressShape = NonNullable<NonNullable<Form144["formData"]>["issuerInfo"]>["issuerAddress"];
 
@@ -188,6 +190,32 @@ export async function processForm144({
         console.warn(`Failed to save Form 144 issuer address for ${issuerName}:`, error);
       }
     }
+    // The ISSUER's own contact number, from the same `issuerInfo` block as the
+    // address above. Form 144 has no EDGAR-contact phone to confuse it with —
+    // this is its only phone field, and the block it sits in is the issuer's.
+    //
+    // Junctioned on `issuer_cik`, not the filer's CIK: a Form 144 is filed BY
+    // the selling shareholder ABOUT the issuer, so the filing CIK is someone
+    // else entirely and attaching the number there would hand a shareholder the
+    // company's phone. With no parseable issuer CIK the phone is still stored —
+    // it is a real number, and the observation carries it into the resolver
+    // tier — just not linked to a CIK we cannot name.
+    let issuerPhone: Awaited<ReturnType<PhoneRepo["savePhoneIfUsable"]>> = undefined;
+    const issuerPhoneRaw = str(issuerInfo?.issuerContactPhone);
+    if (issuerPhoneRaw) {
+      const phoneRepo = new PhoneRepo();
+      issuerPhone = await phoneRepo.savePhoneIfUsable({
+        phone_raw: issuerPhoneRaw,
+        country_code: resolveCountryCode(str(issuerInfo?.issuerAddress?.stateOrCountry)),
+      });
+      if (issuerPhone && issuer_cik) {
+        await phoneRepo.saveRelatedEntity(
+          issuerPhone.international_number,
+          "entity:contact",
+          issuer_cik
+        );
+      }
+    }
     await observer.observeCompany({
       accession_number,
       extractor_id,
@@ -196,6 +224,7 @@ export async function processForm144({
       cik: issuer_cik || null,
       name: issuerName,
       address_id: issuerAddressId,
+      international_number: issuerPhone?.international_number ?? null,
       source_context: JSON.stringify({ relation: "form144:issuer" }),
     });
   }

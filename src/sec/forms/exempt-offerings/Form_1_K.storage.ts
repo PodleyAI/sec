@@ -6,6 +6,8 @@
 
 import { globalServiceRegistry } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
+import { resolveCountryCode } from "../../../storage/address/resolveCountryCode";
+import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { normalizeCompanyName } from "../../../storage/company/CompanyNormalization";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import type { RegAOffering } from "../../../storage/reg-a/RegAOfferingSchema";
@@ -50,6 +52,7 @@ async function processIssuer(
   startIndex: number
 ): Promise<void> {
   const addressRepo = new AddressRepo();
+  const phoneRepo = new PhoneRepo();
 
   const item1Info = form1K.formData.item1Info;
   const item1 = form1K.formData.item1;
@@ -68,6 +71,25 @@ async function processIssuer(
     console.warn(`Failed to save address for Form 1-K issuer (CIK ${cik}):`, error);
   }
 
+  // The phone from that same `item1` block. It is the ISSUER's own number —
+  // not `contact.contactPhone`, which is the EDGAR submission contact (a
+  // filing agent or attorney) and deliberately unstored, the same split
+  // Form 1-A and Form D already make.
+  //
+  // `savePhoneIfUsable`, not `savePhone`: EDGAR's phone field is free text and
+  // an unparseable value is one contact detail, which must not cost the filing
+  // its issuer observations.
+  let phone: Awaited<ReturnType<typeof phoneRepo.savePhoneIfUsable>> = undefined;
+  if (item1.phoneNumber) {
+    phone = await phoneRepo.savePhoneIfUsable({
+      phone_raw: item1.phoneNumber,
+      country_code: resolveCountryCode(item1.stateOrCountry),
+    });
+    if (phone) {
+      await phoneRepo.saveRelatedEntity(phone.international_number, "entity:contact", cik);
+    }
+  }
+
   // Process each issuer in item1Info
   let index = startIndex;
   for (const issuer of item1Info) {
@@ -81,7 +103,7 @@ async function processIssuer(
       cik,
       name: issuer.issuerName,
       address_id: addr?.address_hash_id ?? null,
-      international_number: null,
+      international_number: phone?.international_number ?? null,
       source_context: JSON.stringify({ relation: "form-1k:issuer" }),
     });
     index++;
