@@ -238,7 +238,18 @@ export function addBootstrapCommands(program: Command): void {
     .command("ingest [domain]")
     .description("Ingest pre-downloaded SEC data (submissions, facts, cik-names, or all)")
     .option("--force", "Reprocess all items, ignoring processed state", false)
-    .action(async (domain: string | undefined, options) => {
+    .action(async (domain: string | undefined, _options, command) => {
+      // Merge ancestor options, for the same reason `download-docs` does: the
+      // parent `bootstrap` command declares `--force` too, and commander
+      // attributes a shared flag to the ANCESTOR, so this subcommand's own
+      // `options.force` stayed false however the flag was typed.
+      //
+      // Silent, and expensive in the wrong direction: `BootstrapSubmissionsTask`
+      // answers a swallowed `--force` by taking the unprocessed-only path, so a
+      // re-ingest meant to sweep ~1M cached CIKs reported success after touching
+      // the handful the daily index had just added. Nothing distinguished it
+      // from a real run but the count.
+      const options = command.optsWithGlobals();
       await runCommand(
         async () => {
           const target = domain ?? "all";
