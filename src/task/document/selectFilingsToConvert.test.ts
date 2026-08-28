@@ -18,6 +18,8 @@ import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../../storage/document/FilingDocumentSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { minimalSpac } from "../../config/testing/minimalSpac";
+import { SPAC_REPOSITORY_TOKEN } from "../../storage/spac/SpacSchema";
 import { selectFilingsToConvert } from "./selectFilingsToConvert";
 
 const CIK = 1811882;
@@ -152,5 +154,88 @@ describe("selectFilingsToConvert primary gate (repository path)", () => {
     await markConverted("0001213900-26-000001", VERSION);
     const selected = await selectFilingsToConvert({ limit: 10, converterVersion: VERSION });
     expect(selected.map((f) => f.accession_number)).not.toContain("0001213900-26-000001");
+  });
+});
+
+/**
+ * 8-Ks are convertible only for known SPACs by default.
+ *
+ * Every reporting company files them on every earnings release, so the
+ * unfiltered set dwarfs the rest of {@link CONVERTIBLE_FORMS} — a default sweep
+ * that took them all would spend the whole budget converting filings this
+ * product has no page for, and the lifecycle 8-Ks it does want would sit behind
+ * them.
+ */
+describe("selectFilingsToConvert 8-K gate (repository path)", () => {
+  const SPAC_CIK = 1811882;
+  const OTHER_CIK = 320193;
+
+  const eightK = (cik: number, accession: string) => ({
+    ...filing(accession, "8-K", "2026-04-01"),
+    cik,
+  });
+
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    const filings = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+    await filings.setupDatabase();
+    await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).setupDatabase();
+    await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).setupDatabase();
+    await filings.putBulk([
+      eightK(SPAC_CIK, "0001213900-26-000010"),
+      eightK(OTHER_CIK, "0001213900-26-000011"),
+      // A registration is never gated: the whole point of the gate is that 8-Ks
+      // are the form every filer files.
+      { ...filing("0001213900-26-000012", "S-1", "2026-04-02"), cik: OTHER_CIK },
+    ]);
+  });
+
+  afterEach(() => {
+    resetDependencyInjectionsForTesting();
+  });
+
+  const markSpac = async (cik: number, currentCik: number | null = null) => {
+    await globalServiceRegistry
+      .get(SPAC_REPOSITORY_TOKEN)
+      .put(minimalSpac(cik, { current_cik: currentCik }));
+  };
+
+  const select = (over: Partial<Parameters<typeof selectFilingsToConvert>[0]> = {}) =>
+    selectFilingsToConvert({ limit: 10, converterVersion: VERSION, ...over });
+
+  it("takes a SPAC's 8-K and leaves everyone else's", async () => {
+    await markSpac(SPAC_CIK);
+    const rows = await select();
+    expect(rows.map((r) => r.accession_number).sort()).toEqual([
+      "0001213900-26-000010",
+      "0001213900-26-000012",
+    ]);
+  });
+
+  it("takes no 8-K at all when the spac table is empty", async () => {
+    expect((await select()).map((r) => r.form)).toEqual(["S-1"]);
+  });
+
+  it("follows a de-SPAC to its surviving CIK", async () => {
+    // The combination moved the reporting entity, and the closing 8-K is filed
+    // under the new CIK. Keying only on the origin CIK would drop exactly the
+    // filing the lifecycle is built from.
+    await markSpac(SPAC_CIK, OTHER_CIK);
+    const rows = await select({ forms: ["8-K"] });
+    expect(rows.map((r) => r.accession_number).sort()).toEqual([
+      "0001213900-26-000010",
+      "0001213900-26-000011",
+    ]);
+  });
+
+  it("takes every filer's 8-K under all8k", async () => {
+    const rows = await select({ forms: ["8-K"], all8k: true });
+    expect(rows).toHaveLength(2);
+  });
+
+  it("gates an explicit --types 8-K too, so the narrowing is not also a widening", async () => {
+    await markSpac(SPAC_CIK);
+    const rows = await select({ forms: ["8-K", "8-K/A"] });
+    expect(rows.map((r) => r.accession_number)).toEqual(["0001213900-26-000010"]);
   });
 });

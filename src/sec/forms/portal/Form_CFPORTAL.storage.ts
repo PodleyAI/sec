@@ -6,6 +6,8 @@
 
 import { globalServiceRegistry, TaskAbortedError } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
+import { resolveCountryCode } from "../../../storage/address/resolveCountryCode";
+import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { PortalRepo } from "../../../storage/portal/PortalRepo";
 import { recordSuccessions } from "./portalSuccession";
 import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
@@ -168,6 +170,48 @@ export async function processFormCFPORTAL({
     }
   }
 
+  const phoneRepo = new PhoneRepo();
+
+  // The portal's OWN number, from the same identifying block as its address.
+  let portalPhone: Awaited<ReturnType<PhoneRepo["savePhoneIfUsable"]>> = undefined;
+  const portalPhoneRaw = identifying?.portalContact?.portalContactPhone;
+  if (portalPhoneRaw) {
+    portalPhone = await phoneRepo.savePhoneIfUsable({
+      phone_raw: portalPhoneRaw,
+      country_code: resolveCountryCode(identifying?.portalAddress?.stateOrCountry),
+    });
+    if (portalPhone) {
+      await phoneRepo.saveRelatedEntity(portalPhone.international_number, "entity:contact", cik);
+    }
+  }
+
+  // The escrow agent's number, which is NOT the portal's and must never be
+  // junctioned as though it were.
+  //
+  // It lives under `escrowArrangements`, and the data says the same: across all
+  // 817 cached CFPORTAL filings, 786 carry both numbers and 772 of them (99%)
+  // differ. The escrow numbers are shared infrastructure — one is on 46
+  // distinct portal CIKs, another on 29 — so filing them under
+  // `entity:contact` would hand 46 portals the same switchboard as their own.
+  // A distinct relation keeps the number discoverable without asserting whose
+  // it is. (The agent itself is a company this does not yet observe;
+  // `investorFundsContactName` and `investorFundsAddress` are the makings of
+  // that, and it is a larger change than storing the phone.)
+  for (const escrow of formCfportal.formData?.escrowArrangements?.investorFundsContacts ?? []) {
+    if (!escrow.investorFundsContactPhone) continue;
+    const escrowPhone = await phoneRepo.savePhoneIfUsable({
+      phone_raw: escrow.investorFundsContactPhone,
+      country_code: resolveCountryCode(escrow.investorFundsAddress?.stateOrCountry),
+    });
+    if (escrowPhone) {
+      await phoneRepo.saveRelatedEntity(
+        escrowPhone.international_number,
+        "portal:investor-funds",
+        cik
+      );
+    }
+  }
+
   if (identifying?.nameOfPortal) {
     await observer.observeCompany({
       accession_number,
@@ -177,6 +221,7 @@ export async function processFormCFPORTAL({
       cik,
       name: identifying.nameOfPortal,
       address_id: portalAddressId,
+      international_number: portalPhone?.international_number ?? null,
       source_context: JSON.stringify({ relation: "cfportal:portal" }),
     });
   }

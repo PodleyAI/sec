@@ -500,14 +500,27 @@ export class EntityObserver<
     const tier = this.personTier();
     const completenessRepo = this.rosterCompletenessRepo();
     if (completenessRepo !== null) {
-      await completenessRepo.record({
-        accession_number: args.accession_number,
-        extractor_id: args.extractor_id,
-        role_scope: args.role_scope,
-        company_cik: args.company_cik,
-        filing_date: args.filing_date,
-        complete,
-      });
+      // Best-effort in the same sense the repo's own resolution is, and for a
+      // stronger reason: this call is made from inside a form's `store`, whose
+      // single containment boundary turns any throw into a filing-level
+      // STORE_ERROR dead letter. Failing to WRITE down a completeness verdict
+      // must not undo a store that otherwise succeeded — an unrecorded verdict
+      // reads downstream as "not known to be complete", which closes nothing.
+      try {
+        await completenessRepo.record({
+          accession_number: args.accession_number,
+          extractor_id: args.extractor_id,
+          role_scope: args.role_scope,
+          company_cik: args.company_cik,
+          filing_date: args.filing_date,
+          complete,
+        });
+      } catch (err) {
+        console.error(
+          `Failed to record roster completeness for ${args.accession_number}@${args.extractor_id}:${args.role_scope}:`,
+          err
+        );
+      }
     }
     if (!args.filing_date) return 0;
     const groupKey = this.roleGroupKey(

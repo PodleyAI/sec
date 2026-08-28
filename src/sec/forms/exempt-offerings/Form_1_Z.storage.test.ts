@@ -10,6 +10,7 @@ import { join } from "path";
 import { Form_1_Z } from "./Form_1_Z";
 import { processForm1Z } from "./Form_1_Z.storage";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
+import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
@@ -377,5 +378,58 @@ describe("Form_1_Z storage test", () => {
       expect(after?.issuer_name ?? null).toBe(seededIssuerName);
       expect(after?.sic_code ?? null).toBe(seededSicCode);
     });
+  });
+});
+
+/**
+ * Same gap as Form 1-K: `item1.phone` sits beside the address the storage
+ * already saved, and went unread. 1,696 Form 1-Z company observations, none
+ * with a phone.
+ */
+describe("Form 1-Z issuer phone", () => {
+  let phoneRepo: PhoneRepo;
+
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    await setupAllDatabases();
+    phoneRepo = new PhoneRepo();
+  });
+
+  it("stores item1.phone and hands it to the issuer observation", async () => {
+    const mockDataDir = join(__dirname, "mock_data", "form-1-z");
+    const file = readdirSync(mockDataDir).filter((f) => f.endsWith(".xml"))[0]!;
+    const form1Z = await Form_1_Z.parse("1-Z", readFileSync(join(mockDataDir, file), "utf-8"));
+    const raw = form1Z.formData.item1.phone;
+    expect(raw).toBeTruthy();
+
+    const cik = parseInt(form1Z.headerData.filerInfo.filer.issuerCredentials.cik);
+    await processForm1Z({
+      cik,
+      file_number: "024-33333",
+      accession_number: "test-accession-1z-phone",
+      filing_date: "2024-09-15",
+      primary_doc: file,
+      form1Z,
+    });
+
+    const stored = ((await phoneRepo.phoneRepository.getAll()) ?? []).find(
+      (row) => row.raw_phone === raw
+    );
+    expect(stored).toBeDefined();
+
+    const junction =
+      (await phoneRepo.phoneEntityJunctionRepository.query({
+        international_number: stored!.international_number,
+      })) ?? [];
+    expect(
+      junction.some((j) => Number(j.cik) === cik && j.relation_name === "entity:contact")
+    ).toBe(true);
+
+    const observations = await new CompanyObservationRepo().listAll();
+    expect(
+      observations.some(
+        (o) => o.accession_number === "test-accession-1z-phone" && o.raw_phone_id !== null
+      )
+    ).toBe(true);
   });
 });

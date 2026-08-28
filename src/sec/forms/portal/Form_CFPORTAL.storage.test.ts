@@ -11,6 +11,7 @@ import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { PortalRepo } from "../../../storage/portal/PortalRepo";
 import { accessionFromFixtureName } from "../../../util/accession";
 import { parseCikSafely } from "../../../util/parseCik";
@@ -293,5 +294,72 @@ describe("Form_CFPORTAL storage", () => {
     expect(after?.brand).toBe(seededBrand ?? null);
     expect(after?.url).toBe(seededUrl ?? null);
     expect(after?.as_of).toBe("2025-06-01");
+  });
+});
+
+/**
+ * Two phones on one filing, belonging to two different companies.
+ *
+ * `portalContactPhone` is the portal's own. `investorFundsContactPhone` sits
+ * under `escrowArrangements` and belongs to the bank or trust company holding
+ * investor funds — measured across all 817 cached CFPORTAL filings, 786 carry
+ * both and 772 of them (99%) differ. The escrow numbers are shared
+ * infrastructure: the one in this fixture, 702-840-4000, appears on 46
+ * distinct portal CIKs. Filing it as `entity:contact` would tell 46 portals
+ * they share a switchboard.
+ */
+describe("Form CFPORTAL phones", () => {
+  let phoneRepo: PhoneRepo;
+
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    await setupAllDatabases();
+    phoneRepo = new PhoneRepo();
+  });
+
+  it("keeps the portal's phone and the escrow agent's under different relations", async () => {
+    const file = "000121390021050768-primary_doc.xml";
+    const parsed = await Form_CFPORTAL.parse(
+      "CFPORTAL",
+      readFileSync(join(FIXTURE_DIR, file), "utf-8")
+    );
+    const cik = parseCikSafely(parsed.headerData.filerInfo.filer.filerCredentials.filerCik);
+    const portalRaw = parsed.formData?.identifyingInformation?.portalContact?.portalContactPhone;
+    const escrowRaw =
+      parsed.formData?.escrowArrangements?.investorFundsContacts?.[0]?.investorFundsContactPhone;
+    expect(portalRaw).toBeTruthy();
+    expect(escrowRaw).toBeTruthy();
+    expect(portalRaw).not.toBe(escrowRaw);
+
+    await processFormCFPORTAL({
+      cik,
+      accession_number: "test-accession-cfportal-phone",
+      filing_date: "2025-06-01",
+      formCfportal: parsed,
+    });
+
+    const phones = (await phoneRepo.phoneRepository.getAll()) ?? [];
+    const portalPhone = phones.find((row) => row.raw_phone === portalRaw);
+    const escrowPhone = phones.find((row) => row.raw_phone === escrowRaw);
+    expect(portalPhone).toBeDefined();
+    expect(escrowPhone).toBeDefined();
+
+    const relationsFor = async (international_number: string): Promise<string[]> =>
+      ((await phoneRepo.phoneEntityJunctionRepository.query({ international_number })) ?? [])
+        .filter((j) => Number(j.cik) === cik)
+        .map((j) => j.relation_name);
+
+    expect(await relationsFor(portalPhone!.international_number)).toContain("entity:contact");
+    // The escrow number is reachable, but never claimed as the portal's own.
+    const escrowRelations = await relationsFor(escrowPhone!.international_number);
+    expect(escrowRelations).toContain("portal:investor-funds");
+    expect(escrowRelations).not.toContain("entity:contact");
+
+    // And only the portal's own number reaches the portal observation.
+    const observations = await new CompanyObservationRepo().listAll();
+    const portalObs = observations.find(
+      (o) => o.accession_number === "test-accession-cfportal-phone" && o.observation_index === 0
+    );
+    expect(portalObs?.raw_phone_id).toBe(portalPhone!.international_number);
   });
 });

@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
+import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import { Form_1_K } from "./Form_1_K";
@@ -322,5 +323,92 @@ describe("Form_1_K storage test", () => {
       expect(after?.issuer_name ?? null).toBe(seededIssuerName);
       expect(after?.sic_code ?? null).toBe(seededSicCode);
     });
+  });
+});
+
+/**
+ * The issuer's phone rides along with the issuer's address.
+ *
+ * Both come out of the same `item1` block, and for a long time only the
+ * address was read — so every Form 1-K company observation carried a null
+ * phone while the number sat unread one field away. The tell was in the data:
+ * 5,383 1-K observations, zero with a phone.
+ */
+describe("Form 1-K issuer phone", () => {
+  let phoneRepo: PhoneRepo;
+
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    await setupAllDatabases();
+    phoneRepo = new PhoneRepo();
+  });
+
+  it("stores item1.phoneNumber and hands it to the issuer observation", async () => {
+    const mockDataDir = join(__dirname, "mock_data", "form-1-k");
+    const file = readdirSync(mockDataDir).filter((f) => f.endsWith(".xml"))[0]!;
+    const parsed = await Form_1_K.parse("1-K", readFileSync(join(mockDataDir, file), "utf-8"));
+    const form1K = parsed.cover;
+    const raw = form1K.formData.item1.phoneNumber;
+    expect(raw).toBeTruthy();
+
+    const cik = parseInt(form1K.formData.item1Info[0]!.cik!);
+    await processForm1K({
+      cik,
+      file_number: "024-11111",
+      accession_number: "test-accession-1k-phone",
+      filing_date: "2024-06-15",
+      primary_doc: file,
+      form: "1-K",
+      form1K: parsed,
+    });
+
+    const phones = (await phoneRepo.phoneRepository.getAll()) ?? [];
+    expect(phones.length).toBeGreaterThan(0);
+    const stored = phones.find((row) => row.raw_phone === raw);
+    expect(stored).toBeDefined();
+
+    // Junctioned to the filer, and carried onto the observation the identity
+    // tier reads — storing the row alone would leave both still empty.
+    const junction =
+      (await phoneRepo.phoneEntityJunctionRepository.query({
+        international_number: stored!.international_number,
+      })) ?? [];
+    expect(
+      junction.some((j) => Number(j.cik) === cik && j.relation_name === "entity:contact")
+    ).toBe(true);
+
+    const observations = await new CompanyObservationRepo().listAll();
+    const issuerObs = observations.filter(
+      (o) => o.accession_number === "test-accession-1k-phone" && o.raw_phone_id !== null
+    );
+    expect(issuerObs.length).toBeGreaterThan(0);
+  });
+
+  it("does not store the EDGAR submission contact phone", async () => {
+    // The contact block lives in headerData.filerInfo, beside `liveTestFlag`
+    // and `notifications` — it is the EDGAR transmission contact (a filing
+    // agent or attorney), not the issuer. Form 1-A and Form D make the same
+    // split; storing it would attribute a law firm's switchboard to the
+    // company.
+    const mockDataDir = join(__dirname, "mock_data", "form-1-k");
+    const files = readdirSync(mockDataDir).filter((f) => f.endsWith(".xml"));
+    for (const file of files) {
+      const parsed = await Form_1_K.parse("1-K", readFileSync(join(mockDataDir, file), "utf-8"));
+      const form1K = parsed.cover;
+      const contactPhone = form1K.headerData.filerInfo.contact?.contactPhone;
+      if (!contactPhone || contactPhone === form1K.formData.item1.phoneNumber) continue;
+      await processForm1K({
+        cik: parseInt(form1K.formData.item1Info[0]!.cik!),
+        file_number: "024-22222",
+        accession_number: `test-1k-contact-${file}`,
+        filing_date: "2024-06-15",
+        primary_doc: file,
+        form: "1-K",
+        form1K: parsed,
+      });
+      const phones = (await phoneRepo.phoneRepository.getAll()) ?? [];
+      expect(phones.some((row) => row.raw_phone === contactPhone)).toBe(false);
+      return;
+    }
   });
 });

@@ -554,10 +554,12 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     G("Jonathon Angell", ["Director"]),
     G("Thomas S. Glanville", ["Director"]),
   ],
-  // Names are transcribed as EACH table prints them, which is why several
-  // disagree with the roster above ("Jonathan"/"Jonathon" Angell, "Richard
-  // Muller"/"Richard A. Muller"). The filing is inconsistent with itself; the
-  // label follows the section the extractor is actually reading.
+  // The filing is inconsistent with itself across its two tables ("Jonathan" in
+  // one, "Jonathon" in the other; a bare "Richard Muller" against "Richard A.
+  // Muller"). Identity is what these labels record, so both sections carry the
+  // IDENTIFYING spelling rather than the one that section happens to print —
+  // the same rule {@link GoldenPartyRow} states, and why the roster above and
+  // the ownership table below agree here.
   [goldenLabelKey("s1_1918102_000110465926016226", "beneficial-ownership")]: [
     O("Entities affiliated with 8VC", "company"),
     O("Mark Tompkins", "person"),

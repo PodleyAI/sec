@@ -4,17 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { withSqliteDb } from "../../config/testing/withSqliteDb";
 import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../../storage/document/FilingDocumentSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { minimalSpac } from "../../config/testing/minimalSpac";
+import { SPAC_REPOSITORY_TOKEN } from "../../storage/spac/SpacSchema";
 import { selectFilingsToConvert } from "./selectFilingsToConvert";
 
 const VERSION = "3";
 
+const CIK = 1083743;
+
 const filing = (accession: string) => ({
-  cik: 1083743,
+  cik: CIK,
   accession_number: accession,
   filing_date: "2026-03-01",
   acceptance_date: "2026-03-01T12:00:00.000Z",
@@ -23,7 +27,7 @@ const filing = (accession: string) => ({
 });
 
 const documentRow = (accession: string, docFile: string, isPrimary: boolean) => ({
-  cik: 1083743,
+  cik: CIK,
   accession_number: accession,
   doc_file: docFile,
   doc_type: isPrimary ? "8-K" : "EX-99.1",
@@ -49,10 +53,18 @@ const documentRow = (accession: string, docFile: string, isPrimary: boolean) => 
  * before an interruption.
  */
 describe("selectFilingsToConvert primary gate (sqlite)", () => {
+  // `spac` is in the wiring because the 8-K fixtures below are gated on it:
+  // `DefaultDI` binds every token whether or not the table was created, so a
+  // sweep that reaches the gate needs the real table, not just the binding.
   withSqliteDb("select_filings_to_convert_sqlite_test", [
     FILING_REPOSITORY_TOKEN,
     FILING_DOCUMENT_REPOSITORY_TOKEN,
+    SPAC_REPOSITORY_TOKEN,
   ]);
+
+  beforeEach(async () => {
+    await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).put(minimalSpac(CIK));
+  });
 
   it("skips a filing whose primary document is stored, and keeps one with only exhibits", async () => {
     const filings = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
@@ -98,5 +110,77 @@ describe("selectFilingsToConvert primary gate (sqlite)", () => {
       converterVersion: VERSION,
     });
     expect(selected.map((f) => f.accession_number)).toContain("0001493152-26-000004");
+  });
+});
+
+/**
+ * The 8-K gate on the raw-SQL path.
+ *
+ * Worth its own SQLite coverage because the predicate is a correlated EXISTS
+ * hand-written per backend, and SQLite numbers `?` by position — a gated form
+ * appended in the wrong order binds the version placeholder to a form name and
+ * silently returns the wrong set, which reads as "nothing to convert".
+ */
+describe("selectFilingsToConvert 8-K gate (sqlite)", () => {
+  const SPAC_CIK = 1811882;
+  const OTHER_CIK = 320193;
+
+  withSqliteDb("select_filings_to_convert_gate_sqlite_test", [
+    FILING_REPOSITORY_TOKEN,
+    FILING_DOCUMENT_REPOSITORY_TOKEN,
+    SPAC_REPOSITORY_TOKEN,
+  ]);
+
+  beforeEach(async () => {
+    const filings = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+    await filings.put({ ...filing("0001493152-26-000010"), cik: SPAC_CIK } as never);
+    await filings.put({ ...filing("0001493152-26-000011"), cik: OTHER_CIK } as never);
+  });
+
+  it("keeps a SPAC's 8-K and drops a non-SPAC's", async () => {
+    await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).put(minimalSpac(SPAC_CIK));
+    const selected = await selectFilingsToConvert({
+      forms: ["8-K"],
+      limit: 10,
+      converterVersion: VERSION,
+    });
+    expect(selected.map((f) => f.accession_number)).toEqual(["0001493152-26-000010"]);
+  });
+
+  it("matches a de-SPAC on its surviving CIK", async () => {
+    await globalServiceRegistry
+      .get(SPAC_REPOSITORY_TOKEN)
+      .put(minimalSpac(SPAC_CIK, { current_cik: OTHER_CIK }));
+    const selected = await selectFilingsToConvert({
+      forms: ["8-K"],
+      limit: 10,
+      converterVersion: VERSION,
+    });
+    expect(selected.map((f) => f.accession_number).sort()).toEqual([
+      "0001493152-26-000010",
+      "0001493152-26-000011",
+    ]);
+  });
+
+  it("keeps every filer's 8-K under all8k, with the date filter still applied", async () => {
+    // `all8k` drops the gate clause, which is also what shifts every later
+    // placeholder — so a filter that still binds correctly is the real check.
+    const selected = await selectFilingsToConvert({
+      forms: ["8-K"],
+      since: "2026-01-01",
+      limit: 10,
+      all8k: true,
+      converterVersion: VERSION,
+    });
+    expect(selected).toHaveLength(2);
+    expect(
+      await selectFilingsToConvert({
+        forms: ["8-K"],
+        since: "2027-01-01",
+        limit: 10,
+        all8k: true,
+        converterVersion: VERSION,
+      })
+    ).toHaveLength(0);
   });
 });

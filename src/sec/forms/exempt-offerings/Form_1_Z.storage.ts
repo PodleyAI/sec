@@ -6,6 +6,8 @@
 
 import { globalServiceRegistry } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
+import { resolveCountryCode } from "../../../storage/address/resolveCountryCode";
+import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import {
   hasCompanyEnding,
   normalizeCompanyName,
@@ -53,6 +55,7 @@ async function processIssuer(
   startIndex: number
 ): Promise<void> {
   const addressRepo = new AddressRepo();
+  const phoneRepo = new PhoneRepo();
 
   const item1 = form1Z.formData.item1;
 
@@ -69,6 +72,20 @@ async function processIssuer(
     console.warn(`Failed to save address for Form 1-Z issuer ${item1.issuerName}:`, error);
   }
 
+  // The ISSUER's own phone, from the same `item1` block as the address above —
+  // not `contact.contactPhone`, which is the EDGAR submission contact and stays
+  // unstored, as on Form 1-A and Form D.
+  let phone: Awaited<ReturnType<typeof phoneRepo.savePhoneIfUsable>> = undefined;
+  if (item1.phone) {
+    phone = await phoneRepo.savePhoneIfUsable({
+      phone_raw: item1.phone,
+      country_code: resolveCountryCode(item1.stateOrCountry),
+    });
+    if (phone) {
+      await phoneRepo.saveRelatedEntity(phone.international_number, "entity:contact", cik);
+    }
+  }
+
   await ctx.observer.observeCompany({
     accession_number: ctx.accession_number,
     extractor_id: ctx.extractor_id,
@@ -77,7 +94,7 @@ async function processIssuer(
     cik,
     name: item1.issuerName,
     address_id: addr?.address_hash_id ?? null,
-    international_number: null,
+    international_number: phone?.international_number ?? null,
     source_context: JSON.stringify({ relation: "form-1z:issuer" }),
   });
 }

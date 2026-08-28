@@ -5,7 +5,12 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { normalizePhone, PhoneImport } from "./PhoneNormalization";
+import {
+  normalizePhone,
+  PhoneImport,
+  normalizeInternationalPhone,
+  regionCodeFor,
+} from "./PhoneNormalization";
 
 describe("PhoneNormalization", () => {
   describe("normalizePhone", () => {
@@ -145,5 +150,70 @@ describe("PhoneNormalization", () => {
         expect(result!.international_number).toBe("+1 555-123-4567 ext. " + expected);
       });
     });
+  });
+});
+
+/**
+ * The international fallback, and the line it refuses to cross.
+ *
+ * EDGAR's phone field is free text, so a foreign filer writes the country code
+ * into it bare and the number fails as too-long under any region. What makes
+ * the recovery safe is `valid` rather than `possible`: `possible` says only
+ * that the digit count is allowed somewhere in a country's plan, which is a
+ * property a mistyped US number satisfies by accident.
+ */
+describe("normalizeInternationalPhone", () => {
+  it("recovers a number that carries its own country code", () => {
+    // Switzerland, with the trunk 0 EDGAR filers leave in.
+    expect(normalizeInternationalPhone("41-0-91-941-8758")?.international_number).toBe(
+      "+41 91 941 87 58"
+    );
+    expect(normalizeInternationalPhone("44 0 7770 637030")?.international_number).toBe(
+      "+44 7770 637030"
+    );
+    expect(normalizeInternationalPhone("852-35833340")?.international_number).toBe(
+      "+852 3583 3340"
+    );
+  });
+
+  it("records the DETECTED country, not the one we guessed", () => {
+    expect(normalizeInternationalPhone("41-0-91-941-8758")?.country_code).toBe("CH");
+    expect(normalizeInternationalPhone("353 21 487 6672")?.country_code).toBe("IE");
+  });
+
+  it("refuses a number that is merely possible, not valid", () => {
+    // `412-567-13254` is `possible` in Switzerland and every one of its ten
+    // single-digit deletions is a VALID US number — there is nothing to choose
+    // between them, and inventing one would store a real number belonging to
+    // someone else.
+    expect(normalizeInternationalPhone("412-567-13254")).toBeUndefined();
+    expect(normalizeInternationalPhone("604-8868-5394")).toBeUndefined();
+    expect(normalizeInternationalPhone("(760) 602-19")).toBeUndefined();
+  });
+
+  it("refuses what is not a number at all", () => {
+    expect(normalizeInternationalPhone("000-000-0000")).toBeUndefined();
+    expect(normalizeInternationalPhone("917")).toBeUndefined();
+    expect(normalizeInternationalPhone("")).toBeUndefined();
+    expect(normalizeInternationalPhone("no digits here")).toBeUndefined();
+  });
+});
+
+describe("normalizePhone country recording", () => {
+  it("records the detected country when the raw value overrides the region", () => {
+    // Asked for US, given a number that says it is Swiss. The number wins.
+    const phone = normalizePhone({ phone_raw: "+41 91 941 87 58", country_code: "US" });
+    expect(phone?.country_code).toBe("CH");
+  });
+
+  it("keeps the requested region when the detected one is not a country", () => {
+    // libphonenumber answers "001" for non-geographic ranges (UIFN toll-free,
+    // satellite), and `country_code` is a fixed-width alpha-2 — storing that
+    // would fail the write. Asserted on the helper rather than through a real
+    // number, because no `+800` value in the corpus even parses as possible,
+    // so a fixture would pass without exercising the guard at all.
+    expect(regionCodeFor({ regionCode: "001" }, "US")).toBe("US");
+    expect(regionCodeFor({ regionCode: undefined }, "GB")).toBe("GB");
+    expect(regionCodeFor({ regionCode: "CH" }, "US")).toBe("CH");
   });
 });

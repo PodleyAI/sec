@@ -38,13 +38,6 @@ function makeObservation(overrides: Partial<Parameters<typeof repo.put>[0]> = {}
   };
 }
 
-/**
- * The STORAGE the token resolves to, spelled out. `ReturnType<typeof
- * globalServiceRegistry.get<typeof TOKEN>>` looks equivalent and is not: the
- * explicit argument is the token, so `get<T>(token: ServiceToken<T>): T` hands
- * back `ServiceToken<…>`, and `makeObservation`'s `Parameters<typeof repo.put>`
- * guard then binds to nothing.
- */
 let repo: PersonObservationRepositoryStorage;
 
 describe("queryPersons", () => {

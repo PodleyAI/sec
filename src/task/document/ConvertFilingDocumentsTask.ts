@@ -18,16 +18,36 @@ export type ConvertFilingDocumentsTaskInput = {
   readonly limit?: number | undefined;
   /** Re-convert filings already stored at the current converter version. */
   readonly force?: boolean | undefined;
+  /**
+   * Convert {@link SPAC_GATED_FORMS} for every filer, not just for CIKs in
+   * `spac`. Off by default — see that constant.
+   */
+  readonly all8k?: boolean | undefined;
+  /**
+   * Fill the accession-doc cache and stop: no parse, no rows.
+   *
+   * Selection is unchanged, so this downloads exactly the filings a normal
+   * sweep would convert. Nothing records that a filing was downloaded — the
+   * cache file IS the record — so a re-run re-selects the same list and serves
+   * it from disk, touching no network. That is what makes the download half
+   * safe to leave running unattended and cheap to resume.
+   */
+  readonly downloadOnly?: boolean | undefined;
 };
 
 export type ConvertFilingDocumentsTaskOutput = {
   readonly success: boolean;
   readonly selected: number;
+  /** Filings parsed and stored. Always 0 under `downloadOnly`. */
   readonly converted: number;
   readonly skipped: number;
   /** Members of the converted submissions: primary documents plus exhibits. */
   readonly documents: number;
   readonly sections: number;
+  /** Filings whose document was fetched from EDGAR on this run. */
+  readonly downloaded: number;
+  /** Filings whose document was already on disk, so no request was made. */
+  readonly cached: number;
 };
 
 /** Default ceiling on one sweep. A backfill is many runs, not one enormous one. */
@@ -61,6 +81,8 @@ export class ConvertFilingDocumentsTask extends Task<
       cik: Type.Optional(Type.Integer()),
       limit: Type.Optional(Type.Integer({ minimum: 1 })),
       force: Type.Optional(Type.Boolean()),
+      all8k: Type.Optional(Type.Boolean()),
+      downloadOnly: Type.Optional(Type.Boolean()),
     });
   }
 
@@ -72,6 +94,8 @@ export class ConvertFilingDocumentsTask extends Task<
       skipped: Type.Integer(),
       documents: Type.Integer(),
       sections: Type.Integer(),
+      downloaded: Type.Integer(),
+      cached: Type.Integer(),
     });
   }
 
@@ -85,6 +109,7 @@ export class ConvertFilingDocumentsTask extends Task<
       cik: input.cik,
       limit: input.limit ?? DEFAULT_CONVERT_LIMIT,
       force: input.force === true,
+      all8k: input.all8k === true,
       converterVersion: FILING_CONVERTER_VERSION,
     });
 
@@ -92,6 +117,8 @@ export class ConvertFilingDocumentsTask extends Task<
     let skipped = 0;
     let documents = 0;
     let sections = 0;
+    let downloaded = 0;
+    let cached = 0;
 
     for (const [index, filing] of filings.entries()) {
       if (context.signal?.aborted) throw new TaskAbortedError();
@@ -103,16 +130,28 @@ export class ConvertFilingDocumentsTask extends Task<
             form: filing.form ?? undefined,
             filingDate: filing.filing_date,
             primaryDoc: filing.primary_doc ?? undefined,
+            downloadOnly: input.downloadOnly === true,
           },
-          title: `Convert ${filing.form ?? "filing"} ${filing.accession_number}`,
+          title: `${input.downloadOnly === true ? "Download" : "Convert"} ${
+            filing.form ?? "filing"
+          } ${filing.accession_number}`,
         })
       );
       try {
         const result = await task.run();
         if (result.success) {
-          converted += 1;
-          documents += result.documents;
-          sections += result.sections;
+          // Counted off the RESULT rather than the mode, so a mixed picture —
+          // some documents already on disk, some fetched — reads the same in
+          // both halves. Under `downloadOnly` these are the only counters that
+          // move; a conversion sweep reports them too, which is what tells an
+          // operator whether a slow run is EDGAR or the parser.
+          if (result.fromCache) cached += 1;
+          else downloaded += 1;
+          if (input.downloadOnly !== true) {
+            converted += 1;
+            documents += result.documents;
+            sections += result.sections;
+          }
         } else {
           skipped += 1;
         }
@@ -137,6 +176,8 @@ export class ConvertFilingDocumentsTask extends Task<
       skipped,
       documents,
       sections,
+      downloaded,
+      cached,
     };
   }
 }

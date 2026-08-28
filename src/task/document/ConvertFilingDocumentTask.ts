@@ -31,6 +31,18 @@ export type ConvertFilingDocumentTaskInput = {
   readonly filingDate?: string | undefined;
   /** Primary document filename from `filings.primary_doc`, when known. */
   readonly primaryDoc?: string | undefined;
+  /**
+   * Stop after the document is on disk: no parse, no rows.
+   *
+   * The fetch writes the accession-doc cache as a side effect, so this fills
+   * the cache a later conversion sweep reads without holding the database open
+   * for it. The two halves have very different costs and failure modes — the
+   * download is rate-limited by EDGAR and takes hours, the conversion is local
+   * and takes minutes — and separating them lets the slow half run unattended
+   * and be re-run cheaply, since a second pass over a filled cache touches no
+   * network at all.
+   */
+  readonly downloadOnly?: boolean | undefined;
 };
 
 export type ConvertFilingDocumentTaskOutput = {
@@ -42,6 +54,15 @@ export type ConvertFilingDocumentTaskOutput = {
   readonly chars: number;
   /** The PRIMARY document's filename, or empty when nothing was converted. */
   readonly docFile: string;
+  /**
+   * True when the source came off disk rather than over the wire.
+   *
+   * Reported rather than inferred from timing: a sweep whose filings are all
+   * cache hits and one that is fetching every document look identical in the
+   * progress UI but differ by hours, and only the second is subject to the
+   * EDGAR rate limit.
+   */
+  readonly fromCache: boolean;
 };
 
 /** Rows per bulk write. A long S-1 runs to a few hundred sections. */
@@ -63,9 +84,12 @@ const WRITE_BATCH = 200;
  * Probing both is free: a cache probe is a `stat`, not a request. What is NOT
  * free is FETCHING, which is why a miss falls to
  * {@link conversionFetchFileName} rather than to this list's head — see there.
+ *
+ * Takes no form, deliberately: the order is the same for every one of them, and
+ * the form-dependent decision is the FETCH, which is
+ * {@link conversionFetchFileName}'s.
  */
 export function conversionCandidates(
-  form: string | null | undefined,
   accessionNumber: string,
   primaryDoc: string | null | undefined
 ): string[] {
@@ -137,6 +161,7 @@ export class ConvertFilingDocumentTask extends Task<
       form: Type.Optional(Type.String()),
       filingDate: Type.Optional(Type.String()),
       primaryDoc: Type.Optional(Type.String()),
+      downloadOnly: Type.Optional(Type.Boolean()),
     });
   }
 
@@ -147,6 +172,7 @@ export class ConvertFilingDocumentTask extends Task<
       sections: Type.Integer(),
       chars: Type.Integer(),
       docFile: Type.String(),
+      fromCache: Type.Boolean(),
     });
   }
 
@@ -178,17 +204,13 @@ export class ConvertFilingDocumentTask extends Task<
   protected async loadSource(
     input: ConvertFilingDocumentTaskInput,
     context: IExecuteContext
-  ): Promise<{ text: string; docFile: string } | undefined> {
-    const candidates = conversionCandidates(
-      input.form ?? null,
-      input.accessionNumber,
-      input.primaryDoc ?? null
-    );
+  ): Promise<{ text: string; docFile: string; fromCache: boolean } | undefined> {
+    const candidates = conversionCandidates(input.accessionNumber, input.primaryDoc ?? null);
     if (candidates.length === 0) return undefined;
 
     for (const fileName of candidates) {
       const cached = await this.readCached(input.cik, input.accessionNumber, fileName);
-      if (cached !== undefined) return { text: cached, docFile: fileName };
+      if (cached !== undefined) return { text: cached, docFile: fileName, fromCache: true };
     }
 
     // Nothing cached: fetch the file the forms pipeline would have fetched, not
@@ -207,7 +229,7 @@ export class ConvertFilingDocumentTask extends Task<
     );
     try {
       const text = (await fetchTask.run()).text as string | undefined;
-      return text ? { text, docFile: fileName } : undefined;
+      return text ? { text, docFile: fileName, fromCache: false } : undefined;
     } finally {
       context.disown(fetchTask);
     }
@@ -218,10 +240,35 @@ export class ConvertFilingDocumentTask extends Task<
     context: IExecuteContext
   ): Promise<ConvertFilingDocumentTaskOutput> {
     if (!input.accessionNumber) throw new TaskError("Invalid input");
-    const empty = { success: false, documents: 0, sections: 0, chars: 0, docFile: "" } as const;
+    const empty = {
+      success: false,
+      documents: 0,
+      sections: 0,
+      chars: 0,
+      docFile: "",
+      fromCache: false,
+    } as const;
 
     const source = await this.loadSource(input, context);
     if (source === undefined) return empty;
+
+    // The download IS the work under `downloadOnly`, and it has already
+    // happened: the fetch wrote the cache on its way through `loadSource`.
+    // Returning before the parse is what keeps this half free of the
+    // conversion's failure modes — a filing whose HTML yields no sections is
+    // still a document successfully on disk, and counting it as a failure here
+    // would make a cache-filling run look broken over something only the
+    // conversion sweep can decide.
+    if (input.downloadOnly === true) {
+      return {
+        success: true,
+        documents: 0,
+        sections: 0,
+        chars: 0,
+        docFile: source.docFile,
+        fromCache: source.fromCache,
+      };
+    }
 
     const converted = convertFilingSubmission(
       input.form ?? null,
@@ -250,6 +297,7 @@ export class ConvertFilingDocumentTask extends Task<
         sections,
         chars: converted.reduce((sum, doc) => sum + doc.charCount, 0),
         docFile: primaryDocFile(converted, source.docFile),
+        fromCache: source.fromCache,
       };
     }
 
@@ -324,6 +372,7 @@ export class ConvertFilingDocumentTask extends Task<
       sections: sectionTotal,
       chars: charTotal,
       docFile: primaryDocFile(converted, source.docFile),
+      fromCache: source.fromCache,
     };
   }
 }
