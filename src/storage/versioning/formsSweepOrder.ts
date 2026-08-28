@@ -24,9 +24,9 @@ import { SWEEP_PRIORITY } from "./extractorIds";
  * gated form lands after the one that mints the row it reads), so there is no
  * right answer among them; ranking by the leading extractor is consistent,
  * cheap to reason about, and beats the registration order it replaces. Forms
- * with no ranked extractor — a form with no registered extractor included,
- * which the caller filters and warns about separately — keep their declaration
- * order at the end.
+ * with no ranked extractor — a form with no registered extractor at all
+ * included, which the caller refuses or skips separately — keep their
+ * declaration order at the end.
  *
  * Lives in its own module rather than in `extractorIds.ts` beside
  * `SWEEP_PRIORITY` because it reads the form-extractor registry:

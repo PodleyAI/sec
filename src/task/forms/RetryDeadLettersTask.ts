@@ -97,9 +97,10 @@ export class RetryDeadLettersTask extends Task<
       }
       // Isolate each accession: ProcessAccessionDocFormTask still throws for
       // failures it cannot attribute to a filing (unknown accession, no form
-      // type, no registered extractor or active slot), and a recovery sweep
-      // must grind through the whole worklist rather than abandon every later
-      // accession on one bad filing.
+      // type, no active slot), and a recovery sweep must grind through the
+      // whole worklist rather than abandon every later accession on one bad
+      // filing. A form nothing in this deployment reads is not among those —
+      // that one is skipped with a warning and returns.
       try {
         const ft = context.own(
           new ProcessAccessionDocFormTask({ title: `Reprocess ${accessionNumber}` })

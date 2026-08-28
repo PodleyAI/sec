@@ -206,8 +206,10 @@ export class ProcessSpacTimelineTask extends Task<
     const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
     const all = (await filingRepo.query({ cik })) ?? [];
 
-    // Only forms an extractor handles. Anything else has no storage handler and
-    // would dead-letter as a wiring error rather than advance the timeline.
+    // Only forms an extractor handles. Anything else — a proxy statement whose
+    // reading a consumer package supplies, say — is skipped by the dispatcher
+    // anyway; keeping it off the timeline here means the issuer's counts and
+    // its date range describe filings this deployment can actually advance.
     const timeline = all
       .filter((f: Filing) => f.form !== null && formHasExtractor(f.form))
       // Sort by filing_date, then accession, so same-day filings still have a

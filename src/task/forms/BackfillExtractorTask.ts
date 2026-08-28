@@ -5,6 +5,7 @@
  */
 import { Static, Type } from "typebox";
 import { IExecuteContext, Task, TaskAbortedError } from "workglow";
+import { extractorIsSuppliedElsewhere } from "../../sec/forms/parserOnlyForms";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 import {
   defaultFilterTodo,
@@ -53,6 +54,22 @@ export async function runExtractorBackfill(
     throw new Error(
       `No backfill wiring for extractor '${opts.extractorId}'. Backfillable: ` +
         listBackfillableExtractorIds().join(", ")
+    );
+  }
+
+  // The operator NAMED this extractor, and nothing in this deployment registers
+  // it, so no filing it could reach exists — the descriptor would select an
+  // empty set and the sweep would report itself done having read nothing. A
+  // zero-filing success is indistinguishable from a corpus already complete,
+  // which is the one answer this cannot afford to give. Refused before
+  // selecting rather than after, so the counts never suggest work was
+  // considered. An empty selection on a REGISTERED extractor stays a legitimate
+  // outcome: that is a database with nothing owing.
+  if (extractorIsSuppliedElsewhere(opts.extractorId)) {
+    throw new Error(
+      `Cannot backfill '${opts.extractorId}': this deployment registers no extractor under ` +
+        `that id. Its forms are parsed here and read by a consumer package — run the ` +
+        `backfill under that package, or name an extractor this one ships.`
     );
   }
 

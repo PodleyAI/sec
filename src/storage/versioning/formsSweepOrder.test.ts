@@ -6,7 +6,12 @@
 
 import { describe, expect, it } from "vitest";
 import { registerSecFormExtractors } from "../../config/registerFormExtractors";
-import { allRegisteredForms, extractorIdsForForm } from "../../sec/forms/formExtractors";
+import {
+  allRegisteredForms,
+  extractorIdsForForm,
+  registerFormExtractor,
+} from "../../sec/forms/formExtractors";
+import { PARSER_ONLY_FORMS_BY_EXTRACTOR } from "../../sec/forms/parserOnlyForms";
 import { sortFormsForSweep } from "./formsSweepOrder";
 
 // `sortFormsForSweep` ranks a form through the form-extractor registry, so an
@@ -14,6 +19,19 @@ import { sortFormsForSweep } from "./formsSweepOrder";
 // not exist. Registering once per registry generation, this is a no-op wherever
 // the extractors are already registered.
 registerSecFormExtractors();
+
+// This package parses the proxy family and does not read it — the `merger-proxy`
+// extractor is supplied by a consumer — so those forms reach no sweep here at
+// all. Their RANK still has to be right in a deployment that has that consumer,
+// which is what `SWEEP_PRIORITY` keeps a slot for, so the order below is
+// exercised against a stand-in registered over exactly the forms this package
+// pins as parser-only. Without it the proxy link of the chain is untested
+// rather than merely absent.
+registerFormExtractor({
+  id: "merger-proxy",
+  forms: PARSER_ONLY_FORMS_BY_EXTRACTOR["merger-proxy"],
+  store: async () => {},
+});
 
 /**
  * Every form any registered extractor handles — the same set the sweep's own
@@ -87,8 +105,9 @@ describe("sortFormsForSweep", () => {
   });
 
   it("leaves a form with no registered extractor at the end rather than dropping it", () => {
-    // The caller filters unregistered forms itself (and warns); the sort must
-    // not silently swallow one before that happens.
+    // The caller decides what happens to an unreadable form — a named one is
+    // refused, one merely encountered is skipped with a warning — and the sort
+    // must not silently swallow it before either of those can happen.
     expect(sortFormsForSweep(["NOT-A-FORM", "25", "S-1"])).toEqual(["S-1", "25", "NOT-A-FORM"]);
   });
 });

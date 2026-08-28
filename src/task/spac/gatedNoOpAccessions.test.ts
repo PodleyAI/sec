@@ -10,6 +10,7 @@ import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { registerFormExtractor } from "../../sec/forms/formExtractors";
+import { PARSER_ONLY_FORMS_BY_EXTRACTOR } from "../../sec/forms/parserOnlyForms";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import type { Filing } from "../../storage/filing/FilingSchema";
@@ -32,8 +33,19 @@ beforeAll(() => {
   // same vote, so it carries two extractors — and the ROW-GATED one is not the
   // first. `S-4` is deliberately a form the shipped 1:1 map has no entry for.
   registerFormExtractor({ id: "S-4", forms: [S4], store: noopStore });
-  // A second registry key under an EXISTING id, so the shipped `merger-proxy`
-  // registration is widened rather than replaced.
+  // The proxy family is parsed here and read by a consumer package, so no proxy
+  // form routes anywhere in this package alone and the gate below could never
+  // reach one. The gate's job is to re-select a proxy a known-SPAC check
+  // swallowed, which only exists to be done where that consumer IS present, so
+  // it is exercised against a stand-in registered over exactly the forms this
+  // package pins as parser-only.
+  registerFormExtractor({
+    id: "merger-proxy",
+    forms: PARSER_ONLY_FORMS_BY_EXTRACTOR["merger-proxy"],
+    store: noopStore,
+  });
+  // A second registry key under that same id, so the registration above is
+  // widened rather than replaced.
   registerFormExtractor({ id: "merger-proxy", section: "de-spac", forms: [S4], store: noopStore });
 });
 

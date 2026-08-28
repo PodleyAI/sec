@@ -4,13 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
+import { resetNoExtractorWarningsForTesting } from "../../sec/forms/parserOnlyForms";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 async function seedFiling(opts: {
@@ -47,26 +48,38 @@ describe("ProcessAccessionDocFormTask (versioned)", () => {
     await setupAllDatabases();
   });
   afterEach(() => {
+    vi.restoreAllMocks();
     resetDependencyInjectionsForTesting();
   });
 
-  it("throws if no extractor is mapped for the form", async () => {
+  it("skips a form no extractor is mapped for, and says so", async () => {
+    // Nothing here reads a 10-K. That is a deployment fact rather than a
+    // defect, so the filing is skipped and the run carries on; the warning is
+    // what stops the skip being silent.
     await seedFiling({
       cik: 1234567,
       accession_number: "0001234567-25-000001",
       form: "10-K", // no extractor is registered for it
       primary_doc: "primary_doc.xml",
     });
+    resetNoExtractorWarningsForTesting();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const task = new ProcessAccessionDocFormTask();
-    await expect(
-      task.execute({ accessionNumber: "0001234567-25-000001" }, { own: <T>(x: T): T => x } as any)
-    ).rejects.toThrow(/No extractor.*10-K/i);
+
+    const out = await task.execute({ accessionNumber: "0001234567-25-000001" }, {
+      own: <T>(x: T): T => x,
+    } as any);
+
+    expect(out).toEqual({ success: true });
+    expect(warn.mock.calls.map((call) => String(call[0]))).toContainEqual(
+      expect.stringContaining("no extractor is registered for form '10-K'")
+    );
   });
 
   it("relabels the reused instance with form and accession", async () => {
     // `spac process` (and the forms sweep) pipes one instance through a map;
     // without setTitle the CLI row stays "Process filing document" for every
-    // filing. This path throws before fetch, so the label is observable
+    // filing. This path returns before fetch, so the label is observable
     // without the network.
     await seedFiling({
       cik: 1234567,
@@ -74,11 +87,12 @@ describe("ProcessAccessionDocFormTask (versioned)", () => {
       form: "10-K",
       primary_doc: "primary_doc.xml",
     });
+    vi.spyOn(console, "warn").mockImplementation(() => {});
     const task = new ProcessAccessionDocFormTask();
     expect(task.title).toBe("Process filing document");
-    await expect(
-      task.execute({ accessionNumber: "0001234567-25-000001" }, { own: <T>(x: T): T => x } as any)
-    ).rejects.toThrow(/No extractor.*10-K/i);
+    await task.execute({ accessionNumber: "0001234567-25-000001" }, {
+      own: <T>(x: T): T => x,
+    } as any);
     expect(task.title).toBe("10-K 0001234567-25-000001");
   });
 

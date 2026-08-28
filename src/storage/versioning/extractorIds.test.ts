@@ -13,6 +13,7 @@ import {
   extractorIdsForForm,
   formsForExtractorIds,
 } from "../../sec/forms/formExtractors";
+import { parserOnlyExtractorIdForForm } from "../../sec/forms/parserOnlyForms";
 import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import { EXTRACTOR_IDS, isNonfatalTimelineExtractor } from "./extractorIds";
 
@@ -78,10 +79,20 @@ describe("extractorIds", () => {
     expect(isNonfatalTimelineExtractor("S-1")).toBe(false);
   });
 
-  it("maps the merger proxies to extractor id 'merger-proxy'", () => {
+  it("routes the merger proxies nowhere, and pins them as parsed-here-read-elsewhere", () => {
+    // They used to route to `merger-proxy`. That reading is a consumer's now,
+    // so what this package still owes them is a parser and a pinned
+    // declaration of who reads them — asserted together, because a form that
+    // routes nowhere and is not declared is the accident the pinning exists to
+    // catch.
     for (const form of ["DEFM14A", "PREM14A", "DEFM14C", "PREM14C", "DEFR14A", "PRER14A"]) {
-      expectRoutedTo(form, "merger-proxy");
+      expect(routedIds(form), `form ${form}`).toEqual([]);
+      expect(isFormParsingSupported(form), `form ${form}`).toBe(true);
+      expect(parserOnlyExtractorIdForForm(form), `form ${form}`).toBe("merger-proxy");
     }
+    // The id outlives the extractor: this package still holds the run ledger,
+    // dead letters and extraction rows written under it.
+    expect(EXTRACTOR_IDS).toContain("merger-proxy");
   });
 
   it("maps the 424 prospectus variants to extractor id '424-xbrl'", () => {

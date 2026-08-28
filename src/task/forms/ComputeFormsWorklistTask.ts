@@ -9,6 +9,7 @@ import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import { allRegisteredForms, extractorsForForm } from "../../sec/forms/formExtractors";
+import { noExtractorReason } from "../../sec/forms/parserOnlyForms";
 import { isDryRun } from "../../cli/isDryRun";
 import {
   FILING_REPOSITORY_TOKEN,
@@ -234,19 +235,30 @@ export class ComputeFormsWorklistTask extends Task<
       return active.semver;
     };
 
+    // Every form in the DEFAULT set carries an extractor by construction —
+    // `allRegisteredForms()` reads the registry — so a form with none here is
+    // one the caller NAMED. That is refused rather than skipped: silently
+    // narrowing a request to the part of it this deployment can do is how a
+    // sweep reports success over work it never attempted, and the operator who
+    // asked for that form is the one person who can act on the answer. A form
+    // a sweep merely ENCOUNTERS, reached by accession rather than named, is
+    // skipped with a warning instead — see `ProcessAccessionDocFormTask`.
+    const unreadable = [...formSet].filter((form) => extractorsForForm(form).length === 0);
+    if (unreadable.length > 0) {
+      throw new Error(
+        `update-forms: ${unreadable.map(noExtractorReason).join("; ")}. ` +
+          `Name only forms this deployment can read, or run under the package that ` +
+          `supplies the extractor.`
+      );
+    }
+
     // The order is the SWEEP order, not the caller's: registration statements
     // mint the `spac` row that the 8-K / proxy / 25-15 handlers are gated on,
     // and each of those records a successful run when the row is missing, so
     // reaching them first drops their events with nothing to re-select them.
     // Applied to an explicit `--form` list too, so a multi-form request is
     // ordered correctly without the operator knowing to do it.
-    const forms = sortFormsForSweep(
-      [...formSet].filter((form) => {
-        if (extractorsForForm(form).length > 0) return true;
-        console.warn(`update-forms: form '${form}' has no registered extractor; skipping`);
-        return false;
-      })
-    );
+    const forms = sortFormsForSweep([...formSet]);
 
     let total = 0;
     for (const form of forms) {

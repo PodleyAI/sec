@@ -17,11 +17,27 @@ import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { registerFormExtractor } from "../../sec/forms/formExtractors";
+import { PARSER_ONLY_FORMS_BY_EXTRACTOR } from "../../sec/forms/parserOnlyForms";
 import {
   formsForExtractor,
   getBackfillDescriptor,
   listBackfillableExtractorIds,
 } from "./backfillDescriptors";
+
+// This package parses the proxy family and does not read it — the
+// `merger-proxy` extractor is supplied by a consumer — so no proxy form routes
+// anywhere here and the descriptor below would select nothing. The descriptor
+// stays because this package still holds the tables that extractor's runs
+// wrote, and its selection and needing-work predicate still have to be right
+// wherever the consumer IS present. A stand-in over exactly the forms this
+// package pins as parser-only is what keeps them under test rather than
+// vacuously empty.
+registerFormExtractor({
+  id: "merger-proxy",
+  forms: PARSER_ONLY_FORMS_BY_EXTRACTOR["merger-proxy"],
+  store: async () => {},
+});
 
 async function seedSpac(cik: number): Promise<void> {
   await new SpacReportWriter().recordRegistration({

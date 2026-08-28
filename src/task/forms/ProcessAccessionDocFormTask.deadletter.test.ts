@@ -148,12 +148,14 @@ describe("ProcessAccessionDocFormTask filing-level dead-lettering", () => {
     expect(run?.error).toContain("STORE_ERROR");
   });
 
-  it("re-throws a missing storage handler rather than dead-lettering it", async () => {
-    // Simulate the wiring mistake the guard exists to catch: a form the CLI
-    // advertises as parseable that no extractor is registered for. It cannot
-    // occur in the committed source (form-wiring.test.ts pins the parser
-    // catalogue and the registry together), so the test injects the parser and
-    // restores it afterwards.
+  it("skips a form nothing here reads, rather than dead-lettering or throwing", async () => {
+    // A form this package parses and registers no extractor for. That is a
+    // legitimate deployment now, not a wiring mistake — the reading of a form
+    // can belong to a consumer package — so the filing is skipped whole and
+    // the sweep around it carries on. It cannot be built out of the committed
+    // catalogue (`form-wiring.test.ts` pins parser and registry together, and
+    // every parser-only form there is declared), so the test injects a parser
+    // and restores it afterwards.
     const UNWIRED_FORM = "ZZ-UNWIRED";
     class UnwiredForm {
       static async parse(): Promise<unknown> {
@@ -166,21 +168,32 @@ describe("ProcessAccessionDocFormTask filing-level dead-lettering", () => {
     try {
       await seedFiling(UNWIRED_FORM, "primary_doc.xml");
 
-      class UnwiredFetchTask extends ProcessAccessionDocFormTask {
+      class MustNotFetchTask extends ProcessAccessionDocFormTask {
         protected override async runFetch(): Promise<string> {
-          return "<edgarSubmission/>";
+          throw new Error("fetched a form nothing here reads");
         }
       }
 
-      // A code defect must fail loudly on the very first filing …
-      await expect(new UnwiredFetchTask().run({ accessionNumber: ACCESSION })).rejects.toThrowError(
-        /has no storage handler/
-      );
+      // Skipped before the fetch: nothing is downloaded for a document no
+      // extractor of this deployment would read.
+      const result = await new MustNotFetchTask().run({ accessionNumber: ACCESSION });
+      expect((result as { success: boolean }).success).toBe(true);
 
-      // … and must not leave a version-gated entry that reads like a genuine
-      // storage failure and that retry-dead-letters would chase forever.
-      const dl = await new ExtractionDeadLetterRepo().get("D", ACCESSION, "");
-      expect(dl).toBeFalsy();
+      // No dead letter — an entry would wear a genuine storage failure's reason
+      // code and be re-stamped on every filing of the form on every sweep,
+      // forever, with no version bump able to clear it.
+      const deadLetters = new ExtractionDeadLetterRepo();
+      expect(await deadLetters.get(UNWIRED_FORM, ACCESSION, "")).toBeFalsy();
+      expect(await deadLetters.get("D", ACCESSION, "")).toBeFalsy();
+
+      // And no run row either: a skip is not a processing outcome, and one
+      // recorded here would make the filing look done to every anti-join the
+      // moment an extractor for the form did arrive.
+      const runs =
+        (await globalServiceRegistry
+          .get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+          .query({ accession_number: ACCESSION } as never)) ?? [];
+      expect(runs).toEqual([]);
     } finally {
       formMap.delete(UNWIRED_FORM);
     }

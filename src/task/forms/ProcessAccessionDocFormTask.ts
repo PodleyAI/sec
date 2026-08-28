@@ -30,6 +30,7 @@ import {
   formNeedsFullSubmission,
   type FormExtractor,
 } from "../../sec/forms/formExtractors";
+import { warnFormHasNoExtractor } from "../../sec/forms/parserOnlyForms";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import type { DeadLetterReasonCode } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
@@ -101,16 +102,15 @@ type ProcessAccessionDocFormTaskOutput = Static<
 >;
 
 /**
- * A filing reached this task with no extractor registered for its form. That is
- * a wiring error — the worklist selected a form nothing is registered to store
- * — not a property of the filing, so it fails the task outright instead of
- * becoming a `STORE_ERROR`. No retry or version bump can fix it, and
- * dead-lettering it would mark every filing of that form as an ordinary
- * extraction failure rather than failing loudly on the first one.
+ * The form's extractors disappeared between the pre-dispatch check and the
+ * store — the registry is process-global and can be rebuilt in between.
  *
- * Raised before the fetch, and again from the dispatch itself: the registry is
- * process-global and can be rebuilt between the two, and the second guard is
- * inside the store containment, which is what the dedicated type is for.
+ * A form that had none to begin with never gets here: it is skipped whole,
+ * with a warning, before anything is fetched, because a package that parses a
+ * form and leaves the reading of it to a consumer is a legitimate deployment
+ * and not a defect. This is the narrow residue — the filing was already
+ * committed to when its handlers went away — and it stays a throw so the
+ * dedicated type can carry it out through the store containment untouched.
  */
 class MissingStorageHandlerError extends TaskError {}
 
@@ -314,9 +314,19 @@ export class ProcessAccessionDocFormTask extends Task<
     // question, and answers it arbitrarily the moment a form carries two.
     const registeredExtractors = extractorsForForm(form);
     if (registeredExtractors.length === 0) {
-      throw new MissingStorageHandlerError(
-        `No extractor registered for form '${form}': the form has no storage handler`
-      );
+      // Nothing in this deployment reads this form, which is a legitimate state
+      // — a parser here whose reading a consumer package supplies — and not a
+      // defect. So the filing is skipped whole: nothing is fetched, parsed,
+      // dispatched, recorded or dead-lettered, and the sweep around it carries
+      // on. The warning is what keeps the skip honest, and it prints once per
+      // form per run rather than once per filing.
+      //
+      // Reached only by a caller that arrived with a filing rather than with a
+      // form — `spac process`, a dead-letter retry, `sec fetch doc`. A form
+      // NAMED on a sweep is refused up front instead, in
+      // `ComputeFormsWorklistTask`, where the request is still visible.
+      warnFormHasNoExtractor(form);
+      return { success: true };
     }
     // Deduped: an extractor split into sections holds several registry keys
     // under ONE id, and the run ledger and the version slots key on the id.
@@ -830,9 +840,12 @@ export class ProcessAccessionDocFormTask extends Task<
       throw storeError;
     }
 
-    // A form with no registered extractor is a code defect, not bad input:
-    // containing it would dead-letter every filing of that form on every sweep,
-    // forever, wearing the same reason code as a genuine storage failure.
+    // The form's extractors went away mid-filing. Not bad input, and nothing a
+    // retry or a version bump acts on, so it is neither contained nor
+    // dead-lettered: an entry for it would wear the same reason code as a
+    // genuine storage failure and be re-stamped on every filing of that form,
+    // on every sweep, forever. A form that had no extractor to begin with never
+    // reaches here — it was skipped, with a warning, before the fetch.
     if (storeError instanceof MissingStorageHandlerError) {
       throw storeError;
     }

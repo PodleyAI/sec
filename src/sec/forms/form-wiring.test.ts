@@ -13,6 +13,8 @@ import {
   ALL_FORMS_MAP_ARRAY,
   isFormParsingSupported,
 } from "./all-forms";
+import { PARSER_ONLY_FORMS, parserOnlyExtractorIdForForm } from "./parserOnlyForms";
+import { EXTRACTOR_IDS } from "../../storage/versioning/extractorIds";
 import { Form_1_A } from "./exempt-offerings/Form_1_A";
 
 // Both directions below read the form-extractor registry, which is empty until
@@ -39,15 +41,32 @@ describe("form wiring", () => {
     }
   });
 
-  it("every parse-supported form has a registered extractor", () => {
-    // The other half of the 1-A POS incident: a parser the CLI advertises
-    // (`parse: yes`) whose dispatch then throws "No extractor registered".
-    for (const form of ALL_FORM_NAMES) {
-      if (!isFormParsingSupported(form)) continue;
-      expect({ form, mapped: formHasExtractor(form) }).toEqual({
-        form,
-        mapped: true,
-      });
+  it("every parse-supported form has a registered extractor, or is a pinned parser-only form", () => {
+    // The other half of the 1-A POS incident was a parser the CLI advertises
+    // (`parse: yes`) that nothing was registered to store, which used to mean a
+    // wiring defect. It no longer always does: this package can parse a form
+    // whose reading a consumer supplies, and the proxy family is exactly that.
+    //
+    // What the original invariant was worth — a form dropping out of extraction
+    // with nobody noticing — survives in the equality below. An unextracted
+    // parse-supported form has to be NAMED in the pinned set, so losing one
+    // fails here instead of going quiet, and a pinned form that regains an
+    // extractor (or loses its parser) fails here too rather than leaving a
+    // stale declaration behind.
+    const unextracted = ALL_FORM_NAMES.filter(
+      (form) => isFormParsingSupported(form) && !formHasExtractor(form)
+    );
+    expect([...new Set(unextracted)].sort()).toEqual([...PARSER_ONLY_FORMS].sort());
+  });
+
+  it("names, for each parser-only form, an extractor id this package still holds state for", () => {
+    // The id is not decoration: the run ledger, the dead letters and the
+    // extraction tables written under it are still here, and `EXTRACTOR_IDS` is
+    // what keeps them addressable — version slots, dead-letter counts, retry.
+    for (const form of PARSER_ONLY_FORMS) {
+      const id = parserOnlyExtractorIdForForm(form);
+      expect({ form, id }).toEqual({ form, id: expect.any(String) });
+      expect(EXTRACTOR_IDS, `form ${form}`).toContain(id);
     }
   });
 
