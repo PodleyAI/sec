@@ -5,8 +5,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { globalServiceRegistry } from "workglow";
+import { createServiceToken, globalServiceRegistry, type ITabularStorage } from "workglow";
 import { ADDRESS_REPOSITORY_TOKEN } from "../storage/address/AddressSchema";
+import {
+  listDatabaseExtensionTokens,
+  registerDatabaseExtension,
+  registerDatabaseSetupHook,
+  runDatabaseSetupHooks,
+} from "./databaseExtensions";
 import { SEC_STORAGE_REGISTRY } from "./storageRegistry";
 import { resetDependencyInjectionsForTesting } from "./TestingDI";
 import { ENV_DERIVED_TOKENS } from "./tokens";
@@ -35,5 +41,24 @@ describe("resetDependencyInjectionsForTesting", () => {
     ).map((definition) => definition.token.id);
     expect(unbound).toEqual([]);
     expect(globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).isDurable?.()).toBe(false);
+  });
+
+  it("drops database-extension tokens and setup hooks", () => {
+    // Both live in module-level arrays, so under a runner that shares one
+    // process across test files they outlive the container they were registered
+    // against: a later `setupAllDatabases()` would run a hook belonging to a
+    // file that has already finished, against a container this reset just
+    // rebuilt, and resolve tokens bound to a database nobody reopened.
+    let hookCalls = 0;
+    registerDatabaseExtension([createServiceToken<ITabularStorage<any, any>>("test.leaked")]);
+    registerDatabaseSetupHook(() => {
+      hookCalls += 1;
+    });
+
+    resetDependencyInjectionsForTesting();
+
+    expect(listDatabaseExtensionTokens()).toEqual([]);
+    runDatabaseSetupHooks();
+    expect(hookCalls).toBe(0);
   });
 });

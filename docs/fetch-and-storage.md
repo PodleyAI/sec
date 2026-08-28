@@ -281,6 +281,15 @@ and peak off-heap memory ran ~4x the document.
   built-in SEC tables, so a superset's tables are managed by the same commands. `db setup`
   also calls `registerSecResolvers()` so resolver component-version rows seed even on the
   `init` path that skips the CLI preAction hook.
+- **`registerDatabaseSetupHook`** (same module) is the other half of that seam: hooks run at
+  the top of `setupAllDatabases` / `resetAllDatabases`, so a superset can bind its repos in
+  time even on the `init` path that never reaches the CLI preAction hook.
+- **Both registries are module-level**, so they outlive the DI container they were registered
+  against. `resetDependencyInjectionsForTesting()` clears them for that reason. Under a
+  runner that shares one process across test files, a hook installed by an earlier file would
+  otherwise run inside every later `setupAllDatabases()` — rebuilding its repositories through
+  `createStorage`, which reads the `SEC_DB_TYPE` binding that same reset had just stripped.
+  A test that wants the persistent wiring registers its hook _after_ the reset, not before.
 - **`registerDbStatsTables`** (`src/cli/queries/DbStatus.ts`) is the reporting half: a
   superset's tables are counted by `db stats` alongside sec's own. A registered table the
   database has not created reports `n/a` (with a "run `db setup`?" hint) rather than failing

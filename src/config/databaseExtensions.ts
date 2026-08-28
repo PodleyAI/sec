@@ -39,6 +39,12 @@ export function runDatabaseSetupHooks(): void {
   for (const hook of SETUP_HOOKS) hook();
 }
 
+/**
+ * Drop every registered token and setup hook. Both arrays are module-level, so
+ * they survive any rebuild of the DI container they were registered against —
+ * which is why `resetDependencyInjectionsForTesting()` calls this rather than
+ * leaving each test file to remember it.
+ */
 export function clearDatabaseExtensionsForTesting(): void {
   TOKENS.length = 0;
   SETUP_HOOKS.length = 0;
