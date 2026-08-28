@@ -336,7 +336,7 @@ test("exports the form vocabulary, corpus paths and bookkeeping an extractor rea
   expect(sec.foldTypographicPunctuation("“Acme’s” — Corp")).toBe('"Acme\'s" - Corp');
 });
 
-test("exports the scaffolding the relocated extraction tiers still reach back for", () => {
+test("exports the scaffolding the relocated extraction tiers still reach back for", async () => {
   for (const name of [
     "SpacRepo",
     "SpacReportWriter",
@@ -354,9 +354,23 @@ test("exports the scaffolding the relocated extraction tiers still reach back fo
     "UnderwriterFamilyMembershipRepo",
     "UnderwriterLinkRepo",
     "normalizeManagementTitles",
+    "registerBackfillDescriptor",
+    "spacTrigger8KDescriptor",
   ]) {
     expect(typeof sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBe("function");
   }
+
+  // `BackfillDescriptor` is erased before this file runs, so it is pinned by
+  // annotating what a contributing package actually holds: an id plus the
+  // filings it should have read. A descriptor whose shape the barrel stopped
+  // exporting fails `tsc -p tsconfig.test.json` naming it.
+  const descriptor: sec.BackfillDescriptor = {
+    extractorId: "redemption",
+    selectCandidates: async () => [{ cik: 1, accession_number: "0000000001-26-000001" }],
+  };
+  const candidates: readonly sec.BackfillCandidate[] = await descriptor.selectCandidates();
+  expect(candidates.map((c) => c.accession_number)).toEqual(["0000000001-26-000001"]);
+  expect(descriptor.filterTodo).toBeUndefined();
 
   // The title canonicalization an extracted roster is stored through — the same
   // one this package's inline observe path applies, which is why it is shared.

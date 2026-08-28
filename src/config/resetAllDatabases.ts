@@ -29,7 +29,6 @@ import { SIC_CODE_REPOSITORY_TOKEN } from "../storage/entity/SicCodeSchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../storage/facts/CompanyFactsSchema";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../storage/document/FilingDocumentSchema";
-import { EXTRACTION_CACHE_REPOSITORY_TOKEN } from "../storage/extraction/ExtractionCacheSchema";
 import { FILING_SECTION_REPOSITORY_TOKEN } from "../storage/document/FilingSectionSchema";
 import { INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingSchema";
@@ -104,8 +103,6 @@ import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTicker
 import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
 import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
 import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
-import { SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacLockupTermsSchema";
-import { FIELD_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/FieldProvenanceSchema";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
 import {
@@ -121,8 +118,6 @@ import { SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/Spa
 import { SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacLoiExtractionSchema";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../storage/spac/SpacCandidateSchema";
 import { SPAC_REPOSITORY_TOKEN } from "../storage/spac/SpacSchema";
-import { RISK_FACTOR_REPOSITORY_TOKEN } from "../storage/risk-factor/RiskFactorSchema";
-import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 
 /** Options for {@link resetAllDatabases}. */
@@ -418,7 +413,6 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(EXTRACTION_CACHE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(FILING_SECTION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CROWDFUNDING_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN).deleteAll();
@@ -460,7 +454,6 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(FORM_8K_EVENT_REPOSITORY_TOKEN).deleteAll();
   // Observation provenance + AI-extracted offering / ownership / related-party tiers.
   await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FIELD_PROVENANCE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN).deleteAll();
@@ -470,9 +463,6 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(OFFERING_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(RISK_FACTOR_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(USE_OF_PROCEEDS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).deleteAll();
   // SPAC lifecycle: derived `spac` row + append-only deal/event/extraction tables.
   await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).deleteAll();

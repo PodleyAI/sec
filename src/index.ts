@@ -537,18 +537,10 @@ export { sectionHash } from "./verify/callTrace";
 export { BeneficialOwnershipRepo } from "./storage/beneficial-ownership/BeneficialOwnershipRepo";
 export { CompanyIdentityLinkRepo } from "./storage/canonical/CompanyIdentityLinkRepo";
 export { ExecutiveCompensationRepo } from "./storage/executive-compensation/ExecutiveCompensationRepo";
-export { FieldProvenanceRepo } from "./storage/provenance/FieldProvenanceRepo";
 export { RelatedPartyTransactionRepo } from "./storage/related-party/RelatedPartyTransactionRepo";
 export { RelatedPartyTransactionSchema } from "./storage/related-party/RelatedPartyTransactionSchema";
-export { RiskFactorRepo } from "./storage/risk-factor/RiskFactorRepo";
 export { Section16Repo } from "./storage/section16/Section16Repo";
-export { SpacLockupTermsRepo } from "./storage/offering/SpacLockupTermsRepo";
-export { UseOfProceedsRepo } from "./storage/use-of-proceeds/UseOfProceedsRepo";
 export type { SpacStatus } from "./storage/spac/SpacSchema";
-export {
-  EXTRACTION_CACHE_REPOSITORY_TOKEN,
-  type ExtractionCacheRepositoryStorage,
-} from "./storage/extraction/ExtractionCacheSchema";
 
 // Family-name normalization, so a sponsor or underwriter observed outside this
 // package folds to the same family key one observed inside it does.
@@ -561,6 +553,18 @@ export { normalizeUnderwriterFamilyName } from "./resolver/UnderwriterFamilyReso
 export { getBackfillDescriptor } from "./task/forms/backfillDescriptors";
 export { csvOptionValue, optionValue } from "./cli/optionValue";
 export { KNOWN_MODEL_ID_SHAPES, modelApiKeyEnvVar } from "./config/registerModels";
+
+// The seam a package that ships a reading this one does not contributes its
+// backfill through, plus the descriptor shape and the ready-made factory for a
+// known-SPAC 8-K narrative pass. Without a contributed descriptor the id
+// resolves to no wiring and `sec extractor backfill` refuses it, which is the
+// answer a deployment without that package should get.
+export {
+  registerBackfillDescriptor,
+  spacTrigger8KDescriptor,
+  type BackfillCandidate,
+  type BackfillDescriptor,
+} from "./task/forms/backfillDescriptors";
 
 // Human-verified truth for the committed prospectus corpus. Read here by the
 // chunker's own test, which is why it stays; anything scoring an extraction

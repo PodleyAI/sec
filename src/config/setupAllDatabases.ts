@@ -20,7 +20,6 @@ import { SIC_CODE_REPOSITORY_TOKEN } from "../storage/entity/SicCodeSchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../storage/facts/CompanyFactsSchema";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../storage/document/FilingDocumentSchema";
-import { EXTRACTION_CACHE_REPOSITORY_TOKEN } from "../storage/extraction/ExtractionCacheSchema";
 import { FILING_SECTION_REPOSITORY_TOKEN } from "../storage/document/FilingSectionSchema";
 import { INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingSchema";
@@ -79,13 +78,10 @@ import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSpo
 import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
 import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
 import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
-import { SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacLockupTermsSchema";
 import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTickerSchema";
 import { CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalUnderwriterFamilySchema";
 import { UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterFamilyMembershipSchema";
 import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
-import { RISK_FACTOR_REPOSITORY_TOKEN } from "../storage/risk-factor/RiskFactorSchema";
-import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
 import { migrateLegacyForm8KEventsTable } from "../storage/form-8k-event/Form8KEventLegacyMigration";
@@ -113,7 +109,6 @@ import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/Pers
 import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
 import { PERSON_ROLE_REPOSITORY_TOKEN } from "../storage/canonical/PersonRoleSchema";
 import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/canonical/RoleRosterCompletenessSchema";
-import { FIELD_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/FieldProvenanceSchema";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
 import { EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN } from "../storage/executive-compensation/ExecutiveCompensationSchema";
@@ -171,7 +166,6 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(EXTRACTION_CACHE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(FILING_SECTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CROWDFUNDING_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN).setupDatabase();
@@ -213,7 +207,6 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(FIELD_PROVENANCE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN).setupDatabase();
@@ -239,7 +232,6 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(OFFERING_TERMS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ISSUER_TICKER_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry
@@ -247,8 +239,6 @@ export async function setupAllDatabases(): Promise<void> {
     .setupDatabase();
   await globalServiceRegistry.get(UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(UNDERWRITER_LINK_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(RISK_FACTOR_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(USE_OF_PROCEEDS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).setupDatabase();
   // Drop the legacy form_8k_events shape (no event_id / extractor_id /
   // extractor_version) before creating the current one; the natural-key PK

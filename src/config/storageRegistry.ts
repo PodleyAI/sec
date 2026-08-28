@@ -252,11 +252,6 @@ import {
   SpacPromoteTermsSchema,
 } from "../storage/offering/SpacPromoteTermsSchema";
 import {
-  SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN,
-  SpacLockupTermsPrimaryKeyNames,
-  SpacLockupTermsSchema,
-} from "../storage/offering/SpacLockupTermsSchema";
-import {
   ISSUER_TICKER_REPOSITORY_TOKEN,
   IssuerTickerPrimaryKeyNames,
   IssuerTickerSchema,
@@ -276,16 +271,6 @@ import {
   UnderwriterLinkPrimaryKeyNames,
   UnderwriterLinkSchema,
 } from "../storage/canonical/UnderwriterLinkSchema";
-import {
-  RISK_FACTOR_REPOSITORY_TOKEN,
-  RiskFactorPrimaryKeyNames,
-  RiskFactorSchema,
-} from "../storage/risk-factor/RiskFactorSchema";
-import {
-  USE_OF_PROCEEDS_REPOSITORY_TOKEN,
-  UseOfProceedsPrimaryKeyNames,
-  UseOfProceedsSchema,
-} from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import {
   XBRL_FACT_REPOSITORY_TOKEN,
   XbrlFactPrimaryKeyNames,
@@ -352,11 +337,6 @@ import {
   PersonObservationTitleTable,
 } from "../storage/observation/PersonObservationTitleSchema";
 import {
-  FIELD_PROVENANCE_REPOSITORY_TOKEN,
-  FieldProvenancePrimaryKeyNames,
-  FieldProvenanceSchema,
-} from "../storage/provenance/FieldProvenanceSchema";
-import {
   OBSERVATION_PROVENANCE_REPOSITORY_TOKEN,
   ObservationProvenancePrimaryKeyNames,
   ObservationProvenanceSchema,
@@ -381,11 +361,6 @@ import {
   ExtractionDeadLetterPrimaryKeyNames,
   ExtractionDeadLetterSchema,
 } from "../storage/dead-letter/ExtractionDeadLetterSchema";
-import {
-  EXTRACTION_CACHE_REPOSITORY_TOKEN,
-  ExtractionCachePrimaryKeyNames,
-  ExtractionCacheSchema,
-} from "../storage/extraction/ExtractionCacheSchema";
 import {
   S1_CLASSIFICATION_REPOSITORY_TOKEN,
   S1ClassificationPrimaryKeyNames,
@@ -965,13 +940,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     primaryKeyNames: ObservationProvenancePrimaryKeyNames,
   }),
   defineStorage({
-    token: FIELD_PROVENANCE_REPOSITORY_TOKEN,
-    table: "field_provenance",
-    schema: FieldProvenanceSchema,
-    primaryKeyNames: FieldProvenancePrimaryKeyNames,
-    indexes: [["accession_number"]],
-  }),
-  defineStorage({
     token: BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN,
     table: "beneficial_ownership",
     schema: BeneficialOwnershipSchema,
@@ -991,15 +959,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     schema: RelatedPartyTransactionSchema,
     primaryKeyNames: RelatedPartyTransactionPrimaryKeyNames,
     indexes: [["accession_number"]],
-  }),
-  defineStorage({
-    token: EXTRACTION_CACHE_REPOSITORY_TOKEN,
-    table: "extraction_cache",
-    schema: ExtractionCacheSchema,
-    primaryKeyNames: ExtractionCachePrimaryKeyNames,
-    // Every read is by primary key, which the key already serves. These are for
-    // the operator: "what is this table full of" and "what can be pruned".
-    indexes: [["label"], ["created_at"]],
   }),
   defineStorage({
     token: EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN,
@@ -1193,13 +1152,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     indexes: [["cik"]],
   }),
   defineStorage({
-    token: SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN,
-    table: "spac_lockup_terms",
-    schema: SpacLockupTermsSchema,
-    primaryKeyNames: SpacLockupTermsPrimaryKeyNames,
-    indexes: [["cik"]],
-  }),
-  defineStorage({
     token: ISSUER_TICKER_REPOSITORY_TOKEN,
     table: "issuer_ticker",
     schema: IssuerTickerSchema,
@@ -1240,20 +1192,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     // Mirrors spac_sponsor_link: issuer-led so the per-issuer read at the
     // active resolver version does not scan the table.
     indexes: [["accession_number"], ["underwriter_family_id"], ["issuer_cik", "resolver_version"]],
-  }),
-  defineStorage({
-    token: RISK_FACTOR_REPOSITORY_TOKEN,
-    table: "risk_factor",
-    schema: RiskFactorSchema,
-    primaryKeyNames: RiskFactorPrimaryKeyNames,
-    indexes: [["accession_number"], ["cik"]],
-  }),
-  defineStorage({
-    token: USE_OF_PROCEEDS_REPOSITORY_TOKEN,
-    table: "use_of_proceeds",
-    schema: UseOfProceedsSchema,
-    primaryKeyNames: UseOfProceedsPrimaryKeyNames,
-    indexes: [["accession_number"]],
   }),
   defineStorage({
     token: XBRL_FACT_REPOSITORY_TOKEN,

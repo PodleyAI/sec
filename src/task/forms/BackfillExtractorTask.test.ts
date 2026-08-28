@@ -11,7 +11,36 @@ import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { SpacLoiExtractionRepo } from "../../storage/spac/SpacLoiExtractionRepo";
+import { SpacRedemptionExtractionRepo } from "../../storage/spac/SpacRedemptionExtractionRepo";
+import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
+import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
+import { registerBackfillDescriptor, spacTrigger8KDescriptor } from "./backfillDescriptors";
 import { BackfillExtractorTask, runExtractorBackfill } from "./BackfillExtractorTask";
+
+// The redemption and LOI passes run inside another extractor's `store` and are
+// supplied by the package that ships the 8-K narrative reading, so nothing
+// registers their descriptors here. Registering them locally is what keeps
+// their selection and needing-work predicates — which read tables this package
+// owns — under test rather than unreachable.
+registerBackfillDescriptor(
+  spacTrigger8KDescriptor(
+    "redemption",
+    "redemption",
+    hasRedemptionTriggerItem,
+    async (accession_number) =>
+      (await new SpacRedemptionExtractionRepo().getByAccession(accession_number)) !== undefined
+  )
+);
+registerBackfillDescriptor(
+  spacTrigger8KDescriptor(
+    "loi",
+    "loi",
+    hasLoiTriggerItem,
+    async (accession_number) =>
+      (await new SpacLoiExtractionRepo().getByAccession(accession_number)) !== undefined
+  )
+);
 
 async function seedSpac(cik: number): Promise<void> {
   await new SpacReportWriter().recordRegistration({

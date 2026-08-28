@@ -51,6 +51,20 @@ export async function runExtractorBackfill(
 ): Promise<ExtractorBackfillResult> {
   const descriptor = getBackfillDescriptor(opts.extractorId);
   if (!descriptor) {
+    // Two different answers, and the operator's next step differs. An id this
+    // package holds STATE for — a seeded version slot, run rows, dead letters,
+    // stored tables — is one it knows about and cannot re-run: the reading
+    // behind it is supplied by a package this deployment does not have. Say so,
+    // rather than repeating a list that names the id back at them. Anything
+    // else is a typo, and the list is the useful reply to that.
+    if (listBackfillableExtractorIds().includes(opts.extractorId)) {
+      throw new Error(
+        `Cannot backfill '${opts.extractorId}': this deployment registers no backfill wiring ` +
+          `for that id. Its stored rows and version slot are here, but the extractor that ` +
+          `writes them is supplied by a consumer package — run the backfill under that ` +
+          `package, or name an extractor this one ships.`
+      );
+    }
     throw new Error(
       `No backfill wiring for extractor '${opts.extractorId}'. Backfillable: ` +
         listBackfillableExtractorIds().join(", ")

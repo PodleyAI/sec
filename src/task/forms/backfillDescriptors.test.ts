@@ -19,10 +19,15 @@ import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { registerFormExtractor } from "../../sec/forms/formExtractors";
 import { PARSER_ONLY_FORMS_BY_EXTRACTOR } from "../../sec/forms/parserOnlyForms";
+import { SpacLoiExtractionRepo } from "../../storage/spac/SpacLoiExtractionRepo";
+import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
+import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import {
   formsForExtractor,
   getBackfillDescriptor,
   listBackfillableExtractorIds,
+  registerBackfillDescriptor,
+  spacTrigger8KDescriptor,
 } from "./backfillDescriptors";
 
 // This package parses the proxy family and does not read it — the
@@ -38,6 +43,30 @@ registerFormExtractor({
   forms: PARSER_ONLY_FORMS_BY_EXTRACTOR["merger-proxy"],
   store: async () => {},
 });
+
+// The redemption and LOI passes run inside another extractor's `store` and are
+// supplied by the package that ships the 8-K narrative reading, so nothing
+// registers their descriptors here. Registering them locally is what keeps
+// their selection and needing-work predicates — which read tables this package
+// owns — under test rather than unreachable.
+registerBackfillDescriptor(
+  spacTrigger8KDescriptor(
+    "redemption",
+    "redemption",
+    hasRedemptionTriggerItem,
+    async (accession_number) =>
+      (await new SpacRedemptionExtractionRepo().getByAccession(accession_number)) !== undefined
+  )
+);
+registerBackfillDescriptor(
+  spacTrigger8KDescriptor(
+    "loi",
+    "loi",
+    hasLoiTriggerItem,
+    async (accession_number) =>
+      (await new SpacLoiExtractionRepo().getByAccession(accession_number)) !== undefined
+  )
+);
 
 async function seedSpac(cik: number): Promise<void> {
   await new SpacReportWriter().recordRegistration({

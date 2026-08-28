@@ -9,9 +9,7 @@ import { loadAnsweredMergerSections } from "../../storage/dead-letter/answeredMe
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SpacRepo } from "../../storage/spac/SpacRepo";
 import type { SpacEvent } from "../../storage/spac/SpacEventSchema";
-import { SpacLoiExtractionRepo } from "../../storage/spac/SpacLoiExtractionRepo";
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
-import { SpacRedemptionExtractionRepo } from "../../storage/spac/SpacRedemptionExtractionRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
@@ -29,8 +27,6 @@ import {
 } from "../../sec/forms/formExtractors";
 import { listingRemovalNeedsWork } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
 import { staffActionAbandonsRegistration } from "../../sec/forms/registration-withdrawal-termination/staffActionAbandonsRegistration";
-import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
-import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
 import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 
 /**
@@ -262,8 +258,15 @@ function spacTrigger8KSelector(
  * every sweep. `MODEL_EMPTY` entries are deliberately not selected: a confident
  * negative is the expected answer for most trigger 8-Ks and must not be re-paid
  * as an AI call on every sweep.
+ *
+ * Exported because the passes it describes run inside another extractor's
+ * `store` and are supplied by whichever package ships the 8-K narrative
+ * reading. The selection and needing-work predicates read tables this package
+ * owns, so the implementation belongs here; the decision that a deployment HAS
+ * those passes belongs to the package that registers them, through
+ * {@link registerBackfillDescriptor}.
  */
-function spacTrigger8KDescriptor(
+export function spacTrigger8KDescriptor(
   extractorId: string,
   sectionName: string,
   hasTriggerItem: (items: string | null | undefined) => boolean,
@@ -433,33 +436,57 @@ const withdrawalDescriptor: BackfillDescriptor = {
   },
 };
 
-/** Sub-extractors and gated extractors whose candidate set is not form-derived. */
+/**
+ * Gated extractors THIS package ships whose candidate set is not form-derived.
+ *
+ * The two 8-K narrative passes are deliberately absent. They register no form
+ * of their own — they run inside another extractor's `store` — so nothing in
+ * the registry says whether a deployment has them, and an entry here would let
+ * `sec extractor backfill redemption` select real filings, reprocess every one
+ * of them through an 8-K handler that runs no such pass, and report success
+ * having written nothing. Whichever package ships those passes contributes
+ * their descriptors through {@link registerBackfillDescriptor}; where it is
+ * absent, the id resolves to no wiring and the command refuses.
+ */
 const CUSTOM_DESCRIPTORS: Readonly<Record<string, BackfillDescriptor>> = {
-  redemption: spacTrigger8KDescriptor(
-    "redemption",
-    "redemption",
-    hasRedemptionTriggerItem,
-    async (accession_number) =>
-      (await new SpacRedemptionExtractionRepo().getByAccession(accession_number)) !== undefined
-  ),
-  loi: spacTrigger8KDescriptor(
-    "loi",
-    "loi",
-    hasLoiTriggerItem,
-    async (accession_number) =>
-      (await new SpacLoiExtractionRepo().getByAccession(accession_number)) !== undefined
-  ),
   "merger-proxy": mergerProxyDescriptor,
   "25-15": deregistrationDescriptor,
   RW: withdrawalDescriptor,
 };
 
+/** Descriptors contributed by a consumer package, keyed by extractor id. */
+const REGISTERED_DESCRIPTORS = new Map<string, BackfillDescriptor>();
+
 /**
- * Resolve the backfill descriptor for an extractor id. Custom descriptors win;
- * any other extractor id with routed forms gets the generic all-filings-of-its-
- * forms descriptor. Returns undefined for unknown / non-backfillable ids.
+ * Contribute a backfill descriptor from the package that ships the reading
+ * behind `descriptor.extractorId`.
+ *
+ * Registering one is the only signal this package has that a deployment can
+ * actually re-run that extractor: an id whose reading lives elsewhere and whose
+ * dispatch happens inside another extractor's `store` is invisible to the
+ * form-extractor registry. A contributed descriptor wins over a built-in of the
+ * same id — the package that ships the reading is the authority on which
+ * filings it should have read. Idempotent; last registration for an id stands.
+ */
+export function registerBackfillDescriptor(descriptor: BackfillDescriptor): void {
+  REGISTERED_DESCRIPTORS.set(descriptor.extractorId, descriptor);
+}
+
+/** Test hook: forget every contributed descriptor. */
+export function clearRegisteredBackfillDescriptorsForTesting(): void {
+  REGISTERED_DESCRIPTORS.clear();
+}
+
+/**
+ * Resolve the backfill descriptor for an extractor id. A descriptor contributed
+ * through {@link registerBackfillDescriptor} wins, then this package's own
+ * custom ones; any other extractor id with routed forms gets the generic
+ * all-filings-of-its-forms descriptor. Returns undefined for unknown /
+ * non-backfillable ids.
  */
 export function getBackfillDescriptor(extractorId: string): BackfillDescriptor | undefined {
+  const contributed = REGISTERED_DESCRIPTORS.get(extractorId);
+  if (contributed) return contributed;
   const custom = CUSTOM_DESCRIPTORS[extractorId];
   if (custom) return custom;
   const forms = formsForExtractor(extractorId);
@@ -474,19 +501,26 @@ export function getBackfillDescriptor(extractorId: string): BackfillDescriptor |
  * Every extractor id `sec extractor backfill` accepts (for CLI help / errors),
  * and the set `db setup` seeds a version slot for.
  *
- * Three sources, because an id can reach an operator by three routes. The
+ * Four sources, because an id can reach an operator by four routes. The
  * open registry names whatever is registered, a downstream package's extractors
- * included. The custom descriptors name the handlers that run inside another
- * extractor's `store` and register no form of their own. And {@link EXTRACTOR_IDS}
- * names what this package holds STATE for — dead letters, run rows, offering
- * and extraction tables — which outlives whether it still ships the extractor
- * that wrote them. An id with rows and no version slot is unreadable: its
- * dead letters cannot be counted as eligible, `retry` cannot resolve a slot,
- * and the version ceremonies refuse it.
+ * included. The custom descriptors name the gated handlers this package ships
+ * whose candidate set is not form-derived. The contributed ones name the
+ * handlers that run inside another extractor's `store` and register no form of
+ * their own, which only the package supplying them can declare. And
+ * {@link EXTRACTOR_IDS} names what this package holds STATE for — dead letters,
+ * run rows, offering and extraction tables — which outlives whether it still
+ * ships the extractor that wrote them. An id with rows and no version slot is
+ * unreadable: its dead letters cannot be counted as eligible, `retry` cannot
+ * resolve a slot, and the version ceremonies refuse it.
+ *
+ * Deliberately WIDER than the set that can actually be backfilled here: an id
+ * this package only holds state for is listed, seeded, and then refused by name
+ * when a command tries to run it.
  */
 export function listBackfillableExtractorIds(): ExtractorId[] {
   const ids = new Set<string>(allRegisteredExtractorIds());
   for (const id of Object.keys(CUSTOM_DESCRIPTORS)) ids.add(id);
+  for (const id of REGISTERED_DESCRIPTORS.keys()) ids.add(id);
   for (const id of EXTRACTOR_IDS) ids.add(id);
   return [...ids].sort() as ExtractorId[];
 }
