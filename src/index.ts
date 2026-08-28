@@ -198,6 +198,92 @@ export {
   type S1SectionName,
 } from "./sec/html/sectionVocabulary";
 
+// ── Submission parsing an out-of-package extractor starts from ──────────────
+// The SGML envelope splitters. A full-submission `.txt` is a concatenation of
+// tagged documents; these cut it into the primary document, the exhibits with
+// their `<TYPE>`/`<DESCRIPTION>` manifest, and the XBRL instance. Pure and
+// synchronous, like the HTML parser above — nothing here reads DI, the
+// database, or a model — and this shape is what a form extractor is handed
+// before it looks at any HTML.
+export {
+  parseEightKSubmission,
+  parseRegistrationSubmission,
+  type FormS1Parsed,
+} from "./sec/forms/registration-statements/s1/parseSubmission";
+
+// ── Section segmentation over the parsed document tree ──────────────────────
+// Cuts the tree `parseEdgarHtml` returns into the sections the vocabulary
+// above names. A `Section` carries the GFM body plus the bounding
+// `[start, end)` span back into the filing HTML — a range to highlight, never
+// a slice to re-derive the text from. `DocumentSegmenter` is the interface, so
+// a consumer can substitute its own cutter and still be read by everything
+// that takes sections.
+export { DocumentTreeSegmenter } from "./sec/forms/registration-statements/s1/DocumentTreeSegmenter";
+export type {
+  DocumentSegmenter,
+  Section,
+} from "./sec/forms/registration-statements/s1/DocumentSegmenter";
+
+// ── Extraction-call configuration ───────────────────────────────────────────
+// The sampling temperature every extraction call must pass — extraction is
+// transcription, so it is 0 unless an operator lifts it — and the model record
+// standing in for the no-model deterministic pass. An extractor built outside
+// this package reads both from here rather than re-deriving them, so one
+// environment variable still governs the whole corpus. `DeadLetterReasonCode`
+// is the vocabulary a failed section is recorded under by the
+// `ExtractionDeadLetterRepo` above.
+export { getExtractionTemperature } from "./config/extractionTemperature";
+export { deterministicModelRecord } from "./config/registerModels";
+export type { DeadLetterReasonCode } from "./storage/dead-letter/ExtractionDeadLetterSchema";
+
+// ── Writing observations from an out-of-package extractor ───────────────────
+// `buildEntityObserver` wires an `EntityObserver` out of DI at the given
+// active resolver versions, so a form module does not repeat the ceremony and
+// cannot resolve against a stale version by accident.
+// `COMPLETE_ROSTER_ROLE_SCOPES` names the scopes whose filings list everyone
+// holding the role, and so the only ones where a later filing's silence may
+// end a tenure. It is shared rather than restated because a roster closure
+// pass and anything recomputing tenures from stored evidence must agree on the
+// set exactly.
+export { buildEntityObserver } from "./resolver/buildEntityObserver";
+export { EntityObserver } from "./resolver/EntityObserver";
+export { COMPLETE_ROSTER_ROLE_SCOPES } from "./resolver/roleScopes";
+
+// ── 8-K item codes that mark a SPAC letter of intent or redemption ──────────
+// Which `<ITEM>` codes on an 8-K make it worth reading for each event. These
+// are structured filing metadata, not a judgement about the text, which is why
+// they stay here and are read by whatever does the reading.
+export { LOI_TRIGGER_ITEMS } from "./sec/forms/miscellaneous-filings/spac8kLoiTriggers";
+export { REDEMPTION_TRIGGER_ITEMS } from "./sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
+
+// ── Guards between what a model returned and what gets persisted ────────────
+// A model returns text; these decide what may become a row, and they belong in
+// the persist path rather than in a prompt — an instruction is a request, a
+// guard is a fact. The name filters reject an issuer's own name echoed back as
+// a family, a placeholder standing in for an unnamed company, and a person
+// name too long to be one; `legalFormTrailingCanonical` is the trailing
+// legal-form table that says a string names an entity at all.
+// `splitParentClause` separates "X, a subsidiary of Y" into the entity and the
+// relation that named it. `assertWithinDeclaredBounds` checks a whole batch
+// against the storage schema's own `maxLength`s BEFORE any of it is written: a
+// row that throws part-way through a multi-storage persist cannot be rolled
+// back, and would leave a section both partly stored and dead-lettered.
+export { isCompanyFamilyPrefixEcho } from "./storage/company/CompanyFamilyName";
+export { isUnnamedCompanyName } from "./storage/company/CompanyNormalization";
+export { parentClauseSourceContext, splitParentClause } from "./storage/company/splitParentClause";
+export { assertWithinDeclaredBounds } from "./util/declaredBounds";
+export { legalFormTrailingCanonical } from "./util/legalForms";
+export { isOverlongPersonName } from "./util/personNameBounds";
+
+// ── Model-call tracing ──────────────────────────────────────────────────────
+// Off unless `SEC_TRACE_DIR` names a directory, and one memoized environment
+// read per call when it is — extraction is the expensive path here, and a
+// tracing facility that cost anything while disabled would be left off. An
+// extractor records each attempt so the source-span verifier can measure what
+// was sent against what came back; `CallOutcome` is the same vocabulary a
+// failed section dead-letters by.
+export { isCallTracing, recordCall } from "./verify/callTrace";
+export type { CallOutcome, CallValidationAttempt } from "./verify/callTrace";
 // ── Family-tier primitives for downstream resolvers ────────────────────────
 export { FamilyResolver, normalizeFamilyName } from "./resolver/FamilyResolver";
 export {
