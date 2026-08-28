@@ -396,3 +396,99 @@ export {
   tableFromRecords,
   text,
 } from "./web/secPanelFormat";
+
+// ── Form vocabulary, corpus paths and model bookkeeping ─────────────────────
+// The rest of what an extractor built outside this package reads from `sec`,
+// beside the parser, segmenter and persist guards above. Everything here is
+// something `sec` owns because a `sec` reader also depends on it, so an
+// out-of-package extractor must share it rather than restate it.
+//
+// The `extractorIds` sets are structured filing metadata, like the 8-K item
+// codes above: which proxy forms carry a definitive general vote, which merger
+// proxy forms are optional rather than expected, the section name a merger
+// extraction is recorded under, and the Rule 462(b) short-form registrations
+// that are a cover page and a signature block — no sections to sweep, so a
+// sweep over one records absences that were never there. The worklist that
+// selects a filing is keyed by the same vocabulary, so a restatement drifts.
+//
+// `cachedAccessionDocPath` / `resolvePrimaryDocName` locate the document a
+// sweep already downloaded under `SEC_RAW_DATA_FOLDER`, by the same rule the
+// fetch layer stored it under; an offline pass over the corpus reads what is
+// there rather than reconstructing a filename.
+//
+// `registerModelIds` registers the ids a run will use, `trySecModelRecord`
+// looks one up without throwing when it is not registered, and
+// `listPricingForModelId` prices a completed call. `resolveAsset` finds a
+// packaged reference file whether it is being read from source or from `dist`.
+//
+// `MAX_RISK_FACTORS_CHARS` and the chunkers beside it are the same ones this
+// package's own span verifier walks, so a chunk boundary an extractor produced
+// and one the verifier expects cannot disagree. `normalizeCompany`,
+// `normalizePerson` and `foldTypographicPunctuation` are the normalizations a
+// stored row is compared through, which is what makes a score computed outside
+// this package mean the same thing as one computed inside it.
+//
+// The repos are the tables a `sec` reader still pins — the issuer/offering tier
+// behind `sec issuer deal`, the observation provenance the stale-observation
+// reaper walks, and the SGML-header half of the S-1 classification — exposed so
+// an extractor writes the row `sec` will read rather than a parallel one.
+export {
+  GENERAL_DEFINITIVE_PROXY_FORMS,
+  MERGER_PROXY_OPTIONAL_FORMS,
+  MERGER_PROXY_SECTION,
+  SECTIONLESS_REGISTRATION_FORMS,
+} from "./storage/versioning/extractorIds";
+export { cachedAccessionDocPath, resolvePrimaryDocName } from "./util/accessionDocPath";
+export { listPricingForModelId } from "./config/listPricing";
+export { registerModelIds, trySecModelRecord } from "./config/registerModels";
+export { resolveAsset } from "./util/resolveAsset";
+export { extractPrimaryDocFromSubmission } from "./task/bootstrap/feedTarball";
+export { seeksCombinationApproval } from "./sec/forms/proxies-information-statements/seeksCombinationApproval";
+export {
+  chunkRiskFactorText,
+  isRiskCategoryHeading,
+  MAX_RISK_FACTORS_CHARS,
+  stripHeadingMarkers,
+} from "./sec/forms/registration-statements/s1/riskFactorChunks";
+export { foldTypographicPunctuation } from "./util/dataCleaningUtils";
+export { normalizeCompany } from "./storage/company/CompanyNormalization";
+export { normalizePerson } from "./storage/person/PersonNormalization";
+export type { Filing } from "./storage/filing/FilingSchema";
+export { S1ClassificationRepo } from "./storage/classification/S1ClassificationRepo";
+export { ObservationProvenanceRepo } from "./storage/provenance/ObservationProvenanceRepo";
+export { IssuerTickerRepo } from "./storage/offering/IssuerTickerRepo";
+export { OfferingTermsRepo } from "./storage/offering/OfferingTermsRepo";
+export { SpacPromoteTermsRepo } from "./storage/offering/SpacPromoteTermsRepo";
+export { SpacUnitTermsRepo } from "./storage/offering/SpacUnitTermsRepo";
+
+// ── Scaffolding: expected to be withdrawn, do not build on ──────────────────
+// NOT stable API. The extraction work these belong to is being relocated to a
+// downstream package one tier at a time, and a tier that has already left has
+// to keep reaching back for the tiers that have not. These exports exist only
+// so that reaching back is an import rather than a reimplementation, and they
+// go away — without deprecation — as soon as the tier behind each one follows
+// it out of this package. Anything outside that migration should treat them as
+// private and use the surfaces above instead.
+//
+// The SPAC lifecycle tier (the `spac` row, its event/report writer, and the
+// per-form LOI / merger / redemption extraction rows) and the canonical family
+// tier (sponsor and underwriter family resolution, membership and links) are
+// the two still here. `normalizeManagementTitles` is the third: the title
+// canonicalization stays only while this package's inline observe path calls
+// it.
+export { SpacRepo } from "./storage/spac/SpacRepo";
+export { SpacReportWriter, type ProxyEventVerdict } from "./storage/spac/SpacReportWriter";
+export { SpacLoiExtractionRepo } from "./storage/spac/SpacLoiExtractionRepo";
+export { SpacMergerExtractionRepo } from "./storage/spac/SpacMergerExtractionRepo";
+export { SpacRedemptionExtractionRepo } from "./storage/spac/SpacRedemptionExtractionRepo";
+export { SponsorFamilyResolver } from "./resolver/SponsorFamilyResolver";
+export { UnderwriterFamilyResolver } from "./resolver/UnderwriterFamilyResolver";
+export { CanonicalSponsorFamilyAliasRepo } from "./storage/canonical/CanonicalSponsorFamilyAliasRepo";
+export { CanonicalSponsorFamilyRepo } from "./storage/canonical/CanonicalSponsorFamilyRepo";
+export { SpacSponsorLinkRepo } from "./storage/canonical/SpacSponsorLinkRepo";
+export { SponsorFamilyMembershipRepo } from "./storage/canonical/SponsorFamilyMembershipRepo";
+export { CanonicalUnderwriterFamilyAliasRepo } from "./storage/canonical/CanonicalUnderwriterFamilyAliasRepo";
+export { CanonicalUnderwriterFamilyRepo } from "./storage/canonical/CanonicalUnderwriterFamilyRepo";
+export { UnderwriterFamilyMembershipRepo } from "./storage/canonical/UnderwriterFamilyMembershipRepo";
+export { UnderwriterLinkRepo } from "./storage/canonical/UnderwriterLinkRepo";
+export { normalizeManagementTitles } from "./sec/forms/registration-statements/s1/normalizeTitle";

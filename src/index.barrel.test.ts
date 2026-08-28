@@ -242,3 +242,139 @@ test("the extraction seam parses, segments and guards over a real submission", (
   expect(attempt.errors[0]?.path).toBe("/rows/0/full_name");
   expect(outcome).toBe("invalid-output");
 });
+
+test("exports the form vocabulary, corpus paths and bookkeeping an extractor reads", () => {
+  for (const name of [
+    "GENERAL_DEFINITIVE_PROXY_FORMS",
+    "MERGER_PROXY_OPTIONAL_FORMS",
+    "MERGER_PROXY_SECTION",
+    "SECTIONLESS_REGISTRATION_FORMS",
+    "cachedAccessionDocPath",
+    "resolvePrimaryDocName",
+    "listPricingForModelId",
+    "registerModelIds",
+    "trySecModelRecord",
+    "resolveAsset",
+    "extractPrimaryDocFromSubmission",
+    "seeksCombinationApproval",
+    "chunkRiskFactorText",
+    "isRiskCategoryHeading",
+    "MAX_RISK_FACTORS_CHARS",
+    "stripHeadingMarkers",
+    "foldTypographicPunctuation",
+    "normalizeCompany",
+    "normalizePerson",
+    "S1ClassificationRepo",
+    "ObservationProvenanceRepo",
+    "IssuerTickerRepo",
+    "OfferingTermsRepo",
+    "SpacPromoteTermsRepo",
+    "SpacUnitTermsRepo",
+  ]) {
+    expect(sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBeDefined();
+  }
+
+  // The form vocabulary the worklist selects by, so an out-of-package extractor
+  // reads the same sets rather than restating them.
+  expect(sec.GENERAL_DEFINITIVE_PROXY_FORMS.has("DEF 14A")).toBe(true);
+  expect(sec.MERGER_PROXY_OPTIONAL_FORMS.has("DEF 14A")).toBe(true);
+  expect(sec.MERGER_PROXY_SECTION).toBe("merger");
+  expect(sec.SECTIONLESS_REGISTRATION_FORMS.has("S-1MEF")).toBe(true);
+
+  // A filing row is what an out-of-package sweep iterates, and these two are how
+  // it gets from that row to the document a sweep already downloaded — the xsl
+  // viewer prefix stripped, the name refused if it could escape the cache
+  // directory. `Filing` is erased before this file runs, so it is pinned by
+  // annotating the function that does the walk: an annotation whose type the
+  // barrel stopped exporting fails `tsc -p tsconfig.test.json` naming it.
+  const cachedDocPath: (
+    filing: Pick<sec.Filing, "cik" | "accession_number" | "primary_doc">,
+    root: string
+  ) => string | undefined = (filing, root) => {
+    const name = sec.resolvePrimaryDocName(filing.primary_doc);
+    return name === undefined
+      ? undefined
+      : sec.cachedAccessionDocPath(root, filing.cik, filing.accession_number, name);
+  };
+  const filing = {
+    cik: 1234567,
+    accession_number: "0001234567-24-000001",
+    primary_doc: "xslF345X03/d8k.htm",
+  };
+  expect(cachedDocPath(filing, "/raw")).toBe(
+    "/raw/accessiondocs/0001234567/000123456724000001-d8k.htm"
+  );
+  expect(cachedDocPath({ ...filing, primary_doc: null }, "/raw")).toBeUndefined();
+  expect(cachedDocPath({ ...filing, primary_doc: "../escape.htm" }, "/raw")).toBeUndefined();
+
+  // Model bookkeeping: an id nobody claims is inspected, not thrown on, and an
+  // unpriced id reports cost as unavailable rather than guessing.
+  expect(sec.trySecModelRecord("not-a-registered-model-id")).toBeUndefined();
+  expect(sec.listPricingForModelId("not-a-registered-model-id")).toBeUndefined();
+
+  // Risk-factor chunking, shared with this package's own span verifier so a
+  // boundary an extractor produced and one the verifier expects agree.
+  expect(sec.MAX_RISK_FACTORS_CHARS).toBeGreaterThan(0);
+  expect(sec.stripHeadingMarkers("## Risks Relating to our Securities")).toBe(
+    "Risks Relating to our Securities"
+  );
+  expect(sec.isRiskCategoryHeading("## Risks Relating to our Securities")).toBe(true);
+  expect(sec.isRiskCategoryHeading("We may not complete our initial business combination.")).toBe(
+    false
+  );
+
+  // The approval evidence a merger proxy needs beside an extracted deal.
+  expect(
+    sec.seeksCombinationApproval(
+      "To approve the Agreement and Plan of Merger, dated as of June 1, 2024."
+    )
+  ).toBe(true);
+  expect(sec.seeksCombinationApproval("To elect two directors to the board.")).toBe(false);
+
+  // The fold a stored row is compared through, so a score computed outside this
+  // package means what one computed inside it means.
+  expect(sec.foldTypographicPunctuation("“Acme’s” — Corp")).toBe('"Acme\'s" - Corp');
+});
+
+test("exports the scaffolding the relocated extraction tiers still reach back for", () => {
+  for (const name of [
+    "SpacRepo",
+    "SpacReportWriter",
+    "SpacLoiExtractionRepo",
+    "SpacMergerExtractionRepo",
+    "SpacRedemptionExtractionRepo",
+    "SponsorFamilyResolver",
+    "UnderwriterFamilyResolver",
+    "CanonicalSponsorFamilyAliasRepo",
+    "CanonicalSponsorFamilyRepo",
+    "SpacSponsorLinkRepo",
+    "SponsorFamilyMembershipRepo",
+    "CanonicalUnderwriterFamilyAliasRepo",
+    "CanonicalUnderwriterFamilyRepo",
+    "UnderwriterFamilyMembershipRepo",
+    "UnderwriterLinkRepo",
+    "normalizeManagementTitles",
+  ]) {
+    expect(typeof sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBe("function");
+  }
+
+  // The title canonicalization an extracted roster is stored through — the same
+  // one this package's inline observe path applies, which is why it is shared.
+  expect(sec.normalizeManagementTitles("Chief Executive Officer and Director")).toEqual([
+    "Chief Executive Officer",
+    "Director",
+  ]);
+
+  // `ProxyEventVerdict` is erased before this file runs, so it is pinned by
+  // annotating the decision a merger-proxy extractor actually holds: whether
+  // this filing's evidence emits a proxy event, retracts one an earlier run
+  // opened, or leaves the timeline alone.
+  const verdict: sec.ProxyEventVerdict = "retract";
+  const applied: Record<sec.ProxyEventVerdict, boolean> = {
+    emit: true,
+    retract: true,
+    leave: false,
+  };
+  expect(applied[verdict]).toBe(true);
+  expect(applied.leave).toBe(false);
+});
