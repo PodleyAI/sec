@@ -119,13 +119,13 @@ describe("ProcessAccessionDocFormTask filing-level dead-lettering", () => {
     const result = await new ThrowingFetchTask().run({ accessionNumber: ACCESSION });
     expect((result as { success: boolean }).success).toBe(false);
 
-    const dl = await new ExtractionDeadLetterRepo().get("S-1", ACCESSION, "");
+    const dl = await new ExtractionDeadLetterRepo().get("S-1-xbrl", ACCESSION, "");
     expect(dl?.reason_code).toBe("FETCH_ERROR");
     expect(dl?.status).toBe("pending");
     expect(dl?.detail).toContain("simulated network failure");
 
     const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
-    const run = await runRepo.findRun(CIK, ACCESSION, "S-1", "1.0.0");
+    const run = await runRepo.findRun(CIK, ACCESSION, "S-1-xbrl", "1.0.0");
     expect(run?.success).toBe(false);
   });
 
@@ -301,7 +301,7 @@ describe("ProcessAccessionDocFormTask filing-level dead-lettering", () => {
     const result = await new ThrowingFetchTask().run({ accessionNumber: ACCESSION });
     expect((result as { success: boolean }).success).toBe(false);
 
-    const dl = await new ExtractionDeadLetterRepo().get("S-1", ACCESSION, "");
+    const dl = await new ExtractionDeadLetterRepo().get("S-1-xbrl", ACCESSION, "");
     expect(dl?.reason_code).toBe("FETCH_ERROR");
   });
 });

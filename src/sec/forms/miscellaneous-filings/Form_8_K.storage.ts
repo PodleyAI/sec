@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IExecuteContext, ModelConfig } from "workglow";
+import type { IExecuteContext } from "workglow";
 import { globalServiceRegistry } from "workglow";
 import { Form8KEventRepo } from "../../../storage/form-8k-event/Form8KEventRepo";
 import type { Form8KEvent } from "../../../storage/form-8k-event/Form8KEventSchema";
@@ -18,8 +18,6 @@ import {
 } from "../registration-statements/s1/parseSubmission";
 import { Form_8_K_ITEMS } from "./Form_8_K";
 import type { Form8K } from "./Form_8_K.schema";
-import { processLoi8K } from "./loi8k";
-import { processRedemption8K } from "./redemption8k";
 import { htmlToPlainText, mapItemCodesToSpacEvents } from "./spac8kMilestones";
 
 /**
@@ -97,8 +95,6 @@ export async function processForm8K({
   extractor_id,
   extractor_version,
   fullSubmissionText,
-  model,
-  context,
 }: {
   readonly cik: number;
   readonly accession_number: string;
@@ -110,7 +106,11 @@ export async function processForm8K({
   readonly extractor_id: string;
   readonly extractor_version: string;
   readonly fullSubmissionText?: string;
-  readonly model?: ModelConfig;
+  /**
+   * Threaded by the dispatcher and accepted so every extractor's `store` can
+   * hand through one shape. Nothing here reports progress or prefetches, so it
+   * is unread.
+   */
   readonly context?: IExecuteContext;
 }): Promise<void> {
   const eventRepo = new Form8KEventRepo();
@@ -231,29 +231,5 @@ export async function processForm8K({
         });
       }
     }
-  }
-
-  if (spacRow && fullSubmissionText) {
-    await processRedemption8K({
-      cik,
-      accession_number,
-      filing_date,
-      form,
-      itemCodes,
-      fullSubmissionText,
-      model,
-      context,
-    });
-    await processLoi8K({
-      cik,
-      accession_number,
-      filing_date,
-      form,
-      itemCodes,
-      fullSubmissionText,
-      event_date: effectiveReportDate || filing_date,
-      model,
-      context,
-    });
   }
 }

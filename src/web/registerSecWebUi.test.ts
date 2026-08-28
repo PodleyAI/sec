@@ -129,7 +129,7 @@ describe("annotated fields reach the form", () => {
   });
 
   it("marks a list-valued field so a pick appends to it", () => {
-    expect(resolveFieldAnnotations(["eval", "s1"]).get("models")?.multiple).toBe(true);
+    expect(resolveFieldAnnotations(["spac", "process"]).get("ciks")?.multiple).toBe(true);
     expect(resolveFieldAnnotations(["query", "facts"]).get("cik")?.multiple).toBeUndefined();
   });
 });

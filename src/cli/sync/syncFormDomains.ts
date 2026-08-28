@@ -63,5 +63,9 @@ export const SYNC_FORM_DOMAINS = {
   // names the form (or that package's extractor id) directly.
   "reg-a": ["1-A", "1-K", "1-Z", "1-U", "QUALIF", "253G", "1-A-W"],
   "form-d": ["D"],
-  spacs: ["S-1", "424", "8-K", "merger-proxy", "25-15"],
+  // Both readings of a registration statement and a prospectus: the structured
+  // one this package ships and the prose one a consumer may add. An id nothing
+  // registered contributes no forms, so the same list serves a package running
+  // alone and one running under a consumer that adds the other half.
+  spacs: ["S-1-xbrl", "S-1", "424-xbrl", "424", "8-K", "merger-proxy", "25-15"],
 } as const satisfies Record<string, readonly ExtractorId[]>;

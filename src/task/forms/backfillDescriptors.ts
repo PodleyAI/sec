@@ -21,6 +21,7 @@ import {
   GENERAL_DEFINITIVE_PROXY_FORMS,
   type ExtractorId,
 } from "../../storage/versioning/extractorIds";
+import { EXTRACTOR_IDS } from "../../storage/versioning/extractorIds";
 import {
   allRegisteredExtractorIds,
   allRegisteredForms,
@@ -469,9 +470,23 @@ export function getBackfillDescriptor(extractorId: string): BackfillDescriptor |
   };
 }
 
-/** Every extractor id `sec extractor backfill` accepts (for CLI help / errors). */
+/**
+ * Every extractor id `sec extractor backfill` accepts (for CLI help / errors),
+ * and the set `db setup` seeds a version slot for.
+ *
+ * Three sources, because an id can reach an operator by three routes. The
+ * open registry names whatever is registered, a downstream package's extractors
+ * included. The custom descriptors name the handlers that run inside another
+ * extractor's `store` and register no form of their own. And {@link EXTRACTOR_IDS}
+ * names what this package holds STATE for — dead letters, run rows, offering
+ * and extraction tables — which outlives whether it still ships the extractor
+ * that wrote them. An id with rows and no version slot is unreadable: its
+ * dead letters cannot be counted as eligible, `retry` cannot resolve a slot,
+ * and the version ceremonies refuse it.
+ */
 export function listBackfillableExtractorIds(): ExtractorId[] {
   const ids = new Set<string>(allRegisteredExtractorIds());
   for (const id of Object.keys(CUSTOM_DESCRIPTORS)) ids.add(id);
+  for (const id of EXTRACTOR_IDS) ids.add(id);
   return [...ids].sort() as ExtractorId[];
 }

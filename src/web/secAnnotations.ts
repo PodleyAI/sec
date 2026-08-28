@@ -215,24 +215,6 @@ const FIELD_ANNOTATIONS: readonly CommandFieldAnnotations[] = [
     },
   },
 
-  // Eval takes model ids as a list, so a pick appends rather than replaces.
-  {
-    path: ["eval", "**"],
-    source,
-    fields: {
-      models: {
-        format: "model",
-        multiple: true,
-        placeholder: "comma-separated model ids",
-        description: "Candidate models to rank",
-      },
-      reference: { format: "model", description: "Oracle model, or 'golden' for committed labels" },
-      extractor: { format: "sec:extractor" },
-      extractors: { format: "sec:extractor", multiple: true },
-      cik: { ...CIK_FIELD, multiple: true },
-    },
-  },
-
   {
     path: ["sync", "**"],
     source,
@@ -340,14 +322,6 @@ const COMMAND_ANNOTATIONS: readonly WebCommandAnnotation[] = [
     source,
     badges: ["writes", "ai"],
     note: "Re-runs the entries eligible under the current extractor version.",
-  },
-
-  { path: ["eval", "**"], source, badges: ["ai", "slow"] },
-  {
-    path: ["eval", "s1"],
-    source,
-    badges: ["ai", "slow"],
-    note: "A bare sweep scores roughly 350 real sections per candidate model. Narrow it with --extractors or --cik.",
   },
 
   { path: ["resolve"], source, badges: ["writes", "slow"] },

@@ -51,22 +51,9 @@ describe("CLI command graph", () => {
       "issuer",
       "editorial",
       "extractor",
-      "eval",
     ]) {
       expect(names).toContain(expected);
     }
-  });
-
-  it("registers the eval subcommands the harness documents", () => {
-    const program = new Command();
-    AddCommands(program);
-
-    const evalCmd = program.commands.find((c) => c.name() === "eval");
-    expect(evalCmd).toBeDefined();
-    const subNames = evalCmd!.commands.map((c) => c.name());
-    expect(subNames).toContain("extract");
-    expect(subNames).toContain("s1");
-    expect(subNames).toContain("unit-terms");
   });
 
   it("registers sync subcommands without update or adv", () => {

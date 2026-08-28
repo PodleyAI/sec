@@ -291,35 +291,6 @@ function queryRowsPanel(output: unknown): PanelData {
   return tableFromRecords(rows, { note: totalText });
 }
 
-/**
- * An eval sweep's ranking, which is the whole point of running one.
- *
- * The per-model summaries, not the per-fixture results: a sweep of four models
- * over eleven extractors produces hundreds of rows, and the question being
- * asked is which model to adopt.
- */
-function evalPanel(output: unknown): PanelData {
-  const summaries = recordArray(field(output, "summaries"));
-  const rows = summaries.length > 0 ? summaries : recordArray(field(output, "results"));
-  if (rows.length === 0) return { kind: "empty", message: "The sweep scored nothing." };
-  const skipped = field(output, "skipped");
-  return tableFromRecords(rows, {
-    note: [
-      Array.isArray(skipped) && skipped.length > 0
-        ? `${skipped.length} sections skipped`
-        : typeof skipped === "number" && skipped > 0
-          ? `${count(skipped)} sections skipped`
-          : undefined,
-      summaries.length === 0
-        ? "Per-fixture results — this sweep reported no summaries."
-        : undefined,
-      "Cost is estimated from character counts, not billed usage; the ranking is what matters.",
-    ]
-      .filter(Boolean)
-      .join(" · "),
-  });
-}
-
 function dbStatsPanel(output: unknown): PanelData {
   const tables = recordArray(field(output, "tables"));
   if (tables.length > 0) {
@@ -403,14 +374,6 @@ export function registerSecPanels(): void {
     source,
     appliesTo: (invocation) => pathStartsWith(invocation, "query") && invocation.path.length === 2,
     load: async ({ output }) => queryRowsPanel(output),
-  });
-
-  registerWebPanel({
-    id: "sec.eval.results",
-    title: "Ranking",
-    source,
-    appliesTo: (invocation) => pathStartsWith(invocation, "eval") && invocation.path.length === 2,
-    load: async ({ output }) => evalPanel(output),
   });
 
   registerWebPanel({

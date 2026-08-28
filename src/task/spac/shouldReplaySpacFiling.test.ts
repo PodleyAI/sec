@@ -57,7 +57,7 @@ describe("shouldReplaySpacFiling", () => {
         cik: CIK,
         accession_number: S1,
         force: { kind: "none" },
-        successfulKeys: keysFor("S-1", [S1]),
+        successfulKeys: keysFor("S-1-xbrl", [S1]),
         gatedNoOpAccessions: NO_GATED,
       })
     ).toBe(false);
@@ -71,7 +71,7 @@ describe("shouldReplaySpacFiling", () => {
         cik: CIK,
         accession_number: EIGHT_K_OTHER,
         force: { kind: "none" },
-        successfulKeys: keysFor("S-1", [S1]),
+        successfulKeys: keysFor("S-1-xbrl", [S1]),
         gatedNoOpAccessions: NO_GATED,
       })
     ).toBe(true);
@@ -85,21 +85,21 @@ describe("shouldReplaySpacFiling", () => {
         cik: CIK,
         accession_number: S1,
         force: { kind: "all" },
-        successfulKeys: keysFor("S-1", [S1]),
+        successfulKeys: keysFor("S-1-xbrl", [S1]),
         gatedNoOpAccessions: NO_GATED,
       })
     ).toBe(true);
   });
 
   it("replays a successful S-1 and skips a successful 424 when only S-1 is forced", () => {
-    const successfulKeys = new Map([...keysFor("S-1", [S1]), ...keysFor("424", [B424])]);
+    const successfulKeys = new Map([...keysFor("S-1-xbrl", [S1]), ...keysFor("424-xbrl", [B424])]);
     expect(
       shouldReplaySpacFiling({
         form: "S-1",
         items: null,
         cik: CIK,
         accession_number: S1,
-        force: { kind: "extractors", ids: ["S-1"] },
+        force: { kind: "extractors", ids: ["S-1-xbrl"] },
         successfulKeys,
         gatedNoOpAccessions: NO_GATED,
       })
@@ -110,7 +110,7 @@ describe("shouldReplaySpacFiling", () => {
         items: null,
         cik: CIK,
         accession_number: B424,
-        force: { kind: "extractors", ids: ["S-1"] },
+        force: { kind: "extractors", ids: ["S-1-xbrl"] },
         successfulKeys,
         gatedNoOpAccessions: NO_GATED,
       })
@@ -269,7 +269,7 @@ describe("shouldReplaySpacFiling", () => {
         cik: CIK,
         accession_number: S1,
         force: { kind: "none" },
-        successfulKeys: keysFor("S-1", [S1]),
+        successfulKeys: keysFor("S-1-xbrl", [S1]),
         gatedNoOpAccessions: new Set([S1]),
       })
     ).toBe(false);

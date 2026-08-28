@@ -61,12 +61,6 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
     environment: "node",
-    // Hands the ten `*.corpus.test.ts` files one run-scoped directory to share
-    // a parsed S-1 corpus through. Each test file runs in its own fork, so
-    // without it each re-segments the same ~100 MB of committed HTML. Creating
-    // the directory is all this does — the first worker that needs the corpus
-    // builds it. See `testing/s1CorpusGlobalSetup.ts`.
-    globalSetup: ["./src/sec/forms/registration-statements/s1/testing/s1CorpusGlobalSetup.ts"],
     // Multi-spawn CLI integration tests fire several sequential `sec` subprocess
     // invocations; keep the generous timeout the bun runner used.
     testTimeout: 30_000,

@@ -539,7 +539,7 @@ describe("ProcessSpacTimelineTask", () => {
           cik: CIK,
           accession_number: accession,
           form: isRegistration ? "S-1" : "8-K",
-          extractor_id: isRegistration ? "S-1" : "8-K",
+          extractor_id: isRegistration ? "S-1-xbrl" : "8-K",
           extractor_version: "1.0.0",
           slot_at_run: "current",
           success: true,
@@ -704,7 +704,7 @@ describe("ProcessSpacTimelineTask", () => {
   it("force redemption does not delete a sibling ipo event", async () => {
     await seedFiling("0000000000-26-000001", "S-1", "2021-01-04");
     await seedFiling("0000000000-26-000002", "8-K", "2021-02-04", null, "5.07,9.01");
-    await seedSuccessfulRun("0000000000-26-000001", "S-1", "S-1");
+    await seedSuccessfulRun("0000000000-26-000001", "S-1", "S-1-xbrl");
     await seedSuccessfulRun("0000000000-26-000002", "8-K", "8-K");
     await seedIpoEvent("ipo");
 

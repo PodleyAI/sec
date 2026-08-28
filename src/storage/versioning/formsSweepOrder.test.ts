@@ -45,9 +45,9 @@ describe("sortFormsForSweep", () => {
     // could reach every issuer-filed Form 25 before its S-1 had minted the spac
     // row the deregistration handler is gated on. Form RW is the same gate.
     const order = sortFormsForSweep(allForms());
-    const s1 = firstIndexOf(order, "S-1");
+    const s1 = firstIndexOf(order, "S-1-xbrl");
     const rw = firstIndexOf(order, "RW");
-    const p424 = firstIndexOf(order, "424");
+    const p424 = firstIndexOf(order, "424-xbrl");
     const eightK = firstIndexOf(order, "8-K");
     const proxy = firstIndexOf(order, "merger-proxy");
     const dereg = firstIndexOf(order, "25-15");
@@ -60,7 +60,7 @@ describe("sortFormsForSweep", () => {
 
   it("puts every ranked form ahead of every unranked one", () => {
     const order = sortFormsForSweep(allForms());
-    const ranked = new Set(["S-1", "RW", "424", "8-K", "merger-proxy", "25-15"]);
+    const ranked = new Set(["S-1-xbrl", "RW", "424-xbrl", "8-K", "merger-proxy", "25-15"]);
     const lastRanked = order.reduce(
       (acc, form, i) => (ranked.has(leadIdOf(form) ?? "") ? i : acc),
       -1

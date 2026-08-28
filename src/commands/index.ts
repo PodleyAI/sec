@@ -19,7 +19,6 @@ import { addResolveCommands } from "../cli/groups/resolve";
 import { addCanonicalCommands } from "../cli/groups/canonical";
 import { addExtractorCommands } from "../cli/groups/extractor";
 import { addVerifyCommands } from "../cli/groups/verify";
-import { addEvalCommands } from "../cli/groups/eval";
 import { registerSponsorFamilyCommands } from "./sponsorFamily";
 import { registerUnderwriterFamilyCommands } from "./underwriterFamily";
 import { registerSpacCommands } from "./spac";
@@ -144,7 +143,6 @@ export const AddCommands = (program: Command): void => {
   registerEditorialCommands(program);
   addExtractorCommands(program);
   addVerifyCommands(program);
-  addEvalCommands(program);
   // What the console shows for those commands: pickers for the identifiers
   // (CIK, accession, extractor id), panels over their output, the operator
   // rail, and the cost/safety badges. Registration is inert — it reads nothing

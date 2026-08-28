@@ -492,3 +492,128 @@ export { CanonicalUnderwriterFamilyRepo } from "./storage/canonical/CanonicalUnd
 export { UnderwriterFamilyMembershipRepo } from "./storage/canonical/UnderwriterFamilyMembershipRepo";
 export { UnderwriterLinkRepo } from "./storage/canonical/UnderwriterLinkRepo";
 export { normalizeManagementTitles } from "./sec/forms/registration-statements/s1/normalizeTitle";
+
+// ── The rest of what an out-of-package extraction tier reaches for ──────────
+// The extraction that reads a filing's PROSE — a model's reading of a
+// prospectus, a proxy or an 8-K narrative — is not shipped here. What is
+// shipped is everything that reading is written against: the structured halves
+// it runs beside, the tables it writes, the deterministic readings it is
+// scored against, and the CLI helpers its commands are built from.
+//
+// `processFormS1Structured` / `processForm424Structured` are the readings this
+// package DOES ship for a registration statement and a prospectus — the tagged
+// facts, the issuer, the header SIC — under ids of their own (`S-1-xbrl`,
+// `424-xbrl`). A consumer registering the prose half runs beside them, not
+// instead of them, and its own tests drive both to reproduce a real dispatch.
+export { processFormS1Structured } from "./sec/forms/registration-statements/Form_S_1.storage";
+export { processForm424Structured } from "./sec/forms/registration-statements/Form_424.storage";
+export { extractAndStoreXbrl } from "./sec/forms/registration-statements/s1/xbrlEnrichment";
+export { XbrlFactRepo } from "./storage/xbrl/XbrlFactRepo";
+
+// The 8-K's item codes and de-SPAC milestones, which stay here: item codes are
+// structured filing metadata, and the milestone mapper reads them rather than
+// the filing's prose. A narrative pass registered elsewhere runs beside this.
+export { processForm8K } from "./sec/forms/miscellaneous-filings/Form_8_K.storage";
+export { Form_8_K } from "./sec/forms/miscellaneous-filings/Form_8_K";
+export { hasLoiTriggerItem } from "./sec/forms/miscellaneous-filings/spac8kLoiTriggers";
+export { hasRedemptionTriggerItem } from "./sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
+export { Form_DEFM14A } from "./sec/forms/proxies-information-statements/Form_DEFM14A";
+
+// The prospectus cover and the combination-listing check: two deterministic
+// readings a SPAC's lifecycle bookkeeping depends on. The cover carries the
+// headline offering size when the section an extractor was handed does not,
+// and `issuerHasCombinationListing` answers from the `filings` table alone —
+// no text scan, which is why both stay.
+export {
+  looksLikePricedIpoProspectusBody,
+  parsePricedProspectusCover,
+} from "./sec/forms/registration-statements/pricedProspectusCover";
+export { issuerHasCombinationListing } from "./sec/forms/registration-statements/s1/newcoListing";
+export { RISK_FACTOR_CHUNK_CHARS } from "./sec/forms/registration-statements/s1/riskFactorChunks";
+export { splitDocumentSections } from "./sec/document/documentSections";
+export { sectionHash } from "./verify/callTrace";
+
+// The tables a prose extractor writes and this package still reads.
+export { BeneficialOwnershipRepo } from "./storage/beneficial-ownership/BeneficialOwnershipRepo";
+export { CompanyIdentityLinkRepo } from "./storage/canonical/CompanyIdentityLinkRepo";
+export { ExecutiveCompensationRepo } from "./storage/executive-compensation/ExecutiveCompensationRepo";
+export { FieldProvenanceRepo } from "./storage/provenance/FieldProvenanceRepo";
+export { RelatedPartyTransactionRepo } from "./storage/related-party/RelatedPartyTransactionRepo";
+export { RelatedPartyTransactionSchema } from "./storage/related-party/RelatedPartyTransactionSchema";
+export { RiskFactorRepo } from "./storage/risk-factor/RiskFactorRepo";
+export { Section16Repo } from "./storage/section16/Section16Repo";
+export { SpacLockupTermsRepo } from "./storage/offering/SpacLockupTermsRepo";
+export { UseOfProceedsRepo } from "./storage/use-of-proceeds/UseOfProceedsRepo";
+export type { SpacStatus } from "./storage/spac/SpacSchema";
+export {
+  EXTRACTION_CACHE_REPOSITORY_TOKEN,
+  type ExtractionCacheRepositoryStorage,
+} from "./storage/extraction/ExtractionCacheSchema";
+
+// Family-name normalization, so a sponsor or underwriter observed outside this
+// package folds to the same family key one observed inside it does.
+export { normalizeSponsorFamilyName } from "./resolver/SponsorFamilyResolver";
+export { normalizeUnderwriterFamilyName } from "./resolver/UnderwriterFamilyResolver";
+
+// Which filings a backfill of a given extractor should re-select, and the CLI
+// option helpers a command group is built from — an option that answers with
+// the values it accepts rather than exiting on a bare "argument missing".
+export { getBackfillDescriptor } from "./task/forms/backfillDescriptors";
+export { csvOptionValue, optionValue } from "./cli/optionValue";
+export { KNOWN_MODEL_ID_SHAPES, modelApiKeyEnvVar } from "./config/registerModels";
+
+// Human-verified truth for the committed prospectus corpus. Read here by the
+// chunker's own test, which is why it stays; anything scoring an extraction
+// against it reads the same table rather than a copy that can drift.
+export {
+  extractorsWithGoldenLabels,
+  getGoldenFieldRows,
+  getGoldenLabels,
+  goldenLabelKey,
+  isGoldenManagementRow,
+  GOLDEN_S1_LABELS,
+  type GoldenFieldRow,
+  type GoldenManagementRow,
+  type GoldenOwnerRow,
+  type GoldenPartyRow,
+  type GoldenRow,
+} from "./eval/goldenS1Labels";
+
+// ── The `workglow` surface an out-of-package extraction tier runs on ─────────
+// Re-exported rather than depended on directly, for the reason the block near
+// the top of this file gives: a consumer importing its own `workglow` gets a
+// different `globalServiceRegistry` and a different TypeBox, so its DI
+// registrations and schemas would be invisible here. The AI half of this
+// pipeline reaches for far more of that surface than the CLI half does — a
+// provider registry to install a double into, the structured-generation task
+// every extraction call runs through, the model repository and download tasks,
+// and the usage/cost types a run is priced with — so it is named here rather
+// than reached around.
+export {
+  AiProvider,
+  AiProviderRegistry,
+  MODEL_EFFORTS,
+  ModelDownloadRemoveTask,
+  ModelDownloadTask,
+  ModelInfoTask,
+  StructuredGenerationTask,
+  StructuredOutputValidationError,
+  TaskAbortedError,
+  estimateCost,
+  getAiProviderRegistry,
+  getGlobalModelRepository,
+  isModelEffort,
+  mergeUsage,
+  renderMarkdown,
+  setAiProviderRegistry,
+} from "workglow";
+export type {
+  AiProviderRunFn,
+  AiProviderRunFnRegistration,
+  Capability,
+  DataPortSchema,
+  ModelConfig,
+  ModelEffort,
+  Usage,
+} from "workglow";
+export type { Form8K } from "./sec/forms/miscellaneous-filings/Form_8_K.schema";

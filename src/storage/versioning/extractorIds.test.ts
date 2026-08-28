@@ -50,6 +50,7 @@ describe("extractorIds", () => {
       "3",
       "4",
       "424",
+      "424-xbrl",
       "5",
       "8-K",
       "C",
@@ -58,6 +59,7 @@ describe("extractorIds", () => {
       "QUALIF",
       "RW",
       "S-1",
+      "S-1-xbrl",
       "loi",
       "merger-proxy",
       "redemption",
@@ -82,9 +84,9 @@ describe("extractorIds", () => {
     }
   });
 
-  it("maps the 424 prospectus variants to extractor id '424'", () => {
+  it("maps the 424 prospectus variants to extractor id '424-xbrl'", () => {
     for (const form of ["424A", "424B1", "424B2", "424B3", "424B4", "424B5", "424B7"]) {
-      expectRoutedTo(form, "424");
+      expectRoutedTo(form, "424-xbrl");
     }
   });
 
@@ -172,9 +174,9 @@ describe("extractorIds — S-1", () => {
   });
 
   it("maps S-1 form symbols to the S-1 extractor", () => {
-    expectRoutedTo("S-1", "S-1");
-    expectRoutedTo("S-1/A", "S-1");
-    expectRoutedTo("S-1MEF", "S-1");
+    expectRoutedTo("S-1", "S-1-xbrl");
+    expectRoutedTo("S-1/A", "S-1-xbrl");
+    expectRoutedTo("S-1MEF", "S-1-xbrl");
   });
 });
 
@@ -192,8 +194,8 @@ describe("extractorIds + ALL_FORMS_MAP invariant", () => {
 
 describe("extractorIds — DRS dispatch mapping", () => {
   it("maps DRS and DRS/A to the S-1 extractor and leaves DRSLTR unmapped", () => {
-    expectRoutedTo("DRS", "S-1");
-    expectRoutedTo("DRS/A", "S-1");
+    expectRoutedTo("DRS", "S-1-xbrl");
+    expectRoutedTo("DRS/A", "S-1-xbrl");
     expect(routedIds("DRSLTR")).toEqual([]);
   });
 });
@@ -247,9 +249,9 @@ describe("extractorIds — Form 25/15 deregistration dispatch mapping", () => {
 
 describe("extractorIds — F-1 (foreign issuer) dispatch mapping", () => {
   it("maps F-1, F-1/A, and F-1MEF to the S-1 extractor", () => {
-    expectRoutedTo("F-1", "S-1");
-    expectRoutedTo("F-1/A", "S-1");
-    expectRoutedTo("F-1MEF", "S-1");
+    expectRoutedTo("F-1", "S-1-xbrl");
+    expectRoutedTo("F-1/A", "S-1-xbrl");
+    expectRoutedTo("F-1MEF", "S-1-xbrl");
   });
 });
 

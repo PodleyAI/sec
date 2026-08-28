@@ -53,7 +53,6 @@ describe("CLI v2 integration", () => {
       "issuer",
       "editorial",
       "extractor",
-      "eval",
       // Inherited from @workglow/cli, and the only evidence it registered.
       "web",
     ]) {
@@ -83,13 +82,6 @@ describe("CLI v2 integration", () => {
     expect(output).toContain("report");
     expect(output).toContain("history");
     expect(output).toContain("candidates");
-  });
-
-  it("should show eval subcommands", async () => {
-    const output = await runCli("eval", "--help");
-    expect(output).toContain("extract");
-    expect(output).toContain("s1");
-    expect(output).toContain("unit-terms");
   });
 
   it("should show global options", async () => {

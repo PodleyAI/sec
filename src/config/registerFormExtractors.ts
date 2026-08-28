@@ -22,9 +22,8 @@ import { hasLoiTriggerItem } from "../sec/forms/miscellaneous-filings/spac8kLoiT
 import { processForm8K } from "../sec/forms/miscellaneous-filings/Form_8_K.storage";
 import { hasRedemptionTriggerItem } from "../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { processFormCFPORTAL } from "../sec/forms/portal/Form_CFPORTAL.storage";
-import { processMergerProxy } from "../sec/forms/proxies-information-statements/Form_DEFM14A.storage";
-import { processForm424 } from "../sec/forms/registration-statements/Form_424.storage";
-import { processFormS1 } from "../sec/forms/registration-statements/Form_S_1.storage";
+import { processForm424Structured } from "../sec/forms/registration-statements/Form_424.storage";
+import { processFormS1Structured } from "../sec/forms/registration-statements/Form_S_1.storage";
 import { processWithdrawal } from "../sec/forms/registration-withdrawal-termination/processWithdrawal";
 import { SpacRepo } from "../storage/spac/SpacRepo";
 import type { Form1A } from "../sec/forms/exempt-offerings/Form_1_A.schema";
@@ -178,23 +177,31 @@ export function registerSecFormExtractors(): void {
     },
   });
 
+  // The registration and prospectus families carry two readings apiece. What is
+  // registered here is the structured one — the tagged facts, the issuer, the
+  // header SIC — under an id of its own. Reading the prospectus PROSE takes a
+  // model, and whatever supplies that registers `S-1` / `424` separately;
+  // distinct ids give each its own version slot and run ledger, so a change to
+  // one never re-selects the corpus for the other.
+  //
+  // Neither declares `readsFullSubmission`: both read the parse, and the parse
+  // already carries the XBRL instance and the fee exhibit the whole `.txt` was
+  // fetched for.
   registerFormExtractor<FormS1Parsed>({
-    id: "S-1",
+    id: "S-1-xbrl",
     forms: ["S-1", "S-1/A", "S-1MEF", "DRS", "DRS/A", "F-1", "F-1/A", "F-1MEF"],
     needsFullSubmission: true,
-    readsFullSubmission: true,
     store: async ({ parsed, form, ...args }) => {
-      await processFormS1({ ...args, form, formS1: parsed });
+      await processFormS1Structured({ ...args, form, formS1: parsed });
     },
   });
 
   registerFormExtractor<FormS1Parsed>({
-    id: "424",
+    id: "424-xbrl",
     forms: ["424A", "424B1", "424B2", "424B3", "424B4", "424B5", "424B7"],
     needsFullSubmission: true,
-    readsFullSubmission: true,
     store: async ({ parsed, form, ...args }) => {
-      await processForm424({ ...args, form, form424: parsed });
+      await processForm424Structured({ ...args, form, form424: parsed });
     },
   });
 
@@ -228,33 +235,6 @@ export function registerSecFormExtractors(): void {
         fullSubmissionText: args.fullSubmissionText,
         context,
       });
-    },
-  });
-
-  registerFormExtractor<FormS1Parsed>({
-    id: "merger-proxy",
-    forms: [
-      "DEFM14A",
-      "PREM14A",
-      "DEFM14C",
-      "PREM14C",
-      "DEFR14A",
-      "PRER14A",
-      "DEF 14A",
-      "PRE 14A",
-      "PRE 14A/A",
-      "PRE14A",
-      "PREN14A",
-      "PREN14A/A",
-      "PREM14A/A",
-      "PREC14A/A",
-      "DEFA14A",
-      "DEF 14C",
-      "PRE 14C",
-      "PREA14C",
-    ],
-    store: async ({ parsed, form, ...args }) => {
-      await processMergerProxy({ ...args, form, formMergerProxy: parsed });
     },
   });
 

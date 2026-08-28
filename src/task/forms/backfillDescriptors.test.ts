@@ -119,7 +119,7 @@ describe("backfill descriptor registry", () => {
   });
 
   it("resolves a generic form-based descriptor for every form-routed extractor", () => {
-    for (const id of ["S-1", "424", "8-K", "C", "D", "CFPORTAL", "1-A", "144"]) {
+    for (const id of ["S-1-xbrl", "424-xbrl", "8-K", "C", "D", "CFPORTAL", "1-A", "144"]) {
       expect(getBackfillDescriptor(id)?.extractorId).toBe(id);
     }
   });
@@ -136,7 +136,7 @@ describe("backfill descriptor registry", () => {
   });
 
   it("formsForExtractor maps an extractor id back to its routed forms", () => {
-    expect(formsForExtractor("S-1").sort()).toEqual(
+    expect(formsForExtractor("S-1-xbrl").sort()).toEqual(
       ["DRS", "DRS/A", "F-1", "F-1/A", "F-1MEF", "S-1", "S-1/A", "S-1MEF"].sort()
     );
     expect(formsForExtractor("loi")).toEqual([]);
@@ -712,7 +712,7 @@ describe("generic form-based descriptor", () => {
     await seedFiling({ cik: 2, accession_number: "acc-drs", form: "DRS" });
     await seedFiling({ cik: 2, accession_number: "acc-8k", form: "8-K", items: "8.01" });
 
-    const candidates = await getBackfillDescriptor("S-1")!.selectCandidates();
+    const candidates = await getBackfillDescriptor("S-1-xbrl")!.selectCandidates();
     const accessions = new Set(candidates.map((c) => c.accession_number));
     expect(accessions).toEqual(new Set(["acc-s1", "acc-s1a", "acc-drs"]));
   });
