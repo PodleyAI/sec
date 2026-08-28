@@ -84,9 +84,12 @@ const WRITE_BATCH = 200;
  * Probing both is free: a cache probe is a `stat`, not a request. What is NOT
  * free is FETCHING, which is why a miss falls to
  * {@link conversionFetchFileName} rather than to this list's head — see there.
+ *
+ * Takes no form, deliberately: the order is the same for every one of them, and
+ * the form-dependent decision is the FETCH, which is
+ * {@link conversionFetchFileName}'s.
  */
 export function conversionCandidates(
-  form: string | null | undefined,
   accessionNumber: string,
   primaryDoc: string | null | undefined
 ): string[] {
@@ -202,11 +205,7 @@ export class ConvertFilingDocumentTask extends Task<
     input: ConvertFilingDocumentTaskInput,
     context: IExecuteContext
   ): Promise<{ text: string; docFile: string; fromCache: boolean } | undefined> {
-    const candidates = conversionCandidates(
-      input.form ?? null,
-      input.accessionNumber,
-      input.primaryDoc ?? null
-    );
+    const candidates = conversionCandidates(input.accessionNumber, input.primaryDoc ?? null);
     if (candidates.length === 0) return undefined;
 
     for (const fileName of candidates) {

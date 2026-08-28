@@ -164,14 +164,19 @@ export function listConvertibleDocuments(
       html: doc.body,
     });
   }
-  // Two members can name the same file — a filer repeating a `<FILENAME>`, or a
-  // primary falling back to the same name a later block declares. The row key
-  // is that name, so the first wins and the duplicate is dropped rather than
-  // silently overwriting the document a reader is looking at.
-  const seen = new Set<string>();
-  const unique = out.filter((d) => (seen.has(d.docFile) ? false : (seen.add(d.docFile), true)));
-  return unique.sort((a, b) => {
+  // Ordered BEFORE the de-duplication below, not after. Two members can name
+  // the same file — a filer repeating a `<FILENAME>`, or a primary with no name
+  // of its own falling back to one a sibling declares — and the de-duplication
+  // keeps the first. Run on document order, "first" can be the exhibit, so the
+  // PRIMARY is the row that gets dropped: the converter then stores a
+  // submission with no primary, the sweep's anti-join keys on exactly that row,
+  // and the filing is re-selected on every sweep forever.
+  const ordered = [...out].sort((a, b) => {
     if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
     return (a.sequence ?? Number.MAX_SAFE_INTEGER) - (b.sequence ?? Number.MAX_SAFE_INTEGER);
   });
+  // The row key is the filename, so the duplicate is dropped rather than
+  // silently overwriting the document a reader is looking at.
+  const seen = new Set<string>();
+  return ordered.filter((d) => (seen.has(d.docFile) ? false : (seen.add(d.docFile), true)));
 }

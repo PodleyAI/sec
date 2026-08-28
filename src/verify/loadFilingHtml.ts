@@ -11,6 +11,7 @@ import { SEC_RAW_DATA_FOLDER } from "../config/tokens";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { EntityRepo } from "../storage/entity/EntityRepo";
 import { SecFetchAccessionDocTask } from "../task/forms/SecFetchAccessionDocTask";
+import { fullSubmissionFileName, submissionFetchKind } from "../task/forms/submissionFetchPolicy";
 import { cachedAccessionDocPath, resolvePrimaryDocName } from "../util/accessionDocPath";
 import { resolveAsset } from "../util/resolveAsset";
 
@@ -78,25 +79,37 @@ export async function loadFilingHtml(
     );
   }
   const filing = await new EntityRepo().getFiling(cik, accession);
-  const fileName = resolvePrimaryDocName(filing?.primary_doc);
-  if (fileName === undefined) {
+  const primaryDoc = resolvePrimaryDocName(filing?.primary_doc);
+  const form = filing?.form ?? null;
+  // WHICH FILE is on disk is `submissionFetchKind`'s answer, not this module's.
+  // The registration family, Reg A annual reports and every 8-K are cached as
+  // the whole-submission `.txt`, so probing the primary document alone reported
+  // every one of them as uncached however many times the sweep had already
+  // downloaded it — and `--fetch` then wrote a SECOND shape on disk for one
+  // filing, which is the drift the shared policy exists to end.
+  const candidates: string[] = [];
+  if (form !== null && submissionFetchKind(form) === "full-submission") {
+    candidates.push(fullSubmissionFileName(accession));
+  }
+  if (primaryDoc !== undefined) candidates.push(primaryDoc);
+  if (candidates.length === 0) {
     throw new Error(
       `No primary document recorded for ${cik}/${accession} — the filing is not in the local database, or it names none`
     );
   }
+  // What a miss fetches: the head of the list, i.e. what the policy says the
+  // pipeline would have fetched anyway.
+  const fileName = candidates[0]!;
 
   if (globalServiceRegistry.has(SEC_RAW_DATA_FOLDER)) {
-    const path = cachedAccessionDocPath(
-      globalServiceRegistry.get(SEC_RAW_DATA_FOLDER),
-      cik,
-      accession,
-      fileName
-    );
-    if (path !== undefined) {
+    const root = globalServiceRegistry.get(SEC_RAW_DATA_FOLDER);
+    for (const candidate of candidates) {
+      const path = cachedAccessionDocPath(root, cik, accession, candidate);
+      if (path === undefined) continue;
       try {
         return {
           kind: "cache",
-          label: `${accession}/${fileName}`,
+          label: `${accession}/${candidate}`,
           html: await readFile(path, "utf-8"),
         };
       } catch (err) {
