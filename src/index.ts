@@ -24,7 +24,9 @@ export {
   applyGlobalOptions,
   parseGlobalOptions,
   parseIntOption,
+  parseOutputFormat,
   type GlobalOptions,
+  type OutputFormat,
 } from "./cli/GlobalOptions";
 export { isDryRun } from "./cli/isDryRun";
 export { isJsonOutput } from "./cli/isJsonOutput";
@@ -174,7 +176,11 @@ export {
 export { registerSecFormExtractors } from "./config/registerFormExtractors";
 export { selectRegAReportDocument } from "./sec/forms/exempt-offerings/regAReportDocument";
 export { parseNumeric } from "./sec/html/parseNumeric";
-export { ExtractorRunRepo } from "./storage/versioning/ExtractorRunRepo";
+// `filingRunKey` travels with the repo because it is the key format
+// `successfulRunKeysForFilings` answers in. A caller asking whether a filing
+// already ran must build its lookup key the same way the repo built the set,
+// so the format is shared rather than restated on both sides of that call.
+export { ExtractorRunRepo, filingRunKey } from "./storage/versioning/ExtractorRunRepo";
 // `GATE_VERDICTS` and `isGateDecline` travel with the repo because the handlers
 // that KNOW a gate declined are registered from outside this package while the
 // table stays here: a downstream `store` reports a verdict from this vocabulary
@@ -186,6 +192,12 @@ export {
   type ExtractorGateVerdict,
 } from "./storage/versioning/ExtractorRunSchema";
 export { ExtractionDeadLetterRepo } from "./storage/dead-letter/ExtractionDeadLetterRepo";
+export { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "./storage/dead-letter/ExtractionDeadLetterSchema";
+// A resolved `SECTION_NOT_FOUND` trace is the only durable mark that a general
+// proxy was looked at and carried no merger section. Every predicate that
+// selects merger proxies has to count that as answered or it re-reads the same
+// filings forever, so the query is shared rather than restated per caller.
+export { loadAnsweredMergerSections } from "./storage/dead-letter/answeredMergerSections";
 
 // ── EDGAR HTML parser + section vocabulary ──────────────────────────────────
 // The form-agnostic HTML → Document pass, plus what a consumer needs to work
@@ -322,6 +334,33 @@ export {
   type PersonObservationTitle,
 } from "./storage/observation/PersonObservationTitleSchema";
 
+// The issuer-side tables a screen outside this package reads to decide which
+// CIKs are worth work, and writes its high-water mark back to: the entity row
+// and its history carry the name and SIC a screen matches on,
+// `processed_submissions` is what keeps a re-run from re-reading every CIK, and
+// the SGML-header S-1 classification is the cheap first opinion a text reading
+// only has to confirm. Each row type is named beside its token because seeding
+// or asserting a row means building one, not just holding the storage.
+export {
+  ENTITY_REPOSITORY_TOKEN,
+  type Entity,
+  type EntityRepositoryStorage,
+} from "./storage/entity/EntitySchema";
+export {
+  ENTITY_HISTORY_REPOSITORY_TOKEN,
+  type EntityHistory,
+} from "./storage/entity/EntityHistorySchema";
+export { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "./storage/processing/ProcessedSubmissionsSchema";
+export {
+  S1_CLASSIFICATION_REPOSITORY_TOKEN,
+  type S1Classification,
+} from "./storage/classification/S1ClassificationSchema";
+
+// The journal a mutable row's edits are versioned through. A writer outside
+// this package records against the same table `sec` reconstructs point-in-time
+// state from, rather than keeping a second history nothing else can read.
+export { CHANGE_LOG_REPOSITORY_TOKEN } from "./storage/change-tracking/ChangeLogSchema";
+
 // ── Canonical person identity tier (observation → canonical id, merge aliases)
 // The join a downstream superset needs to get from a person observation to the
 // canonical id `person_role` and the junction tables are keyed by: the identity
@@ -371,8 +410,18 @@ export { TypeSecCik } from "./sec/submissions/EnititySubmissionSchema";
 export { isBadPersonField } from "./types/edgar/bad-data";
 export { cleanListedTickers, normalizeListedTicker } from "./util/listedTicker";
 export { KeyedMutex } from "./util/KeyedMutex";
+// The single-lock primitive `KeyedMutex` is built from, for a writer that keeps
+// its own map of locks rather than one keyed mutex — a read-derive-write cycle
+// over a mutable row is only atomic if every writer of that row serialises on
+// the same in-process lock, so it is shared rather than re-implemented.
+export { AsyncMutex } from "./util/AsyncMutex";
 export { parseCikSafely as parseCik } from "./util/parseCik";
-export { TypeNullable } from "./util/TypeBoxUtil";
+// `TypeStringEnum` carries a closed value set as JSON Schema `enum` plus the
+// runtime membership check, and types the result so the port-schema union still
+// accepts it. A storage schema declared outside this package describes such a
+// column the same way `sec`'s own schemas do rather than falling back to a bare
+// string.
+export { TypeNullable, TypeStringEnum } from "./util/TypeBoxUtil";
 
 // ── Re-exported workglow storage primitives a feature package builds on ──────
 export {
@@ -503,11 +552,16 @@ export { UnderwriterFamilyResolver } from "./resolver/UnderwriterFamilyResolver"
 export { CanonicalSponsorFamilyAliasRepo } from "./storage/canonical/CanonicalSponsorFamilyAliasRepo";
 export { CanonicalSponsorFamilyRepo } from "./storage/canonical/CanonicalSponsorFamilyRepo";
 export { SpacSponsorLinkRepo } from "./storage/canonical/SpacSponsorLinkRepo";
+// The link tokens ride along with their repos because neither repo can answer
+// "how many links does this issuer have"; that question is a query on the
+// storage by `issuer_cik`, so a caller counting links reaches the token.
+export { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "./storage/canonical/SpacSponsorLinkSchema";
 export { SponsorFamilyMembershipRepo } from "./storage/canonical/SponsorFamilyMembershipRepo";
 export { CanonicalUnderwriterFamilyAliasRepo } from "./storage/canonical/CanonicalUnderwriterFamilyAliasRepo";
 export { CanonicalUnderwriterFamilyRepo } from "./storage/canonical/CanonicalUnderwriterFamilyRepo";
 export { UnderwriterFamilyMembershipRepo } from "./storage/canonical/UnderwriterFamilyMembershipRepo";
 export { UnderwriterLinkRepo } from "./storage/canonical/UnderwriterLinkRepo";
+export { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "./storage/canonical/UnderwriterLinkSchema";
 export { normalizeManagementTitles } from "./sec/forms/registration-statements/s1/normalizeTitle";
 
 // ── The rest of what an out-of-package extraction tier reaches for ──────────
@@ -541,16 +595,22 @@ export { hasLoiTriggerItem } from "./sec/forms/miscellaneous-filings/spac8kLoiTr
 export { hasRedemptionTriggerItem } from "./sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 export { Form_DEFM14A } from "./sec/forms/proxies-information-statements/Form_DEFM14A";
 
-// The prospectus cover and the combination-listing check: two deterministic
+// The prospectus cover and the two combination-listing checks: deterministic
 // readings a SPAC's lifecycle bookkeeping depends on. The cover carries the
 // headline offering size when the section an extractor was handed does not,
-// and `issuerHasCombinationListing` answers from the `filings` table alone —
-// no text scan, which is why both stay.
+// and both listing checks answer from the `filings` table alone — no text scan,
+// which is why they stay. `issuerHasCombinationListing` asks whether this CIK
+// has ever both combined and listed; `isFirst20FAfterCombination` names the one
+// 20-F that closes an FPI shell's registration when it files no 25-NSE, and
+// answering it needs every 20-F this CIK filed, not just the one in hand.
 export {
   looksLikePricedIpoProspectusBody,
   parsePricedProspectusCover,
 } from "./sec/forms/registration-statements/pricedProspectusCover";
-export { issuerHasCombinationListing } from "./sec/forms/registration-statements/s1/newcoListing";
+export {
+  isFirst20FAfterCombination,
+  issuerHasCombinationListing,
+} from "./sec/forms/registration-statements/s1/newcoListing";
 export { RISK_FACTOR_CHUNK_CHARS } from "./sec/forms/registration-statements/s1/riskFactorChunks";
 export { splitDocumentSections } from "./sec/document/documentSections";
 export { sectionHash } from "./verify/callTrace";
@@ -575,6 +635,41 @@ export { normalizeUnderwriterFamilyName } from "./resolver/UnderwriterFamilyReso
 export { getBackfillDescriptor } from "./task/forms/backfillDescriptors";
 export { csvOptionValue, optionValue } from "./cli/optionValue";
 export { KNOWN_MODEL_ID_SHAPES, modelApiKeyEnvVar } from "./config/registerModels";
+
+// Running a backfill and naming what may be backfilled.
+// `listBackfillableExtractorIds` is the LIVE vocabulary — the open form-extractor
+// registry, the contributed descriptors, and the ids this package holds state
+// for — read per call rather than snapshotted, because the registry is filled by
+// the runtime bootstrap and by whichever package ships the readings. Any command
+// validating an extractor argument checks against it, or two commands end up
+// with two vocabularies and one of them refuses ids the other accepts.
+// `ExtractorId` is deliberately open for the same reason: a closed union could
+// not name an extractor registered through that seam.
+export {
+  BackfillExtractorTask,
+  type ExtractorBackfillResult,
+} from "./task/forms/BackfillExtractorTask";
+export { listBackfillableExtractorIds } from "./task/forms/backfillDescriptors";
+export type { ExtractorId } from "./storage/versioning/extractorIds";
+
+// Putting one filing's document on disk the way the sweeps already do.
+// `submissionFetchKind` is the single rule for WHICH file a form is fetched as —
+// the full-submission `.txt` or the primary document — so a downloader outside
+// this package writes the same bytes under the same name an offline pass here
+// later looks for. `SecFetchAccessionDocTask` is the fetch itself, metered by
+// the shared EDGAR queue, and `FORMS_SWEEP_CONCURRENCY_LIMIT` is the in-flight
+// bound the forms sweeps run at — a second downloader picking its own would
+// widen the peak the descriptor table has to survive. `sanitizePrimaryDoc` and
+// `assertInsideDir` are what keep an EDGAR-supplied filename from escaping the
+// cache directory, `tmpPathFor` names the sibling temp file an atomic write
+// renames from, and `describeFailureReason` bounds an error into the single
+// line a per-filing failure is recorded as.
+export { SecFetchAccessionDocTask } from "./task/forms/SecFetchAccessionDocTask";
+export { FORMS_SWEEP_CONCURRENCY_LIMIT } from "./task/forms/formsSweep";
+export { submissionFetchKind, type SubmissionFetchKind } from "./task/forms/submissionFetchPolicy";
+export { assertInsideDir, sanitizePrimaryDoc } from "./util/accessionDocPath";
+export { tmpPathFor } from "./util/atomicFileWrite";
+export { describeFailureReason } from "./util/describeFailure";
 
 // The seam a package that ships a reading this one does not contributes its
 // backfill through, plus the descriptor shape and the ready-made factory for a

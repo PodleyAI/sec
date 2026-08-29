@@ -338,13 +338,39 @@ test("exports the form vocabulary, corpus paths and bookkeeping an extractor rea
   expect(sec.foldTypographicPunctuation("“Acme’s” — Corp")).toBe('"Acme\'s" - Corp');
 });
 
-test("exports the scaffolding the relocated extraction tiers still reach back for", async () => {
+// The scaffolding block covers three groups that leave this package on three
+// different schedules — the SPAC lifecycle repos, the sponsor/underwriter
+// family tier, and the roster/backfill helpers that stay. One test over all
+// three would still be passing under a name that had stopped describing it as
+// soon as the first group left, so each group is asserted on its own and the
+// group's test goes with the group.
+test("exports the SPAC lifecycle repos a relocated writer still records through", () => {
   for (const name of [
     "SpacRepo",
     "SpacReportWriter",
     "SpacLoiExtractionRepo",
     "SpacMergerExtractionRepo",
     "SpacRedemptionExtractionRepo",
+  ]) {
+    expect(typeof sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBe("function");
+  }
+
+  // `ProxyEventVerdict` is erased before this file runs, so it is pinned by
+  // annotating the decision a merger-proxy extractor actually holds: whether
+  // this filing's evidence emits a proxy event, retracts one an earlier run
+  // opened, or leaves the timeline alone.
+  const verdict: sec.ProxyEventVerdict = "retract";
+  const applied: Record<sec.ProxyEventVerdict, boolean> = {
+    emit: true,
+    retract: true,
+    leave: false,
+  };
+  expect(applied[verdict]).toBe(true);
+  expect(applied.leave).toBe(false);
+});
+
+test("exports the sponsor and underwriter family tier a relocated resolver still links through", () => {
+  for (const name of [
     "SponsorFamilyResolver",
     "UnderwriterFamilyResolver",
     "CanonicalSponsorFamilyAliasRepo",
@@ -355,6 +381,19 @@ test("exports the scaffolding the relocated extraction tiers still reach back fo
     "CanonicalUnderwriterFamilyRepo",
     "UnderwriterFamilyMembershipRepo",
     "UnderwriterLinkRepo",
+  ]) {
+    expect(typeof sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBe("function");
+  }
+
+  // Counting an issuer's links is a query on the storage rather than a repo
+  // method, so the two link tokens are part of this tier's surface too.
+  for (const name of ["SPAC_SPONSOR_LINK_REPOSITORY_TOKEN", "UNDERWRITER_LINK_REPOSITORY_TOKEN"]) {
+    expect(sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBeDefined();
+  }
+});
+
+test("exports the roster titles and backfill descriptors a contributed extractor registers through", async () => {
+  for (const name of [
     "normalizeManagementTitles",
     "registerBackfillDescriptor",
     "spacTrigger8KDescriptor",
@@ -380,60 +419,72 @@ test("exports the scaffolding the relocated extraction tiers still reach back fo
     "Chief Executive Officer",
     "Director",
   ]);
-
-  // `ProxyEventVerdict` is erased before this file runs, so it is pinned by
-  // annotating the decision a merger-proxy extractor actually holds: whether
-  // this filing's evidence emits a proxy event, retracts one an earlier run
-  // opened, or leaves the timeline alone.
-  const verdict: sec.ProxyEventVerdict = "retract";
-  const applied: Record<sec.ProxyEventVerdict, boolean> = {
-    emit: true,
-    retract: true,
-    leave: false,
-  };
-  expect(applied[verdict]).toBe(true);
-  expect(applied.leave).toBe(false);
 });
 
-test("exports the SPAC lifecycle write path a relocated model reaches back for", () => {
-  // The eight lifecycle tables and their repos stay here — around fifty modules
-  // in this package still read them — while every writer of `spac`,
-  // `spac_event` and `spac_deal` ships downstream. These are what that writer
-  // is built out of: the repos above, the two SELECTION predicates a
-  // listing-removal or withdrawal replay is chosen by, the exhibit manifest and
-  // legal-form vocabulary a milestone is read with, the screen a dropped-event
-  // warning is gated on, and the dispatcher the whole thing runs under.
+// The write path a relocated lifecycle model is built out of spans two groups
+// with different lifetimes here: the lifecycle tables and the listing-removal
+// reading over them, and the form-agnostic machinery that outlives them. Split
+// for the same reason as the scaffolding block above — a test that keeps its
+// name only while both halves are present is a test nobody can retire cleanly.
+test("exports the SPAC lifecycle tables and the listing-removal reading over them", () => {
+  // What a relocated writer of `spac`, `spac_event` and `spac_deal` still reads
+  // from here: the screen a dropped-event warning is gated on, the trust
+  // snapshot comparison, and the SELECTION predicates a listing-removal replay
+  // is chosen by — all of them queries over rows this package holds.
+  for (const name of [
+    "isNewerTrustSnapshot",
+    "listingRemovalNeedsWork",
+    "pendingDealBefore",
+    "resolveListingRemovalKind",
+  ]) {
+    expect(typeof sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBe("function");
+  }
+  expect(
+    sec.SPAC_CANDIDATE_REPOSITORY_TOKEN,
+    "missing barrel export: SPAC_CANDIDATE_REPOSITORY_TOKEN"
+  ).toBeDefined();
+
+  // `SpacEvent` and `SpacEventType` are erased before this file runs, so they
+  // are pinned by annotating the values a contributing package actually holds:
+  // the events a listing-removal verdict is resolved against, and the event
+  // type a milestone carries. An annotation whose type the barrel stopped
+  // exporting fails `tsc -p tsconfig.test.json` naming it.
+  const events: readonly sec.SpacEvent[] = [];
+  const eventType: sec.SpacEventType = "definitive_agreement";
+  expect(events).toEqual([]);
+  expect(eventType).toBe("definitive_agreement");
+});
+
+test("exports the dispatcher, exhibit manifest and facts tier a relocated writer runs on", () => {
+  // Form-agnostic machinery a relocated writer is built out of: the dispatcher
+  // the whole thing runs under, the issuer repo it names a filer through, the
+  // exhibit manifest and legal-form vocabulary a milestone is read with, and
+  // the withdrawal predicate that answers from `filings` alone.
   for (const name of [
     "ProcessAccessionDocFormTask",
     "EntityRepo",
     "formatExhibitDetail",
-    "isNewerTrustSnapshot",
-    "listingRemovalNeedsWork",
     "parseSubmissionExhibits",
-    "pendingDealBefore",
-    "resolveListingRemovalKind",
     "staffActionAbandonsRegistration",
   ]) {
     expect(typeof sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBe("function");
   }
-  for (const name of ["SPAC_CANDIDATE_REPOSITORY_TOKEN", "COMPANY_FACTS_REPOSITORY_TOKEN"]) {
-    expect(sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBeDefined();
-  }
+  expect(
+    sec.COMPANY_FACTS_REPOSITORY_TOKEN,
+    "missing barrel export: COMPANY_FACTS_REPOSITORY_TOKEN"
+  ).toBeDefined();
   expect(typeof sec.legalFormProseSuffixAlternation).toBe("string");
 
-  // `CurrentTrustRefresh`, `SpacEvent`, `SpacEventType`, `CompanyFact` and
-  // `SubmissionExhibit` are erased before this file runs, so they are pinned by
-  // annotating the values a contributing package actually holds: the refresh it
-  // registers, the events a listing-removal verdict is resolved against, the
-  // event type a milestone carries, the fact a trust balance is read off, and
-  // the exhibit an 8-K's manifest yields. An annotation whose type the barrel
-  // stopped exporting fails `tsc -p tsconfig.test.json` naming it.
+  // `CurrentTrustRefresh`, `CompanyFact` and `SubmissionExhibit` are erased
+  // before this file runs, so they are pinned by annotating the values a
+  // contributing package actually holds: the refresh it registers, the fact a
+  // trust balance is read off, and the exhibit an 8-K's manifest yields. An
+  // annotation whose type the barrel stopped exporting fails
+  // `tsc -p tsconfig.test.json` naming it.
   const refresh: sec.CurrentTrustRefresh = {
     wouldRefresh: async () => false,
     refresh: async () => false,
   };
-  const events: readonly sec.SpacEvent[] = [];
-  const eventType: sec.SpacEventType = "definitive_agreement";
   const fact: Pick<sec.CompanyFact, "name" | "val"> = { name: "AssetsHeldInTrust", val: 1 };
   const exhibit: sec.SubmissionExhibit = {
     type: "EX-2.1",
@@ -441,8 +492,136 @@ test("exports the SPAC lifecycle write path a relocated model reaches back for",
     filename: "ex21.htm",
   };
   expect(typeof refresh.refresh).toBe("function");
-  expect(events).toEqual([]);
-  expect(eventType).toBe("definitive_agreement");
   expect(fact.val).toBe(1);
   expect(sec.formatExhibitDetail([exhibit])).toContain("ex21.htm");
+});
+
+test("exports the issuer tables and journals an out-of-package screen reads and writes", () => {
+  for (const name of [
+    "ENTITY_REPOSITORY_TOKEN",
+    "ENTITY_HISTORY_REPOSITORY_TOKEN",
+    "PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN",
+    "S1_CLASSIFICATION_REPOSITORY_TOKEN",
+    "CHANGE_LOG_REPOSITORY_TOKEN",
+    "EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN",
+  ]) {
+    expect(sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBeDefined();
+  }
+  for (const name of ["loadAnsweredMergerSections", "filingRunKey", "isFirst20FAfterCombination"]) {
+    expect(typeof sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBe("function");
+  }
+
+  // The key an already-run filing is looked up by. A caller builds it, the repo
+  // answers a set of them, so the format is asserted rather than assumed.
+  expect(sec.filingRunKey({ cik: 1811882, accession_number: "0001811882-26-000001" })).toBe(
+    "1811882::0001811882-26-000001"
+  );
+
+  // The row types those tokens' storages hold are erased before this file runs,
+  // so they are pinned by annotating the rows a screen actually seeds and the
+  // storage the entity token resolves to. An annotation whose type the barrel
+  // stopped exporting fails `tsc -p tsconfig.test.json` naming it.
+  const entity: Pick<sec.Entity, "cik" | "name" | "sic"> = {
+    cik: 1811882,
+    name: "Alpha Acquisition Corp",
+    sic: 6770,
+  };
+  const history: Pick<sec.EntityHistory, "cik" | "name" | "valid_from" | "valid_to"> = {
+    cik: 1811882,
+    name: "Alpha Holdings Inc",
+    valid_from: "2026-01-01",
+    valid_to: null,
+  };
+  const classification: Pick<
+    sec.S1Classification,
+    "extractor_id" | "accession_number" | "cik" | "is_spac"
+  > = {
+    extractor_id: "S-1",
+    accession_number: "0001811882-26-000002",
+    cik: 1811882,
+    is_spac: true,
+  };
+  // Never called: it is the resolution itself that is being typed, and calling
+  // it would need live DI. Annotating the return pins both the storage type and
+  // that the token still resolves to it.
+  const resolveEntities: () => sec.EntityRepositoryStorage = () =>
+    sec.globalServiceRegistry.get(sec.ENTITY_REPOSITORY_TOKEN);
+
+  expect(entity.sic).toBe(6770);
+  expect(history.valid_to).toBeNull();
+  expect(classification.is_spac).toBe(true);
+  expect(typeof resolveEntities).toBe("function");
+});
+
+test("exports the document-download, backfill and CLI helpers an out-of-package command is built from", async () => {
+  for (const name of [
+    "parseOutputFormat",
+    "submissionFetchKind",
+    "assertInsideDir",
+    "sanitizePrimaryDoc",
+    "tmpPathFor",
+    "describeFailureReason",
+    "listBackfillableExtractorIds",
+    "AsyncMutex",
+    "TypeStringEnum",
+    "SecFetchAccessionDocTask",
+    "BackfillExtractorTask",
+  ]) {
+    expect(typeof sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBe("function");
+  }
+  expect(sec.FORMS_SWEEP_CONCURRENCY_LIMIT).toBeGreaterThan(0);
+
+  // `OutputFormat`, `SubmissionFetchKind` and `ExtractorId` are erased before
+  // this file runs, so they are pinned by annotating what the functions beside
+  // them actually return. An annotation whose type the barrel stopped exporting
+  // fails `tsc -p tsconfig.test.json` naming it.
+  const format: sec.OutputFormat = sec.parseOutputFormat("json");
+  expect(format).toBe("json");
+
+  // The one rule for which file a form is fetched as: an 8-K's news is in its
+  // exhibits, and only the full submission carries them.
+  const eightK: sec.SubmissionFetchKind = sec.submissionFetchKind("8-K");
+  const ownership: sec.SubmissionFetchKind = sec.submissionFetchKind("4");
+  expect(eightK).toBe("full-submission");
+  expect(ownership).toBe("primary-doc");
+
+  // The live vocabulary a `--force`-style argument is validated against, read
+  // per call because the registry is filled after this module first loads.
+  const ids: readonly sec.ExtractorId[] = sec.listBackfillableExtractorIds();
+  expect(ids).toContain("S-1");
+
+  // What keeps a filer-authored filename inside the cache directory.
+  expect(sec.sanitizePrimaryDoc("  d8k.htm ")).toBe("d8k.htm");
+  expect(() => sec.sanitizePrimaryDoc("../escape.htm")).toThrow();
+  expect(() => sec.assertInsideDir("/raw/accessiondocs/d8k.htm", "/raw")).not.toThrow();
+  expect(() => sec.assertInsideDir("/etc/passwd", "/raw")).toThrow();
+
+  // The sibling temp name an atomic write renames from, and the single bounded
+  // line a per-filing failure is recorded as.
+  expect(sec.tmpPathFor("/raw/d8k.htm")).toMatch(/^\/raw\/d8k\.htm\.tmp\./);
+  expect(sec.describeFailureReason(new Error("boom\n  again"), 200)).toBe("boom again");
+  expect(sec.describeFailureReason(new Error("boom"), 3)).toBe("bo…");
+
+  // A closed value set carried as JSON Schema `enum` rather than a bare string.
+  const status = sec.TypeStringEnum(["ipo", "announced"]);
+  expect(status.type).toBe("string");
+  expect((status as { enum?: readonly string[] }).enum).toEqual(["ipo", "announced"]);
+
+  // The lock a writer serialises its read-derive-write cycle on.
+  const mutex = new sec.AsyncMutex();
+  const order: number[] = [];
+  await Promise.all([
+    mutex.lock(async () => {
+      order.push(1);
+    }),
+    mutex.lock(async () => {
+      order.push(2);
+    }),
+  ]);
+  expect(order).toEqual([1, 2]);
+
+  // `ExtractorBackfillResult` is what a backfill run answers with; pinned by
+  // annotating the counts a command renders.
+  const result: sec.ExtractorBackfillResult = { selected: 2, processed: 1, skipped: 1 };
+  expect(result.selected).toBe(result.processed + result.skipped);
 });
