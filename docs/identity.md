@@ -127,16 +127,51 @@ would end the roles of everyone the dropped row still asserted.
 
 That later pass is `rebuildPersonRoles` (`src/resolver/rebuildPersonRoles.ts`), which
 recomputes a resolver version's tenures wholesale from the observations, reading these
-rows rather than re-deriving them. **Existing data carries no such rows, and a rebuild
-over an un-backfilled corpus does not merely decline to close: the purge runs
-unconditionally before the re-insert, so it DELETES every `end_date` the incremental path
-recorded and re-opens every departure the corpus knew about.** Backfill by re-extracting
-the filings before running it. Like the junction rebuilds, it also expects ingestion to be
-quiesced.
+rows rather than re-deriving them. **Existing data carries neither these rows nor
+`person_observations.role_scope`, and a rebuild over such a corpus does not merely decline
+to close.** Both columns were added with no backfill, so every older observation carries a
+null scope, the rebuild's three-part gate skips every one of them, and the purge has
+already run: the version's `person_role` ends up **empty** — `sec query person-roles`
+returns nothing, for every CIK. (Missing completeness rows alone are the milder half:
+those re-open every departure the corpus knew about, and heal as filings are
+re-extracted.) Like the junction rebuilds, it also expects ingestion to be quiesced.
 
 ```bash
 sec query person-roles <cik> [--current]
 ```
+
+### Recovering a corpus that predates the two columns
+
+The two halves recover differently, and only one costs a model call.
+
+**Completeness is free, and must be recovered FIRST.** `closeUnasserted` stamps
+`end_accession` alongside every `end_date`, and it only ever ran for a roster the
+extraction declared complete — so an end-dated tenure _is_ the record that the filing it
+names enumerated the whole roster. `sec extractor reconstruct-roster-completeness`
+(`src/resolver/reconstructRosterCompleteness.ts`) reads them back into
+`role_roster_completeness`: one read of each table, one write per missing decision, no
+re-extraction. It is idempotent, never overwrites a decision already recorded, and must be
+run **before** the rebuild, which replaces the very tenures it reads.
+
+It cannot recover a `complete: false` verdict, nor a `complete: true` one for a filing
+whose roster nobody had left — both closed nothing, so both left no trace. Absence is
+already how a rebuild reads "not known to be complete", so each omission declines to close
+a tenure rather than inventing a departure.
+
+**Scope is not free: re-extract.** `sec extractor backfill <id>` for the person-observing
+extractors. **Do not derive `role_scope` from `person_role` instead.** It looks equally
+free and is not: an observation whose titles all filtered away minted no tenure, so it
+would keep a null scope, drop out of the rebuild, and its roster would stop being marked
+incomplete — inventing departures, which is the error direction none of this tolerates.
+
+**The rebuild snapshots before it purges.** Every tenure at the target version is written
+to `<SEC_DB_FOLDER, else SEC_RAW_DATA_FOLDER, else cwd>/.sec-snapshots/person_role-<version>-<timestamp>.ndjson`,
+one complete row per line, and the path is printed to stderr as it is written. A file
+rather than a side table: the copy is wanted precisely when the table it came from was
+just emptied, so keeping it in the same database puts the backup behind the same purge —
+and a file needs no storage-registry entry, no `dropPrevious` pruning half, and is deleted
+by an operator who can see what it holds from its name. A failure to write it aborts the
+rebuild before anything is deleted.
 
 Design spec: `prd/docs/superpowers/specs/2026-07-28-sec-dated-person-roles-design.md`.
 
@@ -193,10 +228,10 @@ tier's live rows and recomputes them from links the run never wrote.
 on a company run is **refused**, because `person_role` is the person tier's and a company
 pass writes no link that feeds it. It is off by default even on a person run because it is
 not symmetric with the junctions: it **deletes** every tenure at the version before
-re-deriving them, and it can only re-close a tenure whose filing recorded a complete roster
-in `role_roster_completeness`. Over a corpus ingested before those rows were written it
-finds no complete roster, closes nothing, and so re-opens every departure the incremental
-path had recorded. Re-extract the roster filings first.
+re-deriving them, and both of its inputs are columns older rows do not carry. Over a corpus
+ingested before them it derives nothing at all and leaves the version empty. Recover both
+halves first — `sec extractor reconstruct-roster-completeness`, then re-extract the roster
+filings — and keep the snapshot it writes before the purge until the result checks out.
 
 ### The family tiers
 

@@ -16,6 +16,10 @@ import {
   type ListDeadLettersTaskOutput,
 } from "../../task/forms/ListDeadLettersTask";
 import { listBackfillableExtractorIds } from "../../task/forms/backfillDescriptors";
+import {
+  ReconstructRosterCompletenessTask,
+  type ReconstructRosterCompletenessTaskOutput,
+} from "../../task/resolve/ReconstructRosterCompletenessTask";
 
 // The count lives with ListDeadLettersTask (single source for the eligibility
 // wiring); re-exported here for the version group and its tests.
@@ -24,7 +28,7 @@ export { countEligibleDeadLetters } from "../../task/forms/ListDeadLettersTask";
 export function addExtractorCommands(program: Command): void {
   const cmd = program
     .command("extractor")
-    .description("Extractor dead-letters and generalized backfill");
+    .description("Extractor dead-letters, generalized backfill, and one-shot repairs");
 
   cmd
     .command("dead-letters [extractorId]")
@@ -122,6 +126,48 @@ export function addExtractorCommands(program: Command): void {
         console.log(
           `reprocessed ${out.reprocessed} filing(s), resolved ${out.resolved} expected-negative ` +
             `entr(ies) from ${out.eligibleAccessions.length} eligible${failedSuffix}`
+        );
+      });
+    });
+
+  // A leaf an operator types once, deliberately, and not a step of any sweep.
+  // It belongs beside `backfill` because that is the alternative: both restore
+  // the same decisions, and this one restores the half that is recoverable
+  // without paying a model to read the filings again. It is also why it cannot
+  // be folded into the rebuild — it reads the very tenures the rebuild deletes,
+  // so it is sound only when run first, as its own command, on its own.
+  cmd
+    .command("reconstruct-roster-completeness")
+    .description(
+      "Recover role_roster_completeness decisions from the closures recorded in " +
+        "person_role, for filings extracted before that table existed. Reads and " +
+        "writes only — no re-extraction. Run it BEFORE `resolve --rebuild-roles`, " +
+        "which replaces the tenures it reads"
+    )
+    .action(async () => {
+      await runCommand(async () => {
+        const out = await runWorkflowCli<ReconstructRosterCompletenessTaskOutput>([
+          new ReconstructRosterCompletenessTask(),
+        ]);
+        console.log(
+          `read ${out.tenures} tenure(s); ${out.closures} roster closure(s); ` +
+            `wrote ${out.written}, left ${out.alreadyRecorded} already recorded`
+        );
+        // Named rather than folded into the totals: an end date with no closing
+        // accession is residue nothing here can attribute, and an operator
+        // seeing a non-zero count is looking at rows no re-run will recover.
+        if (out.unattributed > 0) {
+          console.log(
+            `${out.unattributed} end-dated tenure(s) name no closing accession and evidence no roster`
+          );
+        }
+        // The verdicts this cannot recover are the ones absence already
+        // expresses, so say so rather than let a small number read as a
+        // partial failure.
+        console.log(
+          "Filings whose roster was incomplete, and complete rosters nobody had left, " +
+            "close nothing and so leave no trace to read — both stay absent, which a " +
+            "rebuild reads as 'not known complete' and closes nothing from."
         );
       });
     });

@@ -350,6 +350,25 @@ export class PersonRoleRepo {
   }
 
   /**
+   * Every tenure at a resolver version, unsorted — the rows
+   * {@link deleteForResolverVersion} is about to remove, for a caller that
+   * needs a copy of them first.
+   */
+  async listForResolverVersion(resolver_version: string): Promise<PersonRole[]> {
+    return (await this.repo.query({ resolver_version })) ?? [];
+  }
+
+  /**
+   * Every tenure, across resolver versions. For a pass reading tenures as
+   * EVIDENCE rather than as a generation's output: what a closure recorded
+   * about a filing's roster is a property of that filing, so a retired
+   * generation's rows say it just as well as the live one's.
+   */
+  async listAll(): Promise<PersonRole[]> {
+    return (await this.repo.getAll()) ?? [];
+  }
+
+  /**
    * Write one already-computed tenure outright, with no read-modify-write of
    * whatever the natural key currently holds — for a pass that derives the
    * whole tenure (its bounds, its supporting accessions) from the current

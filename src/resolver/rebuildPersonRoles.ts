@@ -16,6 +16,7 @@ import { PersonObservationRepo } from "../storage/observation/PersonObservationR
 import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
 import type { PersonObservation } from "../storage/observation/PersonObservationSchema";
 import { canonicalRoleTitles } from "./EntityObserver";
+import { writePersonRoleSnapshot } from "./personRoleSnapshot";
 import { loadFilingDates } from "./rebuildFilingDates";
 import { isCompleteRosterRoleScope } from "./roleScopes";
 
@@ -300,7 +301,9 @@ function walkTenures(
  * The direction of the second error is safe on its own — a missing row
  * under-reports departures rather than inventing them, and it heals as filings
  * are re-extracted. The first is not: it is a whole-table loss, and nothing
- * else can reconstruct those tenures.
+ * else can reconstruct those tenures. So the version's rows are written to a
+ * file before the purge (see {@link writePersonRoleSnapshot}), which is what
+ * makes a rebuild over such a corpus reversible rather than merely regrettable.
  */
 export async function rebuildPersonRoles(
   resolverVersion: string
@@ -419,6 +422,18 @@ export async function rebuildPersonRoles(
       tenures.push({ group, tenure });
     }
   }
+
+  // Copied out before anything is deleted, because the purge below is the one
+  // step of this pass that destroys rather than replaces: what it removes was
+  // derived from evidence this pass may no longer be able to read, so the rows
+  // themselves are the only record of it. Writing the snapshot FIRST, and
+  // letting a failure to write it propagate, is deliberate — a purge whose
+  // undo could not be saved is exactly the run this exists for, and raising
+  // here leaves the table as it was.
+  await writePersonRoleSnapshot(
+    resolverVersion,
+    await roleRepo.listForResolverVersion(resolverVersion)
+  );
 
   // Unconditional, and scoped: unconditional because a version whose last
   // observation was reaped computes nothing and is exactly the case where no

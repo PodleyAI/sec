@@ -131,8 +131,10 @@ async function rebuildProjections(input: ResolveObservationsTaskInput): Promise<
           `rebuilding person_role at v${version}: every tenure at this version is deleted and ` +
             `re-derived from the observations. An observation with no person_observation.role_scope ` +
             `mints NO tenure, and a tenure closed by a filing with no role_roster_completeness row ` +
-            `re-opens. Filings extracted before those columns existed carry neither — re-extract ` +
-            `them first, or this deletes tenures it cannot re-derive.`
+            `re-opens. Filings extracted before those columns existed carry neither — recover the ` +
+            `completeness half with 'sec extractor reconstruct-roster-completeness' and the scope ` +
+            `half by re-extracting, or this deletes tenures it cannot re-derive. The tenures are ` +
+            `copied to a snapshot file before the purge; its path is printed as it is written.`
         );
         reports.push(
           await runRebuild("person-roles", async () => (await rebuildPersonRoles(version)).rows)

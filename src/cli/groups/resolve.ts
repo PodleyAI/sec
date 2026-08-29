@@ -37,7 +37,9 @@ export function addResolveCommands(program: Command): void {
       "--kind person only: also recompute person_role at the target version, which " +
         "DELETES every tenure there and re-derives it from the observations. Filings " +
         "extracted before person_observation.role_scope and role_roster_completeness " +
-        "existed mint no tenure and re-open every closed one — re-extract them first",
+        "existed derive no tenure at all, leaving the version empty — run " +
+        "`sec extractor reconstruct-roster-completeness` and re-extract them first. The " +
+        "tenures are snapshotted to a file before the purge",
       false
     )
     .action(
