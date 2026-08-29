@@ -36,10 +36,16 @@ export function shouldReplaySpacFiling(args: {
   if (args.force.kind === "extractors") {
     const forced = new Set<string>(args.force.ids);
     if (extractorIds.some((id) => forced.has(id))) return true;
+    // The redemption and LOI passes run inside another extractor's `store`
+    // rather than registering forms of their own, so no id in `extractorIds`
+    // can name them and matching on one only asks which package registered
+    // what. What is true of a filing they would read is the filing itself: it
+    // carries an item code the pass keys on, and — by the early return above —
+    // some extractor is registered to run over its form at all, which is what
+    // gives those passes a `store` to run inside.
     if (
-      extractorIds.includes("8-K") &&
-      ((forced.has("redemption") && hasRedemptionTriggerItem(args.items)) ||
-        (forced.has("loi") && hasLoiTriggerItem(args.items)))
+      (forced.has("redemption") && hasRedemptionTriggerItem(args.items)) ||
+      (forced.has("loi") && hasLoiTriggerItem(args.items))
     ) {
       return true;
     }

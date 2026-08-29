@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { registerSecFormExtractors } from "../../config/registerFormExtractors";
-import { registerFormExtractor } from "../../sec/forms/formExtractors";
+import {
+  clearFormExtractorsForTesting,
+  registerFormExtractor,
+} from "../../sec/forms/formExtractors";
 import { filingRunKey } from "../../storage/versioning/ExtractorRunRepo";
 import { shouldReplaySpacFiling } from "./shouldReplaySpacFiling";
 
@@ -21,7 +24,11 @@ const S4_ACCESSION = "0000000000-26-000005";
 
 const noopStore = async (): Promise<void> => {};
 
-beforeAll(() => {
+/**
+ * The registrations every case below reads, as a named function so the one
+ * describe that needs a DIFFERENT registry can put this one back.
+ */
+function registerFixtureExtractors(): void {
   // The predicate reads the form-extractor registry, so sec's own extractors
   // have to be in it before any case runs.
   registerSecFormExtractors();
@@ -34,11 +41,16 @@ beforeAll(() => {
   registerFormExtractor({ id: "merger-proxy", section: "de-spac", forms: [S4], store: noopStore });
   // An 8-K carries two extractors too: the item codes this package records
   // under `8-K-items`, and the de-SPAC milestone reading a consumer registers
-  // under `8-K` — the one whose known-SPAC gate can swallow a filing, and the
-  // one the redemption / LOI forcing clause keys on. Without the second, none
-  // of that is reachable here.
+  // under `8-K` — the one whose known-SPAC gate can swallow a filing, and so
+  // the one that makes the gated-no-op cases reachable here at all. The
+  // redemption / LOI forcing clause does NOT key on it: those passes run
+  // inside whichever extractor a deployment registers for the 8-K's narrative
+  // reading, under whatever id that package chose, so forcing them is a
+  // question about the filing's trigger items rather than about any id.
   registerFormExtractor({ id: "8-K", forms: ["8-K", "8-K/A"], store: noopStore });
-});
+}
+
+beforeAll(registerFixtureExtractors);
 
 function keysFor(extractorId: string, accessions: readonly string[]): Map<string, Set<string>> {
   return new Map([
@@ -282,6 +294,78 @@ describe("shouldReplaySpacFiling", () => {
         force: { kind: "none" },
         successfulKeys: keysFor("S-1-xbrl", [S1]),
         gatedNoOpAccessions: new Set([S1]),
+      })
+    ).toBe(false);
+  });
+});
+
+/**
+ * A deployment that ships the 8-K narrative reading — the redemption and LOI
+ * passes run inside its `store` — WITHOUT the de-SPAC milestone reading. Both
+ * are registered by a consumer package, independently, and neither is obliged
+ * to pick the id `8-K`.
+ */
+describe("shouldReplaySpacFiling when no extractor is registered under the id `8-K`", () => {
+  const NARRATIVE_ID = "8-k-narrative";
+
+  beforeAll(() => {
+    clearFormExtractorsForTesting();
+    registerSecFormExtractors();
+    registerFormExtractor({ id: NARRATIVE_ID, forms: ["8-K", "8-K/A"], store: noopStore });
+  });
+
+  afterAll(() => {
+    // Leave the registry as the rest of the file found it: clearing re-arms
+    // `registerSecFormExtractors`.
+    clearFormExtractorsForTesting();
+    registerFixtureExtractors();
+  });
+
+  /** Both of this deployment's 8-K extractors have a successful run. */
+  function narrativeKeys(accessions: readonly string[]): Map<string, Set<string>> {
+    return new Map([...keysFor("8-K-items", accessions), ...keysFor(NARRATIVE_ID, accessions)]);
+  }
+
+  it("replays a redemption-trigger 8-K when redemption is forced", () => {
+    expect(
+      shouldReplaySpacFiling({
+        form: "8-K",
+        items: "5.07,9.01",
+        cik: CIK,
+        accession_number: EIGHT_K_TRIGGER,
+        force: { kind: "extractors", ids: ["redemption"] },
+        successfulKeys: narrativeKeys([EIGHT_K_TRIGGER, EIGHT_K_OTHER]),
+        gatedNoOpAccessions: NO_GATED,
+      })
+    ).toBe(true);
+  });
+
+  it("replays an LOI-trigger 8-K when loi is forced", () => {
+    expect(
+      shouldReplaySpacFiling({
+        form: "8-K",
+        items: "7.01",
+        cik: CIK,
+        accession_number: EIGHT_K_TRIGGER,
+        force: { kind: "extractors", ids: ["loi"] },
+        successfulKeys: narrativeKeys([EIGHT_K_TRIGGER, EIGHT_K_OTHER]),
+        gatedNoOpAccessions: NO_GATED,
+      })
+    ).toBe(true);
+  });
+
+  it("still skips a successful non-trigger 8-K", () => {
+    // Forcing a pass must not widen to every 8-K just because the id it used
+    // to be matched against is gone.
+    expect(
+      shouldReplaySpacFiling({
+        form: "8-K",
+        items: "2.02",
+        cik: CIK,
+        accession_number: EIGHT_K_OTHER,
+        force: { kind: "extractors", ids: ["redemption"] },
+        successfulKeys: narrativeKeys([EIGHT_K_TRIGGER, EIGHT_K_OTHER]),
+        gatedNoOpAccessions: NO_GATED,
       })
     ).toBe(false);
   });
