@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { IExecuteContext } from "workglow";
+import type { ExtractorGateVerdict } from "../../storage/versioning/ExtractorRunSchema";
 
 /** What every extractor's `store` receives about the filing it is storing. */
 export interface FormExtractorStoreArgs {
@@ -44,6 +45,28 @@ export interface FormExtractorStoreArgs {
    * prefetch a resource. Undefined when a caller has none (tests, backfills).
    */
   readonly context: IExecuteContext | undefined;
+}
+
+/**
+ * What a `store` reports back about its OWN admission gate.
+ *
+ * Several handlers are gated on a row they did not write — a known-SPAC check
+ * against `spac` — and return early having written nothing, while the dispatcher
+ * still records a SUCCESSFUL run for them, because a recorded successful run is
+ * what stops a filing being re-selected. That the gate declined survived
+ * nowhere, so nothing could tell "ran and had nothing to write" from "declined
+ * before looking".
+ *
+ * A `store` with a gate returns this to say which it was; the dispatcher stamps
+ * it on the `extractor_runs` row it writes for that extractor. Returning
+ * nothing is the honest answer for a handler with no gate: the column stays
+ * null, meaning NOT RECORDED, and never `admitted`.
+ *
+ * An object rather than the bare string so a `store` cannot report a verdict by
+ * accident — the value has to be built on purpose.
+ */
+export interface FormExtractorStoreReport {
+  readonly gate: ExtractorGateVerdict;
 }
 
 /** What a per-filing full-submission escalation gets to decide on. */
@@ -123,7 +146,7 @@ export interface FormExtractorWithDocument<TParsed = unknown> extends FormExtrac
   readonly needsDocument?: true;
   readonly store: (
     args: FormExtractorStoreArgs & { readonly form: string; readonly parsed: TParsed }
-  ) => Promise<void>;
+  ) => Promise<FormExtractorStoreReport | void>;
 }
 
 /**
@@ -140,7 +163,9 @@ export interface FormExtractorWithDocument<TParsed = unknown> extends FormExtrac
  */
 export interface FormExtractorMetadataOnly<TParsed = unknown> extends FormExtractorCommon<TParsed> {
   readonly needsDocument: false;
-  readonly store: (args: FormExtractorStoreArgs & { readonly form: string }) => Promise<void>;
+  readonly store: (
+    args: FormExtractorStoreArgs & { readonly form: string }
+  ) => Promise<FormExtractorStoreReport | void>;
 }
 
 /**

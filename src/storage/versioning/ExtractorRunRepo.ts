@@ -5,6 +5,7 @@
  */
 
 import type {
+  ExtractorGateVerdict,
   ExtractorRun,
   ExtractorRunOutcome,
   ExtractorRunRepositoryStorage,
@@ -51,9 +52,10 @@ export class ExtractorRunRepo {
   constructor(private readonly storage: ExtractorRunRepositoryStorage) {}
 
   async recordRun(
-    row: Omit<ExtractorRun, "ran_at" | "outcome" | "read_full_submission"> & {
+    row: Omit<ExtractorRun, "ran_at" | "outcome" | "read_full_submission" | "gate_verdict"> & {
       outcome?: ExtractorRunOutcome;
       read_full_submission?: boolean | null;
+      gate_verdict?: ExtractorGateVerdict | null;
     }
   ): Promise<void> {
     const outcome: ExtractorRunOutcome = row.outcome ?? (row.success ? "success" : "failure");
@@ -66,6 +68,10 @@ export class ExtractorRunRepo {
       // rather than false, which would claim the extractor read the primary
       // document alone. Only a caller that knows may say so.
       read_full_submission: row.read_full_submission ?? null,
+      // Same discipline: omitting it stores null — "nobody recorded what this
+      // extractor's gate decided" — and never `admitted`, which would claim
+      // the handler was let through to do its work.
+      gate_verdict: row.gate_verdict ?? null,
       ran_at: new Date().toISOString(),
     } as ExtractorRun);
   }

@@ -166,6 +166,19 @@ reaching them first drops their events with nothing to re-select the filing.
 leaves an explicit registration → prospectus → 8-K → proxies → 25/15 order rather than
 relying on `Object.keys` (which enumerates the integer-like `"25"` fourth).
 
+Each handler also **reports its gate's verdict**, which the dispatcher stamps on the run row
+as `extractor_runs.gate_verdict`: `admitted`, or the name of the gate that turned the filing
+away (`no-spac-row`, `not-applicable`). It is what separates "examined the filing and had
+nothing to write" from "declined before looking" — two facts the success row alone cannot
+tell apart. The value names the gate rather than being a boolean because the two declines
+repair differently: `no-spac-row` is undone by the registration statement that mints the row,
+while a `not-applicable` filing is one the reading never acts on, and re-selecting on it would
+re-process the filing on every sweep forever.
+
+**Null means NOT RECORDED, never "admitted."** Every row written before the column existed
+reads null, which is exactly the population `loadGatedNoOpAccessions` reconstructs by
+inference — so the column adds to that inference rather than replacing it.
+
 ```bash
 sec extractor backfill 25-15    # repeat until it reports `processed 0`
 ```

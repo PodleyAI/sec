@@ -111,6 +111,21 @@ function itemCodes(items: string | null | undefined): string[] {
  * then repairs nothing, and the skip must stand. `ProcessSpacTimelineTask`
  * recomputes this AFTER its replay for exactly that reason: the registration
  * statement that mints the row is usually on the same timeline.
+ *
+ * WHY THIS STILL EXISTS, now that `extractor_runs.gate_verdict` records the
+ * verdict directly. That column is written by the handler that knows, from the
+ * run it is recording — so it answers for runs recorded AFTER it existed, and
+ * for nothing else. Every row already in a deployed database reads null, which
+ * means NOT RECORDED and must never be read as "the gate admitted this
+ * filing": the whole population this function was written to recover is
+ * precisely the population the column cannot speak for. Reconstructing the
+ * verdict from the absence of downstream artifacts is the only thing that
+ * reaches those rows, and it stays the answer until no null row is left —
+ * which, for a ledger nothing can rebuild, is not a date anyone can name.
+ *
+ * So the two are additive, not sequential, and every branch below keeps its
+ * monotonicity obligation unchanged. A reader who assumes the column replaced
+ * this will delete a guard that is still load-bearing.
  */
 export async function loadGatedNoOpAccessions(
   cik: number,

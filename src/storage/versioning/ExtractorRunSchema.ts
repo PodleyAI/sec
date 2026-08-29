@@ -12,6 +12,55 @@ import { TypeSecCik } from "../../util/TypeSecCik";
 export const EXTRACTOR_RUN_OUTCOMES = ["success", "partial", "failure"] as const;
 export type ExtractorRunOutcome = (typeof EXTRACTOR_RUN_OUTCOMES)[number];
 
+/**
+ * The verdicts an extractor's ADMISSION GATE can report about one filing —
+ * what `extractor_runs.gate_verdict` records.
+ *
+ * `admitted` is the single value meaning the gate let the filing through, so
+ * whatever the handler then wrote (or did not write) is a real answer about the
+ * document. Every other value NAMES THE GATE that turned the filing away, and
+ * they divide on the only question a repair pass can act on: whether anything
+ * a later filing writes could make the same gate admit this one.
+ *
+ * - `no-spac-row` — the issuer has no `spac` row yet. The registration
+ *   statement or prospectus that mints one is usually on the same timeline, so
+ *   re-running this filing afterwards produces the work that was dropped.
+ * - `not-applicable` — this filing is not one the handler ever acts on: an
+ *   `RW WD` undoes a withdrawal, so the withdrawal reading declines it outright.
+ *   Nothing any later filing writes changes that, so a repair pass that
+ *   re-selected on such a decline would re-process the filing on every sweep for
+ *   the life of the database, and nothing it can write would ever stop that.
+ *
+ * That division is why the column is not a boolean. A boolean says only that
+ * the handler wrote nothing on purpose, and a repair pass keying on it would
+ * re-process every permanently-declined filing on every sweep, forever.
+ */
+export const GATE_VERDICTS = {
+  admitted: "admitted",
+  noSpacRow: "no-spac-row",
+  notApplicable: "not-applicable",
+} as const;
+
+/**
+ * One gate verdict. A plain string rather than a union over
+ * {@link GATE_VERDICTS}, for the same reason an extractor id is one: the gated
+ * handlers are registered from outside this package and may gate on a
+ * condition this file cannot enumerate. The constants stay the vocabulary sec
+ * ships; the one rule every reader may rely on is that `admitted` is the only
+ * non-null value that is not a decline — see {@link isGateDecline}.
+ */
+export type ExtractorGateVerdict = string;
+
+/**
+ * Whether a recorded verdict says the gate turned the filing away.
+ *
+ * Null is NOT a decline: it means nobody recorded a verdict, which is the state
+ * every row written before the column existed is in.
+ */
+export function isGateDecline(verdict: ExtractorGateVerdict | null | undefined): boolean {
+  return verdict !== null && verdict !== undefined && verdict !== GATE_VERDICTS.admitted;
+}
+
 export const ExtractorRunSchema = Type.Object({
   cik: TypeSecCik({ description: "Central Index Key" }),
   accession_number: Type.String({
@@ -53,6 +102,17 @@ export const ExtractorRunSchema = Type.Object({
       "RECORDED, never 'was not handed it': a row written before this column existed, or a " +
       "run that failed before the dispatch reached this extractor. Reading null as false " +
       "would assert a fact about an input nobody wrote down.",
+  }),
+  gate_verdict: Type.Union([Type.String({ maxLength: 32 }), Type.Null()], {
+    description:
+      "What this extractor's admission gate decided about the filing: 'admitted', or the " +
+      "name of the gate that turned it away ('no-spac-row', 'not-applicable'). A gated " +
+      "handler that finds no `spac` row writes nothing and still records a SUCCESSFUL run, " +
+      "so without this the ledger cannot tell 'ran and had nothing to write' from 'declined " +
+      "before looking'. Null means NOT RECORDED, never 'the gate admitted it': a row written " +
+      "before this column existed, an extractor that has no gate and so reported nothing, or " +
+      "a run that failed before the dispatch reached this extractor. Reading null as " +
+      "admitted would turn every historical row into a claim the handler did its work.",
   }),
 });
 

@@ -37,7 +37,10 @@ import type { DeadLetterReasonCode } from "../../storage/dead-letter/ExtractionD
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import {
+  EXTRACTOR_RUN_REPOSITORY_TOKEN,
+  type ExtractorGateVerdict,
+} from "../../storage/versioning/ExtractorRunSchema";
 import { getActiveSlot, type ActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { cachedAccessionDocPath, stripXslPrefix } from "../../util/accessionDocPath";
@@ -425,6 +428,24 @@ export class ProcessAccessionDocFormTask extends Task<
     const readFullSubmissionById = new Map<string, boolean>();
 
     /**
+     * What each extractor id's ADMISSION GATE decided about this filing, as
+     * that extractor's own `store` reported it, and read straight back out by
+     * the run recorders below.
+     *
+     * The gated handlers write nothing when their gate is closed and are still
+     * recorded as successful — that is what keeps the forms sweep from
+     * retrying every 15-12G forever — so without this the ledger cannot tell a
+     * handler that examined the filing and had nothing to say from one that
+     * never looked. Only the handler knows which, and only the dispatcher
+     * writes the row, so the answer has to travel between them.
+     *
+     * `null` here is the honest reading of "not recorded", and an id absent
+     * from the map has the same meaning: a handler with no gate reports
+     * nothing, and its row must not claim it was admitted.
+     */
+    const gateVerdictById = new Map<string, ExtractorGateVerdict | null>();
+
+    /**
      * The extractors a filing-level failure is recorded against: every one that
      * has not finished storing.
      *
@@ -451,6 +472,7 @@ export class ProcessAccessionDocFormTask extends Task<
             outcome: "failure",
             error: message.slice(0, 4096),
             read_full_submission: readFullSubmissionById.get(target.id) ?? null,
+            gate_verdict: gateVerdictById.get(target.id) ?? null,
           });
         } catch (recordErr) {
           console.error(
@@ -540,6 +562,7 @@ export class ProcessAccessionDocFormTask extends Task<
             outcome,
             error: null,
             read_full_submission: readFullSubmissionById.get(target.id) ?? null,
+            gate_verdict: gateVerdictById.get(target.id) ?? null,
           });
         } catch (recordErr) {
           console.error(
@@ -607,7 +630,7 @@ export class ProcessAccessionDocFormTask extends Task<
           extractor.id,
           (readFullSubmissionById.get(extractor.id) ?? false) || fullSubmissionText !== undefined
         );
-        await extractor.store({
+        const report = await extractor.store({
           cik: cik!,
           file_number: file_number ?? "",
           accession_number: accessionNumber,
@@ -627,6 +650,17 @@ export class ProcessAccessionDocFormTask extends Task<
           context,
           parsed: extractorParsed,
         });
+        // An id split into sections holds several registry entries while the
+        // run row is per id, so the row reports a gate verdict only where every
+        // entry under the id reported the SAME one. One entry that did its work
+        // beside one that was turned away is a mixture no single verdict
+        // describes, and null — not recorded — is the honest reading of it.
+        const reported = report ? report.gate : null;
+        const priorVerdict = gateVerdictById.get(extractor.id);
+        gateVerdictById.set(
+          extractor.id,
+          priorVerdict === undefined || priorVerdict === reported ? reported : null
+        );
         // Counted only once the store returned, so a throw leaves the extractor
         // unrecorded and the worklist re-selects the filing for it.
         storedEntries.set(extractor.id, (storedEntries.get(extractor.id) ?? 0) + 1);

@@ -168,13 +168,23 @@ export {
   registerFormExtractor,
   type FormExtractor,
   type FormExtractorStoreArgs,
+  type FormExtractorStoreReport,
   type FullSubmissionProbe,
 } from "./sec/forms/formExtractors";
 export { registerSecFormExtractors } from "./config/registerFormExtractors";
 export { selectRegAReportDocument } from "./sec/forms/exempt-offerings/regAReportDocument";
 export { parseNumeric } from "./sec/html/parseNumeric";
 export { ExtractorRunRepo } from "./storage/versioning/ExtractorRunRepo";
-export { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "./storage/versioning/ExtractorRunSchema";
+// `GATE_VERDICTS` and `isGateDecline` travel with the repo because the handlers
+// that KNOW a gate declined are registered from outside this package while the
+// table stays here: a downstream `store` reports a verdict from this vocabulary
+// and the dispatcher records it, so both halves read the same one.
+export {
+  EXTRACTOR_RUN_REPOSITORY_TOKEN,
+  GATE_VERDICTS,
+  isGateDecline,
+  type ExtractorGateVerdict,
+} from "./storage/versioning/ExtractorRunSchema";
 export { ExtractionDeadLetterRepo } from "./storage/dead-letter/ExtractionDeadLetterRepo";
 
 // ── EDGAR HTML parser + section vocabulary ──────────────────────────────────
