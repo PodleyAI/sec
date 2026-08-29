@@ -4,32 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import type { AddressImport } from "../../../storage/address/AddressNormalization";
 import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
 import { parseCikSafely } from "../../../util/parseCik";
-import { EntityObserver } from "../../../resolver/EntityObserver";
-import { PersonResolver } from "../../../resolver/PersonResolver";
-import { CompanyResolver } from "../../../resolver/CompanyResolver";
-import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
-import { PersonObservationTitleRepo } from "../../../storage/observation/PersonObservationTitleRepo";
-import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
-import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
-import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
-import { CanonicalPersonRepo } from "../../../storage/canonical/CanonicalPersonRepo";
-import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
-import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
-import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
-import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
-import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
-import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
-import { PersonRoleRepo } from "../../../storage/canonical/PersonRoleRepo";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
-import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
-import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
+import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
 import { Form144Repo } from "../../../storage/form144/Form144Repo";
 import type { Form144 } from "./Form_144.schema";
 import { numScalar as num, strScalar as str } from "../_valueHelpers";
@@ -100,17 +80,6 @@ export async function processForm144({
   extractor_id: string;
   doc: Form144;
 }): Promise<void> {
-  const versionRegistry = new VersionRegistry(
-    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-  );
-
-  const [personSlot, companySlot] = await Promise.all([
-    getActiveSlot(versionRegistry, "resolver", "person"),
-    getActiveSlot(versionRegistry, "resolver", "company"),
-  ]);
-
-  const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
-  const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
   // 1.1.0: num() now treats whitespace-only numeric elements as null instead
   // of fabricating 0 via Number("   "). Bumped to force production re-extract.
   const extractor_version = "1.1.0";
@@ -119,33 +88,7 @@ export async function processForm144({
   const issuerInfo = formData.issuerInfo;
   const issuer_cik = parseCikSafely(issuerInfo?.issuerCik);
 
-  const personResolver = new PersonResolver({
-    canonicalPersonRepo: new CanonicalPersonRepo(),
-    canonicalPersonAliasRepo: new CanonicalPersonAliasRepo(),
-    activeResolverVersion: activeResolverPersonVersion,
-  });
-  const companyResolver = new CompanyResolver({
-    canonicalCompanyRepo: new CanonicalCompanyRepo(),
-    canonicalCompanyAliasRepo: new CanonicalCompanyAliasRepo(),
-    activeResolverVersion: activeResolverCompanyVersion,
-  });
-
-  const observer = new EntityObserver({
-    personObservationRepo: new PersonObservationRepo(),
-    personObservationTitleRepo: new PersonObservationTitleRepo(),
-    companyObservationRepo: new CompanyObservationRepo(),
-    personIdentityLinkRepo: new PersonIdentityLinkRepo(),
-    companyIdentityLinkRepo: new CompanyIdentityLinkRepo(),
-    personResolver,
-    companyResolver,
-    canonicalPersonAddressRepo: new CanonicalPersonAddressRepo(),
-    canonicalPersonPhoneRepo: new CanonicalPersonPhoneRepo(),
-    canonicalCompanyAddressRepo: new CanonicalCompanyAddressRepo(),
-    canonicalCompanyPhoneRepo: new CanonicalCompanyPhoneRepo(),
-    personRoleRepo: new PersonRoleRepo(),
-    activeResolverPersonVersion,
-    activeResolverCompanyVersion,
-  });
+  const observer = buildObserveOnlyEntityObserver();
 
   const addressRepo = new AddressRepo();
   const repo = new Form144Repo();

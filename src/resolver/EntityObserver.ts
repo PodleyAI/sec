@@ -126,6 +126,14 @@ export interface EntityObserverOptions
 export interface ResolvingEntityObserverOptions
   extends EntityObserverObservationOptions, EntityObserverResolverOptions {}
 
+/**
+ * An observer built with the observation repos alone. Naming the type is what
+ * lets a caller opt out of the resolver tier, since the constructor blocks
+ * inference precisely so an omitted tier is an error rather than a narrower
+ * observer.
+ */
+export type ObserveOnlyEntityObserver = EntityObserver<EntityObserverObservationOptions>;
+
 /** What recording an observation yields with no resolver tier to key it to. */
 export interface ObservationResult {
   readonly observation_id: number;

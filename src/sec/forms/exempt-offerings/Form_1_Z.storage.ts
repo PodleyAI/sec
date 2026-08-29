@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { resolveCountryCode } from "../../../storage/address/resolveCountryCode";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
@@ -19,33 +18,15 @@ import type { RegAFinancialData } from "../../../storage/reg-a/RegAFinancialData
 import { extractServiceProviders } from "./RegA_shared";
 import type { Form1Z } from "./Form_1_Z.schema";
 import { numScalar } from "../_valueHelpers";
-import { EntityObserver } from "../../../resolver/EntityObserver";
-import { PersonResolver } from "../../../resolver/PersonResolver";
-import { CompanyResolver } from "../../../resolver/CompanyResolver";
-import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
-import { PersonObservationTitleRepo } from "../../../storage/observation/PersonObservationTitleRepo";
-import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
-import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
-import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
-import { CanonicalPersonRepo } from "../../../storage/canonical/CanonicalPersonRepo";
-import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
-import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
-import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
-import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
-import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
-import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
-import { PersonRoleRepo } from "../../../storage/canonical/PersonRoleRepo";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
-import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
-import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
+import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
+import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
 
 interface Form1ZStorageContext {
   readonly accession_number: string;
   readonly extractor_id: "1-Z";
   readonly extractor_version: string;
   readonly filing_date: string;
-  readonly observer: EntityObserver;
+  readonly observer: ObserveOnlyEntityObserver;
 }
 
 async function processIssuer(
@@ -298,63 +279,11 @@ export async function processForm1Z({
   primary_doc: string;
   form1Z: Form1Z;
 }): Promise<void> {
-  const versionRegistry = new VersionRegistry(
-    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-  );
-
-  const [personSlot, companySlot] = await Promise.all([
-    getActiveSlot(versionRegistry, "resolver", "person"),
-    getActiveSlot(versionRegistry, "resolver", "company"),
-  ]);
-
-  const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
-  const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
-
   // 1.1.0: numScalar() treats whitespace-only/empty numeric elements as null
   // instead of fabricating 0 via Value.Convert. Bumped to force re-extract.
   const extractor_version = "1.1.0";
 
-  const personObservationRepo = new PersonObservationRepo();
-  const companyObservationRepo = new CompanyObservationRepo();
-  const personIdentityLinkRepo = new PersonIdentityLinkRepo();
-  const companyIdentityLinkRepo = new CompanyIdentityLinkRepo();
-  const canonicalPersonRepo = new CanonicalPersonRepo();
-  const canonicalCompanyRepo = new CanonicalCompanyRepo();
-  const canonicalPersonAliasRepo = new CanonicalPersonAliasRepo();
-  const canonicalCompanyAliasRepo = new CanonicalCompanyAliasRepo();
-  const canonicalPersonAddressRepo = new CanonicalPersonAddressRepo();
-  const canonicalPersonPhoneRepo = new CanonicalPersonPhoneRepo();
-  const canonicalCompanyAddressRepo = new CanonicalCompanyAddressRepo();
-  const canonicalCompanyPhoneRepo = new CanonicalCompanyPhoneRepo();
-
-  const personResolver = new PersonResolver({
-    canonicalPersonRepo,
-    canonicalPersonAliasRepo,
-    activeResolverVersion: activeResolverPersonVersion,
-  });
-
-  const companyResolver = new CompanyResolver({
-    canonicalCompanyRepo,
-    canonicalCompanyAliasRepo,
-    activeResolverVersion: activeResolverCompanyVersion,
-  });
-
-  const observer = new EntityObserver({
-    personObservationRepo,
-    personObservationTitleRepo: new PersonObservationTitleRepo(),
-    companyObservationRepo,
-    personIdentityLinkRepo,
-    companyIdentityLinkRepo,
-    personResolver,
-    companyResolver,
-    canonicalPersonAddressRepo,
-    canonicalPersonPhoneRepo,
-    canonicalCompanyAddressRepo,
-    canonicalCompanyPhoneRepo,
-    personRoleRepo: new PersonRoleRepo(),
-    activeResolverPersonVersion,
-    activeResolverCompanyVersion,
-  });
+  const observer = buildObserveOnlyEntityObserver();
 
   const ctx: Form1ZStorageContext = {
     accession_number,

@@ -4,35 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
-import { CompanyResolver } from "../../../resolver/CompanyResolver";
-import { EntityObserver } from "../../../resolver/EntityObserver";
-import { PersonResolver } from "../../../resolver/PersonResolver";
+import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
+import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
 import type { AddressImport } from "../../../storage/address/AddressNormalization";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
-import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
-import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
-import { PersonRoleRepo } from "../../../storage/canonical/PersonRoleRepo";
-import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
-import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
-import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
-import { CanonicalPersonRepo } from "../../../storage/canonical/CanonicalPersonRepo";
-import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
-import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
 import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
-import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
-import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
-import { PersonObservationTitleRepo } from "../../../storage/observation/PersonObservationTitleRepo";
 import { Section16Repo } from "../../../storage/section16/Section16Repo";
 import type {
   Section16Holding,
   Section16Transaction,
 } from "../../../storage/section16/Section16Schema";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
-import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
-import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
 import { parseCikSafely } from "../../../util/parseCik";
 import type { OwnershipDocument } from "./OwnershipDocument.schema";
@@ -57,7 +38,7 @@ interface OwnershipStorageContext {
   // across unrelated filers into one canonical person. Form_144 already
   // guards this at `Form_144.storage.ts` with `issuer_cik || null`.
   readonly issuer_cik: number | null;
-  readonly observer: EntityObserver;
+  readonly observer: ObserveOnlyEntityObserver;
 }
 
 /**
@@ -212,17 +193,6 @@ export async function processOwnershipForm({
   extractor_id: string;
   doc: OwnershipDocument;
 }): Promise<void> {
-  const versionRegistry = new VersionRegistry(
-    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-  );
-
-  const [personSlot, companySlot] = await Promise.all([
-    getActiveSlot(versionRegistry, "resolver", "person"),
-    getActiveSlot(versionRegistry, "resolver", "company"),
-  ]);
-
-  const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
-  const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
   // 1.0.1 (S-MAIN-01): preserve null issuer_cik on observation path so
   // PersonResolver does not collapse same-named reporting owners across
   // unrelated filers via the 0 sentinel. Patch bump — same dev cycle.
@@ -237,33 +207,7 @@ export async function processOwnershipForm({
   // the SQL column is non-null (TypeSecCik is `Type.Number`).
   const issuer_cik = parseCikSafely(doc.issuer?.issuerCik) || null;
 
-  const personResolver = new PersonResolver({
-    canonicalPersonRepo: new CanonicalPersonRepo(),
-    canonicalPersonAliasRepo: new CanonicalPersonAliasRepo(),
-    activeResolverVersion: activeResolverPersonVersion,
-  });
-  const companyResolver = new CompanyResolver({
-    canonicalCompanyRepo: new CanonicalCompanyRepo(),
-    canonicalCompanyAliasRepo: new CanonicalCompanyAliasRepo(),
-    activeResolverVersion: activeResolverCompanyVersion,
-  });
-
-  const observer = new EntityObserver({
-    personObservationRepo: new PersonObservationRepo(),
-    personObservationTitleRepo: new PersonObservationTitleRepo(),
-    companyObservationRepo: new CompanyObservationRepo(),
-    personIdentityLinkRepo: new PersonIdentityLinkRepo(),
-    companyIdentityLinkRepo: new CompanyIdentityLinkRepo(),
-    personResolver,
-    companyResolver,
-    canonicalPersonAddressRepo: new CanonicalPersonAddressRepo(),
-    canonicalPersonPhoneRepo: new CanonicalPersonPhoneRepo(),
-    canonicalCompanyAddressRepo: new CanonicalCompanyAddressRepo(),
-    canonicalCompanyPhoneRepo: new CanonicalCompanyPhoneRepo(),
-    personRoleRepo: new PersonRoleRepo(),
-    activeResolverPersonVersion,
-    activeResolverCompanyVersion,
-  });
+  const observer = buildObserveOnlyEntityObserver();
 
   const ctx: OwnershipStorageContext = {
     accession_number,
