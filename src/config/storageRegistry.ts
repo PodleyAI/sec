@@ -630,7 +630,16 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     table: "filings",
     schema: FilingSchema,
     primaryKeyNames: FilingPrimaryKeyNames,
-    indexes: [["form", "cik"], ["filing_date"], ["accession_number"], ["file_number"]],
+    indexes: [
+      ["form", "cik"],
+      ["filing_date"],
+      ["accession_number"],
+      ["file_number"],
+      // Contact dossiers ask for the newest filing once per connected CIK.
+      // The PK starts with CIK but cannot answer the filing-date order, which
+      // made every row in a large dossier sort that company's entire history.
+      ["cik", "filing_date", "accession_number"],
+    ],
   }),
   defineStorage({
     token: FILING_DOCUMENT_REPOSITORY_TOKEN,
