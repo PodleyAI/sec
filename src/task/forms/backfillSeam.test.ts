@@ -23,13 +23,13 @@ describe("an extractor id whose reading is supplied elsewhere", () => {
     // The ids stay listed because this package holds their state — dead
     // letters, run rows and stored tables outlive whether it ships the
     // extractor, and an id with rows and no version slot is unreadable.
-    for (const id of ["redemption", "loi", "S-1", "424"]) {
+    for (const id of ["redemption", "loi", "S-1", "424", "merger-proxy", "25-15", "RW"]) {
       expect(listBackfillableExtractorIds()).toContain(id);
     }
   });
 
   it("resolves to no descriptor", () => {
-    for (const id of ["redemption", "loi", "S-1", "424"]) {
+    for (const id of ["redemption", "loi", "S-1", "424", "merger-proxy", "25-15", "RW"]) {
       expect(getBackfillDescriptor(id), `${id} must have no wiring here`).toBeUndefined();
     }
   });
@@ -91,15 +91,19 @@ describe("a contributed descriptor", () => {
     expect(processed).toEqual(["acc-b"]);
   });
 
-  it("wins over a descriptor this package ships for the same id", () => {
+  it("wins over the generic form-derived one for the same id", () => {
+    // `D` is form-routed here, so it already resolves to the generic
+    // all-filings-of-its-forms descriptor. The generic one carries no
+    // `filterTodo`; the contributed one deliberately does, so which of the two
+    // resolved is observable.
+    expect(getBackfillDescriptor("D")?.filterTodo).toBeUndefined();
     registerBackfillDescriptor({
-      extractorId: "merger-proxy",
+      extractorId: "D",
       selectCandidates: async () => [],
+      filterTodo: async (candidates) => candidates,
     });
-    // The built-in carries a `filterTodo`; the contributed one deliberately
-    // does not, so resolving to the contributed one is observable.
-    expect(getBackfillDescriptor("merger-proxy")?.filterTodo).toBeUndefined();
+    expect(getBackfillDescriptor("D")?.filterTodo).toBeDefined();
     clearRegisteredBackfillDescriptorsForTesting();
-    expect(getBackfillDescriptor("merger-proxy")?.filterTodo).toBeDefined();
+    expect(getBackfillDescriptor("D")?.filterTodo).toBeUndefined();
   });
 });

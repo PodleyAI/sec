@@ -15,7 +15,7 @@ import {
 } from "../../sec/forms/formExtractors";
 import { parserOnlyExtractorIdForForm } from "../../sec/forms/parserOnlyForms";
 import { registerSecFormExtractors } from "../../config/registerFormExtractors";
-import { EXTRACTOR_IDS, isNonfatalTimelineExtractor } from "./extractorIds";
+import { EXTRACTOR_IDS } from "./extractorIds";
 
 // Every routing assertion below answers from the form-extractor registry, which
 // is empty until something registers into it.
@@ -66,18 +66,6 @@ describe("extractorIds", () => {
       "merger-proxy",
       "redemption",
     ]);
-  });
-
-  it("treats ownership forms as nonfatal on the SPAC timeline", () => {
-    for (const form of ["3", "3/A", "4", "4/A", "5", "5/A", "144", "144/A"]) {
-      const ids = routedIds(form);
-      expect(ids, `form ${form}`).not.toHaveLength(0);
-      for (const id of ids) {
-        expect(isNonfatalTimelineExtractor(id), `${form} routes to ${id}`).toBe(true);
-      }
-    }
-    expect(isNonfatalTimelineExtractor("D")).toBe(false);
-    expect(isNonfatalTimelineExtractor("S-1")).toBe(false);
   });
 
   it("routes the merger proxies nowhere, and pins them as parsed-here-read-elsewhere", () => {

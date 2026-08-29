@@ -15,8 +15,6 @@ import {
   type FormExtractorStoreReport,
 } from "../../sec/forms/formExtractors";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import { SpacRepo } from "../../storage/spac/SpacRepo";
-import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import {
@@ -27,7 +25,7 @@ import {
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
-/** The known-SPAC-gated extractor, and an ungated one over the same form. */
+/** The gated extractor, and an ungated one over the same form. */
 const GATED_ID = "synth-deregistration";
 const UNGATED_ID = "synth-metadata";
 const FORM = "15-12G";
@@ -40,9 +38,14 @@ interface HandlerCapture {
 
 /**
  * Two extractors over one form, shaped like the pair the driver runs in
- * production: one whose handler is gated on a `spac` row it did not write, and
- * one with no gate at all. Both work from the submissions metadata alone, so
+ * production: one whose handler is gated on a row it did not write, and one
+ * with no gate at all. Both work from the submissions metadata alone, so
  * nothing is fetched and the run rows are the only output.
+ *
+ * The real gate asks a lifecycle table this package no longer holds, so the
+ * admitted set is a plain one here — what is under test is what the DISPATCHER
+ * records about a verdict, not how a handler reaches one. It reports its
+ * decline under the vocabulary sec ships, which is the half that has to match.
  *
  * The gated one is the defect in miniature — it returns early having written
  * nothing, and the driver records a SUCCESSFUL run for it either way.
@@ -54,7 +57,7 @@ function registerScriptedExtractors(): HandlerCapture {
     forms: [FORM],
     needsDocument: false,
     store: async ({ cik, accession_number }): Promise<FormExtractorStoreReport> => {
-      if ((await new SpacRepo().getSpac(cik)) === undefined) {
+      if (!admittedCiks.has(cik)) {
         return { gate: GATE_VERDICTS.noSpacRow };
       }
       wrote.push(accession_number);
@@ -86,16 +89,11 @@ async function seedExtractorVersion(id: string, semver: string): Promise<void> {
   });
 }
 
-async function seedSpac(cik: number): Promise<void> {
-  await new SpacReportWriter().recordRegistration({
-    cik,
-    accession_number: `${cik}-reg`,
-    filing_date: "2025-12-01",
-    form: "S-1",
-    primary_document: "s1.htm",
-    spac_name: "Gate SPAC Inc.",
-    spac_sic: 6770,
-  });
+/** The filers the gated extractor's own gate admits. */
+const admittedCiks = new Set<number>();
+
+function admitCik(cik: number): void {
+  admittedCiks.add(cik);
 }
 
 async function seedFiling(cik: number, accession_number: string): Promise<void> {
@@ -125,9 +123,9 @@ function runRepo(): ExtractorRunRepo {
 /**
  * The run ledger's account of WHY an extractor wrote nothing.
  *
- * A known-SPAC-gated handler that finds no row returns early and is still
- * recorded successful, because a recorded successful run is what stops a filing
- * being re-selected. Until the gate's verdict was written down, that row was
+ * A gated handler that finds no row returns early and is still recorded
+ * successful, because a recorded successful run is what stops a filing being
+ * re-selected. Until the gate's verdict was written down, that row was
  * indistinguishable from one whose handler examined the filing and had nothing
  * to say — and the only thing able to tell them apart was an inference over the
  * absence of downstream artifacts, which no new column can apply retroactively.
@@ -138,6 +136,7 @@ describe("ProcessAccessionDocFormTask gate-verdict recording", () => {
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
+    admittedCiks.clear();
     clearFormExtractorsForTesting();
     await seedExtractorVersion(GATED_ID, ACTIVE_VERSION);
     await seedExtractorVersion(UNGATED_ID, ACTIVE_VERSION);
@@ -174,7 +173,7 @@ describe("ProcessAccessionDocFormTask gate-verdict recording", () => {
   it("does not record a decline when the gate admitted the filing and the handler wrote", async () => {
     const cik = 812;
     const accession = "0000000000-26-000812";
-    await seedSpac(cik);
+    admitCik(cik);
     await seedFiling(cik, accession);
 
     await new ProcessAccessionDocFormTask().run({ accessionNumber: accession });
@@ -193,7 +192,7 @@ describe("ProcessAccessionDocFormTask gate-verdict recording", () => {
     // been turned away.
     const cik = 813;
     const accession = "0000000000-26-000813";
-    await seedSpac(cik);
+    admitCik(cik);
     await seedFiling(cik, accession);
 
     await new ProcessAccessionDocFormTask().run({ accessionNumber: accession });

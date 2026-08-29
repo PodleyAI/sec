@@ -9,8 +9,8 @@ import { Type } from "typebox";
 import { Task } from "workglow";
 import {
   importFamilyDescriptions,
-  importSpacEditorial,
   parseEditorialCsv,
+  spacEditorialImporter,
 } from "../../commands/editorialImport";
 
 export type EditorialImportTaskInput = {
@@ -94,6 +94,25 @@ export class EditorialImportTask extends Task<EditorialImportTaskInput, Editoria
             errors: [...parsed.errors],
             readError: null,
             importError: null,
+          });
+          continue;
+        }
+        const importSpacEditorial = spacEditorialImporter();
+        if (importSpacEditorial === undefined) {
+          // Refused by name rather than reported as written: the parse belongs
+          // to this package and the rows do not, so with no importer
+          // contributed there is nowhere for them to go.
+          results.push({
+            file,
+            kind: "failed",
+            written: 0,
+            created: 0,
+            skippedMissing: 0,
+            errors: [...parsed.errors],
+            readError: null,
+            importError:
+              `cannot import ${file}: this deployment registers no writer for spac ` +
+              "editorial rows",
           });
           continue;
         }

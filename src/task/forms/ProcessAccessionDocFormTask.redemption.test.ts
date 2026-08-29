@@ -17,8 +17,6 @@ import {
 import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import { SpacRepo } from "../../storage/spac/SpacRepo";
-import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
@@ -53,10 +51,15 @@ interface ExtractorCapture {
 /**
  * An 8-K extractor shaped like the one the driver runs in production: it wants
  * the whole submission fetched for EVERY filing of the form, and it reads those
- * exhibits only for a known SPAC carrying a redemption or letter-of-intent item.
- * Its gated pass records an `extractor_runs` row under an id of its own, which
- * is what makes "the gate was closed" observable as an absent row rather than
- * only as an absent argument.
+ * exhibits only for an admitted filer carrying a redemption or letter-of-intent
+ * item. Its gated pass records an `extractor_runs` row under an id of its own,
+ * which is what makes "the gate was closed" observable as an absent row rather
+ * than only as an absent argument.
+ *
+ * The real predicate asks a lifecycle table this package no longer holds, so
+ * the filer half is a plain set here. What is under test is the DISPATCHER —
+ * which file it fetches, what it hands a `store`, and what it records — and
+ * that is unchanged by how the extractor decides.
  */
 function registerScriptedExtractor(): ExtractorCapture {
   const seen: Array<string | undefined> = [];
@@ -67,7 +70,7 @@ function registerScriptedExtractor(): ExtractorCapture {
     readsFullSubmission: async ({ cik, items }) => {
       if (cik === undefined) return false;
       if (!hasRedemptionTriggerItem(items) && !hasLoiTriggerItem(items)) return false;
-      return (await new SpacRepo().getSpac(cik)) !== undefined;
+      return admittedCiks.has(cik);
     },
     parse: async (_form, text) => text,
     store: async (args) => {
@@ -111,16 +114,11 @@ async function seedExtractorVersion(id: string, semver: string): Promise<void> {
   });
 }
 
-async function seedSpac(cik: number): Promise<void> {
-  await new SpacReportWriter().recordRegistration({
-    cik,
-    accession_number: `${cik}-reg`,
-    filing_date: "2025-12-01",
-    form: "S-1",
-    primary_document: "s1.htm",
-    spac_name: "Redeem SPAC Inc.",
-    spac_sic: 6770,
-  });
+/** The filers the scripted extractor's own gate admits. */
+const admittedCiks = new Set<number>();
+
+function admitCik(cik: number): void {
+  admittedCiks.add(cik);
 }
 
 async function seedFiling(opts: {
@@ -152,6 +150,7 @@ async function seedFiling(opts: {
 
 /** Registry and version state a case needs, restored afterwards. */
 async function installScriptedExtractor(): Promise<ExtractorCapture> {
+  admittedCiks.clear();
   clearFormExtractorsForTesting();
   await seedExtractorVersion(EIGHT_K_ID, ACTIVE_VERSION);
   await seedExtractorVersion(GATED_ID, ACTIVE_VERSION);
@@ -168,9 +167,10 @@ function restoreShippedExtractors(): void {
  * The 8-K fetch policy and the narrative-pass gate, which used to be one flag.
  *
  * Fetching the whole submission is unconditional for 8-K; handing its EX-99
- * exhibits to a narrative pass is still gated on a known SPAC with a trigger
- * item. Pinning both halves together is the point — a single flag is how "fetch
- * more" and "feed the model more" became impossible to do separately.
+ * exhibits to a narrative pass is still gated, on a trigger item and on a filer
+ * the extractor's own gate admits. Pinning both halves together is the point —
+ * a single flag is how "fetch more" and "feed the model more" became impossible
+ * to do separately.
  */
 describe("ProcessAccessionDocFormTask 8-K fetch policy and narrative-pass gate", () => {
   let capture: ExtractorCapture | undefined;
@@ -187,9 +187,9 @@ describe("ProcessAccessionDocFormTask 8-K fetch policy and narrative-pass gate",
     resetDependencyInjectionsForTesting();
   });
 
-  it("fetches the full .txt for a known-SPAC trigger-item 8-K and feeds it to the extractor", async () => {
+  it("fetches the full .txt for an admitted filer's trigger-item 8-K and feeds it to the extractor", async () => {
     const accession = "0000000000-26-000007";
-    await seedSpac(7);
+    admitCik(7);
     await seedFiling({
       cik: 7,
       accession_number: accession,
@@ -207,7 +207,7 @@ describe("ProcessAccessionDocFormTask 8-K fetch policy and narrative-pass gate",
   // every 8-K, and what the extractor reads did not move with it.
   it("fetches the full .txt for a non-trigger item without feeding it to the extractor", async () => {
     const accession = "0000000000-26-000008";
-    await seedSpac(7);
+    admitCik(7);
     await seedFiling({
       cik: 7,
       accession_number: accession,
@@ -222,10 +222,10 @@ describe("ProcessAccessionDocFormTask 8-K fetch policy and narrative-pass gate",
     expect(capture?.seen).toEqual([undefined]);
   });
 
-  it("fetches the full .txt for a non-SPAC CIK without feeding it to the extractor", async () => {
-    // The two halves of the split, in one filing. It has a trigger item and no
-    // `spac` row: the fetch is unconditional so the exhibits reach disk, and the
-    // gate is unchanged so nothing reaches the gated pass.
+  it("fetches the full .txt for an unadmitted CIK without feeding it to the extractor", async () => {
+    // The two halves of the split, in one filing. It has a trigger item and a
+    // filer the gate does not admit: the fetch is unconditional so the exhibits
+    // reach disk, and the gate is unchanged so nothing reaches the gated pass.
     const accession = "0000000000-26-000010";
     await seedFiling({
       cik: 99,
@@ -282,7 +282,7 @@ describe("ProcessAccessionDocFormTask 8-K extractor_runs recording", () => {
     const cik = 50;
     const accession = "0000000000-26-000050";
 
-    await seedSpac(cik);
+    admitCik(cik);
     await seedFiling({
       cik,
       accession_number: accession,
@@ -307,7 +307,7 @@ describe("ProcessAccessionDocFormTask 8-K extractor_runs recording", () => {
 
   // The three below pin the run row's account of WHAT the extractor was handed,
   // which is the only place that fact survives the dispatch. Two 8-Ks of the
-  // same known SPAC, differing only in their item codes, produce classifications
+  // same admitted filer, differing only in their item codes, produce classifications
   // of different worth: one made over the EX-99 exhibits and one made over four
   // sentences pointing at them. Without this column a stored answer carrying no
   // merger detail cannot be told from a filing that genuinely had none, and a
@@ -316,7 +316,7 @@ describe("ProcessAccessionDocFormTask 8-K extractor_runs recording", () => {
     const cik = 51;
     const accession = "0000000000-26-000051";
 
-    await seedSpac(cik);
+    admitCik(cik);
     await seedFiling({
       cik,
       accession_number: accession,
@@ -333,12 +333,12 @@ describe("ProcessAccessionDocFormTask 8-K extractor_runs recording", () => {
   });
 
   it("records that it did not, for a filing whose items never open the gate", async () => {
-    // Same known SPAC and the same bytes on disk — only the item codes differ,
+    // Same admitted filer and the same bytes on disk — only the item codes differ,
     // and 2.02 is not a trigger item.
     const cik = 52;
     const accession = "0000000000-26-000052";
 
-    await seedSpac(cik);
+    admitCik(cik);
     await seedFiling({
       cik,
       accession_number: accession,
@@ -364,7 +364,7 @@ describe("ProcessAccessionDocFormTask 8-K extractor_runs recording", () => {
     const cik = 53;
     const accession = "0000000000-26-000053";
 
-    await seedSpac(cik);
+    admitCik(cik);
     await seedFiling({
       cik,
       accession_number: accession,

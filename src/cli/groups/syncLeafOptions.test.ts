@@ -22,24 +22,6 @@ vi.mock("../runWorkflow", () => ({
   runWorkflowCli: (...args: readonly unknown[]) => runWorkflowCli(...args),
 }));
 
-const runSpacTimelineIssuers = vi.fn(async (_args: unknown) => []);
-vi.mock("../sync/runSpacTimelineIssuers", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../sync/runSpacTimelineIssuers")>();
-  return { ...actual, runSpacTimelineIssuers: (args: unknown) => runSpacTimelineIssuers(args) };
-});
-
-const filterSpacCiksByHistory = vi.fn(async (ciks: readonly number[], _only: unknown) => [...ciks]);
-vi.mock("../sync/spacSyncCiks", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../sync/spacSyncCiks")>();
-  return {
-    ...actual,
-    listSpacProcessCiks: async () => [2, 4],
-    filterSpacCiksByHistory: (ciks: readonly number[], only: unknown) =>
-      filterSpacCiksByHistory(ciks, only),
-    spacUpdatesFiledOnOrAfter: async () => "2026-01-01",
-  };
-});
-
 import { addSyncCommand } from "./sync";
 import { registerSecSyncLeaves } from "../sync/registerSecSyncLeaves";
 import { parseIntOption } from "../GlobalOptions";
@@ -60,13 +42,27 @@ interface SeenRun {
 
 const seen: SeenRun[] = [];
 
-/** Stands in for the `adv` leaf another package contributes. */
+/**
+ * Stands in for the `adv` leaf another package contributes, declaring the two
+ * options that leaf really declares for its Form D step.
+ */
 function registerAdvStandIn(): void {
   registerSyncLeaf({
     id: "adv",
     description: "ADV pipeline",
     order: 80,
     inAll: false,
+    options: {
+      declare: [
+        {
+          flags: "--simple",
+          description: "Standalone Form D sweep only; required when running this step alone",
+          defaultValue: false,
+          steps: ["form-d"],
+        },
+        { ...SHARD_LEAF_OPTION, steps: ["form-d"] },
+      ],
+    },
     steps: [
       {
         id: "form-d",
@@ -154,52 +150,10 @@ function flagsOf(path: readonly string[]): readonly (string | undefined)[] {
 beforeEach(() => {
   seen.length = 0;
   runWorkflowCli.mockClear();
-  runSpacTimelineIssuers.mockClear();
-  filterSpacCiksByHistory.mockClear();
 });
 
 afterEach(() => {
   clearSyncLeavesForTesting();
-});
-
-describe("sync spacs options", () => {
-  it("hands --only and --concurrency to the process step", async () => {
-    await runSync(["spacs", "process", "--only", "updates", "-c", "7"]);
-
-    expect(filterSpacCiksByHistory).toHaveBeenCalledWith([2, 4], "updates");
-    expect(runSpacTimelineIssuers).toHaveBeenCalledWith(
-      expect.objectContaining({ ciks: [2, 4], concurrency: 7 })
-    );
-  });
-
-  it("processes both kinds at the default concurrency without them", async () => {
-    await runSync(["spacs", "process"]);
-
-    expect(filterSpacCiksByHistory).toHaveBeenCalledWith([2, 4], undefined);
-    expect(runSpacTimelineIssuers).toHaveBeenCalledWith(
-      expect.objectContaining({ concurrency: 3, filedOnOrAfter: undefined })
-    );
-  });
-
-  it("rejects an --only value outside the vocabulary", async () => {
-    await expect(runSync(["spacs", "process", "--only", "both"])).rejects.toThrow(/Invalid --only/);
-  });
-
-  it("hands --full to the identify step", async () => {
-    await runSync(["spacs", "identify", "--full"]);
-
-    const tasks = runWorkflowCli.mock.calls.at(-1)?.[0] as ReadonlyArray<{
-      defaults: Record<string, unknown>;
-    }>;
-    expect(tasks[0].defaults).toMatchObject({ full: true });
-  });
-
-  it("narrows the issuer list with --shard", async () => {
-    await runSync(["spacs", "process", "--shard", "1/2"]);
-
-    // 1/2 is shard 0 of 2, so only the even CIKs — both of these — belong to it.
-    expect(runSpacTimelineIssuers).toHaveBeenCalledWith(expect.objectContaining({ ciks: [2, 4] }));
-  });
 });
 
 describe("a contributed leaf's options", () => {

@@ -57,14 +57,6 @@ import { REGA_FINANCIAL_DATA_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinan
 import { REGA_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingHistorySchema";
 import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
 import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegAServiceProviderSchema";
-import { SPAC_REPOSITORY_TOKEN } from "../storage/spac/SpacSchema";
-import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../storage/spac/SpacCandidateSchema";
-import { SPAC_DEAL_REPOSITORY_TOKEN } from "../storage/spac/SpacDealSchema";
-import { SPAC_EVENT_REPOSITORY_TOKEN } from "../storage/spac/SpacEventSchema";
-import { SPAC_HISTORY_REPOSITORY_TOKEN } from "../storage/spac/SpacHistorySchema";
-import { SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacMergerExtractionSchema";
-import { SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacRedemptionExtractionSchema";
-import { SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacLoiExtractionSchema";
 import {
   CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
@@ -187,14 +179,6 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(REGA_EQUITY_CLASS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_CURRENT_REPORT_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_OFFERING_EVENT_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_DEAL_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_EVENT_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_HISTORY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN).setupDatabase();
@@ -282,10 +266,10 @@ export async function setupAllDatabases(): Promise<void> {
       db.exec(ddl);
     }
     backfillExtractorRunsOutcome(db);
-    // Generic, and it subsumes the hand-written `spac.current_trust_*` pass
-    // that used to sit here: every one of those columns is nullable, so the
-    // planner emits exactly the same three ALTERs for each of `spac` and
-    // `spac_history`. `backfillExtractorRunsOutcome` stays hand-rolled — it
+    // Generic over the live table registry, which is why it replaced the
+    // hand-written per-column passes that used to sit here — and why it reaches
+    // a table a downstream package registered, since `createStorage` is what
+    // fills that registry. `backfillExtractorRunsOutcome` stays hand-rolled: it
     // seeds `outcome` from the existing `success` flag, which no generic
     // add-column pass can express.
     addMissingColumnsSqlite(db);
@@ -300,10 +284,9 @@ export async function setupAllDatabases(): Promise<void> {
   // Which extractors need a version slot is the same question as which
   // extractors can be RUN, so it is answered from the same place: every id in
   // the open form-extractor registry (a downstream package's registrations
-  // included) plus the ids whose candidate set is not form-derived and which
-  // therefore register no form of their own — the known-SPAC-gated 8-K
-  // detectors, which run inside the 8-K extractor's `store` and record
-  // `extractor_runs` rows under ids of their own.
+  // included), every id a package contributed a backfill descriptor for, and
+  // the ids this package still holds rows under whether or not it ships the
+  // reading that wrote them.
   await bootstrapComponentVersions(listBackfillableExtractorIds());
 
   // Create the shared SEC-fetch rate-limiter tables once here (Postgres only,

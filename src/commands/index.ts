@@ -21,7 +21,6 @@ import { addExtractorCommands } from "../cli/groups/extractor";
 import { addVerifyCommands } from "../cli/groups/verify";
 import { registerSponsorFamilyCommands } from "./sponsorFamily";
 import { registerUnderwriterFamilyCommands } from "./underwriterFamily";
-import { registerSpacCommands } from "./spac";
 import { registerEditorialCommands } from "./editorial";
 import { bootstrapSecRuntime } from "../config/bootstrapSecRuntime";
 import { registerSecWebUi } from "../web/registerSecWebUi";
@@ -139,7 +138,6 @@ export const AddCommands = (program: Command): void => {
   addCanonicalCommands(program);
   registerSponsorFamilyCommands(program);
   registerUnderwriterFamilyCommands(program);
-  registerSpacCommands(program);
   registerEditorialCommands(program);
   addExtractorCommands(program);
   addVerifyCommands(program);

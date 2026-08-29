@@ -170,36 +170,6 @@ export const MERGER_PROXY_SECTION = "merger";
 export const SECTIONLESS_REGISTRATION_FORMS: ReadonlySet<string> = new Set(["S-1MEF", "F-1MEF"]);
 
 /**
- * The extractors whose storage handlers are gated on an existing `spac` row and
- * record a SUCCESSFUL run when they find none — writing nothing while looking
- * processed to every anti-join.
- *
- * A sweep that reaches these before the registration statement that mints the
- * row therefore drops their events permanently. `sortFormsForSweep` keeps a
- * single sweep in dependency order; this set is what lets `spac process`
- * re-select a filing that was gated in an EARLIER sweep, once the row exists.
- */
-export const SPAC_ROW_GATED_EXTRACTORS: ReadonlySet<string> = new Set([
-  "8-K",
-  "merger-proxy",
-  "25-15",
-]);
-
-export function isSpacRowGatedExtractor(extractorId: string): boolean {
-  return SPAC_ROW_GATED_EXTRACTORS.has(extractorId);
-}
-
-/**
- * Ownership forms are off the SPAC timeline's critical path (S-1 → 424 → 8-K →
- * proxy → 25/15). A fetch miss on Form 3/4/5/144 must not fail `spac process`.
- */
-export const NONFATAL_TIMELINE_EXTRACTOR_IDS: ReadonlySet<string> = new Set(["3", "4", "5", "144"]);
-
-export function isNonfatalTimelineExtractor(extractorId: string): boolean {
-  return NONFATAL_TIMELINE_EXTRACTOR_IDS.has(extractorId);
-}
-
-/**
  * Order the forms sweep must drain its extractors in.
  *
  * The SPAC tier is a chain of gates: the registration statement mints the

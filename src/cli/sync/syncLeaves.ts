@@ -34,8 +34,9 @@ export interface SyncRunContext {
   readonly cik: number | undefined;
   /**
    * `sync documents --all-8k`: convert 8-Ks from every filer rather than only
-   * from CIKs in `spac`. Off by default, because every reporting company files
-   * them and the SPAC lifecycle is the only reason they are convertible at all.
+   * from the ones the registered conversion gate admits. Off by default,
+   * because every reporting company files them and a lifecycle model built out
+   * of them is the only reason they are convertible at all.
    */
   readonly all8k: boolean;
   /**

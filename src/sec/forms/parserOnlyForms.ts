@@ -30,8 +30,8 @@ import { allRegisteredExtractorIds, formHasExtractor } from "./formExtractors";
  * cannot grow — or go stale — without the suite saying so.
  *
  * The id is what a consumer registers under, not a guess: `EXTRACTOR_IDS`,
- * `SWEEP_PRIORITY`, `SPAC_ROW_GATED_EXTRACTORS` and `SYNC_FORM_DOMAINS` all
- * already name it, and this package still holds the tables its runs wrote.
+ * `SWEEP_PRIORITY` and `SYNC_FORM_DOMAINS` all already name it, and this
+ * package still holds the tables its runs wrote.
  */
 export const PARSER_ONLY_FORMS_BY_EXTRACTOR = {
   "merger-proxy": [

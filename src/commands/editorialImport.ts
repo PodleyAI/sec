@@ -10,8 +10,6 @@ import {
   FAMILY_DESCRIPTION_KINDS,
   type FamilyDescriptionKind,
 } from "../storage/canonical/FamilyDescriptionSchema";
-import { SpacRepo } from "../storage/spac/SpacRepo";
-import { SpacReportWriter } from "../storage/spac/SpacReportWriter";
 import { normalizeSponsorFamilyName } from "../resolver/SponsorFamilyResolver";
 import { normalizeUnderwriterFamilyName } from "../resolver/UnderwriterFamilyResolver";
 
@@ -165,38 +163,43 @@ export interface ImportSpacEditorialResult {
 }
 
 /**
- * Apply spac editorial rows via {@link SpacReportWriter.recordEditorial}. A CIK
- * with no spac row is skipped (and reported) unless `createMissing` — creating
- * a row marks the CIK a known SPAC, which gates 8-K/proxy processing, so
- * minting rows is opt-in.
+ * Writes parsed spac editorial rows onto the lifecycle rows they name.
+ *
+ * `createMissing` is what a caller passes through from `--create-missing`: a
+ * CIK with no lifecycle row is skipped and reported rather than minted, because
+ * minting one marks the CIK a known SPAC and that gates a whole tier of
+ * extraction.
  */
-export async function importSpacEditorial(
+export type SpacEditorialImporter = (
   rows: readonly SpacEditorialRow[],
   opts: { readonly createMissing: boolean; readonly dryRun: boolean }
-): Promise<ImportSpacEditorialResult> {
-  const spacRepo = new SpacRepo();
-  const writer = new SpacReportWriter();
-  let written = 0;
-  let created = 0;
-  const skippedMissing: number[] = [];
-  for (const row of rows) {
-    const exists = (await spacRepo.getSpac(row.cik)) !== undefined;
-    if (!exists && !opts.createMissing) {
-      skippedMissing.push(row.cik);
-      continue;
-    }
-    if (!opts.dryRun) {
-      await writer.recordEditorial({
-        cik: row.cik,
-        url_spac: row.url_spac,
-        url_sponsor: row.url_sponsor,
-        details: row.details,
-      });
-    }
-    written++;
-    if (!exists) created++;
-  }
-  return { written, created, skippedMissing };
+) => Promise<ImportSpacEditorialResult>;
+
+/**
+ * The contributed importer, or undefined when nothing registered one.
+ *
+ * The CSV is this package's — its shape, its validation, its line-numbered
+ * errors — but the rows it names live in a lifecycle model that need not ship
+ * here. So the parse stays and the WRITE is contributed. With nothing
+ * registered, an editorial CSV of that shape is refused by name rather than
+ * reported as imported: a caller that hands this a file and is told it wrote
+ * rows nobody stored has been told something false.
+ */
+let registeredSpacImporter: SpacEditorialImporter | undefined;
+
+/** Contribute the writer for the spac half of an editorial CSV. Idempotent. */
+export function registerSpacEditorialImporter(importer: SpacEditorialImporter): void {
+  registeredSpacImporter = importer;
+}
+
+/** Test hook: forget the contributed importer. */
+export function clearSpacEditorialImporterForTesting(): void {
+  registeredSpacImporter = undefined;
+}
+
+/** The contributed importer, or undefined when none was contributed. */
+export function spacEditorialImporter(): SpacEditorialImporter | undefined {
+  return registeredSpacImporter;
 }
 
 /** Apply family-description rows to the version-independent `family_description` table. */

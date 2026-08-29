@@ -160,28 +160,6 @@ describe("addMissingColumnsSqlite (real SQLite)", () => {
     expect(liveColumnNames("filings")).toEqual(before);
     expect(warn).not.toHaveBeenCalled();
   });
-
-  it("subsumes the hand-written spac.current_trust_* pass it replaced", async () => {
-    // Those three columns had a bespoke `ensureSpacCurrentTrustColumns*` pair,
-    // deleted in favour of this pass. They are all nullable, so the generic
-    // planner reaches them — asserted here rather than assumed, because the
-    // deletion is only safe if it does.
-    const db = getDb();
-    for (const table of ["spac", "spac_history"]) {
-      for (const column of ["current_trust_amount", "current_trust_as_of", "current_trust_filed"]) {
-        db.exec(`ALTER TABLE \`${table}\` DROP COLUMN \`${column}\``);
-      }
-    }
-
-    addMissingColumnsSqlite(db);
-
-    for (const table of ["spac", "spac_history"]) {
-      const live = liveColumnNames(table);
-      expect(live).toContain("current_trust_amount");
-      expect(live).toContain("current_trust_as_of");
-      expect(live).toContain("current_trust_filed");
-    }
-  });
 });
 
 /**

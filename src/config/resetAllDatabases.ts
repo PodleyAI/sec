@@ -110,14 +110,6 @@ import {
   SECTION16_HOLDING_REPOSITORY_TOKEN,
   SECTION16_TRANSACTION_REPOSITORY_TOKEN,
 } from "../storage/section16/Section16Schema";
-import { SPAC_DEAL_REPOSITORY_TOKEN } from "../storage/spac/SpacDealSchema";
-import { SPAC_EVENT_REPOSITORY_TOKEN } from "../storage/spac/SpacEventSchema";
-import { SPAC_HISTORY_REPOSITORY_TOKEN } from "../storage/spac/SpacHistorySchema";
-import { SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacMergerExtractionSchema";
-import { SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacRedemptionExtractionSchema";
-import { SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacLoiExtractionSchema";
-import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../storage/spac/SpacCandidateSchema";
-import { SPAC_REPOSITORY_TOKEN } from "../storage/spac/SpacSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 
 /** Options for {@link resetAllDatabases}. */
@@ -464,15 +456,6 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).deleteAll();
-  // SPAC lifecycle: derived `spac` row + append-only deal/event/extraction tables.
-  await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_DEAL_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_EVENT_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_HISTORY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN).deleteAll();
   // Section 16 (Forms 3/4/5) and Form 144 detail tables.
   await globalServiceRegistry.get(SECTION16_FILING_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SECTION16_TRANSACTION_REPOSITORY_TOKEN).deleteAll();

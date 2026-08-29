@@ -81,12 +81,12 @@ describe("syncLeaves registry", () => {
       "portals",
       "crowdfunding",
       "reg-a",
-      "spacs",
       // Last, and in `sync all` on purpose: a filing nobody has converted is a
       // page that offers an EDGAR link instead of the filing, so conversion has
       // to keep up with ingest without an operator remembering a second command.
-      // Bounded per run by DEFAULT_CONVERT_LIMIT, and it runs after `spacs` so
-      // the documents it wants are already in the fetch cache.
+      // Bounded per run by DEFAULT_CONVERT_LIMIT, and its order leaves it after
+      // any leaf a downstream package registers ahead of it, so the documents it
+      // wants are already in the fetch cache.
       "documents",
     ]);
   });

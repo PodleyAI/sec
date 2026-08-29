@@ -387,42 +387,6 @@ import {
   Form8KEventSchema,
   Form8KEventUniqueIndexes,
 } from "../storage/form-8k-event/Form8KEventSchema";
-import { SPAC_REPOSITORY_TOKEN, SpacPrimaryKeyNames, SpacSchema } from "../storage/spac/SpacSchema";
-import {
-  SPAC_CANDIDATE_REPOSITORY_TOKEN,
-  SpacCandidatePrimaryKeyNames,
-  SpacCandidateSchema,
-} from "../storage/spac/SpacCandidateSchema";
-import {
-  SPAC_DEAL_REPOSITORY_TOKEN,
-  SpacDealPrimaryKeyNames,
-  SpacDealSchema,
-} from "../storage/spac/SpacDealSchema";
-import {
-  SPAC_EVENT_REPOSITORY_TOKEN,
-  SpacEventPrimaryKeyNames,
-  SpacEventSchema,
-} from "../storage/spac/SpacEventSchema";
-import {
-  SPAC_HISTORY_REPOSITORY_TOKEN,
-  SpacHistoryPrimaryKeyNames,
-  SpacHistorySchema,
-} from "../storage/spac/SpacHistorySchema";
-import {
-  SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN,
-  SpacMergerExtractionPrimaryKeyNames,
-  SpacMergerExtractionSchema,
-} from "../storage/spac/SpacMergerExtractionSchema";
-import {
-  SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN,
-  SpacRedemptionExtractionPrimaryKeyNames,
-  SpacRedemptionExtractionSchema,
-} from "../storage/spac/SpacRedemptionExtractionSchema";
-import {
-  SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN,
-  SpacLoiExtractionPrimaryKeyNames,
-  SpacLoiExtractionSchema,
-} from "../storage/spac/SpacLoiExtractionSchema";
 
 /**
  * One tabular storage: the DI token it is registered under, the table it maps
@@ -834,63 +798,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     // By issuer over time (the timeline query) and by the offering the event
     // belongs to, which is how a supplement is joined back to its `024-` line.
     indexes: [["cik", "filing_date"], ["file_number"]],
-  }),
-  // ------------------------------ SPAC ------------------------------------------
-  defineStorage({
-    token: SPAC_REPOSITORY_TOKEN,
-    table: "spac",
-    schema: SpacSchema,
-    primaryKeyNames: SpacPrimaryKeyNames,
-    indexes: [["status"], ["current_cik"]],
-  }),
-  defineStorage({
-    token: SPAC_CANDIDATE_REPOSITORY_TOKEN,
-    table: "spac_candidate",
-    schema: SpacCandidateSchema,
-    primaryKeyNames: SpacCandidatePrimaryKeyNames,
-    indexes: [["confidence"], ["first_reg_date"]],
-  }),
-  defineStorage({
-    token: SPAC_DEAL_REPOSITORY_TOKEN,
-    table: "spac_deal",
-    schema: SpacDealSchema,
-    primaryKeyNames: SpacDealPrimaryKeyNames,
-    indexes: [["cik"], ["outcome"]],
-  }),
-  defineStorage({
-    token: SPAC_EVENT_REPOSITORY_TOKEN,
-    table: "spac_event",
-    schema: SpacEventSchema,
-    primaryKeyNames: SpacEventPrimaryKeyNames,
-    indexes: [["cik"], ["event_type"]],
-  }),
-  defineStorage({
-    token: SPAC_HISTORY_REPOSITORY_TOKEN,
-    table: "spac_history",
-    schema: SpacHistorySchema,
-    primaryKeyNames: SpacHistoryPrimaryKeyNames,
-    indexes: [["cik"]],
-  }),
-  defineStorage({
-    token: SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN,
-    table: "spac_merger_extraction",
-    schema: SpacMergerExtractionSchema,
-    primaryKeyNames: SpacMergerExtractionPrimaryKeyNames,
-    indexes: [["cik"]],
-  }),
-  defineStorage({
-    token: SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN,
-    table: "spac_redemption_extraction",
-    schema: SpacRedemptionExtractionSchema,
-    primaryKeyNames: SpacRedemptionExtractionPrimaryKeyNames,
-    indexes: [["cik"]],
-  }),
-  defineStorage({
-    token: SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN,
-    table: "spac_loi_extraction",
-    schema: SpacLoiExtractionSchema,
-    primaryKeyNames: SpacLoiExtractionPrimaryKeyNames,
-    indexes: [["cik"]],
   }),
   // ----- Observation / Canonical / Resolver -----
   defineStorage({

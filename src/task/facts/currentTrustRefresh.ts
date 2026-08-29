@@ -5,13 +5,13 @@
  */
 
 /**
- * Lifting a periodic report's trust balance onto a SPAC's `current_trust_*`.
+ * Lifting a periodic report's trust balance onto a lifecycle row.
  *
  * Which XBRL concept, taxonomy and period wins is a judgement about a lifecycle
  * model rather than about company facts, so it is contributed by whichever
- * package owns that model. This package holds the `company_facts` rows it reads
- * and the `spac` row it writes, and knows only that something may want to be
- * told when a CIK's facts have just been refreshed.
+ * package owns that model — along with the row it writes. This package holds
+ * only the `company_facts` rows such a reading starts from, and knows only that
+ * something may want to be told when a CIK's facts have just been refreshed.
  */
 export interface CurrentTrustRefresh {
   /** Whether a refresh would change the row, without writing (dry run). */

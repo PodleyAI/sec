@@ -12,7 +12,7 @@ import type { FetchCompanyFactsTaskOutput } from "./FetchCompanyFactsTask";
 import {
   clearCurrentTrustRefreshForTesting,
   registerCurrentTrustRefresh,
-} from "../../storage/spac/currentTrustRefresh";
+} from "./currentTrustRefresh";
 import { fetchAndStoreCompanyFactsWithDeps } from "./fetchAndStoreCompanyFacts";
 import { NoXbrlFactsError } from "./NoXbrlFactsError";
 

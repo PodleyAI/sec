@@ -207,7 +207,7 @@ Bring local SEC data forward to today. `sync` is a **command group** — bare `s
 | `--shard <i/N>`   | `portals`, `crowdfunding`, `reg-a`, `spacs`, `forms` | Process shard _i_ of _N_ (1-based)                                                                                                                                         |
 | `--types <list>`  | `documents`                                          | Narrow the forms converted (comma-separated); default is the narrative set in `CONVERTIBLE_FORMS`                                                                          |
 | `--since <date>`  | `documents`                                          | Only convert filings filed on or after this date (`YYYY-MM-DD`)                                                                                                            |
-| `--cik <cik>`     | `documents`                                          | Convert only this issuer's filings — the follow-up to `spac process <cik>`, since an unfiltered sweep works newest-first across every filer                                |
+| `--cik <cik>`     | `documents`                                          | Convert only this issuer's filings — the follow-up to processing one issuer, since an unfiltered sweep works newest-first across every filer                               |
 | `--limit <n>`     | `documents`                                          | Filings converted in one run (default **500**)                                                                                                                             |
 | `--all-8k`        | `documents`                                          | Convert 8-Ks from every filer; the default takes one only when its CIK is in `spac`                                                                                        |
 | `--download-only` | `documents`                                          | Fetch the selected filings into the accession-doc cache and stop — no parsing, no rows                                                                                     |
@@ -253,18 +253,16 @@ resumable and bounded at 500 filings per run — a backfill is many runs, not on
 accession-doc fetch cache first and only reaches EDGAR on a miss, and it runs LAST in `sync all` so
 the documents it wants are already cached by the sweeps before it.
 
-**One issuer, end to end.** To get a single SPAC's filings — and their readable text — into the
-database:
+**One issuer, end to end.** To get a single issuer's filings — and their readable text — into
+the database:
 
 ```sh
 sec fetch submissions 1811882     # filings, entity, tickers, addresses for that CIK
-sec spac process 1811882          # replay its filings in date order: extraction, timeline, events
+sec sync forms S-1,424 --cik ...  # or an extractor sweep over the forms you want read
 sec sync documents --cik 1811882  # convert those filings to markdown sections
 ```
 
-The first creates the `filings` rows the other two select from; without it they have nothing to
-find. `spac process` is incremental — a filing with a recorded successful run is skipped — so
-re-running is cheap, and `--force` is what rebuilds.
+The first creates the `filings` rows the others select from; without it they have nothing to find.
 
 Scoped to the narrative forms (registrations, prospectuses, merger proxies, 8-Ks) rather than to
 every filing: `filings` is hundreds of thousands of rows, most of them ownership XML with no prose.
@@ -276,9 +274,14 @@ half-finished re-run then leaves the old rows readable.
 lifecycle is built out of them — the LOI, the definitive agreement, the redemption, the closing —
 but every reporting company files one on every earnings release and every material event, and
 unfiltered they outnumber the rest of the convertible set by more than an order of magnitude. So the
-default sweep takes an 8-K only when its filer appears in `spac`, matching either `cik` or
-`current_cik` (a combination that moves the reporting entity files its closing 8-K under the new
-one). `--all-8k` converts them for every filer.
+default sweep takes an 8-K only for a filer the registered `FilingConversionGate` admits.
+
+Which filers those are is not this package's call — it comes from a lifecycle model that need not
+ship here — so the gate is contributed through `registerFilingConversionGate`, and a deployment that
+registers none converts **no** 8-Ks at all. That is the cheap answer rather than the expensive one:
+the two available answers are "none of them" and "every 8-K of every filer", and the second costs a
+corpus of markdown for filers this product has no page for. `--all-8k` converts them for every
+filer.
 
 **`--download-only` splits the leaf in half.** It runs the same selection and the same fetch,
 then stops: no parse, no rows. The two halves have very different costs — the download is
@@ -293,10 +296,8 @@ network, and the conversion sweep that follows makes no requests at all. The run
 reports them too, which is what distinguishes a run that is slow because of EDGAR from one that
 is slow because of the parser.
 
-The gate reads `spac`, the **known-SPAC** table written by `spac process` — not the
-`spac_candidate` screen, which is a guess, and this is the expensive half of the work. A deployment
-that has ingested submissions but not yet run `sec sync spacs` therefore has an empty `spac` table
-and converts **no** 8-Ks: run the SPAC leaf first, or pass `--all-8k`.
+A deployment of this package alone registers no gate and therefore converts **no** 8-Ks: install
+the package that contributes one, or pass `--all-8k`.
 
 ---
 

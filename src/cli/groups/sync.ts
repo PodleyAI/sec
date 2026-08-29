@@ -80,27 +80,6 @@ function applyLeafOptions(cmd: Command, leaf: SyncLeaf, stepId: string | undefin
   return cmd;
 }
 
-/**
- * Options for `sync adv form-d` (standalone Form D sweep; replaces removed `sync form-d`).
- *
- * The last leaf whose options are declared here rather than by the leaf: the
- * package contributing `adv` declares none of its own yet. Moving these onto
- * that leaf's own {@link SyncLeaf.options} deletes this function and its call
- * site with no change to what the command parses.
- */
-function applyAdvFormDStepOptions(cmd: Command): Command {
-  return cmd
-    .option(
-      "--simple",
-      "Standalone Form D sweep only (formerly sync form-d); required when running this step alone",
-      false
-    )
-    .option(
-      "--shard <i/N>",
-      "Process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"
-    );
-}
-
 /** Runs a leaf, or one step of it, under the options that command declared. */
 async function runLeaf(leaf: SyncLeaf, opts: LeafOpts, stepId: string | undefined): Promise<void> {
   await runCommand(
@@ -164,13 +143,10 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
     // which part of it is running does not change what `--shard` or `--force`
     // mean.
     applyLeafOptions(stepCmd, leaf, step.id);
-    if (leaf.id === "adv" && step.id === "form-d") {
-      applyAdvFormDStepOptions(stepCmd);
-    }
     stepCmd.action(async (opts: LeafOpts) => runLeaf(leaf, opts, step.id));
   }
 
-  // Deliberately no action on the group. Bare `sync spacs` names a group
+  // Deliberately no action on the group. Bare `sync <leaf>` names a group
   // rather than a job, and commander answers a missing subcommand with the
   // command's help — which is the listing we want, and which an action would
   // instead route through the CLI's preAction hook, demanding configuration to

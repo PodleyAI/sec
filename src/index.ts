@@ -127,13 +127,20 @@ export {
   registerSafeFetch,
   Sqlite,
   Task,
+  TaskError,
+  TaskRegistry,
   Workflow,
+  uuid4,
 } from "workglow";
 export type {
+  DataPorts,
   FetchUrlTaskInput,
   FetchUrlTaskOutput,
   IExecuteContext,
+  ITask,
+  PageCursor,
   SafeFetchFn,
+  SearchCriteria,
   ServiceToken,
   TaskOutput,
 } from "workglow";
@@ -536,21 +543,10 @@ export { SpacUnitTermsRepo } from "./storage/offering/SpacUnitTermsRepo";
 // it out of this package. Anything outside that migration should treat them as
 // private and use the surfaces above instead.
 //
-// The SPAC lifecycle tier (the `spac` row, its event/report writer, and the
-// per-form LOI / merger / redemption extraction rows) and the canonical family
-// tier (sponsor and underwriter family resolution, membership and links) are
-// the two still here. `normalizeManagementTitles` is the third: the title
-// canonicalization stays only while this package's inline observe path calls
-// it.
-export { SpacRepo } from "./storage/spac/SpacRepo";
-export { SpacReportWriter, type ProxyEventVerdict } from "./storage/spac/SpacReportWriter";
-export { SpacLoiExtractionRepo } from "./storage/spac/SpacLoiExtractionRepo";
-export { SpacMergerExtractionRepo } from "./storage/spac/SpacMergerExtractionRepo";
-export { SpacRedemptionExtractionRepo } from "./storage/spac/SpacRedemptionExtractionRepo";
-export { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "./storage/spac/SpacCandidateSchema";
-export type { SpacEvent, SpacEventType } from "./storage/spac/SpacEventSchema";
-export { pendingDealBefore } from "./storage/spac/spacDealGrouping";
-export { isNewerTrustSnapshot } from "./storage/spac/trustSnapshot";
+// The canonical family tier (sponsor and underwriter family resolution,
+// membership and links) is the one still here. `normalizeManagementTitles` is
+// the second: the title canonicalization stays only while this package's inline
+// observe path calls it.
 export { SponsorFamilyResolver } from "./resolver/SponsorFamilyResolver";
 export { UnderwriterFamilyResolver } from "./resolver/UnderwriterFamilyResolver";
 export { CanonicalSponsorFamilyAliasRepo } from "./storage/canonical/CanonicalSponsorFamilyAliasRepo";
@@ -626,7 +622,6 @@ export { ExecutiveCompensationRepo } from "./storage/executive-compensation/Exec
 export { RelatedPartyTransactionRepo } from "./storage/related-party/RelatedPartyTransactionRepo";
 export { RelatedPartyTransactionSchema } from "./storage/related-party/RelatedPartyTransactionSchema";
 export { Section16Repo } from "./storage/section16/Section16Repo";
-export type { SpacStatus } from "./storage/spac/SpacSchema";
 
 // Family-name normalization, so a sponsor or underwriter observed outside this
 // package folds to the same family key one observed inside it does.
@@ -676,13 +671,17 @@ export { tmpPathFor } from "./util/atomicFileWrite";
 export { describeFailureReason } from "./util/describeFailure";
 
 // The seam a package that ships a reading this one does not contributes its
-// backfill through, plus the descriptor shape and the ready-made factory for a
-// known-SPAC 8-K narrative pass. Without a contributed descriptor the id
-// resolves to no wiring and `sec extractor backfill` refuses it, which is the
-// answer a deployment without that package should get.
+// backfill through, plus the descriptor shape and the two pieces a contributed
+// descriptor is built from: the forms its own registration routed here, and the
+// default needing-work anti-join a descriptor widens rather than restates.
+// Without a contributed descriptor the id resolves to no wiring and
+// `sec extractor backfill` refuses it, which is the answer a deployment without
+// that package should get.
 export {
+  clearRegisteredBackfillDescriptorsForTesting,
+  defaultFilterTodo,
+  formsForExtractor,
   registerBackfillDescriptor,
-  spacTrigger8KDescriptor,
   type BackfillCandidate,
   type BackfillDescriptor,
 } from "./task/forms/backfillDescriptors";
@@ -691,26 +690,66 @@ export {
 // 8-K gate through. The forms are this package's call; whose 8-Ks are worth a
 // corpus of markdown is not, and with no gate registered the sweep converts
 // none of them — the cheap answer, not the expensive one.
+// The reader and the testing reset ride along with the registration: the gate
+// is one module-level slot, so a package contributing one is also the package
+// that has to prove its registration reached the seam and that the sweep still
+// behaves with none — neither of which can be asked from outside without them.
 export {
+  clearFilingConversionGateForTesting,
+  filingConversionGate,
   registerFilingConversionGate,
   type FilingConversionGate,
   type GateSqlFragment,
   type GateSqlPushdown,
   type GateSqlRequest,
 } from "./task/document/filingConversionGate";
-
-// The seam a package that owns a SPAC lifecycle model contributes its reading
-// of a filer's company facts through. The facts sweep and `spac backfill-trust`
-// reach for it and do nothing where none is contributed — the point being that
-// they do not call and swallow a failure per issuer, they do not call.
+// The selector the gate is applied by, so the package contributing a gate can
+// drive the sweep's own selection with it rather than asserting only about the
+// gate object — which filings a rule selects is the thing that matters, and it
+// is one query away from the rule.
+export { FILING_DOCUMENT_REPOSITORY_TOKEN } from "./storage/document/FilingDocumentSchema";
 export {
+  selectFilingsToConvert,
+  CONVERTIBLE_FORMS,
+  SPAC_GATED_FORMS,
+  type FilingToConvert,
+  type SelectFilingsOptions,
+} from "./task/document/selectFilingsToConvert";
+
+// The seam a package that owns a lifecycle model contributes its reading of a
+// filer's company facts through. The facts sweep reaches for it and does
+// nothing where none is contributed — the point being that it does not call and
+// swallow a failure per issuer, it does not call.
+// `currentTrustRefresh` and the testing reset ride along with the registration:
+// the sweep here is not the only caller that has to behave when nothing was
+// contributed, and the package that contributes one still asks the registry
+// rather than its own implementation — so the two callers ask the same
+// question, and the "nothing registered" branch stays reachable and testable
+// from the side that owns the reading.
+export {
+  clearCurrentTrustRefreshForTesting,
+  currentTrustRefresh,
   registerCurrentTrustRefresh,
   type CurrentTrustRefresh,
-} from "./storage/spac/currentTrustRefresh";
+} from "./task/facts/currentTrustRefresh";
 export {
   COMPANY_FACTS_REPOSITORY_TOKEN,
   type CompanyFact,
 } from "./storage/facts/CompanyFactsSchema";
+
+// The seam the same package contributes the WRITE half of an editorial CSV
+// through. The CSV's shape, its validation and its line-numbered errors are
+// this package's; the rows it names are a lifecycle model's. With nothing
+// registered, `editorial import` refuses a file of that shape by name rather
+// than reporting rows it stored nowhere.
+export {
+  parseEditorialCsv,
+  registerSpacEditorialImporter,
+  type ImportSpacEditorialResult,
+  type ParsedEditorialCsv,
+  type SpacEditorialImporter,
+  type SpacEditorialRow,
+} from "./commands/editorialImport";
 
 // The dispatcher itself. A package that registers a form extractor drives one
 // stored filing through this to see what its own registration actually does —
@@ -719,16 +758,22 @@ export {
 // directly and taking the wiring on trust.
 export { ProcessAccessionDocFormTask } from "./task/forms/ProcessAccessionDocFormTask";
 
-// What a listing-removal or registration-withdrawal reading is written
-// against. Both are SELECTION predicates over rows this package holds — the
-// filings around an accession, the events dated before it — and they are what
-// `sec spac process` and `sec extractor backfill 25-15` / `RW` re-select on, so
-// they stay here and the handler that writes the event reads them from here.
-export {
-  listingRemovalNeedsWork,
-  resolveListingRemovalKind,
-} from "./sec/forms/exchange-listing-withdrawal/listingRemovalSelection";
+// What a registration-withdrawal reading is written against: a SELECTION
+// predicate over rows this package holds — the filings around an accession —
+// so the handler that writes the event reads it from here rather than keeping a
+// second copy of the question.
 export { staffActionAbandonsRegistration } from "./sec/forms/registration-withdrawal-termination/staffActionAbandonsRegistration";
+
+// The forms this package PARSES and declares are read elsewhere, keyed by the
+// id the reading is recorded under. It is already the pinned answer to "which
+// forms carry a reading this deployment may not have" — `form-wiring.test.ts`
+// asserts it in both directions — so the package that supplies one of those
+// readings registers over exactly this set rather than keeping a second copy
+// that can drift a form at a time.
+export {
+  PARSER_ONLY_FORMS_BY_EXTRACTOR,
+  parserOnlyExtractorIdForForm,
+} from "./sec/forms/parserOnlyForms";
 export { EntityRepo } from "./storage/entity/EntityRepo";
 
 // Human-verified truth for the committed prospectus corpus. Read here by the

@@ -338,37 +338,11 @@ test("exports the form vocabulary, corpus paths and bookkeeping an extractor rea
   expect(sec.foldTypographicPunctuation("“Acme’s” — Corp")).toBe('"Acme\'s" - Corp');
 });
 
-// The scaffolding block covers three groups that leave this package on three
-// different schedules — the SPAC lifecycle repos, the sponsor/underwriter
-// family tier, and the roster/backfill helpers that stay. One test over all
-// three would still be passing under a name that had stopped describing it as
-// soon as the first group left, so each group is asserted on its own and the
-// group's test goes with the group.
-test("exports the SPAC lifecycle repos a relocated writer still records through", () => {
-  for (const name of [
-    "SpacRepo",
-    "SpacReportWriter",
-    "SpacLoiExtractionRepo",
-    "SpacMergerExtractionRepo",
-    "SpacRedemptionExtractionRepo",
-  ]) {
-    expect(typeof sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBe("function");
-  }
-
-  // `ProxyEventVerdict` is erased before this file runs, so it is pinned by
-  // annotating the decision a merger-proxy extractor actually holds: whether
-  // this filing's evidence emits a proxy event, retracts one an earlier run
-  // opened, or leaves the timeline alone.
-  const verdict: sec.ProxyEventVerdict = "retract";
-  const applied: Record<sec.ProxyEventVerdict, boolean> = {
-    emit: true,
-    retract: true,
-    leave: false,
-  };
-  expect(applied[verdict]).toBe(true);
-  expect(applied.leave).toBe(false);
-});
-
+// The scaffolding block covers groups that leave this package on different
+// schedules — the sponsor/underwriter family tier, and the roster/backfill
+// helpers that stay. One test over both would still be passing under a name
+// that had stopped describing it as soon as the first group left, so each group
+// is asserted on its own and the group's test goes with the group.
 test("exports the sponsor and underwriter family tier a relocated resolver still links through", () => {
   for (const name of [
     "SponsorFamilyResolver",
@@ -396,7 +370,8 @@ test("exports the roster titles and backfill descriptors a contributed extractor
   for (const name of [
     "normalizeManagementTitles",
     "registerBackfillDescriptor",
-    "spacTrigger8KDescriptor",
+    "defaultFilterTodo",
+    "formsForExtractor",
   ]) {
     expect(typeof sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBe("function");
   }
@@ -419,40 +394,6 @@ test("exports the roster titles and backfill descriptors a contributed extractor
     "Chief Executive Officer",
     "Director",
   ]);
-});
-
-// The write path a relocated lifecycle model is built out of spans two groups
-// with different lifetimes here: the lifecycle tables and the listing-removal
-// reading over them, and the form-agnostic machinery that outlives them. Split
-// for the same reason as the scaffolding block above — a test that keeps its
-// name only while both halves are present is a test nobody can retire cleanly.
-test("exports the SPAC lifecycle tables and the listing-removal reading over them", () => {
-  // What a relocated writer of `spac`, `spac_event` and `spac_deal` still reads
-  // from here: the screen a dropped-event warning is gated on, the trust
-  // snapshot comparison, and the SELECTION predicates a listing-removal replay
-  // is chosen by — all of them queries over rows this package holds.
-  for (const name of [
-    "isNewerTrustSnapshot",
-    "listingRemovalNeedsWork",
-    "pendingDealBefore",
-    "resolveListingRemovalKind",
-  ]) {
-    expect(typeof sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBe("function");
-  }
-  expect(
-    sec.SPAC_CANDIDATE_REPOSITORY_TOKEN,
-    "missing barrel export: SPAC_CANDIDATE_REPOSITORY_TOKEN"
-  ).toBeDefined();
-
-  // `SpacEvent` and `SpacEventType` are erased before this file runs, so they
-  // are pinned by annotating the values a contributing package actually holds:
-  // the events a listing-removal verdict is resolved against, and the event
-  // type a milestone carries. An annotation whose type the barrel stopped
-  // exporting fails `tsc -p tsconfig.test.json` naming it.
-  const events: readonly sec.SpacEvent[] = [];
-  const eventType: sec.SpacEventType = "definitive_agreement";
-  expect(events).toEqual([]);
-  expect(eventType).toBe("definitive_agreement");
 });
 
 test("exports the dispatcher, exhibit manifest and facts tier a relocated writer runs on", () => {

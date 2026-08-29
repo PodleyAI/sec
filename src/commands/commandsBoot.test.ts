@@ -44,6 +44,9 @@ describe("CLI command graph", () => {
       "version",
       "resolve",
       "canonical",
+      // Registered by registerSponsorFamilyCommands, whose `spac by-family` is
+      // now the whole of this group here — the lifecycle commands that used to
+      // share it belong to the package that owns the lifecycle.
       "spac",
       // Registered by registerUnderwriterFamilyCommands / the issuer query
       // group, and the only top-level evidence either of them ran.
@@ -75,10 +78,11 @@ describe("CLI command graph", () => {
       "crowdfunding",
       "reg-a",
       "forms",
-      "spacs",
     ]) {
       expect(subNames).toContain(expected);
     }
+    // Both belong to leaves a downstream package registers.
     expect(subNames).not.toContain("adv");
+    expect(subNames).not.toContain("spacs");
   });
 });

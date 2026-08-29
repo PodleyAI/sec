@@ -18,9 +18,6 @@ import { QueryPersonsTask } from "../task/query/QueryPersonsTask";
 import { QueryRegASummaryTask } from "../task/query/QueryRegASummaryTask";
 import { QueryRegATask } from "../task/query/QueryRegATask";
 import { QueryXbrlTask } from "../task/query/QueryXbrlTask";
-import { ListSpacCandidatesTask } from "../task/spac/ListSpacCandidatesTask";
-import { SpacHistoryTask } from "../task/spac/SpacHistoryTask";
-import { SpacReportTask } from "../task/spac/SpacReportTask";
 
 /**
  * The sec tasks worth offering as standalone `task run` targets.
@@ -51,9 +48,6 @@ export const SEC_CLI_TASKS = [
   QueryRegASummaryTask,
   QueryRegATask,
   QueryXbrlTask,
-  ListSpacCandidatesTask,
-  SpacHistoryTask,
-  SpacReportTask,
 ] as const;
 
 /**

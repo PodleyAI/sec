@@ -7,7 +7,7 @@
 import { IExecuteContext, TaskAbortedError } from "workglow";
 import type { FactsReasonCode } from "../../storage/processing/ProcessedFactsSchema";
 import { recordFactsOutcome } from "../../storage/processing/recordFactsOutcome";
-import { currentTrustRefresh } from "../../storage/spac/currentTrustRefresh";
+import { currentTrustRefresh } from "./currentTrustRefresh";
 import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { classifyFactsFetchError } from "./classifyFactsFetchError";
 import { FetchCompanyFactsTask, FetchCompanyFactsTaskOutput } from "./FetchCompanyFactsTask";

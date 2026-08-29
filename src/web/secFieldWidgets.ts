@@ -13,8 +13,6 @@ import { getVersionStatus } from "../cli/queries/VersionStatus";
 import { listResolverIds } from "../resolver/resolverExtensions";
 import { CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalSponsorFamilySchema";
 import { CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalUnderwriterFamilySchema";
-import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../storage/spac/SpacCandidateSchema";
-import { SpacRepo } from "../storage/spac/SpacRepo";
 import { EXTRACTOR_IDS } from "../storage/versioning/extractorIds";
 import { allRegisteredForms } from "../sec/forms/formExtractors";
 import { readPendingDeadLetterCounts } from "./secWebReads";
@@ -91,48 +89,6 @@ async function searchCiks(query: string): Promise<WebFieldWidgetItem[]> {
     label: row.name ?? padCik(row.cik),
     detail: `${padCik(row.cik)} · not ingested`,
   }));
-}
-
-/** Known SPACs only — the vehicles a `spac` row exists for. */
-async function searchSpacCiks(query: string): Promise<WebFieldWidgetItem[]> {
-  const needle = query.trim().toLowerCase();
-  const spacs = await new SpacRepo().getAllSpacs();
-  return spacs
-    .filter((spac) => {
-      if (!needle) return true;
-      if (String(spac.cik).startsWith(needle)) return true;
-      const names = [spac.spac_name, spac.current_name, spac.target_name];
-      return names.some((name) => name?.toLowerCase().includes(needle));
-    })
-    .slice(0, MAX_ITEMS)
-    .map((spac) => ({
-      value: String(spac.cik),
-      label: spac.spac_name ?? spac.current_name ?? padCik(spac.cik),
-      detail: [spac.status, spac.target_name ? `-> ${spac.target_name}` : undefined]
-        .filter(Boolean)
-        .join(" · "),
-    }));
-}
-
-/** The cheap screen's worklist, so `spac download` can be aimed by eye. */
-async function searchSpacCandidates(query: string): Promise<WebFieldWidgetItem[]> {
-  const needle = query.trim().toLowerCase();
-  const rows =
-    (await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).getOffsetPage(0, 5_000)) ??
-    [];
-  return rows
-    .filter(
-      (row) =>
-        !needle ||
-        String(row.cik).startsWith(needle) ||
-        (row.name ?? "").toLowerCase().includes(needle)
-    )
-    .slice(0, MAX_ITEMS)
-    .map((row) => ({
-      value: String(row.cik),
-      label: row.name ?? padCik(row.cik),
-      detail: `${row.confidence} confidence${row.first_reg_form ? ` · ${row.first_reg_form}` : ""}`,
-    }));
 }
 
 /**
@@ -306,12 +262,6 @@ export function registerSecFieldWidgets(): void {
   // schema, so registering the same picker there gives `task run` — and the
   // whole `sec-base` surface — the search box for free, with no annotation.
   registerWebFieldWidget({ format: "cik", source, search: searchCiks });
-  registerWebFieldWidget({ format: "sec:spac-cik", source, search: searchSpacCiks });
-  registerWebFieldWidget({
-    format: "sec:spac-candidate-cik",
-    source,
-    search: searchSpacCandidates,
-  });
   registerWebFieldWidget({ format: "sec:accession", source, search: searchAccessions });
   registerWebFieldWidget({ format: "sec:form", source, search: searchForms });
   registerWebFieldWidget({ format: "sec:extractor", source, search: searchExtractors });

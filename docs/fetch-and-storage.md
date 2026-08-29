@@ -249,8 +249,8 @@ advertised length at end of stream. ETag/Last-Modified marker bookkeeping stays 
 
 ### Streaming to fill a cache
 
-`sec spac download` (see `docs/spac.md`) fetches with `response_type: "stream"` **and**
-`shouldAccumulate: false`. The flag is what makes `"stream"` mean what it says: the cache
+A downloader whose whole job is filling the accession-doc cache fetches with
+`response_type: "stream"` **and** `shouldAccumulate: false`. The flag is what makes `"stream"` mean what it says: the cache
 sink receives every chunk without it, but `StreamProcessor` also tees each `binary-delta`
 into an accumulator and materializes the whole document at finish — so a command whose
 entire point is not to hold the document held a full copy of every filing in flight. The
@@ -317,11 +317,13 @@ so (`Rows (est.)`, a per-row `(est.)` marker, a footer pointing at `--exact`, an
 executor per backend). `CREATE TABLE IF NOT EXISTS` is a no-op on an existing table and
 `createStorage` declares no `tabularMigrations`, so a column added to a schema after a
 database was created never appears in it. Every write goes through `putBulk` with the full
-row, so the first write after the schema change fails outright —
-`spac_candidate.signal_filed_sic_6770` broke `sec sync spacs` on every pre-existing database
-that way. It runs before the alignment pass so a freshly-added column is eligible for
-widening in the same `db setup`, and it subsumes the hand-written `spac.current_trust_*`
-migration that used to sit beside it. `backfillExtractorRunsOutcome` stays hand-rolled — it
+row, so the first write after the schema change fails outright — the column that named this
+pass into existence, `spac_candidate.signal_filed_sic_6770`, broke a whole sync leaf on every
+pre-existing database that way. (Both that table and the leaf now live downstream, which is
+where the reproduction of that failure lives; the pass reaches them because `createStorage`
+is what fills the table registry it walks.) It runs before the alignment pass so a
+freshly-added column is eligible for widening in the same `db setup`, and it subsumes the
+hand-written per-column migrations that used to sit beside it. `backfillExtractorRunsOutcome` stays hand-rolled — it
 seeds `outcome` from `success`, which no generic pass can express.
 
 Two rails: only **nullable** columns are planned (SQLite rejects `ADD COLUMN NOT NULL`

@@ -9,6 +9,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import {
+  clearSpacEditorialImporterForTesting,
+  registerSpacEditorialImporter,
+} from "../../commands/editorialImport";
 import { EditorialImportTask } from "./EditorialImportTask";
 
 const tempDirectories: string[] = [];
@@ -19,6 +23,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  clearSpacEditorialImporterForTesting();
   for (const directory of tempDirectories.splice(0)) {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -56,5 +61,57 @@ describe("EditorialImportTask", () => {
       })
     );
     expect(results[2]).toMatchObject({ file: third, written: 1, importError: null });
+  });
+
+  /**
+   * The rows a spac editorial CSV names live in a lifecycle model shipped
+   * elsewhere, so the parse is here and the write is contributed. Reporting
+   * `written` for rows nobody stored is the failure worth refusing over — it
+   * looks exactly like a successful import.
+   */
+  it("refuses the spac half of the format when no writer is registered", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "sec-editorial-import-"));
+    tempDirectories.push(directory);
+    const file = join(directory, "spac.csv");
+    writeFileSync(
+      file,
+      "cik,name,url_spac,url_sponsor,details\n10,Known,,https://a.example.com,\n"
+    );
+
+    const { results } = await new EditorialImportTask({
+      defaults: { files: [file], createMissing: false, dryRun: false },
+    }).run();
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({ kind: "failed", written: 0, importError: expect.any(String) })
+    );
+    expect(results[0].importError).toMatch(/registers no writer for spac editorial rows/);
+  });
+
+  it("hands those rows to a registered writer, with the flags the caller passed", async () => {
+    const seen: Array<{ ciks: number[]; createMissing: boolean; dryRun: boolean }> = [];
+    registerSpacEditorialImporter(async (rows, opts) => {
+      seen.push({
+        ciks: rows.map((r) => r.cik),
+        createMissing: opts.createMissing,
+        dryRun: opts.dryRun,
+      });
+      return { written: rows.length, created: 1, skippedMissing: [] };
+    });
+
+    const directory = mkdtempSync(join(tmpdir(), "sec-editorial-import-"));
+    tempDirectories.push(directory);
+    const file = join(directory, "spac.csv");
+    writeFileSync(
+      file,
+      "cik,name,url_spac,url_sponsor,details\n10,Known,,https://a.example.com,\n"
+    );
+
+    const { results } = await new EditorialImportTask({
+      defaults: { files: [file], createMissing: true, dryRun: true },
+    }).run();
+
+    expect(seen).toEqual([{ ciks: [10], createMissing: true, dryRun: true }]);
+    expect(results[0]).toMatchObject({ kind: "spac", written: 1, created: 1, importError: null });
   });
 });

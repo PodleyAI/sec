@@ -222,7 +222,7 @@ sec fetch form <cik> 424B4      # priced prospectus
 | Sponsor promote        | `spac_promote_terms`                  | SPAC only                                   |
 | Lock-ups               | `spac_lockup_terms`                   | One row per restricted class                |
 | Risk factors           | `risk_factor`                         | Chunked; parked in production (see below)   |
-| SPAC classification    | `s1_classification` + `spac`          | See `docs/spac.md`                          |
+| SPAC classification    | `s1_classification`                   | The `spac` row it mints belongs downstream  |
 
 The offering-sections logic and the per-section dead-letter ceremony are shared with the 424
 processor (`s1/offeringSections.ts`, `s1/sectionRunner.ts`).
@@ -415,8 +415,8 @@ unreviewable; this branch still deletes rows a model returned and still lets the
 resolve as complete, so it must leave a record.
 
 **Production extraction is parked** (`EXTRACT_S1_RISK_FACTORS` in `Form_S_1.storage.ts`).
-`sec spac process` / `sec sync spacs` skip the AI call, leave previously extracted rows in
-place, and do not dead-letter the section. Flip the constant (or pass
+Every sweep skips the AI call, leaves previously extracted rows in place, and does not
+dead-letter the section. Flip the constant (or pass
 `extractRiskFactors: true` in tests) to re-enable; already-processed S-1s then need
 `sec extractor backfill S-1 --force`. The `risk-factors` eval entry is likewise flagged
 `disabled` — see `docs/eval.md`.

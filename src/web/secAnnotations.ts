@@ -14,7 +14,6 @@ import {
 import type { Command } from "commander";
 import { formatChoicesByPath } from "./formatChoices";
 import { listResolverIds } from "../resolver/resolverExtensions";
-import { SPAC_CANDIDATE_CONFIDENCES } from "../storage/spac/SpacCandidateSchema";
 import { EXTRACTOR_IDS } from "../storage/versioning/extractorIds";
 
 /**
@@ -26,8 +25,8 @@ import { EXTRACTOR_IDS } from "../storage/versioning/extractorIds";
  * a command does — the CLI is unchanged and the terminal is unaffected.
  *
  * Vocabularies are read from the same constants the commands validate against
- * (`EXTRACTOR_IDS`, `SPAC_CANDIDATE_CONFIDENCES`, the resolver registry) rather
- * than written out, so a dropdown cannot offer a value the CLI would reject.
+ * (`EXTRACTOR_IDS`, the resolver registry) rather than written out, so a
+ * dropdown cannot offer a value the CLI would reject.
  */
 
 const source = "@workglow/sec";
@@ -166,55 +165,6 @@ const FIELD_ANNOTATIONS: readonly CommandFieldAnnotations[] = [
     },
   },
 
-  // SPAC: two different populations, and the difference matters. `report` and
-  // `history` read a `spac` row, so their picker offers only known SPACs;
-  // `download` works off the cheap screen, so its picker offers candidates.
-  {
-    path: ["spac", "**"],
-    source,
-    fields: { cik: { format: "sec:spac-cik", placeholder: "known SPAC — search by name" } },
-  },
-  {
-    // `--confidence` is a single rung here and a CSV list on `spac download`,
-    // so the vocabulary is stated only where one value is what the flag takes.
-    // A select cannot express `high,medium`, which is that command's default.
-    path: ["spac", "candidates"],
-    source,
-    fields: {
-      confidence: {
-        choices: [...SPAC_CANDIDATE_CONFIDENCES],
-        description: "Screen confidence to include",
-      },
-    },
-  },
-  {
-    path: ["spac", "download", "*"],
-    source,
-    fields: {
-      confidence: {
-        placeholder: "high,medium",
-        multiple: true,
-        description: `Screen confidences to include, comma-separated (${SPAC_CANDIDATE_CONFIDENCES.join(", ")})`,
-      },
-    },
-  },
-  {
-    path: ["spac", "process"],
-    source,
-    fields: { ciks: { format: "sec:spac-candidate-cik", multiple: true } },
-  },
-
-  {
-    path: ["editorial", "**"],
-    source,
-    fields: {
-      cik: { format: "sec:spac-cik" },
-      "url-sponsor": { placeholder: "https://…" },
-      "url-spac": { placeholder: "https://…" },
-      details: { placeholder: '{"unit_price": 10}' },
-    },
-  },
-
   {
     path: ["sync", "**"],
     source,
@@ -262,53 +212,9 @@ const COMMAND_ANNOTATIONS: readonly WebCommandAnnotation[] = [
     badges: ["network", "slow", "writes"],
   },
   {
-    path: ["sync", "spacs", "**"],
-    source,
-    badges: ["network", "slow", "writes", "ai"],
-    note: "Processing runs the S-1 / 424 / 8-K extractors, which call a model per section.",
-  },
-  {
     path: ["sync", "forms"],
     source,
     badges: ["network", "slow", "writes", "ai"],
-  },
-
-  {
-    path: ["spac", "process"],
-    source,
-    badges: ["network", "slow", "writes", "ai"],
-    note: "Runs the AI extractors over each CIK's filings.",
-  },
-  {
-    path: ["spac", "download"],
-    source,
-    badges: ["network", "slow", "writes"],
-    note: "Fills the document cache only — no extractors run. `--force` deletes each cached file before re-fetching it, so a failed re-fetch leaves nothing.",
-  },
-  {
-    path: ["spac", "backfill-despac"],
-    source,
-    badges: ["writes"],
-  },
-  {
-    path: ["spac", "backfill-trust"],
-    source,
-    badges: ["writes"],
-  },
-  {
-    path: ["spac", "backfill-redemptions"],
-    source,
-    badges: ["writes", "ai", "slow"],
-  },
-  {
-    path: ["spac", "backfill-lois"],
-    source,
-    badges: ["writes", "ai", "slow"],
-  },
-  {
-    path: ["spac", "backfill-merger-proxies"],
-    source,
-    badges: ["writes", "ai", "slow"],
   },
 
   {

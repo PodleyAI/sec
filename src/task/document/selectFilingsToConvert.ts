@@ -13,21 +13,10 @@ import {
   FILING_REPOSITORY_TOKEN,
   type FilingRepositoryStorage,
 } from "../../storage/filing/FilingSchema";
-import { registerSpacFilingConversionGate } from "../../storage/spac/spacFilingConversionGate";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
 import { resolveSqlBackend } from "../../util/sqlBackend";
 import { filingConversionGate } from "./filingConversionGate";
-
-/**
- * Registered here, at module scope, rather than from the runtime bootstrap: the
- * sweep is reachable without one — a task invoked directly, a test wiring two
- * tables — and a gate that is only sometimes registered would silently change
- * which filings get converted depending on how the caller got here. This is the
- * one line that says a deployment shipping the `spac` table gates on it; a
- * deployment that owns those tables elsewhere registers its own gate instead.
- */
-registerSpacFilingConversionGate();
 
 /**
  * The forms whose narrative body this product actually reads.
@@ -74,9 +63,8 @@ export const CONVERTIBLE_FORMS: readonly string[] = [
  *
  * So the default sweep takes an 8-K only for a filer the registered
  * {@link FilingConversionGate} admits, and takes none at all when no gate is
- * registered. This package registers the known-SPAC table — not the
- * `spac_candidate` screen: a candidate is a guess and this is the expensive
- * half of the work. `--all-8k` converts them for every filer.
+ * registered — which is what this package on its own does, since it names no
+ * filer set of its own. `--all-8k` converts them for every filer.
  */
 export const SPAC_GATED_FORMS: readonly string[] = ["8-K", "8-K/A"];
 

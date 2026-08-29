@@ -7,8 +7,9 @@ Guidance for Claude Code (claude.ai/code) working in this repository.
 `@workglow/sec` is a CLI built on the Workglow AI library that retrieves SEC (EDGAR)
 filing data into SQLite or Postgres: CIK names, quarterly/daily indexes, company
 submissions, company facts, and individual filing forms (Form D, Form C, Form 1-A, S-1,
-424, 8-K, proxies, …). On top of raw ingest it runs AI extraction, an entity
-resolution tier, and a derived SPAC lifecycle model.
+424, 8-K, proxies, …). On top of raw ingest it runs AI extraction and an entity
+resolution tier. The SPAC lifecycle model built on those filings is a consumer
+package's — this one ships the tables, forms and seams it is built out of.
 
 Companion docs in this repo:
 
@@ -19,7 +20,6 @@ Companion docs in this repo:
 | `docs/fetch-and-storage.md` | Fetch layer, EDGAR rate limits, bulk downloads, `db setup`/`reset`  |
 | `docs/extraction.md`        | AI extraction, dead letters, per-extractor sections, segmentation   |
 | `docs/identity.md`          | Observations, resolvers, normalizers, versioning, re-key ceremonies |
-| `docs/spac.md`              | SPAC lifecycle model, candidate screen, backfills                   |
 | `docs/eval.md`              | Model comparison harnesses and golden truth                         |
 | `docs/verification.md`      | `sec verify`, block source spans, the coverage measure              |
 
@@ -55,9 +55,9 @@ The CLI entrypoint is `src/sec.ts` (Commander).
 ### Command shape
 
 A sync leaf with more than one step is a command **group**, not a command with a
-`--step` flag: `sec sync spacs` lists `all | identify | process`, `sec sync spacs all` is
-the whole leaf, `sec sync spacs identify` is one step. `sec sync all` runs every `inAll`
-leaf. A single-step leaf stays a plain command. The group itself has no action, so asking
+`--step` flag: `sec sync submissions` lists `all | index | submissions`,
+`sec sync submissions all` is the whole leaf, `sec sync submissions index` is one step.
+`sec sync all` runs every `inAll` leaf. A single-step leaf stays a plain command. The group itself has no action, so asking
 what it contains needs no configured database. A leaf declaring `runAll` (see `SyncLeaf`)
 runs its steps as ONE task graph, which is what keeps a multi-step leaf a single run in
 the progress UI.
@@ -214,9 +214,12 @@ model's input is an evaluable behavior change with its own golden truth.
 `extractor_runs.read_full_submission` records, per run, which answer each extractor got.
 
 **A recorded successful run is what stops a filing being re-selected.** Handlers that
-no-op behind a gate (known-SPAC checks) still record success, so recovering them needs a
-descriptor that widens or replaces the anti-join — never a bare re-run. See
-`docs/spac.md`.
+no-op behind a gate (a known-SPAC check, say) still record success, so recovering them
+needs a descriptor that widens or replaces the anti-join — never a bare re-run. Those
+handlers and their descriptors are a consumer package's; what stays here is the seam they
+arrive through (`registerBackfillDescriptor`) and the run ledger they are re-selected
+against. An id nothing contributed a descriptor for is refused by name rather than swept
+over zero filings and reported done.
 
 **`getDb()` is SQLite-only** and throws `SecCliConfigurationError` when
 `SEC_DB_TYPE !== "sqlite"`. Before that guard it would silently open a stray SQLite file
