@@ -33,6 +33,23 @@ registerFormExtractor({
   store: async () => {},
 });
 
+// The listing-removal and registration-withdrawal readings left the same way,
+// so `25-15` and `RW` need the same stand-ins for the same reason: both hold a
+// `SWEEP_PRIORITY` slot that only a deployment with that consumer exercises,
+// and Form RW's slot is the earliest gate in the chain.
+registerFormExtractor({
+  id: "25-15",
+  forms: PARSER_ONLY_FORMS_BY_EXTRACTOR["25-15"],
+  needsDocument: false,
+  store: async () => {},
+});
+registerFormExtractor({
+  id: "RW",
+  forms: PARSER_ONLY_FORMS_BY_EXTRACTOR["RW"],
+  needsDocument: false,
+  store: async () => {},
+});
+
 /**
  * Every form any registered extractor handles — the same set the sweep's own
  * worklist draws from.
@@ -66,7 +83,10 @@ describe("sortFormsForSweep", () => {
     const s1 = firstIndexOf(order, "S-1-xbrl");
     const rw = firstIndexOf(order, "RW");
     const p424 = firstIndexOf(order, "424-xbrl");
-    const eightK = firstIndexOf(order, "8-K");
+    // The 8-K family carries two extractors and the rank is read off whichever
+    // leads; this package registers the item-code half, so that is the lead
+    // here and `8-K` sits adjacent to it in `SWEEP_PRIORITY`.
+    const eightK = firstIndexOf(order, "8-K-items");
     const proxy = firstIndexOf(order, "merger-proxy");
     const dereg = firstIndexOf(order, "25-15");
     expect(s1).toBeLessThan(rw);
@@ -78,7 +98,7 @@ describe("sortFormsForSweep", () => {
 
   it("puts every ranked form ahead of every unranked one", () => {
     const order = sortFormsForSweep(allForms());
-    const ranked = new Set(["S-1-xbrl", "RW", "424-xbrl", "8-K", "merger-proxy", "25-15"]);
+    const ranked = new Set(["S-1-xbrl", "RW", "424-xbrl", "8-K-items", "merger-proxy", "25-15"]);
     const lastRanked = order.reduce(
       (acc, form, i) => (ranked.has(leadIdOf(form) ?? "") ? i : acc),
       -1

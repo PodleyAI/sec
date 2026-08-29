@@ -25,7 +25,7 @@ import {
   allRegisteredForms,
   formHandledByExtractor,
 } from "../../sec/forms/formExtractors";
-import { listingRemovalNeedsWork } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
+import { listingRemovalNeedsWork } from "../../sec/forms/exchange-listing-withdrawal/listingRemovalSelection";
 import { staffActionAbandonsRegistration } from "../../sec/forms/registration-withdrawal-termination/staffActionAbandonsRegistration";
 import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 

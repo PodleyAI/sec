@@ -7,8 +7,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
-import { processDeregistration } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
-import { processWithdrawal } from "../../sec/forms/registration-withdrawal-termination/processWithdrawal";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
@@ -41,6 +39,23 @@ import {
 registerFormExtractor({
   id: "merger-proxy",
   forms: PARSER_ONLY_FORMS_BY_EXTRACTOR["merger-proxy"],
+  store: async () => {},
+});
+
+// The listing-removal and registration-withdrawal handlers left with the same
+// lifecycle model, so `25-15` and `RW` are now parser-only here too and their
+// descriptors would likewise select nothing. Stand-ins over exactly the forms
+// this package pins for each keep both selections under test.
+registerFormExtractor({
+  id: "25-15",
+  forms: PARSER_ONLY_FORMS_BY_EXTRACTOR["25-15"],
+  needsDocument: false,
+  store: async () => {},
+});
+registerFormExtractor({
+  id: "RW",
+  forms: PARSER_ONLY_FORMS_BY_EXTRACTOR["RW"],
+  needsDocument: false,
   store: async () => {},
 });
 
@@ -164,7 +179,7 @@ describe("backfill descriptor registry", () => {
   });
 
   it("resolves a generic form-based descriptor for every form-routed extractor", () => {
-    for (const id of ["S-1-xbrl", "424-xbrl", "8-K", "C", "D", "CFPORTAL", "1-A", "144"]) {
+    for (const id of ["S-1-xbrl", "424-xbrl", "8-K-items", "C", "D", "CFPORTAL", "1-A", "144"]) {
       expect(getBackfillDescriptor(id)?.extractorId).toBe(id);
     }
   });
@@ -491,7 +506,12 @@ describe("25-15 descriptor", () => {
     const accessions = new Set(candidates.map((c) => c.accession_number));
     expect(accessions).toEqual(new Set(["acc-nse", "acc-15"]));
 
-    await processDeregistration({
+    // What processing `acc-nse` writes: `seedSpac` records a registration and
+    // no IPO, so the floor is unknown and an exchange 25-NSE is unit
+    // separation. The handler that writes it is supplied by the package that
+    // owns the lifecycle model, exactly as `merger-proxy`'s is, so the event it
+    // would record is written directly here.
+    await new SpacReportWriter().recordUnitSplit({
       cik: 5,
       accession_number: "acc-nse",
       form: "25-NSE",
@@ -571,7 +591,7 @@ describe("25-15 descriptor", () => {
       )
     ).toEqual(["acc-nse"]);
 
-    await processDeregistration({
+    await new SpacReportWriter().recordUnitSplit({
       cik: 5,
       accession_number: "acc-nse",
       form: "25-NSE",
@@ -695,7 +715,9 @@ describe("25-15 descriptor", () => {
     });
     await seedFiling({ cik: 5, accession_number: "acc-nse-1", form: "25-NSE" });
     await seedFiling({ cik: 5, accession_number: "acc-nse-2", form: "25-NSE" });
-    await processDeregistration({
+    // 45 days after the IPO, so the classifier calls the first 25-NSE unit
+    // separation and the corrected event is written directly.
+    await new SpacReportWriter().recordUnitSplit({
       cik: 5,
       accession_number: "acc-nse-1",
       form: "25-NSE",
@@ -734,7 +756,7 @@ describe("RW descriptor", () => {
     const accessions = new Set(candidates.map((c) => c.accession_number));
     expect(accessions).toEqual(new Set(["acc-rw", "acc-rw2"]));
 
-    await processWithdrawal({
+    await new SpacReportWriter().recordWithdrawal({
       cik: 5,
       accession_number: "acc-rw",
       form: "RW",

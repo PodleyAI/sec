@@ -32,6 +32,12 @@ beforeAll(() => {
   // A second registry key under an EXISTING id, so the shipped `merger-proxy`
   // registration is widened rather than replaced.
   registerFormExtractor({ id: "merger-proxy", section: "de-spac", forms: [S4], store: noopStore });
+  // An 8-K carries two extractors too: the item codes this package records
+  // under `8-K-items`, and the de-SPAC milestone reading a consumer registers
+  // under `8-K` — the one whose known-SPAC gate can swallow a filing, and the
+  // one the redemption / LOI forcing clause keys on. Without the second, none
+  // of that is reachable here.
+  registerFormExtractor({ id: "8-K", forms: ["8-K", "8-K/A"], store: noopStore });
 });
 
 function keysFor(extractorId: string, accessions: readonly string[]): Map<string, Set<string>> {
@@ -41,6 +47,11 @@ function keysFor(extractorId: string, accessions: readonly string[]): Map<string
       new Set(accessions.map((accession_number) => filingRunKey({ cik: CIK, accession_number }))),
     ],
   ]);
+}
+
+/** Both of an 8-K's extractors have a successful run on the given filings. */
+function eightKKeys(accessions: readonly string[]): Map<string, Set<string>> {
+  return new Map([...keysFor("8-K-items", accessions), ...keysFor("8-K", accessions)]);
 }
 
 /** Both of the `S-4` fixture's extractors have a successful run on it. */
@@ -118,7 +129,7 @@ describe("shouldReplaySpacFiling", () => {
   });
 
   it("replays a redemption-trigger 8-K and skips a successful non-trigger 8-K", () => {
-    const successfulKeys = keysFor("8-K", [EIGHT_K_TRIGGER, EIGHT_K_OTHER]);
+    const successfulKeys = eightKKeys([EIGHT_K_TRIGGER, EIGHT_K_OTHER]);
     const force = { kind: "extractors" as const, ids: ["redemption" as const] };
     expect(
       shouldReplaySpacFiling({
@@ -145,7 +156,7 @@ describe("shouldReplaySpacFiling", () => {
   });
 
   it("replays every 8-K when 8-K is forced", () => {
-    const successfulKeys = keysFor("8-K", [EIGHT_K_TRIGGER, EIGHT_K_OTHER]);
+    const successfulKeys = eightKKeys([EIGHT_K_TRIGGER, EIGHT_K_OTHER]);
     const force = { kind: "extractors" as const, ids: ["8-K" as const] };
     expect(
       shouldReplaySpacFiling({
@@ -182,7 +193,7 @@ describe("shouldReplaySpacFiling", () => {
         cik: CIK,
         accession_number: EIGHT_K_TRIGGER,
         force: { kind: "none" },
-        successfulKeys: keysFor("8-K", [EIGHT_K_TRIGGER]),
+        successfulKeys: eightKKeys([EIGHT_K_TRIGGER]),
         gatedNoOpAccessions: new Set([EIGHT_K_TRIGGER]),
       })
     ).toBe(true);
@@ -196,7 +207,7 @@ describe("shouldReplaySpacFiling", () => {
         cik: CIK,
         accession_number: EIGHT_K_TRIGGER,
         force: { kind: "none" },
-        successfulKeys: keysFor("8-K", [EIGHT_K_TRIGGER]),
+        successfulKeys: eightKKeys([EIGHT_K_TRIGGER]),
         gatedNoOpAccessions: new Set([EIGHT_K_OTHER]),
       })
     ).toBe(false);

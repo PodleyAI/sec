@@ -107,12 +107,12 @@ describe("FetchAndStoreFormsTask outcome counts", () => {
 
   it("counts only the form's own extractor, not the sub-extractors it gates", async () => {
     // A known-SPAC 8-K writes three run rows for one filing: the form's own
-    // `8-K` extractor plus the `loi` and `redemption` sub-extractors. Counting
-    // every row for the accession reported the filing as failed whenever a
-    // sub-extractor's row happened to come back last.
+    // `8-K-items` extractor plus the `loi` and `redemption` sub-extractors.
+    // Counting every row for the accession reported the filing as failed
+    // whenever a sub-extractor's row happened to come back last.
     await seedFiling("8-K");
     await seedRun({
-      extractor_id: "8-K",
+      extractor_id: "8-K-items",
       extractor_version: "1.0.0",
       outcome: "success",
       ran_at: "2026-02-01T00:00:00.000Z",
@@ -145,14 +145,14 @@ describe("FetchAndStoreFormsTask outcome counts", () => {
     // backend, and here the older row is inserted last.
     await seedFiling("8-K");
     await seedRun({
-      extractor_id: "8-K",
+      extractor_id: "8-K-items",
       extractor_version: "1.1.0",
       outcome: "success",
       ran_at: "2026-03-01T00:00:00.000Z",
       form: "8-K",
     });
     await seedRun({
-      extractor_id: "8-K",
+      extractor_id: "8-K-items",
       extractor_version: "1.0.0",
       outcome: "failure",
       ran_at: "2026-01-01T00:00:00.000Z",

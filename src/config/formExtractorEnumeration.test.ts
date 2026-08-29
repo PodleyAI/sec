@@ -71,7 +71,7 @@ beforeAll(() => {
   registerSecFormExtractors();
   registerFormExtractor({ id: SECOND_ID, forms: ["8-K", NOVEL_FORM], store: noopStore });
   registerFormExtractor({
-    id: "8-K",
+    id: "8-K-items",
     section: "listing-transfer",
     forms: [NOVEL_FORM],
     store: noopStore,
@@ -90,9 +90,9 @@ describe("backfillDescriptors enumerates the registry", () => {
   });
 
   it("formsForExtractor widens an existing id by its other section's forms", () => {
-    // Two registry keys, one id: `8-K` now reaches `8-K12B` through its second
-    // section, which a single-valued map has nowhere to record.
-    expect(formsForExtractor("8-K").sort()).toEqual(["8-K", "8-K/A", NOVEL_FORM].sort());
+    // Two registry keys, one id: `8-K-items` now reaches `8-K12B` through its
+    // second section, which a single-valued map has nowhere to record.
+    expect(formsForExtractor("8-K-items").sort()).toEqual(["8-K", "8-K/A", NOVEL_FORM].sort());
   });
 
   it("formsForExtractor still answers nothing for an id with no forms", () => {
@@ -105,8 +105,8 @@ describe("backfillDescriptors enumerates the registry", () => {
 
   it("listBackfillableExtractorIds lists ids, never sectioned registry keys", () => {
     const ids = listBackfillableExtractorIds();
-    expect(ids).toContain("8-K");
-    expect(ids).not.toContain("8-K:listing-transfer");
+    expect(ids).toContain("8-K-items");
+    expect(ids).not.toContain("8-K-items:listing-transfer");
   });
 });
 
@@ -139,7 +139,7 @@ describe("VersionStartDevTask counts every form its extractor handles", () => {
 
     const out = await new VersionStartDevTask().execute({
       kind: "extractor",
-      id: "8-K",
+      id: "8-K-items",
       semver: "2.0.0",
       bump: "major",
       notes: null,

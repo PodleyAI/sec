@@ -15,6 +15,14 @@ import { allRegisteredExtractorIds, formHasExtractor } from "./formExtractors";
  * proxy family is the case — the classes that turn a proxy statement into a
  * parse live here, and the reading that turns one into a deal is a consumer's.
  *
+ * The listing-removal and registration-withdrawal families are the same case
+ * read off metadata rather than off a document: a Form 25, Form 15 or RW says
+ * a registration ended, and what that MEANS — unit separation, a de-SPAC close,
+ * a liquidation, an abandoned IPO — is a judgement inside a lifecycle model
+ * that a consumer supplies. The `20-F` is here for the same reason it was ever
+ * routed to `25-15`: the FPI close is a listing-removal reading of it, and this
+ * package has no other reading of the form.
+ *
  * PINNED, and asserted in both directions by `form-wiring.test.ts`: every
  * parse-supported form with no registered extractor must appear here, and
  * every form here must still be parse-supported. A form quietly dropping out
@@ -46,6 +54,27 @@ export const PARSER_ONLY_FORMS_BY_EXTRACTOR = {
     "PRE 14C",
     "PREA14C",
   ],
+  "25-15": [
+    "25",
+    "25/A",
+    "25-NSE",
+    "25-NSE/A",
+    "15-12B",
+    "15-12B/A",
+    "15-12G",
+    "15-12G/A",
+    "15-15D",
+    "15-15D/A",
+    "15F-12B",
+    "15F-12B/A",
+    "15F-12G",
+    "15F-12G/A",
+    "15F-15D",
+    "15F-15D/A",
+    "20-F",
+    "20-F/A",
+  ],
+  RW: ["RW", "SEC STAFF ACTION"],
 } as const satisfies Record<string, readonly string[]>;
 
 /** Every form {@link PARSER_ONLY_FORMS_BY_EXTRACTOR} declares, flattened. */

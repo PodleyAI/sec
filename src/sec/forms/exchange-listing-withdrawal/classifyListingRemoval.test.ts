@@ -173,7 +173,7 @@ describe("classifyListingRemoval", () => {
 
   it("does not complete a Form 25 filed long after the proxy and vote", () => {
     // The deal died after its vote. That is commonly disclosed under Item 8.01,
-    // which `mapItemCodesToSpacEvents` maps to NO event at all, so no
+    // which the de-SPAC milestone reading maps to NO event at all, so no
     // `terminated` is ever written and the attempt stays `pending` with its
     // vote_date indefinitely. Eighteen months later the vehicle winds up and
     // files Form 25 — a liquidation, not a close. Without the window this

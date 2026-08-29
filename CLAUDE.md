@@ -204,11 +204,14 @@ this form they are the filing — and only the `.txt` carries them, or the
 `<TYPE>`/`<DESCRIPTION>`/`<FILENAME>` manifest saying what each one is. It costs one
 request either way.
 
-What an extractor SEES stays separate and unchanged: the known-SPAC-plus-trigger-item
-predicate still gates whether `processForm8K` receives `fullSubmissionText`. Those were one
-flag once, which is what made "fetch more" and "feed the model more" impossible to do
-separately — widening a model's input is an evaluable behavior change with its own golden
-truth.
+What an extractor SEES stays separate, and is asked per extractor rather than per form:
+`readsFullSubmission` is never unioned, so the 8-K's two readings answer independently. The
+item-code half (`8-K-items`, here) declares none and is handed metadata and the shared parse
+only; the known-SPAC-plus-trigger-item predicate survives unchanged on the de-SPAC milestone
+and narrative readings, which a consumer package registers. Those were one flag once, which
+is what made "fetch more" and "feed the model more" impossible to do separately — widening a
+model's input is an evaluable behavior change with its own golden truth.
+`extractor_runs.read_full_submission` records, per run, which answer each extractor got.
 
 **A recorded successful run is what stops a filing being re-selected.** Handlers that
 no-op behind a gate (known-SPAC checks) still record success, so recovering them needs a

@@ -4,13 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
 import { EntityRepo } from "../../../storage/entity/EntityRepo";
-import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
 import { pendingDealBefore, compareSpacEventOrder } from "../../../storage/spac/spacDealGrouping";
-import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import type { SpacEvent } from "../../../storage/spac/SpacEventSchema";
-import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import { isFirst20FAfterCombination } from "../registration-statements/s1/newcoListing";
 import {
   classifyListingRemoval,
@@ -18,27 +14,7 @@ import {
   type ListingRemovalKind,
 } from "./classifyListingRemoval";
 
-export interface ProcessDeregistrationArgs {
-  readonly cik: number;
-  readonly accession_number: string;
-  readonly form: string;
-  readonly filing_date: string;
-}
-
-/**
- * Whether the submissions-only SPAC screen has flagged this CIK. Read
- * defensively: the table is optional in a consumer's schema, and a missing
- * screen must silence the warning rather than fail the filing.
- */
-async function isSpacCandidate(cik: number): Promise<boolean> {
-  try {
-    const repo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
-    return (await repo.get({ cik })) !== undefined;
-  } catch {
-    return false;
-  }
-}
-
+/** A 20-F / 20-F/A filed close enough to this one to be the same close. */
 export async function hasNearby20F(cik: number, filingDate: string): Promise<boolean> {
   const entity = new EntityRepo();
   const [annual, amendment] = await Promise.all([
@@ -50,6 +26,7 @@ export async function hasNearby20F(cik: number, filingDate: string): Promise<boo
   );
 }
 
+/** A 25-NSE / 25-NSE/A filed close enough to this one to be the same close. */
 export async function hasNearby25Nse(cik: number, filingDate: string): Promise<boolean> {
   const entity = new EntityRepo();
   const [nse, amendment] = await Promise.all([
@@ -61,6 +38,12 @@ export async function hasNearby25Nse(cik: number, filingDate: string): Promise<b
   );
 }
 
+/**
+ * What a Form 25 / 25-NSE / Form 15 family filing means for this issuer's
+ * lifecycle, resolved from the filings around it and the events dated before
+ * it. The reading itself is {@link classifyListingRemoval}; this gathers the
+ * evidence that reading needs.
+ */
 export async function resolveListingRemovalKind(args: {
   readonly cik: number;
   readonly form: string;
@@ -103,7 +86,7 @@ export async function resolveListingRemovalKind(args: {
  * recorded on this accession, and processing the filing records exactly that
  * event — so a processed filing leaves the set.
  *
- * Two shapes answer false because {@link processDeregistration} would write
+ * Two shapes answer false because the listing-removal handler would write
  * nothing for them, and re-selecting a filing nothing can be written for is
  * pure waste repeated on every sweep:
  *
@@ -112,6 +95,10 @@ export async function resolveListingRemovalKind(args: {
  *   routes here so the FPI CLOSE filing can record a completion) and every
  *   20-F filed once a completion is already on the stream. A de-SPAC'd foreign
  *   private issuer files one of those every year, forever.
+ *
+ * A selection predicate, not a writer: it reads `spac_event` and the filings
+ * around the accession and decides only whether the filing is worth handing
+ * back to whichever package writes those events.
  */
 export async function listingRemovalNeedsWork(args: {
   readonly cik: number;
@@ -135,51 +122,4 @@ export async function listingRemovalNeedsWork(args: {
   return !args.events.some(
     (e) => e.event_type === kind && e.accession_number === args.accession_number
   );
-}
-
-/**
- * Record Form 25 / 25-NSE / Form 15 family as a lifecycle event. Exchange
- * 25-NSE shortly after IPO is `unit_split` (units unbundle; the vehicle
- * keeps searching — a second 25-NSE in that window is still a split).
- * A pending deal that has reached proxy or vote, or an exchange 25-NSE with
- * a nearby Form 20-F, is `completed` (newco / FPI close with no Item 2.01).
- * Everything else is `deregistration`. Known-SPAC gated:
- * without a spac row the filing still "succeeds" (the forms sweep must not
- * retry every 15-12G forever) but writes nothing.
- */
-export async function processDeregistration(args: ProcessDeregistrationArgs): Promise<void> {
-  const repo = new SpacRepo();
-  const spacRow = await repo.getSpac(args.cik);
-  if (!spacRow) {
-    if (await isSpacCandidate(args.cik)) {
-      console.warn(
-        `[${args.form} ${args.accession_number}] CIK ${args.cik} has no SPAC row, so ` +
-          `a deregistration event was dropped. Process the S-1 / 424 for this issuer first, ` +
-          `then re-run its Form 25/15 filings.`
-      );
-    }
-    return;
-  }
-  if (!args.filing_date) return;
-  const events = await repo.getEvents(args.cik);
-  const kind = await resolveListingRemovalKind({
-    cik: args.cik,
-    form: args.form,
-    filingDate: args.filing_date,
-    accession_number: args.accession_number,
-    ipoDate: spacRow.ipo_date,
-    events,
-  });
-  if (kind === "ignore") return;
-  const writer = new SpacReportWriter();
-  if (kind === "unit_split") {
-    await writer.recordUnitSplit(args);
-    return;
-  }
-  if (kind === "completed") {
-    await writer.recordCompleted(args);
-    await writer.recordDeSpacLinkage(args);
-    return;
-  }
-  await writer.recordDeregistration(args);
 }

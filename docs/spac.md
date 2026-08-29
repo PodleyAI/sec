@@ -69,6 +69,11 @@ item code carries a de-SPAC milestone on one filing and ordinary housekeeping on
 so `mapItemCodesToSpacEvents` classifies each code into a lifecycle type or a non-lifecycle
 one (`material_agreement` / `eight_k`, which no deal walk reads).
 
+The mapper and the extractor that runs it (id `8-K`) ship with the package that owns this
+lifecycle model. What sec registers over the same filing is `8-K-items`: one
+`form_8k_events` row per declared item code, no exhibits and no narrative. Both readings
+run on every 8-K, under version slots and run ledgers of their own.
+
 | Item   | Lifecycle type         | Condition                                                                                        |
 | ------ | ---------------------- | ------------------------------------------------------------------------------------------------ |
 | `2.01` | `completed`            | unconditional                                                                                    |

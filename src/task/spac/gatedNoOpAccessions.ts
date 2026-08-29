@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { listingRemovalNeedsWork } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
+import { listingRemovalNeedsWork } from "../../sec/forms/exchange-listing-withdrawal/listingRemovalSelection";
 import { extractorIdsForForm } from "../../sec/forms/formExtractors";
 import { LOI_TRIGGER_ITEMS } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
 import { REDEMPTION_TRIGGER_ITEMS } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
@@ -18,23 +18,22 @@ import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { isSpacRowGatedExtractor } from "../../storage/versioning/extractorIds";
 
 /**
- * 8-K item codes `mapItemCodesToSpacEvents` maps to an event UNCONDITIONALLY.
- * Some map to a lifecycle milestone and some to `material_agreement` /
- * `eight_k`, but every one of them writes a row — so an 8-K carrying one, with
- * no event recorded, really is a filing whose handler was gated and dropped its
- * work.
+ * 8-K item codes the de-SPAC milestone reading maps to an event
+ * UNCONDITIONALLY. Some map to a lifecycle milestone and some to
+ * `material_agreement` / `eight_k`, but every one of them writes a row — so an
+ * 8-K carrying one, with no event recorded, really is a filing whose handler
+ * was gated and dropped its work.
  *
  * Item `5.03` is deliberately NOT here, though it is a milestone item code.
- * It maps to an event only when `extractNameChange` finds a new registrant name
- * in the 8-K NARRATIVE, and the narrative is non-null only when the fetch was
- * escalated to the full submission — which `ProcessAccessionDocFormTask` does
- * for the redemption / LOI trigger items alone. A 5.03-only 8-K therefore has
- * no narrative by construction, writes no event on any run, and (having no
- * full submission text) runs neither detector, so it leaves no dead letter
- * either. Selecting on it re-processes the filing on every sweep, forever, and
- * nothing it can write would ever stop that. Adding it back is the regression.
- * A 5.03 filed ALONGSIDE a redemption / LOI trigger item is still selected —
- * on that other code, which does escalate the fetch.
+ * It maps to an event only when the 8-K NARRATIVE names a new registrant, and
+ * that narrative reaches the reading only where its own `readsFullSubmission`
+ * admitted the filing — for the redemption / LOI trigger items alone. A
+ * 5.03-only 8-K therefore has no narrative by construction, writes no event on
+ * any run, and (having no full submission text) runs neither detector, so it
+ * leaves no dead letter either. Selecting on it re-processes the filing on
+ * every sweep, forever, and nothing it can write would ever stop that. Adding
+ * it back is the regression. A 5.03 filed ALONGSIDE a redemption / LOI trigger
+ * item is still selected — on that other code, which does open the body.
  */
 const ALWAYS_EVENT_MAPPED_ITEMS: readonly string[] = ["1.01", "1.02", "2.01", "5.07"];
 

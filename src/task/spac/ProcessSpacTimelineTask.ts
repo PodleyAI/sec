@@ -109,8 +109,9 @@ export type ProcessSpacTimelineTaskOutput = Static<ReturnType<typeof OutputSchem
  * same issuer's history backwards and forwards repeatedly, and three separate
  * things break when it does:
  *
- *  1. `Form_8_K.storage` records de-SPAC milestones ONLY when a SPAC row already
- *     exists, and that row is created by the S-1 or the 424. Run the 8-Ks first
+ *  1. The 8-K's de-SPAC milestone reading records anything ONLY when a SPAC row
+ *     already exists, and that row is created by the S-1 or the 424. Run the
+ *     8-Ks first
  *     and every milestone is dropped while each filing still reports success. A
  *     SPAC with 58 8-Ks and no 424 produced an entirely empty timeline this way.
  *  2. The issuer's name and registration date come from the S-1, so a report

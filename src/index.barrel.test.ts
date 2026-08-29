@@ -15,6 +15,7 @@ test("barrel exposes the sec dependencies a downstream feature package builds on
     "isFamilyResolverId",
     "registerDatabaseExtension",
     "registerFilingConversionGate",
+    "registerCurrentTrustRefresh",
     "listDatabaseExtensionTokens",
     "VersionRegistry",
     "computeResolverCoverage",
@@ -392,4 +393,56 @@ test("exports the scaffolding the relocated extraction tiers still reach back fo
   };
   expect(applied[verdict]).toBe(true);
   expect(applied.leave).toBe(false);
+});
+
+test("exports the SPAC lifecycle write path a relocated model reaches back for", () => {
+  // The eight lifecycle tables and their repos stay here — around fifty modules
+  // in this package still read them — while every writer of `spac`,
+  // `spac_event` and `spac_deal` ships downstream. These are what that writer
+  // is built out of: the repos above, the two SELECTION predicates a
+  // listing-removal or withdrawal replay is chosen by, the exhibit manifest and
+  // legal-form vocabulary a milestone is read with, the screen a dropped-event
+  // warning is gated on, and the dispatcher the whole thing runs under.
+  for (const name of [
+    "ProcessAccessionDocFormTask",
+    "EntityRepo",
+    "formatExhibitDetail",
+    "isNewerTrustSnapshot",
+    "listingRemovalNeedsWork",
+    "parseSubmissionExhibits",
+    "pendingDealBefore",
+    "resolveListingRemovalKind",
+    "staffActionAbandonsRegistration",
+  ]) {
+    expect(typeof sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBe("function");
+  }
+  for (const name of ["SPAC_CANDIDATE_REPOSITORY_TOKEN", "COMPANY_FACTS_REPOSITORY_TOKEN"]) {
+    expect(sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBeDefined();
+  }
+  expect(typeof sec.legalFormProseSuffixAlternation).toBe("string");
+
+  // `CurrentTrustRefresh`, `SpacEvent`, `SpacEventType`, `CompanyFact` and
+  // `SubmissionExhibit` are erased before this file runs, so they are pinned by
+  // annotating the values a contributing package actually holds: the refresh it
+  // registers, the events a listing-removal verdict is resolved against, the
+  // event type a milestone carries, the fact a trust balance is read off, and
+  // the exhibit an 8-K's manifest yields. An annotation whose type the barrel
+  // stopped exporting fails `tsc -p tsconfig.test.json` naming it.
+  const refresh: sec.CurrentTrustRefresh = {
+    wouldRefresh: async () => false,
+    refresh: async () => false,
+  };
+  const events: readonly sec.SpacEvent[] = [];
+  const eventType: sec.SpacEventType = "definitive_agreement";
+  const fact: Pick<sec.CompanyFact, "name" | "val"> = { name: "AssetsHeldInTrust", val: 1 };
+  const exhibit: sec.SubmissionExhibit = {
+    type: "EX-2.1",
+    description: "AGREEMENT AND PLAN OF MERGER",
+    filename: "ex21.htm",
+  };
+  expect(typeof refresh.refresh).toBe("function");
+  expect(events).toEqual([]);
+  expect(eventType).toBe("definitive_agreement");
+  expect(fact.val).toBe(1);
+  expect(sec.formatExhibitDetail([exhibit])).toContain("ex21.htm");
 });

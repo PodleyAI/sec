@@ -47,6 +47,18 @@ beforeAll(() => {
   // A second registry key under that same id, so the registration above is
   // widened rather than replaced.
   registerFormExtractor({ id: "merger-proxy", section: "de-spac", forms: [S4], store: noopStore });
+  // The 8-K's ITEM CODES stay here, under `8-K-items`, and that reading is not
+  // gated on a spac row at all. What can be swallowed by a missing row is the
+  // milestone reading registered under `8-K` by a consumer, and the listing
+  // removals under `25-15` — the two ids `SPAC_ROW_GATED_EXTRACTORS` still
+  // names. Both get a stand-in for the same reason `merger-proxy` does.
+  registerFormExtractor({ id: "8-K", forms: ["8-K", "8-K/A"], store: noopStore });
+  registerFormExtractor({
+    id: "25-15",
+    forms: PARSER_ONLY_FORMS_BY_EXTRACTOR["25-15"],
+    needsDocument: false,
+    store: noopStore,
+  });
 });
 
 function filing(accession: string, form: string, items: string | null = null): Filing {
@@ -240,8 +252,8 @@ describe("loadGatedNoOpAccessions", () => {
 
   it("never selects an annual 20-F that the classifier ignores", async () => {
     // 20-F routes to the 25-15 extractor so an FPI CLOSE filing can record its
-    // combination. An ORDINARY annual report classifies `ignore` and
-    // `processDeregistration` returns without writing — so an event-only test
+    // combination. An ORDINARY annual report classifies `ignore` and the
+    // listing-removal handler returns without writing — so an event-only test
     // re-selects it every single year, for the life of the issuer, and a
     // foreign private issuer files one annually forever.
     await mintSpacRow();

@@ -206,9 +206,12 @@ export {
 // database, or a model — and this shape is what a form extractor is handed
 // before it looks at any HTML.
 export {
+  formatExhibitDetail,
   parseEightKSubmission,
   parseRegistrationSubmission,
+  parseSubmissionExhibits,
   type FormS1Parsed,
+  type SubmissionExhibit,
 } from "./sec/forms/registration-statements/s1/parseSubmission";
 
 // ── Section segmentation over the parsed document tree ──────────────────────
@@ -272,7 +275,7 @@ export { isCompanyFamilyPrefixEcho } from "./storage/company/CompanyFamilyName";
 export { isUnnamedCompanyName } from "./storage/company/CompanyNormalization";
 export { parentClauseSourceContext, splitParentClause } from "./storage/company/splitParentClause";
 export { assertWithinDeclaredBounds } from "./util/declaredBounds";
-export { legalFormTrailingCanonical } from "./util/legalForms";
+export { legalFormProseSuffixAlternation, legalFormTrailingCanonical } from "./util/legalForms";
 export { isOverlongPersonName, MAX_PERSON_NAME_CHARS } from "./util/personNameBounds";
 
 // ── Model-call tracing ──────────────────────────────────────────────────────
@@ -481,6 +484,10 @@ export { SpacReportWriter, type ProxyEventVerdict } from "./storage/spac/SpacRep
 export { SpacLoiExtractionRepo } from "./storage/spac/SpacLoiExtractionRepo";
 export { SpacMergerExtractionRepo } from "./storage/spac/SpacMergerExtractionRepo";
 export { SpacRedemptionExtractionRepo } from "./storage/spac/SpacRedemptionExtractionRepo";
+export { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "./storage/spac/SpacCandidateSchema";
+export type { SpacEvent, SpacEventType } from "./storage/spac/SpacEventSchema";
+export { pendingDealBefore } from "./storage/spac/spacDealGrouping";
+export { isNewerTrustSnapshot } from "./storage/spac/trustSnapshot";
 export { SponsorFamilyResolver } from "./resolver/SponsorFamilyResolver";
 export { UnderwriterFamilyResolver } from "./resolver/UnderwriterFamilyResolver";
 export { CanonicalSponsorFamilyAliasRepo } from "./storage/canonical/CanonicalSponsorFamilyAliasRepo";
@@ -510,9 +517,14 @@ export { processForm424Structured } from "./sec/forms/registration-statements/Fo
 export { extractAndStoreXbrl } from "./sec/forms/registration-statements/s1/xbrlEnrichment";
 export { XbrlFactRepo } from "./storage/xbrl/XbrlFactRepo";
 
-// The 8-K's item codes and de-SPAC milestones, which stay here: item codes are
-// structured filing metadata, and the milestone mapper reads them rather than
-// the filing's prose. A narrative pass registered elsewhere runs beside this.
+// The 8-K's ITEM CODES, which stay here under the id `8-K-items`: the codes
+// arrive in the submissions payload and in the XML envelope, so recording one
+// row apiece takes no exhibit, no narrative and no model. Reading those same
+// codes as de-SPAC milestones is not metadata — the mapper scans the filing's
+// prose for the new registrant name behind a 5.03 and for the operating
+// counterparty behind a merger 1.01, and reads the exhibit manifest to tell a
+// definitive agreement from an ordinary one — so it is registered elsewhere,
+// under `8-K`, and runs beside this over the same filing.
 export { processForm8K } from "./sec/forms/miscellaneous-filings/Form_8_K.storage";
 export { Form_8_K } from "./sec/forms/miscellaneous-filings/Form_8_K";
 export { hasLoiTriggerItem } from "./sec/forms/miscellaneous-filings/spac8kLoiTriggers";
@@ -577,6 +589,38 @@ export {
   type GateSqlPushdown,
   type GateSqlRequest,
 } from "./task/document/filingConversionGate";
+
+// The seam a package that owns a SPAC lifecycle model contributes its reading
+// of a filer's company facts through. The facts sweep and `spac backfill-trust`
+// reach for it and do nothing where none is contributed — the point being that
+// they do not call and swallow a failure per issuer, they do not call.
+export {
+  registerCurrentTrustRefresh,
+  type CurrentTrustRefresh,
+} from "./storage/spac/currentTrustRefresh";
+export {
+  COMPANY_FACTS_REPOSITORY_TOKEN,
+  type CompanyFact,
+} from "./storage/facts/CompanyFactsSchema";
+
+// The dispatcher itself. A package that registers a form extractor drives one
+// stored filing through this to see what its own registration actually does —
+// which file is fetched, what the `store` is handed, and what lands in
+// `extractor_runs` and the dead letters — rather than calling its handler
+// directly and taking the wiring on trust.
+export { ProcessAccessionDocFormTask } from "./task/forms/ProcessAccessionDocFormTask";
+
+// What a listing-removal or registration-withdrawal reading is written
+// against. Both are SELECTION predicates over rows this package holds — the
+// filings around an accession, the events dated before it — and they are what
+// `sec spac process` and `sec extractor backfill 25-15` / `RW` re-select on, so
+// they stay here and the handler that writes the event reads them from here.
+export {
+  listingRemovalNeedsWork,
+  resolveListingRemovalKind,
+} from "./sec/forms/exchange-listing-withdrawal/listingRemovalSelection";
+export { staffActionAbandonsRegistration } from "./sec/forms/registration-withdrawal-termination/staffActionAbandonsRegistration";
+export { EntityRepo } from "./storage/entity/EntityRepo";
 
 // Human-verified truth for the committed prospectus corpus. Read here by the
 // chunker's own test, which is why it stays; anything scoring an extraction

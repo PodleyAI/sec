@@ -63,7 +63,7 @@ describe("SYNC_FORM_DOMAINS", () => {
   it("includes key SPAC timeline forms and excludes unrelated extractors", () => {
     const spacForms = formsForExtractorIds(SYNC_FORM_DOMAINS.spacs);
 
-    for (const form of ["S-1", "S-1/A", "424B4", "8-K", "25-NSE", "20-F"]) {
+    for (const form of ["S-1", "S-1/A", "424B4", "8-K"]) {
       expect(spacForms, `expected ${form} in spacs`).toContain(form);
     }
 
@@ -72,18 +72,23 @@ describe("SYNC_FORM_DOMAINS", () => {
     }
   });
 
-  it("contributes no proxy form on its own, while still naming the extractor that reads them", () => {
+  it("contributes no proxy or listing-removal form on its own, while still naming the extractors that read them", () => {
     // The proxies were in this domain until their reading moved to a consumer
-    // package. An id nothing registers contributes no forms, so a sec-only
-    // sweep of `spacs` has none of them — and the domain still has to NAME the
-    // id, or the deployment that supplies it would sweep the proxies out of
-    // the SPAC timeline it belongs to. Both halves asserted, since dropping
-    // either one is silent.
+    // package, and the listing removals followed. An id nothing registers
+    // contributes no forms, so a sec-only sweep of `spacs` has none of them —
+    // and the domain still has to NAME the id, or the deployment that supplies
+    // it would sweep those filings out of the SPAC timeline they belong to.
+    // Both halves asserted, since dropping either one is silent.
     const spacForms = formsForExtractorIds(SYNC_FORM_DOMAINS.spacs);
     expect(SYNC_FORM_DOMAINS.spacs).toContain("merger-proxy");
+    expect(SYNC_FORM_DOMAINS.spacs).toContain("25-15");
     for (const form of ["DEFM14A", "DEF 14A"]) {
       expect(spacForms, `expected ${form} outside a sec-only spacs sweep`).not.toContain(form);
       expect(PARSER_ONLY_FORMS_BY_EXTRACTOR["merger-proxy"], `${form} is pinned`).toContain(form);
+    }
+    for (const form of ["25-NSE", "20-F"]) {
+      expect(spacForms, `expected ${form} outside a sec-only spacs sweep`).not.toContain(form);
+      expect(PARSER_ONLY_FORMS_BY_EXTRACTOR["25-15"], `${form} is pinned`).toContain(form);
     }
   });
 

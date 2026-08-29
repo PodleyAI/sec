@@ -13,6 +13,7 @@ import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { SEC_DRY_RUN, SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { registerFormExtractor } from "../../sec/forms/formExtractors";
+import { PARSER_ONLY_FORMS_BY_EXTRACTOR } from "../../sec/forms/parserOnlyForms";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../storage/spac/SpacCandidateSchema";
@@ -41,6 +42,18 @@ beforeAll(() => {
   // A second registry key under an EXISTING id, so the shipped `merger-proxy`
   // registration is widened rather than replaced.
   registerFormExtractor({ id: "merger-proxy", section: "de-spac", forms: [S4], store: noopStore });
+  // The two readings whose known-SPAC gate this task exists to repair are a
+  // consumer's now: the 8-K's de-SPAC milestones under `8-K` (this package
+  // keeps only the item codes, under `8-K-items`, which is not gated at all)
+  // and the listing removals under `25-15`. Stand-ins over exactly the forms
+  // each is registered for keep the repair reachable here.
+  registerFormExtractor({ id: "8-K", forms: ["8-K", "8-K/A"], store: noopStore });
+  registerFormExtractor({
+    id: "25-15",
+    forms: PARSER_ONLY_FORMS_BY_EXTRACTOR["25-15"],
+    needsDocument: false,
+    store: noopStore,
+  });
 });
 
 const GOOD_FORM_D = readFileSync(
@@ -116,6 +129,17 @@ async function seedSuccessfulRun(
     success: true,
     error: null,
   });
+}
+
+/**
+ * A successful run for EVERY extractor an 8-K carries: the item codes this
+ * package records and the milestone reading a consumer registers. A filing is
+ * only "already processed" once all of them have succeeded, so seeding one
+ * would leave it selected for reasons this fixture is not about.
+ */
+async function seedSuccessfulEightKRun(accession: string): Promise<void> {
+  await seedSuccessfulRun(accession, "8-K", "8-K-items");
+  await seedSuccessfulRun(accession, "8-K", "8-K");
 }
 
 /** Gives an extractor id a `current` slot, as `db setup` does for the shipped ids. */
@@ -364,6 +388,20 @@ describe("ProcessSpacTimelineTask", () => {
       const runRepo = new ExtractorRunRepo(
         globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
       );
+      // The item-code half succeeds; the milestone reading is the one that
+      // came back partial. A filing's outcome is worst-outcome-wins over every
+      // extractor its form carries, so both rows have to exist for the rollup
+      // to be about the failure rather than about a missing row.
+      await runRepo.recordRun({
+        cik: CIK,
+        accession_number: input.accessionNumber!,
+        form: "8-K",
+        extractor_id: "8-K-items",
+        extractor_version: "1.0.0",
+        slot_at_run: "current",
+        success: true,
+        error: null,
+      });
       await runRepo.recordRun({
         cik: CIK,
         accession_number: input.accessionNumber!,
@@ -462,7 +500,7 @@ describe("ProcessSpacTimelineTask", () => {
       spac_sic: 6770,
     });
     await seedFiling("0000000000-26-000002", "8-K", "2021-02-04", "d8k.htm", "5.07");
-    await seedSuccessfulRun("0000000000-26-000002", "8-K", "8-K");
+    await seedSuccessfulEightKRun("0000000000-26-000002");
 
     const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
     const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
@@ -485,7 +523,7 @@ describe("ProcessSpacTimelineTask", () => {
       spac_sic: 6770,
     });
     await seedFiling("0000000000-26-000002", "8-K", "2021-02-04", "d8k.htm", "2.02");
-    await seedSuccessfulRun("0000000000-26-000002", "8-K", "8-K");
+    await seedSuccessfulEightKRun("0000000000-26-000002");
 
     const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
     const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
@@ -533,18 +571,24 @@ describe("ProcessSpacTimelineTask", () => {
             created_at: new Date().toISOString(),
           });
         }
-        await new ExtractorRunRepo(
+        // One row per extractor id the form carries, as a real dispatch
+        // records: the 8-K's item codes and its milestone reading are separate
+        // ids with separate ledgers.
+        const runRepo = new ExtractorRunRepo(
           globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
-        ).recordRun({
-          cik: CIK,
-          accession_number: accession,
-          form: isRegistration ? "S-1" : "8-K",
-          extractor_id: isRegistration ? "S-1-xbrl" : "8-K",
-          extractor_version: "1.0.0",
-          slot_at_run: "current",
-          success: true,
-          error: null,
-        });
+        );
+        for (const extractor_id of isRegistration ? ["S-1-xbrl"] : ["8-K-items", "8-K"]) {
+          await runRepo.recordRun({
+            cik: CIK,
+            accession_number: accession,
+            form: isRegistration ? "S-1" : "8-K",
+            extractor_id,
+            extractor_version: "1.0.0",
+            slot_at_run: "current",
+            success: true,
+            error: null,
+          });
+        }
         return { success: true };
       });
   }
@@ -553,7 +597,7 @@ describe("ProcessSpacTimelineTask", () => {
   async function seedGatedTimeline(): Promise<void> {
     await seedFiling("0000000000-26-000001", "S-1", "2021-01-04", "s1.htm");
     await seedFiling("0000000000-26-000002", "8-K", "2021-02-04", "d8k.htm", "5.07");
-    await seedSuccessfulRun("0000000000-26-000002", "8-K", "8-K");
+    await seedSuccessfulEightKRun("0000000000-26-000002");
   }
 
   it("processes gated 8-Ks in the same run as the S-1 that mints the spac row", async () => {
@@ -705,7 +749,7 @@ describe("ProcessSpacTimelineTask", () => {
     await seedFiling("0000000000-26-000001", "S-1", "2021-01-04");
     await seedFiling("0000000000-26-000002", "8-K", "2021-02-04", null, "5.07,9.01");
     await seedSuccessfulRun("0000000000-26-000001", "S-1", "S-1-xbrl");
-    await seedSuccessfulRun("0000000000-26-000002", "8-K", "8-K");
+    await seedSuccessfulEightKRun("0000000000-26-000002");
     await seedIpoEvent("ipo");
 
     const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
@@ -799,7 +843,7 @@ describe("ProcessSpacTimelineTask", () => {
   it("filedOnOrAfter also keeps the repair pass from replaying older gated 8-Ks", async () => {
     await seedFiling("0000000000-26-000001", "S-1", "2026-08-20", "s1.htm");
     await seedFiling("0000000000-26-000002", "8-K", "2021-02-04", "d8k.htm", "5.07");
-    await seedSuccessfulRun("0000000000-26-000002", "8-K", "8-K");
+    await seedSuccessfulEightKRun("0000000000-26-000002");
     const spy = mockFormProcessor();
 
     await new ProcessSpacTimelineTask().run({ cik: CIK, filedOnOrAfter: "2026-08-19" });

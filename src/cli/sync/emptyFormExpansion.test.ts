@@ -85,10 +85,12 @@ describe("a form request never made", () => {
     for (const form of domainForms) {
       expect(named, `expected the default sweep to include ${form}`).toContain(form);
     }
-    // Wider than the union of every domain: the insider-trading and
-    // withdrawal forms belong to no sync domain at all.
+    // Wider than the union of every domain: the insider-trading forms belong
+    // to no sync domain at all. (Form RW used to stand beside them here; it
+    // routes nowhere in a sec-only deployment now, so it reaches no sweep at
+    // all rather than reaching this one outside a domain.)
     expect(named).toContain("3");
-    expect(named).toContain("RW");
+    expect(named).toContain("144");
     expect(named.length).toBeGreaterThan(domainForms.length);
   });
 

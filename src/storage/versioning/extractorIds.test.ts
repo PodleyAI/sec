@@ -54,6 +54,7 @@ describe("extractorIds", () => {
       "424-xbrl",
       "5",
       "8-K",
+      "8-K-items",
       "C",
       "CFPORTAL",
       "D",
@@ -211,28 +212,14 @@ describe("extractorIds — DRS dispatch mapping", () => {
   });
 });
 
-describe("extractorIds — SEC STAFF ACTION withdrawal dispatch", () => {
-  it("routes SEC STAFF ACTION to RW and leaves EFFECT / SEC ACTION unmapped", () => {
-    // Staff action is not Form RW, but a last-word staff action on an
-    // unpriced registration is the same lifecycle end. processWithdrawal
-    // still no-ops when a later S-1 exists (Iron Horse). EFFECT and SEC ACTION
-    // are unrelated codes.
-    expectRoutedTo("SEC STAFF ACTION", "RW");
-    expect(isFormParsingSupported("SEC STAFF ACTION")).toBe(true);
-    expect(routedIds("EFFECT")).toEqual([]);
-    expect(routedIds("SEC ACTION")).toEqual([]);
-  });
-});
-
-describe("extractorIds — Form RW registration-withdrawal dispatch mapping", () => {
-  it("maps Form RW to extractor id 'RW' and does not route RW WD", () => {
-    expectRoutedTo("RW", "RW");
-    expect(routedIds("RW WD")).toEqual([]);
-  });
-});
-
-describe("extractorIds — Form 25/15 deregistration dispatch mapping", () => {
-  it("maps Form 25 / 25-NSE and the Form 15 family to extractor id '25-15'", () => {
+describe("extractorIds — listing removal and registration withdrawal", () => {
+  it("routes the Form 25/15 family nowhere, and pins it as parsed-here-read-elsewhere", () => {
+    // They used to route to `25-15`. What a Form 25, Form 15 or 20-F MEANS —
+    // unit separation, a de-SPAC close, a liquidation — is a judgement inside a
+    // lifecycle model, and that model is a consumer's now. What this package
+    // still owes the forms is a parser and a pinned declaration of who reads
+    // them, asserted together because a form that routes nowhere and is not
+    // declared is the accident the pinning exists to catch.
     for (const form of [
       "25",
       "25/A",
@@ -253,8 +240,30 @@ describe("extractorIds — Form 25/15 deregistration dispatch mapping", () => {
       "20-F",
       "20-F/A",
     ]) {
-      expectRoutedTo(form, "25-15");
+      expect(routedIds(form), `form ${form}`).toEqual([]);
+      expect(isFormParsingSupported(form), `form ${form}`).toBe(true);
+      expect(parserOnlyExtractorIdForForm(form), `form ${form}`).toBe("25-15");
     }
+    // The id outlives the extractor: this package still holds the run ledger
+    // and the dead letters written under it, and the backfill descriptor that
+    // re-selects on the events it wrote.
+    expect(EXTRACTOR_IDS).toContain("25-15");
+  });
+
+  it("routes Form RW and SEC STAFF ACTION nowhere, and pins them the same way", () => {
+    // Staff action is not Form RW, but a last-word staff action on an unpriced
+    // registration is the same lifecycle end, so both are declared under one
+    // id. `RW WD` undoes a withdrawal and was never routed at all. EFFECT and
+    // SEC ACTION are unrelated codes.
+    for (const form of ["RW", "SEC STAFF ACTION"]) {
+      expect(routedIds(form), `form ${form}`).toEqual([]);
+      expect(isFormParsingSupported(form), `form ${form}`).toBe(true);
+      expect(parserOnlyExtractorIdForForm(form), `form ${form}`).toBe("RW");
+    }
+    expect(EXTRACTOR_IDS).toContain("RW");
+    expect(routedIds("RW WD")).toEqual([]);
+    expect(routedIds("EFFECT")).toEqual([]);
+    expect(routedIds("SEC ACTION")).toEqual([]);
   });
 });
 

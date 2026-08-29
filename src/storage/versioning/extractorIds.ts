@@ -24,6 +24,7 @@ export const EXTRACTOR_IDS = [
   "424",
   "424-xbrl",
   "8-K",
+  "8-K-items",
   "merger-proxy",
   "redemption",
   "loi",
@@ -212,11 +213,11 @@ export function isNonfatalTimelineExtractor(extractorId: string): boolean {
  * `sortFormsForSweep` in `formsSweepOrder.ts`, which ranks a form through the
  * form-extractor registry and so cannot live in this import-free module.
  *
- * The registration and prospectus families carry two extractors each — the
- * structured reading this package ships and the prose reading a consumer may
- * add — and the rank is read off whichever leads. Both spellings are listed
- * and adjacent, so the family sorts to the same place whichever is registered
- * first.
+ * The registration, prospectus and current-report families carry two
+ * extractors each — the structured reading this package ships and the reading
+ * of the same filing a consumer may add — and the rank is read off whichever
+ * leads. Both spellings are listed and adjacent, so the family sorts to the
+ * same place whichever is registered first.
  */
 export const SWEEP_PRIORITY: readonly ExtractorId[] = [
   "S-1-xbrl",
@@ -224,6 +225,7 @@ export const SWEEP_PRIORITY: readonly ExtractorId[] = [
   "RW",
   "424-xbrl",
   "424",
+  "8-K-items",
   "8-K",
   "merger-proxy",
   "25-15",

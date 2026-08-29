@@ -7,7 +7,7 @@
 import { globalServiceRegistry, uuid4 } from "workglow";
 import { SpacRepo } from "./SpacRepo";
 import { recomputeSpacDeals } from "./SpacDealReplace";
-import { isNewerTrustSnapshot } from "./pickLatestTrustFact";
+import { isNewerTrustSnapshot } from "./trustSnapshot";
 import { buildSpacRow, type SpacRowPatch } from "./spacRollup";
 import { deriveDeals } from "./spacDealGrouping";
 import { SpacMergerExtractionRepo } from "./SpacMergerExtractionRepo";

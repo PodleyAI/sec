@@ -51,10 +51,10 @@ describe("componentRegistry", () => {
   });
 
   it("listRegisteredComponents returns one entry per extractor and resolver", () => {
-    // 24 extractors (D, C, CFPORTAL, 1-A, 1-A-W, 1-K, 1-Z, 1-U, 253G,
-    // QUALIF, 3, 4, 5, 144, S-1, S-1-xbrl, 424, 424-xbrl, 8-K, merger-proxy,
-    // redemption, loi, 25-15, RW) + 4 resolvers (person, company,
-    // sponsor-family, underwriter-family).
-    expect(listRegisteredComponents()).toHaveLength(28);
+    // 25 extractors (D, C, CFPORTAL, 1-A, 1-A-W, 1-K, 1-Z, 1-U, 253G,
+    // QUALIF, 3, 4, 5, 144, S-1, S-1-xbrl, 424, 424-xbrl, 8-K, 8-K-items,
+    // merger-proxy, redemption, loi, 25-15, RW) + 4 resolvers (person,
+    // company, sponsor-family, underwriter-family).
+    expect(listRegisteredComponents()).toHaveLength(29);
   });
 });

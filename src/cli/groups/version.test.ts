@@ -58,6 +58,7 @@ describe("sec version CLI", () => {
         "424-xbrl",
         "5",
         "8-K",
+        "8-K-items",
         "C",
         "CFPORTAL",
         "D",
