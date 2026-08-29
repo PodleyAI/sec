@@ -5,8 +5,6 @@
  */
 
 import type { FormsShard } from "../../task/forms/formsSweep";
-import { DEFAULT_SPAC_ISSUER_CONCURRENCY } from "./runSpacTimelineIssuers";
-import type { SpacProcessOnly } from "./spacSyncCiks";
 
 export interface SyncRunContext {
   readonly force: boolean;
@@ -16,10 +14,6 @@ export interface SyncRunContext {
   readonly lookback: number;
   readonly shard: FormsShard | undefined;
   readonly formTypes: string[] | undefined;
-  /** `sync spacs --only`: restrict process CIKs. Undefined means both. */
-  readonly only: SpacProcessOnly | undefined;
-  /** How many SPAC issuers to replay at once. Filings within an issuer stay serial. */
-  readonly concurrency: number;
   /**
    * True when a multi-step leaf is invoked as `sync <leaf> <step>` rather than
    * `sync <leaf> all` or as one step inside `sync all`.
@@ -53,10 +47,73 @@ export interface SyncRunContext {
   readonly downloadOnly: boolean;
 }
 
+/**
+ * Commander's parsed values for one leaf command, keyed by camel-cased flag
+ * (`--all-8k` arrives as `all8k`). Values are whatever that option's parser
+ * produced, so a leaf narrows the ones it declared; see {@link SyncLeafOptions}.
+ */
+export type SyncLeafOptionValues = Readonly<Record<string, unknown>>;
+
+/** One CLI option a leaf declares for itself, in commander's own terms. */
+export interface SyncLeafOption {
+  /** Commander flag spec, e.g. `-c, --concurrency <n>`. */
+  readonly flags: string;
+  readonly description: string;
+  /** Commander's per-option parser. Without one the raw string is kept. */
+  readonly parse?: ((value: string, previous: unknown) => unknown) | undefined;
+  /**
+   * The value when the flag is absent. Commander accepts an unparsed default
+   * only for string and boolean flags, so a numeric one must arrive through
+   * {@link parse} — which is where the number comes from anyway.
+   */
+  readonly defaultValue?: string | number | boolean | undefined;
+  /**
+   * Step ids that carry this option. Absent means every command the leaf
+   * produces: the leaf itself, its `all`, and each of its steps.
+   */
+  readonly steps?: readonly string[] | undefined;
+}
+
+/**
+ * A leaf's own CLI options.
+ *
+ * The leaf declares them and says which shared context fields they set; the
+ * parsed values are then handed back to its steps verbatim, so a leaf's own
+ * vocabulary never has to be named by the package hosting the `sync` group. A
+ * leaf a downstream package contributes declares its options exactly the way
+ * one registered here does.
+ */
+export interface SyncLeafOptions {
+  readonly declare: readonly SyncLeafOption[];
+  /**
+   * The shared context fields these options set. Only for values
+   * {@link SyncRunContext} already names — a leaf's own vocabulary stays in the
+   * values handed to its steps, where the leaf itself gives it a type.
+   */
+  readonly readContext?: ((values: SyncLeafOptionValues) => Partial<SyncRunContext>) | undefined;
+}
+
+/**
+ * The `--shard i/N` declaration every sweeping leaf reuses. Its value reaches
+ * {@link SyncRunContext.shard} through the shared parse, so a leaf declares it
+ * and then reads `ctx.shard`: there is nothing per-leaf about what it means.
+ */
+export const SHARD_LEAF_OPTION: SyncLeafOption = {
+  flags: "--shard <i/N>",
+  description:
+    "Process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores",
+};
+
 export interface SyncStep {
   readonly id: string;
   readonly title: string;
-  readonly run: (ctx: SyncRunContext) => Promise<void>;
+  /**
+   * `values` is what the command the operator typed parsed, for the options
+   * this leaf declared. It is undefined when no command stands behind the run —
+   * `sync all`, or a caller invoking the step directly — and the leaf's own
+   * defaults apply there.
+   */
+  readonly run: (ctx: SyncRunContext, values?: SyncLeafOptionValues) => Promise<void>;
 }
 
 export interface SyncLeaf {
@@ -65,6 +122,8 @@ export interface SyncLeaf {
   readonly order: number;
   readonly inAll: boolean;
   readonly steps: readonly SyncStep[];
+  /** The options this leaf's commands carry. See {@link SyncLeafOptions}. */
+  readonly options?: SyncLeafOptions | undefined;
   /**
    * Runs the whole leaf as one unit — what `sync <leaf> all` invokes.
    *
@@ -75,7 +134,7 @@ export interface SyncLeaf {
    * one graph says so here; `steps` stays the vocabulary for selecting part of
    * it, and must produce the same work either way.
    */
-  readonly runAll?: (ctx: SyncRunContext) => Promise<void>;
+  readonly runAll?: (ctx: SyncRunContext, values?: SyncLeafOptionValues) => Promise<void>;
 }
 
 export const EMPTY_SYNC_CONTEXT: SyncRunContext = {
@@ -86,8 +145,6 @@ export const EMPTY_SYNC_CONTEXT: SyncRunContext = {
   lookback: 3,
   shard: undefined,
   formTypes: undefined,
-  only: undefined,
-  concurrency: DEFAULT_SPAC_ISSUER_CONCURRENCY,
   isolatedStep: false,
   simple: false,
   limit: undefined,
@@ -122,7 +179,8 @@ export function clearSyncLeavesForTesting(): void {
 export async function runSyncLeaves(
   leafIds: readonly string[],
   ctx: SyncRunContext,
-  stepId: string | undefined
+  stepId: string | undefined,
+  values?: SyncLeafOptionValues
 ): Promise<void> {
   for (const leafId of leafIds) {
     const leaf = getSyncLeaf(leafId);
@@ -131,7 +189,7 @@ export async function runSyncLeaves(
     }
 
     if (stepId === undefined && leaf.runAll !== undefined) {
-      await leaf.runAll(ctx);
+      await leaf.runAll(ctx, values);
       continue;
     }
 
@@ -147,7 +205,7 @@ export async function runSyncLeaves(
     }
 
     for (const step of steps) {
-      await step.run(ctx);
+      await step.run(ctx, values);
     }
   }
 }

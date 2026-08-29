@@ -58,7 +58,11 @@ export {
   listSyncLeaves,
   registerSyncLeaf,
   runSyncLeaves,
+  SHARD_LEAF_OPTION,
   type SyncLeaf,
+  type SyncLeafOption,
+  type SyncLeafOptions,
+  type SyncLeafOptionValues,
   type SyncRunContext,
   type SyncStep,
 } from "./cli/sync/syncLeaves";

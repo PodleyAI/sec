@@ -14,10 +14,12 @@ import {
 import { IdentifySpacsTask } from "../../task/spac/IdentifySpacsTask";
 import { ProcessSpacTimelineTask } from "../../task/spac/ProcessSpacTimelineTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
+import { parseIntOption } from "../GlobalOptions";
 import { isDryRun } from "../isDryRun";
 import { runWorkflowCli } from "../runWorkflow";
 import { runFormsSweep } from "./runFormsSweep";
 import {
+  DEFAULT_SPAC_ISSUER_CONCURRENCY,
   runSpacTimelineIssuers,
   spacProcessRows,
   type SpacProcessColumns,
@@ -25,11 +27,55 @@ import {
 import {
   filterSpacCiksByHistory,
   listSpacProcessCiks,
+  parseSpacProcessOnly,
   shardCiks,
   spacUpdatesFiledOnOrAfter,
+  type SpacProcessOnly,
 } from "./spacSyncCiks";
 import { SYNC_FORM_DOMAINS, expandFormTypes, formsForExtractorIds } from "./syncFormDomains";
-import { getSyncLeaf, registerSyncLeaf, type SyncRunContext } from "./syncLeaves";
+import {
+  getSyncLeaf,
+  registerSyncLeaf,
+  SHARD_LEAF_OPTION,
+  type SyncLeafOptionValues,
+  type SyncRunContext,
+} from "./syncLeaves";
+
+/**
+ * `sync spacs`'s own options — the ones no other leaf and no shared context
+ * field knows about.
+ */
+interface SpacSyncOptions {
+  /** Restrict the process step's CIKs. Undefined means both kinds. */
+  readonly only: SpacProcessOnly | undefined;
+  /** How many SPAC issuers to replay at once. Filings within an issuer stay serial. */
+  readonly concurrency: number;
+}
+
+/**
+ * Validates `--only` wherever its value came from: commander parsing the flag,
+ * or {@link spacSyncOptions} reading back what a command already parsed.
+ */
+function spacProcessOnly(value: unknown): SpacProcessOnly | undefined {
+  return typeof value === "string" ? parseSpacProcessOnly(value) : undefined;
+}
+
+/**
+ * Reads the leaf's options off what its command parsed. `values` is absent
+ * when no `sync spacs` command stands behind the run — `sync all`, or a caller
+ * invoking a step directly — and every option falls back to its own default,
+ * which is what those callers got when these two lived on the shared context.
+ */
+function spacSyncOptions(values: SyncLeafOptionValues | undefined): SpacSyncOptions {
+  const concurrency = values?.concurrency;
+  return {
+    only: spacProcessOnly(values?.only),
+    concurrency: Math.max(
+      1,
+      typeof concurrency === "number" ? concurrency : DEFAULT_SPAC_ISSUER_CONCURRENCY
+    ),
+  };
+}
 
 export function registerSecSyncLeaves(): void {
   if (getSyncLeaf("submissions") !== undefined) {
@@ -41,6 +87,26 @@ export function registerSecSyncLeaves(): void {
     description: "Catch up daily indexes and refresh submissions",
     order: 10,
     inAll: true,
+    options: {
+      declare: [
+        {
+          flags: "--force",
+          description: "Reprocess submissions, ignoring processed state",
+          defaultValue: false,
+        },
+        {
+          flags: "--from <date>",
+          description:
+            "Exclusive catch-up start (YYYY-MM-DD); fetch begins the day after this date",
+        },
+        {
+          flags: "--lookback <n>",
+          description: "Completed days to re-fetch (default 3)",
+          parse: parseIntOption,
+          defaultValue: 3,
+        },
+      ],
+    },
     steps: [
       {
         id: "index",
@@ -74,6 +140,20 @@ export function registerSecSyncLeaves(): void {
     description: "Refresh company facts for all CIKs",
     order: 20,
     inAll: true,
+    options: {
+      declare: [
+        {
+          flags: "--force",
+          description: "Reprocess all items, ignoring processed state",
+          defaultValue: false,
+        },
+        {
+          flags: "--retry-failed",
+          description: "Also re-fetch CIKs whose last facts processing failed",
+          defaultValue: false,
+        },
+      ],
+    },
     steps: [
       {
         id: "facts",
@@ -94,6 +174,7 @@ export function registerSecSyncLeaves(): void {
     description: "Process CFPORTAL registration forms",
     order: 30,
     inAll: true,
+    options: { declare: [SHARD_LEAF_OPTION] },
     steps: [
       {
         id: "portals",
@@ -114,6 +195,7 @@ export function registerSecSyncLeaves(): void {
     description: "Process Form C family filings",
     order: 40,
     inAll: true,
+    options: { declare: [SHARD_LEAF_OPTION] },
     steps: [
       {
         id: "crowdfunding",
@@ -134,6 +216,7 @@ export function registerSecSyncLeaves(): void {
     description: "Process Reg A family filings",
     order: 50,
     inAll: true,
+    options: { declare: [SHARD_LEAF_OPTION] },
     steps: [
       {
         id: "reg-a",
@@ -154,6 +237,7 @@ export function registerSecSyncLeaves(): void {
     description: "Process specific form types (comma-separated)",
     order: 55,
     inAll: false,
+    options: { declare: [SHARD_LEAF_OPTION] },
     steps: [
       {
         id: "forms",
@@ -177,6 +261,31 @@ export function registerSecSyncLeaves(): void {
     description: "Identify SPAC candidates and process SPAC filings",
     order: 60,
     inAll: true,
+    options: {
+      declare: [
+        {
+          flags: "--full",
+          description:
+            "Rescan every entity instead of only those whose submissions changed since the last run",
+          defaultValue: false,
+        },
+        SHARD_LEAF_OPTION,
+        {
+          flags: "--only <kind>",
+          description:
+            "never-processed = SPACs with no successful run yet; updates = already-processed SPACs, filings since the last SPAC process run (default: both, including historical leftover)",
+          parse: spacProcessOnly,
+        },
+        {
+          flags: "-c, --concurrency <n>",
+          description:
+            "How many ISSUERS to process at once (default 3). Filings within an issuer are always serial.",
+          parse: parseIntOption,
+          defaultValue: DEFAULT_SPAC_ISSUER_CONCURRENCY,
+        },
+      ],
+      readContext: (values) => ({ full: values.full === true }),
+    },
     steps: [
       {
         id: "identify",
@@ -188,26 +297,26 @@ export function registerSecSyncLeaves(): void {
       {
         id: "process",
         title: "Process SPAC filings",
-        run: async (ctx: SyncRunContext) => {
+        run: async (ctx: SyncRunContext, values?: SyncLeafOptionValues) => {
+          const { only, concurrency } = spacSyncOptions(values);
           const processCiks = shardCiks(
-            await filterSpacCiksByHistory(await listSpacProcessCiks(), ctx.only),
+            await filterSpacCiksByHistory(await listSpacProcessCiks(), only),
             ctx.shard
           );
           if (processCiks.length === 0) {
-            if (ctx.only === "never-processed") {
+            if (only === "never-processed") {
               console.log("No never-processed SPACs");
-            } else if (ctx.only === "updates") {
+            } else if (only === "updates") {
               console.log("No previously processed SPACs");
             } else {
               console.log("No known SPACs or high/medium candidates");
             }
             return;
           }
-          const filedOnOrAfter =
-            ctx.only === "updates" ? await spacUpdatesFiledOnOrAfter() : undefined;
+          const filedOnOrAfter = only === "updates" ? await spacUpdatesFiledOnOrAfter() : undefined;
           const rows = await runSpacTimelineIssuers({
             ciks: processCiks,
-            concurrency: ctx.concurrency,
+            concurrency,
             filedOnOrAfter,
           });
           reportSpacProcessRows(rows, { dryRun: isDryRun() });
@@ -218,15 +327,16 @@ export function registerSecSyncLeaves(): void {
         },
       },
     ],
-    runAll: async (ctx: SyncRunContext) => {
-      const filedOnOrAfter = ctx.only === "updates" ? await spacUpdatesFiledOnOrAfter() : undefined;
+    runAll: async (ctx: SyncRunContext, values?: SyncLeafOptionValues) => {
+      const { only, concurrency } = spacSyncOptions(values);
+      const filedOnOrAfter = only === "updates" ? await spacUpdatesFiledOnOrAfter() : undefined;
       const { failed, total } = await runWorkflowCli<{ failed: number; total: number }>(
         [new IdentifySpacsTask({ defaults: { full: ctx.full } })],
         undefined,
         (wf) => {
           wf.pipe(async () => ({
             cik: shardCiks(
-              await filterSpacCiksByHistory(await listSpacProcessCiks(), ctx.only),
+              await filterSpacCiksByHistory(await listSpacProcessCiks(), only),
               ctx.shard
             ),
           }));
@@ -238,7 +348,7 @@ export function registerSecSyncLeaves(): void {
           // would have used, bypassing that name match entirely.
           wf.rename("*", "*");
           const loop = wf.map({
-            concurrencyLimit: Math.max(1, ctx.concurrency),
+            concurrencyLimit: concurrency,
             maxIterations: "unbounded",
             preserveOrder: true,
           });
@@ -251,9 +361,9 @@ export function registerSecSyncLeaves(): void {
           wf.pipe((columns: SpacProcessColumns) => {
             const rows = spacProcessRows(columns);
             if (rows.length === 0) {
-              if (ctx.only === "never-processed") {
+              if (only === "never-processed") {
                 console.log("No never-processed SPACs");
-              } else if (ctx.only === "updates") {
+              } else if (only === "updates") {
                 console.log("No previously processed SPACs");
               } else {
                 console.log("No known SPACs or high/medium candidates");
@@ -281,6 +391,66 @@ export function registerSecSyncLeaves(): void {
     description: "Convert filing documents to markdown sections",
     order: 70,
     inAll: true,
+    options: {
+      declare: [
+        {
+          flags: "--types <list>",
+          description:
+            "Comma-separated forms to convert (default: the narrative set in CONVERTIBLE_FORMS)",
+        },
+        {
+          flags: "--since <date>",
+          description: "Only filings filed on or after this date (YYYY-MM-DD)",
+        },
+        {
+          flags: "--cik <cik>",
+          description:
+            "Convert only this issuer's filings — what you want after `spac process <cik>`, " +
+            "since the unfiltered sweep works newest-first across every filer",
+          // Rejected by `parseIntOption` at parse time rather than by the leaf:
+          // a mistyped CIK that fell through would convert the newest 500
+          // filings of every filer, which looks like success and is not what
+          // was asked.
+          parse: parseIntOption,
+        },
+        {
+          flags: "--limit <n>",
+          description:
+            "How many filings to convert in this run (default 500) — a backfill is many runs",
+          parse: parseIntOption,
+        },
+        {
+          flags: "--all-8k",
+          description:
+            "Convert 8-Ks from every filer, not just CIKs in the spac table — the default " +
+            "skips them because every reporting company files them",
+          defaultValue: false,
+        },
+        {
+          flags: "--download-only",
+          description:
+            "Fetch each selected filing into the accession-doc cache and stop — no parsing, " +
+            "no rows written; re-running converts them with no further requests",
+          defaultValue: false,
+        },
+        {
+          flags: "--force",
+          description: "Re-convert filings already stored at the current converter version",
+          defaultValue: false,
+        },
+      ],
+      readContext: (values) => ({
+        // `sync forms --types` already means "narrow to these forms"; reusing
+        // it here keeps one vocabulary rather than inventing a second spelling
+        // of the same idea.
+        formTypes: typeof values.types === "string" ? values.types.split(",") : undefined,
+        from: typeof values.since === "string" ? values.since : undefined,
+        cik: typeof values.cik === "number" ? values.cik : undefined,
+        limit: typeof values.limit === "number" ? values.limit : undefined,
+        all8k: values.all8k === true,
+        downloadOnly: values.downloadOnly === true,
+      }),
+    },
     steps: [
       {
         id: "convert",
@@ -289,9 +459,6 @@ export function registerSecSyncLeaves(): void {
           await runWorkflowCli([
             new ConvertFilingDocumentsTask({
               defaults: {
-                // `sync forms --types` already means "narrow to these forms";
-                // reusing it here keeps one vocabulary rather than inventing a
-                // second spelling of the same idea.
                 forms: ctx.formTypes?.length ? expandFormTypes(ctx.formTypes) : undefined,
                 since: ctx.from,
                 cik: ctx.cik,
