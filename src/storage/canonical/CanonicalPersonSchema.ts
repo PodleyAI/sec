@@ -11,8 +11,9 @@ import { TypeSecCik } from "../../util/TypeSecCik";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 
 /**
- * Canonical person identity. PK is `canonical_person_id` (UUID v4 string,
- * minted by PersonResolver). Multiple resolver versions can write distinct
+ * Canonical person identity. PK is `canonical_person_id` (UUID-shaped; the
+ * name-keyed fallback is deterministic from the resolver version and identity
+ * key, while the database-unique CIK path uses UUID v4). Multiple resolver versions can write distinct
  * rows for the same logical person; `resolver_version` disambiguates. The
  * `current_canonical_person` view filters to the active resolver slot.
  *
@@ -26,7 +27,7 @@ import { TypeNullable } from "../../util/TypeBoxUtil";
 export const CanonicalPersonSchema = Type.Object({
   canonical_person_id: Type.String({
     maxLength: 36,
-    description: "UUID v4",
+    description: "UUID-shaped resolver identity",
   }),
   resolver_version: Type.String({
     maxLength: 32,

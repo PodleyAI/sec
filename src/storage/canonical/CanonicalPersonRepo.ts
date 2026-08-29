@@ -36,6 +36,12 @@ export class CanonicalPersonRepo {
     return row;
   }
 
+  /** Replaces an existing canonical row, preserving its primary key. */
+  async save(row: CanonicalPerson): Promise<CanonicalPerson> {
+    await this.repo.put(row);
+    return row;
+  }
+
   async getById(canonical_person_id: string): Promise<CanonicalPerson | undefined> {
     return await this.repo.get({ canonical_person_id });
   }

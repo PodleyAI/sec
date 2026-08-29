@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { normalizePerson } from "../storage/person/PersonNormalization";
+import { normalizePerson, personDisplayParts } from "../storage/person/PersonNormalization";
 import { normalizeCompanyName } from "../storage/company/CompanyNormalization";
 import { normalizeManagementTitles } from "../sec/forms/registration-statements/s1/normalizeTitle";
 import type { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
@@ -241,9 +241,14 @@ export function normalizePersonNameParts(parts: PersonNameParts): {
   readonly normalized: ReturnType<typeof normalizePerson> | undefined;
   readonly parsedSuffixDisplay: string | null;
 } {
-  const fullName = [parts.first_name, parts.middle_name, parts.last_name, parts.suffix]
-    .filter(Boolean)
-    .join(" ");
+  const display = personDisplayParts(parts);
+  const fullName = display
+    ? [display.first, display.middle, display.last, display.suffix, display.credentials]
+        .filter(Boolean)
+        .join(" ")
+    : [parts.first_name, parts.middle_name, parts.last_name, parts.suffix]
+        .filter(Boolean)
+        .join(" ");
   const normalized = fullName
     ? normalizePerson({ name: fullName, cik: parts.cik ?? undefined })
     : undefined;

@@ -40,6 +40,100 @@ export type Person = {
   crd?: string | null;
 };
 
+export type PersonDisplayParts = {
+  first: string;
+  middle: string | null;
+  last: string;
+  suffix: string | null;
+  credentials: string | null;
+  title: string | null;
+};
+
+const SIGNATURE_MARKER = /^\s*\/\s*s\s*\/\s*/i;
+const LEADING_HONORIFIC =
+  /^\s*(mr|mrs|ms|miss|dr|prof|professor|hon|honorable|rev|reverend)\.?\s+/i;
+
+/** Removes filing mechanics without changing the filed name itself. */
+export function cleanFiledPersonName(name: string): string {
+  return foldTypographicPunctuation(name).replace(SIGNATURE_MARKER, "").replace(/\s+/g, " ").trim();
+}
+
+function preparePersonName(name: string): { name: string; honorific: string | null } {
+  let clean = cleanFiledPersonName(name);
+  const honorific = clean.match(LEADING_HONORIFIC)?.[0].trim() ?? null;
+  if (honorific) clean = clean.replace(LEADING_HONORIFIC, "");
+  clean = clean.replace(/^(\S+)\s+([A-Za-z])\s+(.+)$/, "$1 $2. $3");
+  return { name: clean, honorific };
+}
+
+/**
+ * Restores a credential's filed capitalisation.
+ *
+ * `fixCase` title-cases every part it returns, which is right for a name and
+ * wrong for an initialism — it renders a filed "CPA" as "Cpa", and this string
+ * reaches `canonical_person.display_suffix`, which is presentation text. The
+ * credential is not identity-bearing, so nothing keys off either spelling; the
+ * only question is which one a reader sees.
+ */
+function filedCredentialCasing(credential: string, source: string): string {
+  const escaped = credential.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return source.match(new RegExp(escaped, "i"))?.[0] ?? credential;
+}
+
+/**
+ * Parses a filed full name for display. Leading honorifics are removed before
+ * calling parse-full-name because its title-aware path treats a lone middle
+ * initial as part of the surname ("Dr Sam A Dowling" -> "A Dowling").
+ */
+export function parsePersonDisplayName(name: string): PersonDisplayParts | undefined {
+  const prepared = preparePersonName(name);
+  const clean = prepared.name;
+  if (!clean) return undefined;
+
+  const results = parseFullName(clean, { normalize: true, fixCase: 1 });
+  if (!results.first || !results.last) return undefined;
+
+  const credentials = emptyToNull(results.credential);
+  return {
+    first: results.first,
+    middle: emptyToNull(results.middle) ?? emptyToNull(results.nick),
+    last: results.last,
+    suffix: emptyToNull(results.generation),
+    credentials: credentials === null ? null : filedCredentialCasing(credentials, clean),
+    title: emptyToNull(results.title) ?? prepared.honorific,
+  };
+}
+
+function suffixKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Turns the sometimes-structured observation fields into one clean display
+ * name. It also repairs legacy rows where a suffix lives in both last_name and
+ * suffix, or where a complete signature was stored in last_name.
+ */
+export function personDisplayParts(parts: {
+  first_name?: string | null;
+  middle_name?: string | null;
+  last_name?: string | null;
+  suffix?: string | null;
+}): PersonDisplayParts | undefined {
+  let last = cleanFiledPersonName(parts.last_name ?? "");
+  const suffix = cleanFiledPersonName(parts.suffix ?? "");
+  if (last && suffix) {
+    const suffixAtEnd = last.match(/(?:,?\s+)([^\s,]+)\.?$/);
+    // `split` always yields at least one element, so the first is the whole
+    // string when there is no comma — the generation half of "Jr., Ph.D.".
+    if (suffixAtEnd && suffixKey(suffixAtEnd[1]) === suffixKey(suffix.split(",")[0])) {
+      last = last.slice(0, suffixAtEnd.index).trim();
+    }
+  }
+
+  const fullName = [parts.first_name, parts.middle_name, last, suffix].filter(Boolean).join(" ");
+  return parsePersonDisplayName(fullName);
+}
+
 /** Empty string is how `parseFullName` reports an absent part; we store null. */
 function emptyToNull(value: string | undefined): string | null {
   return value === undefined || value.trim() === "" ? null : value;
@@ -108,9 +202,8 @@ export function normalizePerson(importPerson: PersonImport | null): Person | und
   // BEFORE parsing so the parser's case-fixing keys off a consistent character
   // — otherwise "D’Angelo" (U+2019) case-folds to "D’angelo" while "D'Angelo"
   // gives "D'Angelo", splitting the same person into two canonical rows.
-  const cleanPerson = foldTypographicPunctuation(name.replace("/s/", "").trim());
-
-  const results = parseFullName(cleanPerson, { normalize: true, fixCase: 1 });
+  const prepared = preparePersonName(name);
+  const results = parseFullName(prepared.name, { normalize: true, fixCase: 1 });
 
   if (results.error?.length) {
     // console.error(`Error parsing full name: ${importPerson}, but moving on...`, results.error);
@@ -153,7 +246,7 @@ export function normalizePerson(importPerson: PersonImport | null): Person | und
     last: stripNamePartPunctuation(results.last) ?? foldDiacritics(results.last),
     suffix: stripNamePartPunctuation(emptyToNull(results.generation)),
     credentials: emptyToNull(results.credential),
-    title: results.title,
+    title: prepared.honorific ?? results.title,
     nick: parsedNick,
     dob: null,
     notes: null,

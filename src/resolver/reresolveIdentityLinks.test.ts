@@ -226,8 +226,9 @@ describe("re-resolving person observations", () => {
 
     // --- ACC-3, a different issuer ---
     // Ada under a second issuer, and spelled differently. The CIK branch
-    // finds her existing row, and the resolver never re-derives what it
-    // stamped, so the display name stays the one ACC-1 filed.
+    // finds her existing row; "Adelaide Multi" and "Ada Multi" are equally
+    // complete, and an equal-quality display name does not displace the
+    // incumbent, so the name stays the one ACC-1 filed.
     const adaOtherIssuer = await observe(observer, {
       accession_number: "ACC-3",
       observation_index: 0,
@@ -379,12 +380,14 @@ describe("re-resolving person observations", () => {
     expect(links.some((link) => link.canonical_person_id === retiredDanaId)).toBe(false);
     expect(canonicals.some((row) => row.canonical_person_id === retiredDanaId)).toBe(true);
 
-    // The stamped columns, pinned per row. `display_middle` is the one the
-    // last-processed observation would have supplied: the resolver stamps on
-    // the mint and never again.
+    // The stamped columns, pinned per row. `display_middle` comes from the
+    // re-extraction of ACC-1 processed last, which is the only observation to
+    // supply a middle name: display fields are ranked, so a more complete name
+    // upgrades them rather than the mint owning them forever. The identity
+    // columns below are NOT ranked — those the mint does own.
     const adaRow = canonicalRow(canonicals, canonicalFor(links, adaFirst.observation_id));
     expect(adaRow.display_first).toBe("Ada");
-    expect(adaRow.display_middle).toBeNull();
+    expect(adaRow.display_middle).toBe("M.");
     expect(adaRow.display_last).toBe("Multi");
     expect(adaRow.cik).toBe(6001);
     expect(adaRow.source_filing_issuer_cik).toBeNull();

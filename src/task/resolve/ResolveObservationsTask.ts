@@ -302,8 +302,15 @@ export class ResolveObservationsTask extends Task<
           activeResolverVersion: input.resolverVersion,
         });
         const linkRepo = new PersonIdentityLinkRepo();
+        // Same-accession variants must be adjacent so the resolver can compare
+        // the whole filing while keeping its candidate cache bounded.
+        const personRows = (await observations.listAll()).sort(
+          (a, b) =>
+            a.accession_number.localeCompare(b.accession_number) ||
+            a.observation_index - b.observation_index
+        );
         const resolved = await resolveAll(
-          await observations.listAll(),
+          personRows,
           (obs) => resolver.resolve(obs),
           (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
         );

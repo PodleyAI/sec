@@ -39,6 +39,48 @@ identity link, and records junctions in one step.
 normalized-name + issuer-CIK fallback. Companies: CIK → CRD → normalized-name cascade. Both
 create a fresh canonical row on first sight and delegate alias resolution to the alias repo.
 
+### Person names: filed, normalized, and displayed
+
+The three representations have deliberately different contracts:
+
+- `person_observations.first_name/middle_name/last_name/suffix` record the extractor's
+  structured reading of what was filed. Form C additionally keeps every original signature
+  string in `source_context.filed_names` because its XML supplies an unstructured signature.
+- `person_observations.normalized_*` are identity-key fields. They remove signature markers,
+  identity-neutral punctuation and credentials; they are not presentation text.
+- `canonical_person.display_*` are cleaned human-readable fields. The resolver ranks each
+  linked observation and upgrades these fields when a more complete name arrives, so the
+  first processed observation does not permanently own the display name.
+
+Within one accession, no-CIK observations may also resolve together when they have the same
+issuer and surname, the **same** suffix, a compatible middle name, and a unique best
+given-name match. Exact names, middle-initial/full-middle pairs and missing middles are
+positive evidence; address and phone break ties between candidates but never admit a pair
+on their own. `relationship` is deliberately not scored — it names the KIND of relation
+(`form-c:signature`), so it is identical for every signer of a filing and separates none of
+them.
+
+Two things block a match outright. A conflicting full middle name is one. The other is a
+**suffix either side carries alone**: a filing that writes both "Nora Nocik" and "Nora Nocik
+Jr." is the father-and-son case, the one place a roster spells the distinction out, so
+reading the absent suffix as "no information" would merge exactly the two people the filing
+bothered to tell apart. A middle name missing from one side is the opposite — absence there
+is scored the same as absence from both, never lower, because strictly more information
+about one side must never make a pair less likely to match.
+
+Prefix spelling variants are accepted only in that same-filing scope; the resolver does not
+perform global fuzzy matching. Where a filing offers two equally good candidates, it takes
+neither and mints a fresh canonical. All observations remain separate provenance rows even
+when their identity links converge.
+
+Name-keyed canonical IDs are deterministic — a pure function of the resolver version and the
+identity key. A name tuple is legitimately shared, so `canonical_person` carries no UNIQUE
+constraint over it (only `(resolver_version, cik)`), and writes go through `put`, an upsert
+on the primary key. The determinism is therefore not a collision _error_ but a rendezvous:
+the resolver reads that exact id before minting and adopts any row it finds, so a writer in
+another process converges on the existing row instead of overwriting its `created_at` and its
+display name.
+
 ### Extension seam
 
 **`registerResolverExtension`** (`src/resolver/resolverExtensions.ts`) is the registry every

@@ -38,6 +38,10 @@ import { PersonRoleRepo } from "../../../storage/canonical/PersonRoleRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
+import {
+  cleanFiledPersonName,
+  parsePersonDisplayName,
+} from "../../../storage/person/PersonNormalization";
 
 interface FormCStorageContext {
   readonly accession_number: string;
@@ -183,75 +187,101 @@ async function processSignatures(
 ): Promise<void> {
   const signatureInfo = formC.formData.signatureInfo;
 
-  // Issuer signature at startIndex (100)
+  type FiledSignature = { name: string; title: string; index: number };
+  const filed: FiledSignature[] = [];
+  // Tested on the cleaned string as well as the filed one: the sentinel
+  // vocabulary is spelled without a signature marker, so "/s/ N/A" reaches
+  // `isBadPersonField` as a string it does not recognise and would otherwise
+  // be stored as a person named N/A.
+  const isBadSignature = (name: string | undefined | null): boolean =>
+    isBadPersonField(name) || isBadPersonField(cleanFiledPersonName(name ?? ""));
   const issuerSig = signatureInfo.issuerSignature;
-  if (issuerSig.issuerSignature && !isBadPersonField(issuerSig.issuerSignature)) {
-    const sigName = issuerSig.issuerSignature;
-    const titles = [issuerSig.issuerTitle || "Signer"];
+  if (issuerSig.issuerSignature && !isBadSignature(issuerSig.issuerSignature)) {
+    filed.push({
+      name: issuerSig.issuerSignature,
+      title: issuerSig.issuerTitle || "Signer",
+      index: startIndex,
+    });
+  }
+  let index = startIndex + 1;
+  for (const sp of signatureInfo.signaturePersons?.signaturePerson ?? []) {
+    if (isBadSignature(sp.personSignature)) continue;
+    filed.push({ name: sp.personSignature, title: sp.personTitle || "Signer", index });
+    index += 1;
+  }
 
-    if (hasCompanyEnding(sigName)) {
-      await ctx.observer.observeCompany({
-        accession_number: ctx.accession_number,
-        extractor_id: ctx.extractor_id,
-        extractor_version: ctx.extractor_version,
-        observation_index: startIndex,
-        cik: null,
-        name: sigName,
-        source_context: JSON.stringify({ relation: "form-c:signature", titles }),
-      });
+  // The issuer signature and signaturePersons blocks routinely repeat the
+  // same signer. Resolve one observation per cleaned identity, while retaining
+  // every distinct filed title and the original strings in source_context.
+  const deduped = new Map<
+    string,
+    { filedNames: string[]; titles: string[]; index: number; company: boolean }
+  >();
+  for (const sig of filed) {
+    const cleanName = cleanFiledPersonName(sig.name);
+    const parsed = parsePersonDisplayName(cleanName);
+    const company = hasCompanyEnding(cleanName);
+    const key = company
+      ? `company|${cleanName.toLowerCase()}`
+      : parsed
+        ? `person|${[parsed.first, parsed.middle, parsed.last, parsed.suffix]
+            .filter(Boolean)
+            .join("|")
+            .toLowerCase()
+            .replace(/[^a-z0-9|]/g, "")}`
+        : `person|${cleanName.toLowerCase()}`;
+    const current = deduped.get(key);
+    if (current) {
+      if (!current.filedNames.includes(sig.name)) current.filedNames.push(sig.name);
+      if (!current.titles.includes(sig.title)) current.titles.push(sig.title);
     } else {
-      await ctx.observer.observePerson({
-        accession_number: ctx.accession_number,
-        extractor_id: ctx.extractor_id,
-        extractor_version: ctx.extractor_version,
-        observation_index: startIndex,
-        source_filing_issuer_cik: cik,
-        last_name: sigName,
-        titles: titles,
-        relationship: "form-c:signature",
-        filing_date: ctx.filing_date,
-        role_scope: "form-c:signature",
-        source_context: JSON.stringify({ relation: "form-c:signature", titles }),
+      deduped.set(key, {
+        filedNames: [sig.name],
+        titles: [sig.title],
+        index: sig.index,
+        company,
       });
     }
   }
 
-  // Signature persons at startIndex + 1, startIndex + 2, ...
-  if (signatureInfo.signaturePersons?.signaturePerson) {
-    let idx = startIndex + 1;
-    for (const sp of signatureInfo.signaturePersons.signaturePerson) {
-      if (isBadPersonField(sp.personSignature)) continue;
-
-      const sigName = sp.personSignature;
-      const titles = [sp.personTitle || "Signer"];
-
-      if (hasCompanyEnding(sigName)) {
-        await ctx.observer.observeCompany({
-          accession_number: ctx.accession_number,
-          extractor_id: ctx.extractor_id,
-          extractor_version: ctx.extractor_version,
-          observation_index: idx,
-          cik: null,
-          name: sigName,
-          source_context: JSON.stringify({ relation: "form-c:signature", titles }),
-        });
-      } else {
-        await ctx.observer.observePerson({
-          accession_number: ctx.accession_number,
-          extractor_id: ctx.extractor_id,
-          extractor_version: ctx.extractor_version,
-          observation_index: idx,
-          source_filing_issuer_cik: cik,
-          last_name: sigName,
-          titles: titles,
-          relationship: "form-c:signature",
-          filing_date: ctx.filing_date,
-          role_scope: "form-c:signature",
-          source_context: JSON.stringify({ relation: "form-c:signature", titles }),
-        });
-      }
-      idx++;
+  for (const entry of deduped.values()) {
+    const filedName = entry.filedNames[0];
+    const cleanName = cleanFiledPersonName(filedName);
+    const source_context = JSON.stringify({
+      relation: "form-c:signature",
+      titles: entry.titles,
+      filed_names: entry.filedNames,
+    });
+    if (entry.company) {
+      await ctx.observer.observeCompany({
+        accession_number: ctx.accession_number,
+        extractor_id: ctx.extractor_id,
+        extractor_version: ctx.extractor_version,
+        observation_index: entry.index,
+        cik: null,
+        name: cleanName,
+        source_context,
+      });
+      continue;
     }
+
+    const parsed = parsePersonDisplayName(cleanName);
+    await ctx.observer.observePerson({
+      accession_number: ctx.accession_number,
+      extractor_id: ctx.extractor_id,
+      extractor_version: ctx.extractor_version,
+      observation_index: entry.index,
+      source_filing_issuer_cik: cik,
+      first_name: parsed?.first ?? null,
+      middle_name: parsed?.middle ?? null,
+      last_name: parsed?.last ?? cleanName,
+      suffix: [parsed?.suffix, parsed?.credentials].filter(Boolean).join(", ") || null,
+      titles: entry.titles,
+      relationship: "form-c:signature",
+      filing_date: ctx.filing_date,
+      role_scope: "form-c:signature",
+      source_context,
+    });
   }
 }
 
@@ -374,9 +404,9 @@ export async function processFormC({
   const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
 
-  // 1.1.0: numScalar() treats whitespace-only/empty numeric elements as null
-  // instead of fabricating 0 via Value.Convert. Bumped to force re-extract.
-  const extractor_version = "1.1.0";
+  // 1.2.0: signatures are cleaned, split into structured name fields, and
+  // duplicate issuer/person signature blocks collapse to one observation.
+  const extractor_version = "1.2.0";
 
   const personObservationRepo = new PersonObservationRepo();
   const companyObservationRepo = new CompanyObservationRepo();
