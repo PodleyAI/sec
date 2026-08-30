@@ -7,19 +7,15 @@
 import { Type } from "typebox";
 import { Task } from "workglow";
 import { normalizePersonNameParts } from "../../resolver/EntityObserver";
-import { CompanyResolver } from "../../resolver/CompanyResolver";
-import { PersonResolver } from "../../resolver/PersonResolver";
-import { CanonicalCompanyAliasRepo } from "../../storage/canonical/CanonicalCompanyAliasRepo";
-import { CanonicalCompanyRepo } from "../../storage/canonical/CanonicalCompanyRepo";
-import { CanonicalPersonAliasRepo } from "../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalPersonRepo } from "../../storage/canonical/CanonicalPersonRepo";
-import { CompanyIdentityLinkRepo } from "../../storage/canonical/CompanyIdentityLinkRepo";
-import { PersonIdentityLinkRepo } from "../../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../../storage/observation/PersonObservationRepo";
 import { normalizeCompanyName } from "../../storage/company/CompanyNormalization";
 import { rebuildCompanyJunctions, rebuildPersonJunctions } from "../../resolver/rebuildJunctions";
 import { rebuildPersonRoles } from "../../resolver/rebuildPersonRoles";
+import {
+  resolveCompanyObservations,
+  resolvePersonObservations,
+} from "../../resolver/resolveObservationLinks";
 
 /**
  * The resolver kinds this batch pass implements. A kind qualifies only when its
@@ -152,31 +148,6 @@ async function rebuildProjections(input: ResolveObservationsTaskInput): Promise<
   }
 }
 
-/**
- * Shared per-kind loop: resolve each observation and write its identity link,
- * isolating per-row failures (logged to stderr) so one bad row can't abort the
- * whole batch.
- */
-async function resolveAll<Obs extends { readonly observation_id: number }>(
-  observations: readonly Obs[],
-  resolveOne: (obs: Obs) => Promise<string>,
-  writeLink: (observationId: number, canonicalId: string) => Promise<unknown>
-): Promise<Omit<ResolveObservationsTaskOutput, "renormalized" | "rebuilds">> {
-  let count = 0;
-  let skipped = 0;
-  for (const obs of observations) {
-    try {
-      const id = await resolveOne(obs);
-      await writeLink(obs.observation_id, id);
-      count++;
-    } catch (e) {
-      skipped++;
-      console.error(`skipping observation ${obs.observation_id}: ${(e as Error).message}`);
-    }
-  }
-  return { count, skipped };
-}
-
 export type ResolveObservationsTaskOutput = {
   readonly count: number;
   /** Observations skipped by the per-row failure isolation (also logged to stderr). */
@@ -296,39 +267,18 @@ export class ResolveObservationsTask extends Task<
         // recomputing them afterwards would leave the links keyed to the previous
         // generation and report a coverage the data does not have.
         const renormalized = input.renormalize ? await renormalizePersons(observations) : 0;
-        const resolver = new PersonResolver({
-          canonicalPersonRepo: new CanonicalPersonRepo(),
-          canonicalPersonAliasRepo: new CanonicalPersonAliasRepo(),
-          activeResolverVersion: input.resolverVersion,
-        });
-        const linkRepo = new PersonIdentityLinkRepo();
-        // Same-accession variants must be adjacent so the resolver can compare
-        // the whole filing while keeping its candidate cache bounded.
-        const personRows = (await observations.listAll()).sort(
-          (a, b) =>
-            a.accession_number.localeCompare(b.accession_number) ||
-            a.observation_index - b.observation_index
-        );
-        const resolved = await resolveAll(
-          personRows,
-          (obs) => resolver.resolve(obs),
-          (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
+        const resolved = await resolvePersonObservations(
+          await observations.listAll(),
+          input.resolverVersion
         );
         return { ...resolved, renormalized, rebuilds: await rebuildProjections(input) };
       }
       case "company": {
         const observations = new CompanyObservationRepo();
         const renormalized = input.renormalize ? await renormalizeCompanies(observations) : 0;
-        const resolver = new CompanyResolver({
-          canonicalCompanyRepo: new CanonicalCompanyRepo(),
-          canonicalCompanyAliasRepo: new CanonicalCompanyAliasRepo(),
-          activeResolverVersion: input.resolverVersion,
-        });
-        const linkRepo = new CompanyIdentityLinkRepo();
-        const resolved = await resolveAll(
+        const resolved = await resolveCompanyObservations(
           await observations.listAll(),
-          (obs) => resolver.resolve(obs),
-          (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
+          input.resolverVersion
         );
         return { ...resolved, renormalized, rebuilds: await rebuildProjections(input) };
       }

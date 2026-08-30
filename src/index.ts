@@ -273,16 +273,28 @@ export { deterministicModelRecord } from "./config/registerModels";
 export type { DeadLetterReasonCode } from "./storage/dead-letter/ExtractionDeadLetterSchema";
 
 // ── Writing observations from an out-of-package extractor ───────────────────
-// `buildEntityObserver` wires an `EntityObserver` out of DI at the given
-// active resolver versions, so a form module does not repeat the ceremony and
-// cannot resolve against a stale version by accident.
+// `buildObserveOnlyEntityObserver` wires an `EntityObserver` over the three
+// observation repositories, so a form module does not repeat the ceremony. It
+// records what a filing said and stops there; the canonical id a name resolves
+// to is a batch pass's answer over the stored observations, not something a
+// form module reads back as it stores.
+// `buildEntityObserver` additionally wires the resolver tier, resolving as it
+// observes at the given active versions.
 // `COMPLETE_ROSTER_ROLE_SCOPES` names the scopes whose filings list everyone
 // holding the role, and so the only ones where a later filing's silence may
 // end a tenure. It is shared rather than restated because a roster closure
 // pass and anything recomputing tenures from stored evidence must agree on the
 // set exactly.
+// `resolveObservationsForAccession` resolves the observations ONE filing left
+// behind into identity links, for a module that must read a canonical id back
+// before it returns. It writes links only — everything derived from them stays
+// a projection recomputed from stored evidence.
+export { resolveObservationsForAccession } from "./resolver/resolveObservationLinks";
+export type { ObservationResolveResult } from "./resolver/resolveObservationLinks";
+export { buildObserveOnlyEntityObserver } from "./resolver/buildObserveOnlyEntityObserver";
 export { buildEntityObserver } from "./resolver/buildEntityObserver";
 export { EntityObserver } from "./resolver/EntityObserver";
+export type { ObserveOnlyEntityObserver } from "./resolver/EntityObserver";
 export { COMPLETE_ROSTER_ROLE_SCOPES } from "./resolver/roleScopes";
 
 // ── 8-K item codes that mark a SPAC letter of intent or redemption ──────────

@@ -125,6 +125,8 @@ test("exports the extraction seam an out-of-package form extractor is built on",
     "DocumentTreeSegmenter",
     "getExtractionTemperature",
     "deterministicModelRecord",
+    "buildObserveOnlyEntityObserver",
+    "resolveObservationsForAccession",
     "buildEntityObserver",
     "EntityObserver",
     "COMPLETE_ROSTER_ROLE_SCOPES",
@@ -223,8 +225,12 @@ test("the extraction seam parses, segments and guards over a real submission", (
     { section_name: "risk-factors", reason_code: "MODEL_INVALID_OUTPUT" };
   expect(failure.reason_code).toBe("MODEL_INVALID_OUTPUT");
 
-  // `buildEntityObserver` needs live DI, so what is pinned here is its
-  // signature: the versions it must be given and the observer it hands back.
+  // Both builders need live DI, so what is pinned here is their signatures.
+  // The observe-only one takes no versions at all — that is the point of it:
+  // there is no resolver to point at a version, so there is no stale version
+  // to point at by accident.
+  const buildObserveOnly: () => sec.ObserveOnlyEntityObserver = sec.buildObserveOnlyEntityObserver;
+  expect(typeof buildObserveOnly).toBe("function");
   const buildObserver: (args: {
     readonly activeResolverPersonVersion: string;
     readonly activeResolverCompanyVersion: string;
