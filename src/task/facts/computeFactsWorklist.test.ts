@@ -104,3 +104,50 @@ describe("computeFactsWorklist", () => {
     expect(result.needsRetrying).toEqual([]);
   });
 });
+
+describe("computeFactsWorklist eligibility filter", () => {
+  const universe = [
+    { cik: 1, last_update: "2026-06-09" },
+    { cik: 2, last_update: "2026-06-09" },
+    { cik: 3, last_update: "2026-06-09" },
+  ];
+
+  it("drops ineligible CIKs from the never-processed lane", () => {
+    const result = computeFactsWorklist(universe, new Map(), {
+      force: false,
+      retryFailed: false,
+      retryDate: RETRY_DATE,
+      eligible: new Set([1, 3]),
+    });
+    expect(result.needsProcessing.map((r) => r.cik)).toEqual([1, 3]);
+  });
+
+  it("sweeps everything when no eligible set is given", () => {
+    const result = computeFactsWorklist(universe, new Map(), {
+      force: false,
+      retryFailed: false,
+      retryDate: RETRY_DATE,
+      eligible: undefined,
+    });
+    expect(result.needsProcessing.map((r) => r.cik)).toEqual([1, 2, 3]);
+  });
+
+  it("never filters the changed lane — those CIKs already answered companyfacts", () => {
+    const result = computeFactsWorklist(
+      universe,
+      new Map([[2, processedRow(2, "2026-06-01", true)]]),
+      { force: false, retryFailed: false, retryDate: RETRY_DATE, eligible: new Set([1]) }
+    );
+    expect(result.needsUpdating.map((r) => r.cik)).toEqual([2]);
+    expect(result.needsProcessing.map((r) => r.cik)).toEqual([1]);
+  });
+
+  it("never filters the retry lane — an explicit retry request outranks the heuristic", () => {
+    const result = computeFactsWorklist(
+      universe,
+      new Map([[2, processedRow(2, "2026-06-09", false)]]),
+      { force: false, retryFailed: true, retryDate: RETRY_DATE, eligible: new Set([1]) }
+    );
+    expect(result.needsRetrying.map((r) => r.cik)).toEqual([2]);
+  });
+});

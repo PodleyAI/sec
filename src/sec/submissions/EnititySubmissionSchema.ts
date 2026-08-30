@@ -21,10 +21,22 @@ Format.Set("sec-form", (value: string) => {
 });
 export const TypeSECForm = (annotations: Record<string, unknown> = {}) =>
   Type.String({ format: "sec-form", maxLength: 20, ...annotations });
+/**
+ * EDGAR spells booleans several ways depending on the endpoint: the submissions
+ * JSON uses the integers `0`/`1`, ownership XML uses the strings `"0"`/`"1"`,
+ * and a few payloads use real JSON booleans. The pipeline parses wire payloads
+ * through `Value.Encode`, so the Encode side is what has to absorb all three —
+ * it previously tested `value === "1"` only, which is false for the integer `1`
+ * that `submissions/CIK*.json` actually sends, silently flattening every
+ * `isXBRL`/`isInlineXBRL` in the corpus to `false` (and thence to NULL).
+ */
+export const secBooleanFromWire = (value: unknown): boolean =>
+  value === true || value === 1 || value === "1" || value === "true" || value === "Y";
+
 export const TypeSECBoolean = (annotations: Record<string, unknown> = {}) =>
   Type.Codec(Type.Boolean(annotations))
     .Decode((value) => (value ? "1" : "0"))
-    .Encode((value) => value === "1");
+    .Encode((value: unknown) => secBooleanFromWire(value));
 export const TypeAddress = (annotations: Record<string, unknown> = {}) =>
   Type.Object(
     {
@@ -58,6 +70,9 @@ export const TypeFilings = () =>
     size: Type.Array(Type.Number()),
     isXBRL: Type.Array(TypeSECBoolean()),
     isInlineXBRL: Type.Array(TypeSECBoolean()),
+    // Optional: EDGAR added this after `isXBRL`, and cached payloads predating
+    // it must still validate. Absent means "unknown", not "no numeric facts".
+    isXBRLNumeric: Type.Optional(Type.Array(TypeSECBoolean())),
     primaryDocument: Type.Array(Type.String()),
     primaryDocDescription: Type.Array(Type.String()),
   });
