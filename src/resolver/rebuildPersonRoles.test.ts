@@ -16,10 +16,15 @@ import { PERSON_ROLE_REPOSITORY_TOKEN } from "../storage/canonical/PersonRoleSch
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
-import type { EntityObserver } from "./EntityObserver";
-import { buildEntityObserver } from "./buildEntityObserver";
+import type { ObserveOnlyEntityObserver } from "./EntityObserver";
+import { buildObserveOnlyEntityObserver } from "./buildObserveOnlyEntityObserver";
 import { rebuildPersonRoles } from "./rebuildPersonRoles";
+import {
+  resolveObservationsForAccession,
+  resolvePersonObservations,
+} from "./resolveObservationLinks";
 import { COMPLETE_ROSTER_ROLE_SCOPES } from "./roleScopes";
+import { labelCanonicalIds, readInlinePathRows } from "./testing/inlinePathFixture";
 
 const RESOLVER_VERSION = "1.0.0";
 
@@ -69,7 +74,7 @@ async function seedFiling(
 }
 
 async function observeRoleClaim(
-  observer: EntityObserver,
+  observer: ObserveOnlyEntityObserver,
   spec: {
     readonly accession_number: string;
     readonly filing_date: string;
@@ -80,7 +85,7 @@ async function observeRoleClaim(
     readonly role_scope: string;
     readonly observation_index: number;
   }
-): Promise<{ canonical_person_id: string; observation_id: number }> {
+): Promise<{ observation_id: number }> {
   return await observer.observePerson({
     accession_number: spec.accession_number,
     extractor_id: EXTRACTOR_ID,
@@ -96,15 +101,18 @@ async function observeRoleClaim(
 }
 
 async function closeRoster(
-  observer: EntityObserver,
+  observer: ObserveOnlyEntityObserver,
   spec: {
     readonly accession_number: string;
     readonly company_cik: number;
     readonly filing_date: string;
     readonly role_scope: string;
   }
-): Promise<number> {
-  return await observer.closeUnassertedPersonRoles({
+): Promise<void> {
+  // An observe-only observer holds no tenure to close, so the count this
+  // returns measures nothing and is not returned on. What the call still does,
+  // and what the projection reads, is record the roster completeness verdict.
+  await observer.closeUnassertedPersonRoles({
     accession_number: spec.accession_number,
     extractor_id: EXTRACTOR_ID,
     role_scope: spec.role_scope,
@@ -156,6 +164,52 @@ function tenureFor(
   );
 }
 
+/**
+ * Turn every stored person observation into an identity link at
+ * {@link RESOLVER_VERSION}. The observe-only observer records observations and
+ * nothing else, so this is the step that mints canonical ids — the projection's
+ * other input, and where a test's `canonical_person_id` now comes from.
+ */
+async function resolveEveryPersonObservation(): Promise<void> {
+  await resolvePersonObservations(await new PersonObservationRepo().listAll(), RESOLVER_VERSION);
+}
+
+/** The canonical id one observation resolved to, read back from its link. */
+async function canonicalIdFor(observation_id: number): Promise<string> {
+  const link = await new PersonIdentityLinkRepo().getForObservation(
+    observation_id,
+    RESOLVER_VERSION
+  );
+  if (link === undefined) {
+    throw new Error(`no identity link for observation_id ${observation_id}`);
+  }
+  return link.canonical_person_id;
+}
+
+/**
+ * Which rank `labelCanonicalIds` gave each canonical id. The recorded rows
+ * carry ranks rather than the ids a run mints, so naming the person a
+ * per-person comparison is about means going through the rank that person's
+ * rows were labelled with. Recovered by matching each labelled row back to the
+ * row it came from on every column but the id.
+ */
+function canonicalIdLabels(rows: readonly ComparableTenure[]): Map<string, string> {
+  const withoutId = (row: ComparableTenure): string =>
+    JSON.stringify(
+      (Object.keys(row) as (keyof ComparableTenure)[])
+        .filter((k) => k !== "canonical_person_id")
+        .sort()
+        .map((k) => [k, row[k]])
+    );
+  const labelByRow = new Map(
+    labelCanonicalIds(rows, "canonical_person_id").map((row) => [
+      withoutId(row),
+      row.canonical_person_id,
+    ])
+  );
+  return new Map(rows.map((row) => [row.canonical_person_id, labelByRow.get(withoutId(row))!]));
+}
+
 /** Reap an observation the way `reapStaleObservations` does: children, links, row. */
 async function reapObservation(observation_id: number): Promise<void> {
   await new PersonObservationTitleRepo().deleteForObservation(observation_id);
@@ -194,10 +248,7 @@ describe("rebuildPersonRoles", () => {
       await seedFiling(accession, cik, date);
     }
 
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
 
     // --- Company 700: a departure and a return, which is two tenure rows. ---
     const cora = await observeRoleClaim(observer, {
@@ -226,14 +277,12 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
-    expect(
-      await closeRoster(observer, {
-        accession_number: "ACC-A2",
-        company_cik: 700,
-        filing_date: "2021-01-01",
-        role_scope: ROSTER_SCOPE,
-      })
-    ).toBe(1);
+    await closeRoster(observer, {
+      accession_number: "ACC-A2",
+      company_cik: 700,
+      filing_date: "2021-01-01",
+      role_scope: ROSTER_SCOPE,
+    });
     await observeRoleClaim(observer, {
       accession_number: "ACC-A3",
       filing_date: "2022-01-01",
@@ -288,14 +337,12 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
-    expect(
-      await closeRoster(observer, {
-        accession_number: "ACC-B3",
-        company_cik: 701,
-        filing_date: "2022-01-01",
-        role_scope: ROSTER_SCOPE,
-      })
-    ).toBe(1);
+    await closeRoster(observer, {
+      accession_number: "ACC-B3",
+      company_cik: 701,
+      filing_date: "2022-01-01",
+      role_scope: ROSTER_SCOPE,
+    });
     // The filing between the two arrives last, and is earlier evidence of the
     // same departure.
     await observeRoleClaim(observer, {
@@ -333,7 +380,7 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
     });
     // A buggy extraction of the next filing sees only the colleague.
-    const cole = await observeRoleClaim(observer, {
+    await observeRoleClaim(observer, {
       accession_number: "ACC-C2",
       filing_date: "2023-09-01",
       company_cik: 702,
@@ -343,14 +390,12 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
-    expect(
-      await closeRoster(observer, {
-        accession_number: "ACC-C2",
-        company_cik: 702,
-        filing_date: "2023-09-01",
-        role_scope: ROSTER_SCOPE,
-      })
-    ).toBe(1);
+    await closeRoster(observer, {
+      accession_number: "ACC-C2",
+      company_cik: 702,
+      filing_date: "2023-09-01",
+      role_scope: ROSTER_SCOPE,
+    });
     // Re-extraction of the SAME filing now finds them both.
     await observeRoleClaim(observer, {
       accession_number: "ACC-C2",
@@ -362,7 +407,7 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
-    await observeRoleClaim(observer, {
+    const coleReextracted = await observeRoleClaim(observer, {
       accession_number: "ACC-C2",
       filing_date: "2023-09-01",
       company_cik: 702,
@@ -406,9 +451,13 @@ describe("rebuildPersonRoles", () => {
       filing_date: "2024-01-01",
       role_scope: ROSTER_SCOPE,
     });
+    // The re-extraction below overwrites ACC-D1's index-0 row, so the phantom's
+    // canonical id has to be read while the observation that mints it exists.
+    await resolveEveryPersonObservation();
+    const phantomId = await canonicalIdFor(phanta.observation_id);
     // The re-extraction returns one row where there were two: the phantom is
     // gone and the real person moves up an index.
-    await observeRoleClaim(observer, {
+    const realReextracted = await observeRoleClaim(observer, {
       accession_number: "ACC-D1",
       filing_date: "2024-01-01",
       company_cik: 703,
@@ -419,14 +468,12 @@ describe("rebuildPersonRoles", () => {
       observation_index: 0,
     });
     await reapObservation(rita.observation_id);
-    expect(
-      await closeRoster(observer, {
-        accession_number: "ACC-D1",
-        company_cik: 703,
-        filing_date: "2024-01-01",
-        role_scope: ROSTER_SCOPE,
-      })
-    ).toBe(1);
+    await closeRoster(observer, {
+      accession_number: "ACC-D1",
+      company_cik: 703,
+      filing_date: "2024-01-01",
+      role_scope: ROSTER_SCOPE,
+    });
 
     // --- Company 704: one person, two titles, only one of them ends. ---
     const bea = await observeRoleClaim(observer, {
@@ -455,14 +502,12 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
-    expect(
-      await closeRoster(observer, {
-        accession_number: "ACC-E2",
-        company_cik: 704,
-        filing_date: "2024-06-15",
-        role_scope: ROSTER_SCOPE,
-      })
-    ).toBe(1);
+    await closeRoster(observer, {
+      accession_number: "ACC-E2",
+      company_cik: 704,
+      filing_date: "2024-06-15",
+      role_scope: ROSTER_SCOPE,
+    });
 
     // --- Company 705: the same person in a roster list and an assert-only
     // list. The roster closes its own tenure; the assert-only list never
@@ -513,14 +558,12 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
-    expect(
-      await closeRoster(observer, {
-        accession_number: "ACC-F4",
-        company_cik: 705,
-        filing_date: "2024-01-01",
-        role_scope: ROSTER_SCOPE,
-      })
-    ).toBe(1);
+    await closeRoster(observer, {
+      accession_number: "ACC-F4",
+      company_cik: 705,
+      filing_date: "2024-01-01",
+      role_scope: ROSTER_SCOPE,
+    });
 
     // --- Company 706: a roster naming someone whose titles all filter away
     // is incomplete, so it closes nothing. ---
@@ -560,14 +603,12 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 1,
     });
-    expect(
-      await closeRoster(observer, {
-        accession_number: "ACC-G2",
-        company_cik: 706,
-        filing_date: "2023-03-01",
-        role_scope: ROSTER_SCOPE,
-      })
-    ).toBe(0);
+    await closeRoster(observer, {
+      accession_number: "ACC-G2",
+      company_cik: 706,
+      filing_date: "2023-03-01",
+      role_scope: ROSTER_SCOPE,
+    });
 
     // --- Company 715: two rosters filed the SAME day, each naming someone the
     // other does not. Neither is later evidence of the other's departure. ---
@@ -581,14 +622,12 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
-    expect(
-      await closeRoster(observer, {
-        accession_number: "ACC-P1",
-        company_cik: 715,
-        filing_date: "2024-02-01",
-        role_scope: ROSTER_SCOPE,
-      })
-    ).toBe(0);
+    await closeRoster(observer, {
+      accession_number: "ACC-P1",
+      company_cik: 715,
+      filing_date: "2024-02-01",
+      role_scope: ROSTER_SCOPE,
+    });
     const quill = await observeRoleClaim(observer, {
       accession_number: "ACC-P2",
       filing_date: "2024-02-01",
@@ -599,14 +638,12 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
-    expect(
-      await closeRoster(observer, {
-        accession_number: "ACC-P2",
-        company_cik: 715,
-        filing_date: "2024-02-01",
-        role_scope: ROSTER_SCOPE,
-      })
-    ).toBe(0);
+    await closeRoster(observer, {
+      accession_number: "ACC-P2",
+      company_cik: 715,
+      filing_date: "2024-02-01",
+      role_scope: ROSTER_SCOPE,
+    });
 
     // --- Company 707: a claim with no role_scope mints no tenure at all. ---
     const nora = await observer.observePerson({
@@ -621,106 +658,148 @@ describe("rebuildPersonRoles", () => {
       filing_date: "2022-05-01",
     });
 
-    const snapshot = await allTenures();
+    // The observe-only observer records observations; the batch resolve turns
+    // them into the identity links the projection reads, and is where the
+    // canonical id a test names a person by now comes from.
+    await resolveEveryPersonObservation();
+    const coraId = await canonicalIdFor(cora.observation_id);
+    const samId = await canonicalIdFor(sam.observation_id);
+    const terryId = await canonicalIdFor(terry.observation_id);
+    const oliveId = await canonicalIdFor(olive.observation_id);
+    const monaId = await canonicalIdFor(mona.observation_id);
+    // Colleague moved to index 1 when the re-extraction put Missed at index 0,
+    // so it is the re-extracted row that carries their identity now.
+    const coleId = await canonicalIdFor(coleReextracted.observation_id);
+    // Real likewise: the index-1 row that first named them was reaped.
+    const ritaId = await canonicalIdFor(realReextracted.observation_id);
+    const beaId = await canonicalIdFor(bea.observation_id);
+    const deeId = await canonicalIdFor(dee.observation_id);
+    const sigId = await canonicalIdFor(sig.observation_id);
+    const ollieId = await canonicalIdFor(ollie.observation_id);
+    const ivyId = await canonicalIdFor(ivy.observation_id);
+    const quinnId = await canonicalIdFor(quinn.observation_id);
+    const patId = await canonicalIdFor(pat.observation_id);
+    const quillId = await canonicalIdFor(quill.observation_id);
+    const noraId = await canonicalIdFor(nora.observation_id);
 
-    // The incremental path's own outcome, pinned before it is compared —
-    // an equality against an empty or accidental snapshot proves nothing.
+    // What the incremental path produced, recorded before that path was
+    // deleted — and pinned before it is compared, since an equality against an
+    // empty or accidental set of rows proves nothing.
+    const snapshot = readInlinePathRows<ComparableTenure>("tenures-reopen-phantom-tighten");
     expect(snapshot).toHaveLength(18);
     expect(snapshot.every((r) => r.resolver_version === RESOLVER_VERSION)).toBe(true);
-    expect(snapshot.some((r) => r.canonical_person_id === nora.canonical_person_id)).toBe(false);
 
-    const coraClosed = snapshot.filter(
-      (r) => r.canonical_person_id === cora.canonical_person_id && r.end_date !== null
+    // Read before the rebuild writes anything, so every `created_at` below can
+    // be shown to come from that write.
+    const beforeRebuild = new Date().toISOString();
+    const result = await rebuildPersonRoles(RESOLVER_VERSION);
+    expect(result).toEqual({ rows: 18 });
+
+    const rebuilt = await allTenures();
+    const labelled = labelCanonicalIds(comparable(rebuilt), "canonical_person_id");
+    expect(labelled).toEqual(snapshot);
+    // The two excluded columns still have to be sane: fresh surrogate keys and
+    // a timestamp stamped by this write. Both halves are needed. A shape check
+    // cannot tell a fresh stamp from one carried off a row written earlier, so
+    // compare against a clock read immediately before the rebuild — every
+    // rebuilt row was written after it; and a bound on its own admits any
+    // string that sorts high, "9999" included, so the shape stays too.
+    expect(new Set(rebuilt.map((r) => r.role_id)).size).toBe(18);
+    expect(
+      rebuilt.map((r) => r.created_at).filter((at) => !/^\d{4}-\d{2}-\d{2}T/.test(at))
+    ).toEqual([]);
+    expect(rebuilt.filter((r) => r.created_at < beforeRebuild).map((r) => r.created_at)).toEqual(
+      []
     );
-    const coraOpen = snapshot.filter(
-      (r) => r.canonical_person_id === cora.canonical_person_id && r.end_date === null
+
+    // The per-person diagnosis, re-pointed at the rebuild: what the row-by-row
+    // reading of the incremental path's outcome asked of it is what the
+    // projection now has to hold.
+    expect(rebuilt.some((r) => r.canonical_person_id === noraId)).toBe(false);
+    const coraClosed = rebuilt.filter(
+      (r) => r.canonical_person_id === coraId && r.end_date !== null
     );
+    const coraOpen = rebuilt.filter((r) => r.canonical_person_id === coraId && r.end_date === null);
     expect(coraClosed).toHaveLength(1);
     expect(coraOpen).toHaveLength(1);
     expect(coraClosed[0].end_date).toBe("2021-01-01");
     expect(coraOpen[0].start_date).toBe("2022-01-01");
     expect(
-      tenureFor(snapshot, {
-        canonical_person_id: terry.canonical_person_id,
+      tenureFor(rebuilt, {
+        canonical_person_id: terryId,
         normalized_title: "director",
         role_scope: ROSTER_SCOPE,
       })?.end_date
     ).toBe("2021-01-01");
     expect(
-      tenureFor(snapshot, {
-        canonical_person_id: mona.canonical_person_id,
+      tenureFor(rebuilt, {
+        canonical_person_id: monaId,
         normalized_title: "director",
         role_scope: ROSTER_SCOPE,
       })?.end_date
     ).toBeNull();
-    expect(snapshot.some((r) => r.canonical_person_id === phanta.canonical_person_id)).toBe(false);
+    expect(rebuilt.some((r) => r.canonical_person_id === phantomId)).toBe(false);
     expect(
-      tenureFor(snapshot, {
-        canonical_person_id: bea.canonical_person_id,
+      tenureFor(rebuilt, {
+        canonical_person_id: beaId,
         normalized_title: "chairman of the board of directors",
         role_scope: ROSTER_SCOPE,
       })?.end_date
     ).toBe("2024-06-15");
     expect(
-      tenureFor(snapshot, {
-        canonical_person_id: bea.canonical_person_id,
+      tenureFor(rebuilt, {
+        canonical_person_id: beaId,
         normalized_title: "director",
         role_scope: ROSTER_SCOPE,
       })?.end_date
     ).toBeNull();
     expect(
-      tenureFor(snapshot, {
-        canonical_person_id: dee.canonical_person_id,
+      tenureFor(rebuilt, {
+        canonical_person_id: deeId,
         normalized_title: "director",
         role_scope: ROSTER_SCOPE,
       })?.end_date
     ).toBe("2024-01-01");
     expect(
-      tenureFor(snapshot, {
-        canonical_person_id: dee.canonical_person_id,
+      tenureFor(rebuilt, {
+        canonical_person_id: deeId,
         normalized_title: "director",
         role_scope: ASSERT_ONLY_SCOPE,
       })?.end_date
     ).toBeNull();
     expect(
-      tenureFor(snapshot, {
-        canonical_person_id: ivy.canonical_person_id,
+      tenureFor(rebuilt, {
+        canonical_person_id: ivyId,
         normalized_title: "director",
         role_scope: ROSTER_SCOPE,
       })?.end_date
     ).toBeNull();
     expect(
-      tenureFor(snapshot, {
-        canonical_person_id: pat.canonical_person_id,
+      tenureFor(rebuilt, {
+        canonical_person_id: patId,
         normalized_title: "director",
         role_scope: ROSTER_SCOPE,
       })?.end_date
     ).toBeNull();
-
-    const result = await rebuildPersonRoles(RESOLVER_VERSION);
-    expect(result).toEqual({ rows: 18 });
-
-    const rebuilt = await allTenures();
-    expect(comparable(rebuilt)).toEqual(comparable(snapshot));
-    // The two excluded columns still have to be sane: fresh surrogate keys and
-    // a timestamp stamped by this write. Both halves are needed. A shape check
-    // cannot tell a fresh stamp from one carried off the pre-rebuild row, so
-    // compare against the newest thing the incremental path left behind —
-    // every rebuilt row was written after it; and a bound on its own admits
-    // any string that sorts high, "9999" included, so the shape stays too.
-    expect(new Set(rebuilt.map((r) => r.role_id)).size).toBe(18);
-    expect(
-      rebuilt.map((r) => r.created_at).filter((at) => !/^\d{4}-\d{2}-\d{2}T/.test(at))
-    ).toEqual([]);
-    const newestBefore = snapshot.map((r) => r.created_at).sort()[snapshot.length - 1];
-    expect(rebuilt.filter((r) => r.created_at < newestBefore).map((r) => r.created_at)).toEqual([]);
     // Named so a failure says which person, rather than only that two arrays
-    // of sixteen rows differ.
-    for (const person of [sam, olive, cole, rita, sig, ollie, quinn, quill]) {
-      expect(
-        comparable(rebuilt.filter((r) => r.canonical_person_id === person.canonical_person_id))
-      ).toEqual(
-        comparable(snapshot.filter((r) => r.canonical_person_id === person.canonical_person_id))
+    // of eighteen rows differ. The recorded rows carry ranks rather than the
+    // ids this run minted, so a person's rows are found by the rank theirs
+    // were labelled with.
+    const labelOf = canonicalIdLabels(comparable(rebuilt));
+    for (const canonical_person_id of [
+      samId,
+      oliveId,
+      coleId,
+      ritaId,
+      sigId,
+      ollieId,
+      quinnId,
+      quillId,
+    ]) {
+      const label = labelOf.get(canonical_person_id);
+      expect(label).toBeDefined();
+      expect(labelled.filter((r) => r.canonical_person_id === label)).toEqual(
+        snapshot.filter((r) => r.canonical_person_id === label)
       );
     }
   });
@@ -734,10 +813,7 @@ describe("rebuildPersonRoles", () => {
     // `start_date` of every dated tenure it joins.
     await seedFiling("ACC-BLANK", 720, "");
     await seedFiling("ACC-DATED", 720, "2024-03-01");
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     // One person named by both filings, one named only by the undated one.
     await observeRoleClaim(observer, {
       accession_number: "ACC-BLANK",
@@ -770,7 +846,9 @@ describe("rebuildPersonRoles", () => {
       observation_index: 0,
     });
 
-    const snapshot = await allTenures();
+    await resolveEveryPersonObservation();
+
+    const snapshot = readInlinePathRows<ComparableTenure>("tenures-undated-filing");
     expect(snapshot).toHaveLength(1);
     expect(snapshot[0].start_date).toBe("2024-03-01");
     expect(snapshot[0].start_accession).toBe("ACC-DATED");
@@ -779,7 +857,7 @@ describe("rebuildPersonRoles", () => {
     const rebuilt = await allTenures();
     // Compared before the count, so admitting the undated filing reports both
     // damages at once: the tenure it invents and the start it back-dates.
-    expect(comparable(rebuilt)).toEqual(comparable(snapshot));
+    expect(labelCanonicalIds(comparable(rebuilt), "canonical_person_id")).toEqual(snapshot);
     expect(result).toEqual({ rows: 1 });
     expect(rebuilt[0].start_date).toBe("2024-03-01");
     expect(rebuilt[0].start_accession).toBe("ACC-DATED");
@@ -800,10 +878,7 @@ describe("rebuildPersonRoles", () => {
     // and the projection's rule is the one under test.
     await seedFiling("ACC-LIG-OLD", 722, "2022-01-01");
     await seedFiling("ACC-LIG-NEW", 722, "2023-01-01");
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     const cliff = await observeRoleClaim(observer, {
       accession_number: "ACC-LIG-NEW",
       filing_date: "2023-01-01",
@@ -825,17 +900,20 @@ describe("rebuildPersonRoles", () => {
       observation_index: 0,
     });
 
+    await resolveEveryPersonObservation();
     const spec = {
-      canonical_person_id: cliff.canonical_person_id,
+      canonical_person_id: await canonicalIdFor(cliff.observation_id),
       normalized_title: "chief financial officer",
       role_scope: ASSERT_ONLY_SCOPE,
     };
-    const snapshot = await allTenures();
+    const snapshot = readInlinePathRows<ComparableTenure>("tenures-first-display-title");
     expect(snapshot).toHaveLength(1);
-    // The live path writes `title` only on insert — the back-extension branch
-    // spreads the row it widens — so it kept the spelling that arrived first.
-    expect(tenureFor(snapshot, spec)?.title).toBe("Chief Financial Officer");
-    expect(tenureFor(snapshot, spec)?.start_date).toBe("2022-01-01");
+    // The live path wrote `title` only on insert — the back-extension branch
+    // spread the row it widened — so it kept the spelling that arrived first.
+    // This is the one column the projection is not expected to reproduce,
+    // which is why the recorded row is read for it rather than compared whole.
+    expect(snapshot[0].title).toBe("Chief Financial Officer");
+    expect(snapshot[0].start_date).toBe("2022-01-01");
 
     expect(await rebuildPersonRoles(RESOLVER_VERSION)).toEqual({ rows: 1 });
     const rebuilt = await allTenures();
@@ -856,10 +934,7 @@ describe("rebuildPersonRoles", () => {
     await seedFiling("ACC-R1", 721, "2022-01-01");
     await seedFiling("ACC-R2", 721, "2023-01-01");
     await seedFiling("ACC-R3", 721, "2024-01-01");
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     const alpha = await observeRoleClaim(observer, {
       accession_number: "ACC-R1",
       filing_date: "2022-01-01",
@@ -900,16 +975,14 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
-    expect(
-      await observer.closeUnassertedPersonRoles({
-        accession_number: "ACC-R2",
-        extractor_id: EXTRACTOR_ID,
-        role_scope: ROSTER_SCOPE,
-        company_cik: 721,
-        filing_date: "2023-01-01",
-        complete: false,
-      })
-    ).toBe(0);
+    await observer.closeUnassertedPersonRoles({
+      accession_number: "ACC-R2",
+      extractor_id: EXTRACTOR_ID,
+      role_scope: ROSTER_SCOPE,
+      company_cik: 721,
+      filing_date: "2023-01-01",
+      complete: false,
+    });
 
     // A later filing extracts cleanly and names only Alpha: THAT is Beta's
     // departure, and it is dated from this filing rather than the partial one.
@@ -923,14 +996,12 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
-    expect(
-      await closeRoster(observer, {
-        accession_number: "ACC-R3",
-        company_cik: 721,
-        filing_date: "2024-01-01",
-        role_scope: ROSTER_SCOPE,
-      })
-    ).toBe(1);
+    await closeRoster(observer, {
+      accession_number: "ACC-R3",
+      company_cik: 721,
+      filing_date: "2024-01-01",
+      role_scope: ROSTER_SCOPE,
+    });
 
     // Both verdicts are on disk, including the one that closed nothing —
     // recording only the closures would leave the partial roster looking
@@ -950,28 +1021,32 @@ describe("rebuildPersonRoles", () => {
       ["ACC-R3", true],
     ]);
 
-    const snapshot = await allTenures();
+    await resolveEveryPersonObservation();
+    const alphaId = await canonicalIdFor(alpha.observation_id);
+    const betaId = await canonicalIdFor(beta.observation_id);
+
+    const snapshot = readInlinePathRows<ComparableTenure>("tenures-roster-completeness");
     expect(snapshot).toHaveLength(2);
     const betaSpec = {
-      canonical_person_id: beta.canonical_person_id,
+      canonical_person_id: betaId,
       normalized_title: "director",
       role_scope: ROSTER_SCOPE,
     };
-    expect(tenureFor(snapshot, betaSpec)?.end_date).toBe("2024-01-01");
-    expect(tenureFor(snapshot, betaSpec)?.end_accession).toBe("ACC-R3");
+
+    expect(await rebuildPersonRoles(RESOLVER_VERSION)).toEqual({ rows: 2 });
+    const rebuilt = await allTenures();
+    expect(labelCanonicalIds(comparable(rebuilt), "canonical_person_id")).toEqual(snapshot);
+    expect(tenureFor(rebuilt, betaSpec)?.end_date).toBe("2024-01-01");
+    expect(tenureFor(rebuilt, betaSpec)?.end_accession).toBe("ACC-R3");
+    // Alpha, who never left, is the half of the claim the partial roster could
+    // have damaged: closing from ACC-R2 would have ended this tenure too.
     expect(
-      tenureFor(snapshot, {
-        canonical_person_id: alpha.canonical_person_id,
+      tenureFor(rebuilt, {
+        canonical_person_id: alphaId,
         normalized_title: "director",
         role_scope: ROSTER_SCOPE,
       })?.end_date
     ).toBeNull();
-
-    expect(await rebuildPersonRoles(RESOLVER_VERSION)).toEqual({ rows: 2 });
-    const rebuilt = await allTenures();
-    expect(comparable(rebuilt)).toEqual(comparable(snapshot));
-    expect(tenureFor(rebuilt, betaSpec)?.end_date).toBe("2024-01-01");
-    expect(tenureFor(rebuilt, betaSpec)?.end_accession).toBe("ACC-R3");
   });
 
   it("leaves a merged person's tenure open when the roster asserts them under the alias target", async () => {
@@ -980,10 +1055,7 @@ describe("rebuildPersonRoles", () => {
     // alias table rather than closing on the raw canonical id.
     await seedFiling("ACC-X1", 708, "2022-01-01");
     await seedFiling("ACC-X2", 708, "2023-01-01");
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     const before = await observeRoleClaim(observer, {
       accession_number: "ACC-X1",
       filing_date: "2022-01-01",
@@ -995,12 +1067,17 @@ describe("rebuildPersonRoles", () => {
       observation_index: 0,
     });
 
-    await new CanonicalPersonAliasRepo().add(
-      before.canonical_person_id,
-      "merge-target-person",
-      "test merge",
-      "test"
-    );
+    // Resolved one filing at a time: the retired id's link has to be written
+    // while it is still the answer. Resolving the corpus after the merge would
+    // move that link onto the target and leave no retired id holding a tenure.
+    await resolveObservationsForAccession({
+      kind: "person",
+      accession_number: "ACC-X1",
+      resolverVersion: RESOLVER_VERSION,
+    });
+    const beforeId = await canonicalIdFor(before.observation_id);
+
+    await new CanonicalPersonAliasRepo().add(beforeId, "merge-target-person", "test merge", "test");
 
     const after = await observeRoleClaim(observer, {
       accession_number: "ACC-X2",
@@ -1012,7 +1089,12 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
-    expect(after.canonical_person_id).toBe("merge-target-person");
+    await resolveObservationsForAccession({
+      kind: "person",
+      accession_number: "ACC-X2",
+      resolverVersion: RESOLVER_VERSION,
+    });
+    expect(await canonicalIdFor(after.observation_id)).toBe("merge-target-person");
     await closeRoster(observer, {
       accession_number: "ACC-X2",
       company_cik: 708,
@@ -1020,26 +1102,24 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
     });
 
-    const snapshot = await allTenures();
+    const snapshot = readInlinePathRows<ComparableTenure>("tenures-merged-alias");
     expect(snapshot).toHaveLength(2);
+
+    expect(await rebuildPersonRoles(RESOLVER_VERSION)).toEqual({ rows: 2 });
+    const rebuilt = await allTenures();
+    expect(labelCanonicalIds(comparable(rebuilt), "canonical_person_id")).toEqual(snapshot);
     expect(
-      tenureFor(snapshot, {
-        canonical_person_id: before.canonical_person_id,
+      tenureFor(rebuilt, {
+        canonical_person_id: beforeId,
         normalized_title: "director",
         role_scope: ROSTER_SCOPE,
       })?.end_date
     ).toBeNull();
-
-    expect(await rebuildPersonRoles(RESOLVER_VERSION)).toEqual({ rows: 2 });
-    expect(comparable(await allTenures())).toEqual(comparable(snapshot));
   });
 
   it("is idempotent: a second rebuild with no new observations replaces rather than merges", async () => {
     await seedFiling("ACC-10", 710, "2024-05-01");
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     await observeRoleClaim(observer, {
       accession_number: "ACC-10",
       filing_date: "2024-05-01",
@@ -1050,6 +1130,7 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
+    await resolveEveryPersonObservation();
 
     const first = await rebuildPersonRoles(RESOLVER_VERSION);
     const firstRows = comparable(await allTenures());
@@ -1065,10 +1146,7 @@ describe("rebuildPersonRoles", () => {
     // both rewrite the same tenure. Moving the identity link between them, as
     // a re-key ceremony would, gives the merge a stale row to leave behind.
     await seedFiling("ACC-20", 711, "2024-08-01");
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     const solo = await observeRoleClaim(observer, {
       accession_number: "ACC-20",
       filing_date: "2024-08-01",
@@ -1080,17 +1158,18 @@ describe("rebuildPersonRoles", () => {
       observation_index: 0,
     });
 
+    await resolveEveryPersonObservation();
+    const soloId = await canonicalIdFor(solo.observation_id);
+
     await rebuildPersonRoles(RESOLVER_VERSION);
-    expect((await allTenures()).map((r) => r.canonical_person_id)).toEqual([
-      solo.canonical_person_id,
-    ]);
+    expect((await allTenures()).map((r) => r.canonical_person_id)).toEqual([soloId]);
 
     const reassigned = "reassigned-canonical-person";
     await new PersonIdentityLinkRepo().upsert(solo.observation_id, RESOLVER_VERSION, reassigned);
 
     expect(await rebuildPersonRoles(RESOLVER_VERSION)).toEqual({ rows: 1 });
     const rebuilt = await allTenures();
-    expect(rebuilt.some((r) => r.canonical_person_id === solo.canonical_person_id)).toBe(false);
+    expect(rebuilt.some((r) => r.canonical_person_id === soloId)).toBe(false);
     expect(rebuilt).toEqual([
       expect.objectContaining({
         canonical_person_id: reassigned,
@@ -1114,10 +1193,7 @@ describe("rebuildPersonRoles", () => {
   it("raises rather than fabricating a date when an observation's filing row is missing", async () => {
     // One join further along: the observation is there, the filing it cites is
     // not, so there is no date to anchor a tenure to.
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     await observeRoleClaim(observer, {
       // Deliberately never passed to `seedFiling`.
       accession_number: "ACC-NO-FILING",
@@ -1129,6 +1205,7 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
+    await resolveEveryPersonObservation();
 
     await expect(rebuildPersonRoles(RESOLVER_VERSION)).rejects.toThrow(
       /no filing found for accession_number "ACC-NO-FILING"/
@@ -1154,10 +1231,7 @@ describe("rebuildPersonRoles", () => {
     );
     expect(previous).toHaveLength(1);
 
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     await observeRoleClaim(observer, {
       accession_number: "ACC-30",
       filing_date: "2024-09-01",
@@ -1168,6 +1242,7 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
+    await resolveEveryPersonObservation();
 
     expect(await rebuildPersonRoles(RESOLVER_VERSION)).toEqual({ rows: 1 });
 
@@ -1183,10 +1258,7 @@ describe("rebuildPersonRoles", () => {
     // strand a version's rows forever once a reap took its last observation —
     // exactly the case where no later write comes along to overwrite them.
     await seedFiling("ACC-40", 714, "2024-10-01");
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     const reaped = await observeRoleClaim(observer, {
       accession_number: "ACC-40",
       filing_date: "2024-10-01",
@@ -1197,6 +1269,7 @@ describe("rebuildPersonRoles", () => {
       role_scope: ROSTER_SCOPE,
       observation_index: 0,
     });
+    await resolveEveryPersonObservation();
 
     expect(await rebuildPersonRoles(RESOLVER_VERSION)).toEqual({ rows: 1 });
     expect(await allTenures()).toHaveLength(1);
