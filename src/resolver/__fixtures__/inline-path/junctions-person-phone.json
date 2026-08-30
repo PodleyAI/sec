@@ -1,0 +1,26 @@
+[
+  {
+    "canonical_person_id": "#0",
+    "international_number": "+1-555-0001",
+    "resolver_version": "1.0.0",
+    "observation_count": 2
+  },
+  {
+    "canonical_person_id": "#1",
+    "international_number": "+1-555-0400",
+    "resolver_version": "1.0.0",
+    "observation_count": 1
+  },
+  {
+    "canonical_person_id": "#2",
+    "international_number": "+1-555-0501",
+    "resolver_version": "1.0.0",
+    "observation_count": 1
+  },
+  {
+    "canonical_person_id": "#2",
+    "international_number": "+1-555-0502",
+    "resolver_version": "1.0.0",
+    "observation_count": 1
+  }
+]

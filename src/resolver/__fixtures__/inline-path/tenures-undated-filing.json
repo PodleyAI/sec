@@ -1,0 +1,17 @@
+[
+  {
+    "canonical_person_id": "#0",
+    "resolver_version": "1.0.0",
+    "company_cik": 720,
+    "extractor_id": "D",
+    "role_scope": "form-d:related-person",
+    "title": "Director",
+    "normalized_title": "director",
+    "start_date": "2024-03-01",
+    "start_accession": "ACC-DATED",
+    "end_date": null,
+    "end_accession": null,
+    "last_seen_date": "2024-03-01",
+    "last_seen_accession": "ACC-DATED"
+  }
+]

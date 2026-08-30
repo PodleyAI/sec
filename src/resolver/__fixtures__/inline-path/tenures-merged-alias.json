@@ -1,0 +1,32 @@
+[
+  {
+    "canonical_person_id": "#0",
+    "resolver_version": "1.0.0",
+    "company_cik": 708,
+    "extractor_id": "D",
+    "role_scope": "form-d:related-person",
+    "title": "Director",
+    "normalized_title": "director",
+    "start_date": "2022-01-01",
+    "start_accession": "ACC-X1",
+    "end_date": null,
+    "end_accession": null,
+    "last_seen_date": "2022-01-01",
+    "last_seen_accession": "ACC-X1"
+  },
+  {
+    "canonical_person_id": "#1",
+    "resolver_version": "1.0.0",
+    "company_cik": 708,
+    "extractor_id": "D",
+    "role_scope": "form-d:related-person",
+    "title": "Director",
+    "normalized_title": "director",
+    "start_date": "2023-01-01",
+    "start_accession": "ACC-X2",
+    "end_date": null,
+    "end_accession": null,
+    "last_seen_date": "2023-01-01",
+    "last_seen_accession": "ACC-X2"
+  }
+]

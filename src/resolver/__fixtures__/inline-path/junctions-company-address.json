@@ -1,0 +1,26 @@
+[
+  {
+    "canonical_company_id": "#0",
+    "address_hash_id": "addr-echo-1",
+    "resolver_version": "1.0.0",
+    "observation_count": 1
+  },
+  {
+    "canonical_company_id": "#0",
+    "address_hash_id": "addr-echo-2",
+    "resolver_version": "1.0.0",
+    "observation_count": 1
+  },
+  {
+    "canonical_company_id": "#1",
+    "address_hash_id": "addr-hq-new",
+    "resolver_version": "1.0.0",
+    "observation_count": 1
+  },
+  {
+    "canonical_company_id": "#2",
+    "address_hash_id": "addr-hq-new",
+    "resolver_version": "1.0.0",
+    "observation_count": 2
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "canonical_company_id": "#0",
+    "international_number": "+1-555-2001",
+    "resolver_version": "1.0.0",
+    "observation_count": 2
+  },
+  {
+    "canonical_company_id": "#1",
+    "international_number": "+1-555-3000",
+    "resolver_version": "1.0.0",
+    "observation_count": 1
+  },
+  {
+    "canonical_company_id": "#1",
+    "international_number": "+1-555-3001",
+    "resolver_version": "1.0.0",
+    "observation_count": 1
+  }
+]

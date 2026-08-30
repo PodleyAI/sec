@@ -1,0 +1,32 @@
+[
+  {
+    "canonical_person_id": "#0",
+    "address_hash_id": "addr-delta-1",
+    "resolver_version": "1.0.0",
+    "observation_count": 1
+  },
+  {
+    "canonical_person_id": "#0",
+    "address_hash_id": "addr-delta-2",
+    "resolver_version": "1.0.0",
+    "observation_count": 1
+  },
+  {
+    "canonical_person_id": "#1",
+    "address_hash_id": "addr-gamma-changed",
+    "resolver_version": "1.0.0",
+    "observation_count": 1
+  },
+  {
+    "canonical_person_id": "#2",
+    "address_hash_id": "addr-shared",
+    "resolver_version": "1.0.0",
+    "observation_count": 1
+  },
+  {
+    "canonical_person_id": "#3",
+    "address_hash_id": "addr-shared",
+    "resolver_version": "1.0.0",
+    "observation_count": 2
+  }
+]
