@@ -99,16 +99,30 @@ describe("truncate-identity-tier scripts", () => {
     }
   });
 
-  it.each(VARIANTS)("%s: re-extracts 424, whose family links it wipes", (_name, sql) => {
-    // `underwriter_link` / `underwriter_family_membership` carry rows written by
-    // the priced-424 path, and the family link row IS the attribution — batch
-    // `sec resolve` refuses the family kinds, so nothing rebuilds it. Wiping
-    // those tables while leaving `424` out of the gates destroys every
-    // 424-sourced underwriter attribution permanently.
+  it.each(VARIANTS)("%s: leaves the family tier to the package that owns it", (_name, sql) => {
+    // The inverse of what this case used to assert. While the family tier
+    // shipped here, wiping `underwriter_link` without gating `424` would have
+    // destroyed every 424-sourced underwriter attribution permanently — a
+    // family link row IS the attribution, and no observation projection
+    // rebuilds it. The tier is a downstream package's now, and so is the script
+    // that wipes it, so BOTH halves have to be absent here together: naming the
+    // tables without the gate is the old destructive combination, and gating
+    // `424` without the tables re-extracts every priced prospectus for nothing.
     const targeted = targetedTables(sql);
-    expect(targeted.has("underwriter_link")).toBe(true);
+    for (const table of [
+      "spac_sponsor_link",
+      "underwriter_link",
+      "sponsor_family_membership",
+      "underwriter_family_membership",
+      "canonical_sponsor_family",
+      "canonical_underwriter_family",
+      "canonical_sponsor_family_alias",
+      "canonical_underwriter_family_alias",
+    ]) {
+      expect(targeted.has(table), `${table} is not this package's to wipe`).toBe(false);
+    }
     for (const list of scopedExtractorIds(sql)) {
-      expect(list).toContain("424");
+      expect(list, "424 writes no person observation this script deletes").not.toContain("424");
     }
   });
 

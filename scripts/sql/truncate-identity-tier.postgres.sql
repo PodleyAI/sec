@@ -63,18 +63,6 @@ BEGIN;
 SELECT set_config('search_path', quote_ident(current_schema()), true);
 
 TRUNCATE TABLE
-  -- Family tier. The link row IS the attribution here (there is no
-  -- observation → link projection), so these go together or the survivors
-  -- point at nothing.
-  spac_sponsor_link,
-  underwriter_link,
-  sponsor_family_membership,
-  underwriter_family_membership,
-  canonical_sponsor_family_alias,
-  canonical_underwriter_family_alias,
-  canonical_sponsor_family,
-  canonical_underwriter_family,
-
   -- Person canonical + link tier.
   person_role,
   person_identity_link,
@@ -118,7 +106,9 @@ DELETE FROM observation_provenance WHERE kind = 'person';
 --
 -- Scoped to the extractors whose output this script actually deletes: the
 -- person-observing ones, plus `424` for the family tier truncated above (the
--- priced-prospectus path writes `underwriter_link` / `underwriter_family_
+-- person-observing ones exactly. `424` is NOT here — the family tier it
+-- writes for is a downstream package's, with its own script and gate list.
+-- (Historical note: this list used to carry it, because the
 -- membership`, and a family link row IS the attribution — no observation
 -- projection rebuilds it). `8-K`, `merger-proxy`, `redemption` and `loi` stay
 -- untouched: nothing of theirs is deleted here, and clearing their runs would
@@ -126,9 +116,9 @@ DELETE FROM observation_provenance WHERE kind = 'person';
 -- in `src/storage/versioning/extractorIds.ts` — `truncateIdentityTier.test.ts`
 -- fails if they diverge.
 DELETE FROM extraction_dead_letter
-WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1', '424');
+WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1');
 DELETE FROM extractor_runs
-WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1', '424');
+WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1');
 
 COMMIT;
 

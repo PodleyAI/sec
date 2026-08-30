@@ -7,17 +7,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { normalizeUnderwriterFamilyName } from "../../resolver/UnderwriterFamilyResolver";
 import { CanonicalCompanyRepo } from "../../storage/canonical/CanonicalCompanyRepo";
 import { CanonicalCompanyAliasRepo } from "../../storage/canonical/CanonicalCompanyAliasRepo";
 import { CanonicalPersonRepo } from "../../storage/canonical/CanonicalPersonRepo";
 import { CanonicalPersonAliasRepo } from "../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalUnderwriterFamilyRepo } from "../../storage/canonical/CanonicalUnderwriterFamilyRepo";
-import { CanonicalUnderwriterFamilyAliasRepo } from "../../storage/canonical/CanonicalUnderwriterFamilyAliasRepo";
 import { CanonicalAliasAddTask } from "./CanonicalAliasAddTask";
 import { CanonicalAliasListTask } from "./CanonicalAliasListTask";
-import { FamilyAliasAddTask } from "./FamilyAliasAddTask";
-import { FamilyAliasListTask } from "./FamilyAliasListTask";
 import { formatAliasTsv, parseAliasTsv } from "./aliasTsv";
 
 /**
@@ -59,16 +54,6 @@ async function makePerson(id: string, first: string, last: string): Promise<void
     normalized_last: last.toLowerCase(),
     normalized_suffix: null,
     source_filing_issuer_cik: null,
-    created_at: new Date().toISOString(),
-  });
-}
-
-async function makeFamily(id: string, displayName: string): Promise<void> {
-  await new CanonicalUnderwriterFamilyRepo().create({
-    canonical_underwriter_family_id: id,
-    resolver_version: "1.0.0",
-    display_name: displayName,
-    normalized_name: normalizeUnderwriterFamilyName(displayName),
     created_at: new Date().toISOString(),
   });
 }
@@ -134,52 +119,6 @@ describe("alias export/import round trip", () => {
     // Restored against the NEW canonical ids, which is the whole point.
     expect(after.aliases[0]!.alias_canonical_id).toBe(NEW_A);
     expect(after.aliases[0]!.target_canonical_id).toBe(NEW_B);
-  });
-
-  it("restores underwriter-family aliases the same way", async () => {
-    await makeFamily("fam-1", "Chardan Capital Markets");
-    await makeFamily("fam-2", "Chardan");
-    await new FamilyAliasAddTask({
-      defaults: {
-        family: "underwriter",
-        fromName: "Chardan Capital Markets",
-        intoName: "Chardan",
-        reason: "subsidiary",
-        resolverVersion: "1.0.0",
-      },
-    }).run();
-
-    const before = await new FamilyAliasListTask({ defaults: { family: "underwriter" } }).run();
-    expect(before.aliases).toHaveLength(1);
-    expect(before.aliases[0]!.alias_name).toBe("Chardan Capital Markets");
-    expect(before.aliases[0]!.target_name).toBe("Chardan");
-    const exported = formatAliasTsv(before.aliases);
-
-    await new CanonicalUnderwriterFamilyAliasRepo().remove("fam-1");
-    expect(
-      (await new FamilyAliasListTask({ defaults: { family: "underwriter" } }).run()).aliases
-    ).toHaveLength(0);
-
-    const { rows, errors } = parseAliasTsv(exported);
-    expect(errors).toEqual([]);
-    for (const row of rows) {
-      const out = await new FamilyAliasAddTask({
-        defaults: {
-          family: "underwriter",
-          fromName: row.from,
-          intoName: row.into,
-          reason: row.reason,
-          resolverVersion: "1.0.0",
-        },
-      }).run();
-      expect(out.error).toBeNull();
-    }
-
-    const after = await new FamilyAliasListTask({ defaults: { family: "underwriter" } }).run();
-    expect(after.aliases).toHaveLength(1);
-    expect(after.aliases[0]!.alias_name).toBe("Chardan Capital Markets");
-    expect(after.aliases[0]!.target_name).toBe("Chardan");
-    expect(after.aliases[0]!.reason).toBe("subsidiary");
   });
 
   it("reports an orphaned side as null rather than inventing a name", async () => {

@@ -5,13 +5,7 @@
  */
 
 import { parse } from "csv-parse/sync";
-import { FamilyDescriptionRepo } from "../storage/canonical/FamilyDescriptionRepo";
-import {
-  FAMILY_DESCRIPTION_KINDS,
-  type FamilyDescriptionKind,
-} from "../storage/canonical/FamilyDescriptionSchema";
-import { normalizeSponsorFamilyName } from "../resolver/SponsorFamilyResolver";
-import { normalizeUnderwriterFamilyName } from "../resolver/UnderwriterFamilyResolver";
+import { normalizeFamilyName } from "../storage/company/CompanyFamilyName";
 
 /**
  * CSV import for editorial data with no SEC-filing source. Two formats,
@@ -63,11 +57,23 @@ function isJsonObject(value: string): boolean {
   }
 }
 
+/**
+ * The `family_kind` column's vocabulary. It lives with the CSV rather than with
+ * the table, because the format is this package's and the table it feeds is not:
+ * a deployment with no family tier still parses and rejects these files by the
+ * same rules.
+ */
+export const FAMILY_DESCRIPTION_KINDS = ["sponsor-family", "underwriter-family"] as const;
+export type FamilyDescriptionKind = (typeof FAMILY_DESCRIPTION_KINDS)[number];
+
 /** Normalizes a family name with the SAME normalizer the resolver/alias CLI uses. */
-export function normalizeFamilyNameForKind(kind: FamilyDescriptionKind, name: string): string {
-  return kind === "sponsor-family"
-    ? normalizeSponsorFamilyName(name)
-    : normalizeUnderwriterFamilyName(name);
+export function normalizeFamilyNameForKind(_kind: FamilyDescriptionKind, name: string): string {
+  // Both kinds normalize identically today — the sponsor and underwriter
+  // resolvers each call `normalizeFamilyName` and nothing else. The kind stays
+  // in the signature because callers have one and the two could diverge; what
+  // it must not do is make this function need the family tier, which is a
+  // different package's.
+  return normalizeFamilyName(name);
 }
 
 /** Parse and validate an editorial CSV; format is detected from the header row. */
@@ -233,28 +239,4 @@ export function clearFamilyEditorialImporterForTesting(): void {
 /** The contributed importer, or undefined when none was contributed. */
 export function familyEditorialImporter(): FamilyEditorialImporter | undefined {
   return registeredFamilyImporter;
-}
-
-/**
- * Apply family-description rows to the version-independent `family_description`
- * table. Exported as the writer a package owning the family tier registers;
- * `sec` registers it while that tier still ships here.
- */
-export async function importFamilyDescriptions(
-  rows: readonly FamilyDescriptionRow[],
-  opts: { readonly dryRun: boolean }
-): Promise<{ readonly written: number }> {
-  const repo = new FamilyDescriptionRepo();
-  let written = 0;
-  for (const row of rows) {
-    if (!opts.dryRun) {
-      await repo.setDescription(
-        row.family_kind,
-        normalizeFamilyNameForKind(row.family_kind, row.name),
-        row.description
-      );
-    }
-    written++;
-  }
-  return { written };
 }

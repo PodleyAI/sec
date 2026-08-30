@@ -51,20 +51,6 @@ describe("bootstrapComponentVersions", () => {
     }
   });
 
-  it("seeds the sponsor-family resolver at 1.0.0", async () => {
-    await bootstrapComponentVersions(listBackfillableExtractorIds());
-    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
-    const slot = await reg.getCurrent("resolver", "sponsor-family");
-    expect(slot?.semver).toBe("1.0.0");
-  });
-
-  it("seeds the underwriter-family resolver at 1.0.0", async () => {
-    await bootstrapComponentVersions(listBackfillableExtractorIds());
-    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
-    const slot = await reg.getCurrent("resolver", "underwriter-family");
-    expect(slot?.semver).toBe("1.0.0");
-  });
-
   it("is idempotent: running it twice does not change anything", async () => {
     await bootstrapComponentVersions(listBackfillableExtractorIds());
     const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));

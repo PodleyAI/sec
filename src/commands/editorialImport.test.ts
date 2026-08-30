@@ -6,9 +6,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
 import { setupAllDatabases } from "../config/setupAllDatabases";
-import { FamilyDescriptionRepo } from "../storage/canonical/FamilyDescriptionRepo";
-import { normalizeUnderwriterFamilyName } from "../resolver/UnderwriterFamilyResolver";
-import { importFamilyDescriptions, parseEditorialCsv } from "./editorialImport";
+import { parseEditorialCsv } from "./editorialImport";
 
 const SPAC_CSV =
   "cik,name,url_spac,url_sponsor,details\n" +
@@ -70,25 +68,5 @@ describe("parseEditorialCsv", () => {
   it("errors on an unrecognized header", () => {
     const parsed = parseEditorialCsv("foo,bar\n1,2\n");
     expect(parsed.errors[0]).toContain("unrecognized header");
-  });
-});
-
-describe("importFamilyDescriptions", () => {
-  beforeEach(async () => {
-    resetDependencyInjectionsForTesting();
-    await setupAllDatabases();
-  });
-
-  it("writes descriptions under the resolver's normalized name", async () => {
-    const rows = parseEditorialCsv(FAMILY_CSV).familyRows;
-    const res = await importFamilyDescriptions(rows, { dryRun: false });
-    expect(res.written).toBe(2);
-
-    const repo = new FamilyDescriptionRepo();
-    const desc = await repo.getDescription(
-      "underwriter-family",
-      normalizeUnderwriterFamilyName("chardan")
-    );
-    expect(desc).toBe("Chardan is a SPAC-focused investment bank.");
   });
 });

@@ -83,26 +83,23 @@ export const PERSON_OBSERVING_EXTRACTOR_IDS: readonly ExtractorId[] = [
 ] as const;
 
 /**
- * The extractors a `truncate-identity-tier` run must re-extract: every one whose
- * output those scripts delete.
+ * The extractors whose output the re-key ceremony deletes, and which therefore
+ * have to run again after it.
  *
- * Wider than {@link PERSON_OBSERVING_EXTRACTOR_IDS} by exactly `424`, because
- * the scripts wipe the FAMILY tier as well as the person one — and the family
- * tier is not person-scoped. `runOfferingSections` writes `underwriter_link` /
- * `underwriter_family_membership` from the priced 424B1/424B4 path under
- * extractor id `424`, and those link rows ARE the attribution: there is no
- * observation → link projection to rebuild them from, and batch `sec resolve`
- * refuses the family kinds. Scoping the re-extraction gates to the person set
- * alone therefore destroys every 424-sourced underwriter attribution and leaves
- * nothing able to restore it short of `sec extractor backfill 424`.
+ * The person-observing set exactly: the scripts here wipe `person_observations`
+ * and everything keyed to one, and nothing else an extractor wrote.
  *
- * `8-K` / `merger-proxy` / `redemption` / `loi` stay out: the scripts delete no
- * output of theirs, so clearing their runs would re-pay AI cost for nothing.
+ * The FAMILY tier is a different package's, and so is its ceremony. Its link
+ * rows ARE the attribution — no observation → link projection rebuilds them —
+ * so the script that wipes them carries its own gate list, including the `424`
+ * that writes `underwriter_link` from the priced-prospectus path. Naming `424`
+ * here as well would clear its runs on a deployment whose family tier this
+ * ceremony never touched, re-paying model cost for nothing.
+ *
+ * `8-K` / `merger-proxy` / `redemption` / `loi` stay out for that same reason:
+ * the scripts delete no output of theirs.
  */
-export const REKEY_REEXTRACT_EXTRACTOR_IDS: readonly ExtractorId[] = [
-  ...PERSON_OBSERVING_EXTRACTOR_IDS,
-  "424",
-] as const;
+export const REKEY_REEXTRACT_EXTRACTOR_IDS: readonly ExtractorId[] = PERSON_OBSERVING_EXTRACTOR_IDS;
 
 /**
  * Forms routed to the merger-proxy extractor on which a MISSING merger section

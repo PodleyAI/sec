@@ -81,17 +81,6 @@ import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorR
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
 import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
 import { EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN } from "../storage/executive-compensation/ExecutiveCompensationSchema";
-import {
-  CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
-} from "../storage/canonical/CanonicalFamilyAliasSchemas";
-import { CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalSponsorFamilySchema";
-import { FAMILY_DESCRIPTION_REPOSITORY_TOKEN } from "../storage/canonical/FamilyDescriptionSchema";
-import { CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalUnderwriterFamilySchema";
-import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSponsorLinkSchema";
-import { SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN } from "../storage/canonical/SponsorFamilyMembershipSchema";
-import { UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterFamilyMembershipSchema";
-import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
 import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1ClassificationSchema";
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/ExtractionDeadLetterSchema";
 import {
@@ -464,15 +453,6 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(FORM144_ACQUISITION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(FORM144_RECENT_SALE_REPOSITORY_TOKEN).deleteAll();
   // Family-tier canonical / alias / membership / link tables (sponsor + underwriter).
-  await globalServiceRegistry.get(CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FAMILY_DESCRIPTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(UNDERWRITER_LINK_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_SPONSOR_LINK_REPOSITORY_TOKEN).deleteAll();
   // Truncate any downstream-registered extension repos after the built-in ones.
   for (const token of listDatabaseExtensionTokens()) {
     await globalServiceRegistry.get(token).deleteAll();

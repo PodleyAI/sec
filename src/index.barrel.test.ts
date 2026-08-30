@@ -60,11 +60,27 @@ test("exports task + temporal primitives downstream ingestion needs", () => {
   expect(typeof (sec as Record<string, unknown>).registerSafeFetch).toBe("function");
 });
 
-test("exports family-tier primitives for a downstream family resolver", () => {
+test("exports what a downstream family tier is built out of", () => {
+  // The tier itself is a downstream package's. What stays here is the name
+  // normalizer — one definition, because a second one drifting would silently
+  // re-key every family — plus the alias TSV format and the version ceremonies
+  // the tier drives.
   const b = sec as Record<string, unknown>;
-  expect(typeof b.FamilyResolver).toBe("function");
   expect(typeof b.normalizeFamilyName).toBe("function");
-  expect(typeof b.CanonicalFamilyAliasRepo).toBe("function");
+  for (const name of [
+    "formatAliasLine",
+    "formatAliasTsv",
+    "parseAliasTsv",
+    "issuerCommandGroup",
+    "isUniqueConstraintError",
+    "startDev",
+    "promote",
+    "dropPrevious",
+    "registerFamilyEditorialImporter",
+    "normalizeFamilyNameForKind",
+  ]) {
+    expect(typeof b[name], `missing barrel export: ${name}`).toBe("function");
+  }
 });
 
 test("exports the person identity tier a downstream role query joins through", () => {
@@ -340,33 +356,10 @@ test("exports the form vocabulary, corpus paths and bookkeeping an extractor rea
 });
 
 // The scaffolding block covers groups that leave this package on different
-// schedules — the sponsor/underwriter family tier, and the roster/backfill
-// helpers that stay. One test over both would still be passing under a name
-// that had stopped describing it as soon as the first group left, so each group
-// is asserted on its own and the group's test goes with the group.
-test("exports the sponsor and underwriter family tier a relocated resolver still links through", () => {
-  for (const name of [
-    "SponsorFamilyResolver",
-    "UnderwriterFamilyResolver",
-    "CanonicalSponsorFamilyAliasRepo",
-    "CanonicalSponsorFamilyRepo",
-    "SpacSponsorLinkRepo",
-    "SponsorFamilyMembershipRepo",
-    "CanonicalUnderwriterFamilyAliasRepo",
-    "CanonicalUnderwriterFamilyRepo",
-    "UnderwriterFamilyMembershipRepo",
-    "UnderwriterLinkRepo",
-  ]) {
-    expect(typeof sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBe("function");
-  }
-
-  // Counting an issuer's links is a query on the storage rather than a repo
-  // method, so the two link tokens are part of this tier's surface too.
-  for (const name of ["SPAC_SPONSOR_LINK_REPOSITORY_TOKEN", "UNDERWRITER_LINK_REPOSITORY_TOKEN"]) {
-    expect(sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBeDefined();
-  }
-});
-
+// schedules. One test over several would still be passing under a name that had
+// stopped describing it as soon as the first group left, so each group is
+// asserted on its own and the group's test goes with the group — which is what
+// happened to the sponsor/underwriter family tier's.
 test("exports the roster titles and backfill descriptors a contributed extractor registers through", async () => {
   for (const name of [
     "normalizeManagementTitles",

@@ -15,12 +15,6 @@ import { CanonicalCompanyPhoneRepo } from "../storage/canonical/CanonicalCompany
 import { CanonicalPersonRepo } from "../storage/canonical/CanonicalPersonRepo";
 import { PersonRoleRepo } from "../storage/canonical/PersonRoleRepo";
 import { CanonicalCompanyRepo } from "../storage/canonical/CanonicalCompanyRepo";
-import {
-  importFamilyDescriptions,
-  registerFamilyEditorialImporter,
-} from "../commands/editorialImport";
-import { SpacSponsorLinkRepo } from "../storage/canonical/SpacSponsorLinkRepo";
-import { UnderwriterLinkRepo } from "../storage/canonical/UnderwriterLinkRepo";
 
 /**
  * Register sec's built-in resolver kinds into the ResolverExtensionRegistry.
@@ -30,10 +24,6 @@ import { UnderwriterLinkRepo } from "../storage/canonical/UnderwriterLinkRepo";
  * callers read it here instead of duplicating it per call site.
  */
 export function registerSecResolvers(): void {
-  // The family tier still ships here, so this package contributes its editorial
-  // writer. When the tier moves, this call moves with it and an unregistered
-  // family CSV is refused by name rather than silently written nowhere.
-  registerFamilyEditorialImporter(importFamilyDescriptions);
   registerResolverExtension({
     id: "person",
     coverage: async (version) => {
@@ -61,49 +51,6 @@ export function registerSecResolvers(): void {
       await new CanonicalCompanyAddressRepo().deleteForResolverVersion(version);
       await new CanonicalCompanyPhoneRepo().deleteForResolverVersion(version);
       await new CanonicalCompanyRepo().deleteForResolverVersion(version);
-    },
-  });
-  // Family tiers have no observation → identity-link table: their per-filing
-  // fact IS the link row (spac_sponsor_link / underwriter_link), keyed by
-  // (accession, extractor, observation_index) with the resolver version as a
-  // plain column. So one row exists per family-tier fact, carrying whichever
-  // version last wrote it, and coverage is the share of those rows already
-  // re-attributed at the target version.
-  //
-  // Coverage only. `dropPrevious` is deliberately left unregistered, so the
-  // ceremony keeps refusing these kinds.
-  //
-  // On the person/company tier a purge is safe because identity links are
-  // DERIVED: the observation rows survive it, so `sec resolve` rebuilds every
-  // link the purge removed. The family tier has no such backstop — the link row
-  // IS the attribution, not a projection of something that outlives it — and
-  // `sec resolve` refuses family kinds, so nothing can rebuild what a purge
-  // deletes. Recovery would mean re-extracting every affected S-1/424 and
-  // re-paying the AI cost for all of them.
-  //
-  // The ceremony is symmetric in shape across the four kinds but not in
-  // consequence, and the asymmetry is invisible at the call site: `drop-previous`
-  // reads like the same routine cleanup whichever kind it is handed. Shipping
-  // the read-only half now keeps that trap closed until a family `resolve`
-  // exists to restore the rebuild invariant the other kinds rely on.
-  registerResolverExtension({
-    id: "sponsor-family",
-    isFamily: true,
-    coverage: async (version) => {
-      const links = new SpacSponsorLinkRepo();
-      const numerator = await links.count({ resolver_version: version });
-      const denominator = await links.count();
-      return { numerator, denominator };
-    },
-  });
-  registerResolverExtension({
-    id: "underwriter-family",
-    isFamily: true,
-    coverage: async (version) => {
-      const links = new UnderwriterLinkRepo();
-      const numerator = await links.count({ resolver_version: version });
-      const denominator = await links.count();
-      return { numerator, denominator };
     },
   });
 }

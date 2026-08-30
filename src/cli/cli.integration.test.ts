@@ -34,9 +34,11 @@ describe("CLI v2 integration", () => {
   it("should show help with all command groups", async () => {
     // Every top-level name AddCommands registers, not a sample of them. A group
     // whose registrar throws or is dropped is otherwise invisible here: the
-    // remaining ones still print, and the assertions still pass. `underwriter`
-    // and `issuer` in particular went unasserted, and they are the only
-    // top-level evidence that registerUnderwriterFamilyCommands ran at all.
+    // remaining ones still print, and the assertions still pass. `issuer` in
+    // particular went unasserted, and it is the only top-level evidence that
+    // registerIssuerCommands ran at all. `spac` and `underwriter` are not here:
+    // the family tier was the whole of both groups and a deployment of this
+    // package alone offers neither.
     const output = await runCli("--help");
     for (const group of [
       "bootstrap",
@@ -48,8 +50,6 @@ describe("CLI v2 integration", () => {
       "version",
       "resolve",
       "canonical",
-      "spac",
-      "underwriter",
       "issuer",
       "editorial",
       "extractor",
@@ -61,26 +61,11 @@ describe("CLI v2 integration", () => {
   });
 
   it("should show canonical subcommands from every resolver-kind registrar", async () => {
-    // One of two proofs that registerSponsorFamilyCommands ran; the `spac`
-    // group below is the other, and is now that registrar's alone.
+    // Two kinds here, not four: the family tier registers its own onto the same
+    // group from the package that owns it, and asserts them there.
     const output = await runCli("canonical", "--help");
     expect(output).toContain("person");
     expect(output).toContain("company");
-    expect(output).toContain("sponsor-family");
-    expect(output).toContain("underwriter-family");
-  });
-
-  it("should show a spac group holding only the sponsor-family query", async () => {
-    // The group is created by the sponsor-family registrar, for `by-family`.
-    // Every other subcommand it used to carry reads a lifecycle model this
-    // package no longer ships, and left with it — so what a deployment of this
-    // package alone offers under `spac` is one query over sponsor links, and
-    // the group standing empty of the rest is the thing worth pinning.
-    const output = await runCli("spac", "--help");
-    expect(output).toContain("by-family");
-    for (const gone of ["process", "report", "history", "candidates", "download"]) {
-      expect(output, gone).not.toContain(gone);
-    }
   });
 
   it("should show global options", async () => {

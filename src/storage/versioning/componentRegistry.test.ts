@@ -38,11 +38,9 @@ describe("componentRegistry", () => {
     }
   });
 
-  it("registers person, company, sponsor-family, and underwriter-family resolvers", () => {
+  it("registers the person and company resolvers", () => {
     expect(isRegisteredComponent("resolver", "person")).toBe(true);
     expect(isRegisteredComponent("resolver", "company")).toBe(true);
-    expect(isRegisteredComponent("resolver", "sponsor-family")).toBe(true);
-    expect(isRegisteredComponent("resolver", "underwriter-family")).toBe(true);
   });
 
   it("rejects unknown ids", () => {
@@ -53,8 +51,8 @@ describe("componentRegistry", () => {
   it("listRegisteredComponents returns one entry per extractor and resolver", () => {
     // 25 extractors (D, C, CFPORTAL, 1-A, 1-A-W, 1-K, 1-Z, 1-U, 253G,
     // QUALIF, 3, 4, 5, 144, S-1, S-1-xbrl, 424, 424-xbrl, 8-K, 8-K-items,
-    // merger-proxy, redemption, loi, 25-15, RW) + 4 resolvers (person,
-    // company, sponsor-family, underwriter-family).
-    expect(listRegisteredComponents()).toHaveLength(29);
+    // merger-proxy, redemption, loi, 25-15, RW) + 2 resolvers (person,
+    // company). The family kinds a downstream package registers are not here.
+    expect(listRegisteredComponents()).toHaveLength(27);
   });
 });

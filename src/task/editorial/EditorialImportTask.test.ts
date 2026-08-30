@@ -10,7 +10,6 @@ import { join } from "node:path";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import {
-  clearFamilyEditorialImporterForTesting,
   clearSpacEditorialImporterForTesting,
   registerSpacEditorialImporter,
 } from "../../commands/editorialImport";
@@ -52,8 +51,12 @@ describe("EditorialImportTask", () => {
       },
     }).run();
 
+    // Nothing registers a family writer here any more — the tier moved — so a
+    // family CSV is refused by name. What this test is about is that one bad
+    // file does not swallow the others' results, which the refusal shows just
+    // as well as a write would.
     expect(results).toHaveLength(3);
-    expect(results[0]).toMatchObject({ file: first, written: 1, importError: null });
+    expect(results[0]).toMatchObject({ file: first, kind: "family", written: 0 });
     expect(results[1]).toEqual(
       expect.objectContaining({
         file: invalid,
@@ -61,7 +64,7 @@ describe("EditorialImportTask", () => {
         importError: expect.any(String),
       })
     );
-    expect(results[2]).toMatchObject({ file: third, written: 1, importError: null });
+    expect(results[2]).toMatchObject({ file: third, kind: "family", written: 0 });
   });
 
   /**
@@ -123,7 +126,6 @@ describe("EditorialImportTask", () => {
    * been told something false, and it looks exactly like a successful import.
    */
   it("refuses the family half of the format when no writer is registered", async () => {
-    clearFamilyEditorialImporterForTesting();
     const directory = mkdtempSync(join(tmpdir(), "sec-editorial-import-"));
     tempDirectories.push(directory);
     const file = join(directory, "family.csv");

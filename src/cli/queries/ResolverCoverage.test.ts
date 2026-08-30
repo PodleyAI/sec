@@ -16,45 +16,6 @@ import { computeResolverCoverage } from "./ResolverCoverage";
 import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
 import { registerSecResolvers } from "../../config/registerResolvers";
 import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
-import { SpacSponsorLinkRepo } from "../../storage/canonical/SpacSponsorLinkRepo";
-import { UnderwriterLinkRepo } from "../../storage/canonical/UnderwriterLinkRepo";
-import type { SpacSponsorLink } from "../../storage/canonical/SpacSponsorLinkSchema";
-import type { UnderwriterLink } from "../../storage/canonical/UnderwriterLinkSchema";
-
-function sponsorLink(
-  accession_number: string,
-  observation_index: number,
-  resolver_version: string
-): SpacSponsorLink {
-  return {
-    accession_number,
-    extractor_id: "S-1",
-    observation_index,
-    issuer_cik: 1234567,
-    sponsor_canonical_company_id: "company-1",
-    sponsor_family_id: `family-${resolver_version}`,
-    resolver_version,
-  };
-}
-
-function underwriterLink(
-  accession_number: string,
-  observation_index: number,
-  resolver_version: string
-): UnderwriterLink {
-  return {
-    accession_number,
-    extractor_id: "S-1",
-    observation_index,
-    issuer_cik: 1234567,
-    underwriter_canonical_company_id: "company-1",
-    underwriter_family_id: `family-${resolver_version}`,
-    role_detail: "lead",
-    shares_allocated: null,
-    over_allotment_shares: null,
-    resolver_version,
-  };
-}
 
 describe("computeResolverCoverage", () => {
   beforeEach(async () => {
@@ -158,51 +119,5 @@ describe("computeResolverCoverage", () => {
     expect(result.fraction).toBeCloseTo(11 / 17);
     expect(countCalls).toBe(2);
     expect(lastLinkCriteria).toEqual({ resolver_version: "1.0.0" });
-  });
-
-  it("reports sponsor-family coverage from spac_sponsor_link rows", async () => {
-    const links = new SpacSponsorLinkRepo();
-    await links.save(sponsorLink("0001000000-25-000001", 0, "1.0.0"));
-    await links.save(sponsorLink("0001000000-25-000002", 0, "1.0.0"));
-    await links.save(sponsorLink("0001000000-25-000003", 0, "2.0.0"));
-
-    const at100 = await computeResolverCoverage("sponsor-family", "1.0.0");
-    expect(at100).toMatchObject({ numerator: 2, denominator: 3 });
-    expect(at100.fraction).toBeCloseTo(2 / 3);
-
-    const at200 = await computeResolverCoverage("sponsor-family", "2.0.0");
-    expect(at200).toMatchObject({ numerator: 1, denominator: 3 });
-  });
-
-  it("reports underwriter-family coverage from underwriter_link rows", async () => {
-    const links = new UnderwriterLinkRepo();
-    await links.save(underwriterLink("0001000000-25-000001", 0, "1.0.0"));
-    await links.save(underwriterLink("0001000000-25-000001", 1, "2.0.0"));
-
-    const at100 = await computeResolverCoverage("underwriter-family", "1.0.0");
-    expect(at100).toMatchObject({ numerator: 1, denominator: 2 });
-    expect(at100.fraction).toBeCloseTo(0.5);
-  });
-
-  it("reports zero family coverage when no link rows exist", async () => {
-    for (const kind of ["sponsor-family", "underwriter-family"]) {
-      const result = await computeResolverCoverage(kind, "1.0.0");
-      expect(result).toMatchObject({ numerator: 0, denominator: 0, fraction: 0 });
-    }
-  });
-
-  it("family coverage does not read the company tier", async () => {
-    // A company observation with no family link must not leak into the family
-    // denominator: the family tier counts its own per-filing link rows.
-    await new CompanyObservationRepo().upsertByNaturalKey({
-      accession_number: "0001000000-25-000009",
-      extractor_id: "S-1",
-      extractor_version: "1.0.0",
-      observation_index: 0,
-      name: "Some Sponsor LLC",
-      created_at: "2026-05-22T00:00:00.000Z",
-    });
-    const result = await computeResolverCoverage("sponsor-family", "1.0.0");
-    expect(result).toMatchObject({ numerator: 0, denominator: 0 });
   });
 });

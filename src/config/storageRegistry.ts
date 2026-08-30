@@ -211,34 +211,6 @@ import {
   CanonicalPersonAliasPrimaryKeyNames,
 } from "../storage/canonical/CanonicalAliasSchemas";
 import {
-  CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
-  CanonicalSponsorFamilyAliasSchema,
-  CanonicalSponsorFamilyAliasPrimaryKeyNames,
-  CanonicalUnderwriterFamilyAliasSchema,
-  CanonicalUnderwriterFamilyAliasPrimaryKeyNames,
-} from "../storage/canonical/CanonicalFamilyAliasSchemas";
-import {
-  CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN,
-  CanonicalSponsorFamilyPrimaryKeyNames,
-  CanonicalSponsorFamilySchema,
-} from "../storage/canonical/CanonicalSponsorFamilySchema";
-import {
-  FAMILY_DESCRIPTION_REPOSITORY_TOKEN,
-  FamilyDescriptionPrimaryKeyNames,
-  FamilyDescriptionSchema,
-} from "../storage/canonical/FamilyDescriptionSchema";
-import {
-  SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
-  SponsorFamilyMembershipPrimaryKeyNames,
-  SponsorFamilyMembershipSchema,
-} from "../storage/canonical/SponsorFamilyMembershipSchema";
-import {
-  SPAC_SPONSOR_LINK_REPOSITORY_TOKEN,
-  SpacSponsorLinkPrimaryKeyNames,
-  SpacSponsorLinkSchema,
-} from "../storage/canonical/SpacSponsorLinkSchema";
-import {
   OFFERING_TERMS_REPOSITORY_TOKEN,
   OfferingTermsPrimaryKeyNames,
   OfferingTermsSchema,
@@ -258,21 +230,6 @@ import {
   IssuerTickerPrimaryKeyNames,
   IssuerTickerSchema,
 } from "../storage/offering/IssuerTickerSchema";
-import {
-  CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN,
-  CanonicalUnderwriterFamilyPrimaryKeyNames,
-  CanonicalUnderwriterFamilySchema,
-} from "../storage/canonical/CanonicalUnderwriterFamilySchema";
-import {
-  UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
-  UnderwriterFamilyMembershipPrimaryKeyNames,
-  UnderwriterFamilyMembershipSchema,
-} from "../storage/canonical/UnderwriterFamilyMembershipSchema";
-import {
-  UNDERWRITER_LINK_REPOSITORY_TOKEN,
-  UnderwriterLinkPrimaryKeyNames,
-  UnderwriterLinkSchema,
-} from "../storage/canonical/UnderwriterLinkSchema";
 import {
   XBRL_FACT_REPOSITORY_TOKEN,
   XbrlFactPrimaryKeyNames,
@@ -996,50 +953,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     indexes: [],
   }),
   defineStorage({
-    token: CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN,
-    table: "canonical_sponsor_family",
-    schema: CanonicalSponsorFamilySchema,
-    primaryKeyNames: CanonicalSponsorFamilyPrimaryKeyNames,
-    indexes: [],
-    // (resolver_version, normalized_name) is the family natural key — must be
-    // enforced at the storage layer so two processes racing to mint the same
-    // family converge on one row. Without this, the family-tier identity
-    // tables silently forked under multi-process load.
-    uniqueIndexes: [["resolver_version", "normalized_name"]],
-  }),
-  defineStorage({
-    token: CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
-    table: "canonical_sponsor_family_alias",
-    schema: CanonicalSponsorFamilyAliasSchema,
-    primaryKeyNames: CanonicalSponsorFamilyAliasPrimaryKeyNames,
-    indexes: [["target_canonical_id"]],
-  }),
-  defineStorage({
-    token: FAMILY_DESCRIPTION_REPOSITORY_TOKEN,
-    table: "family_description",
-    schema: FamilyDescriptionSchema,
-    primaryKeyNames: FamilyDescriptionPrimaryKeyNames,
-    indexes: [["family_kind"]],
-  }),
-  defineStorage({
-    token: SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
-    table: "sponsor_family_membership",
-    schema: SponsorFamilyMembershipSchema,
-    primaryKeyNames: SponsorFamilyMembershipPrimaryKeyNames,
-    indexes: [["resolver_version", "canonical_sponsor_family_id"]],
-  }),
-  defineStorage({
-    token: SPAC_SPONSOR_LINK_REPOSITORY_TOKEN,
-    table: "spac_sponsor_link",
-    schema: SpacSponsorLinkSchema,
-    primaryKeyNames: SpacSponsorLinkPrimaryKeyNames,
-    // "Which families sponsor this issuer", always qualified by the active
-    // resolver version. The issuer leads because it is the selective term —
-    // a resolver_version-first index degenerates to a scan, since nearly
-    // every row carries the current version.
-    indexes: [["accession_number"], ["sponsor_family_id"], ["issuer_cik", "resolver_version"]],
-  }),
-  defineStorage({
     token: OFFERING_TERMS_REPOSITORY_TOKEN,
     table: "offering_terms",
     schema: OfferingTermsSchema,
@@ -1066,41 +979,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     schema: IssuerTickerSchema,
     primaryKeyNames: IssuerTickerPrimaryKeyNames,
     indexes: [["cik"], ["accession_number"]],
-  }),
-  defineStorage({
-    token: CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN,
-    table: "canonical_underwriter_family",
-    schema: CanonicalUnderwriterFamilySchema,
-    primaryKeyNames: CanonicalUnderwriterFamilyPrimaryKeyNames,
-    indexes: [],
-    // (resolver_version, normalized_name) is the family natural key — must be
-    // enforced at the storage layer so two processes racing to mint the same
-    // family converge on one row. Without this, the family-tier identity
-    // tables silently forked under multi-process load.
-    uniqueIndexes: [["resolver_version", "normalized_name"]],
-  }),
-  defineStorage({
-    token: CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
-    table: "canonical_underwriter_family_alias",
-    schema: CanonicalUnderwriterFamilyAliasSchema,
-    primaryKeyNames: CanonicalUnderwriterFamilyAliasPrimaryKeyNames,
-    indexes: [["target_canonical_id"]],
-  }),
-  defineStorage({
-    token: UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
-    table: "underwriter_family_membership",
-    schema: UnderwriterFamilyMembershipSchema,
-    primaryKeyNames: UnderwriterFamilyMembershipPrimaryKeyNames,
-    indexes: [["resolver_version", "canonical_underwriter_family_id"]],
-  }),
-  defineStorage({
-    token: UNDERWRITER_LINK_REPOSITORY_TOKEN,
-    table: "underwriter_link",
-    schema: UnderwriterLinkSchema,
-    primaryKeyNames: UnderwriterLinkPrimaryKeyNames,
-    // Mirrors spac_sponsor_link: issuer-led so the per-issuer read at the
-    // active resolver version does not scan the table.
-    indexes: [["accession_number"], ["underwriter_family_id"], ["issuer_cik", "resolver_version"]],
   }),
   defineStorage({
     token: XBRL_FACT_REPOSITORY_TOKEN,

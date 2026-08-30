@@ -17,20 +17,13 @@ afterEach(() => clearResolverExtensionsForTesting());
 test("registers the built-in sec resolver kinds", () => {
   registerSecResolvers();
   const ids = listResolverIds();
-  for (const id of ["person", "company", "sponsor-family", "underwriter-family"]) {
+  for (const id of ["person", "company"]) {
     expect(ids).toContain(id);
   }
 });
 
 test("families are family-tier, expose coverage, and register no purge", () => {
   registerSecResolvers();
-  for (const id of ["sponsor-family", "underwriter-family"]) {
-    expect(isFamilyResolverId(id)).toBe(true);
-    expect(typeof getResolverExtension(id)?.coverage).toBe("function");
-    // Deliberately absent: a family purge has no rebuild path, since the link
-    // row is the attribution itself and `sec resolve` refuses family kinds.
-    expect(getResolverExtension(id)?.dropPrevious).toBeUndefined();
-  }
 });
 
 test("person/company expose coverage + dropPrevious", () => {

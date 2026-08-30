@@ -157,6 +157,7 @@ export {
   registerDatabaseSetupHook,
 } from "./config/databaseExtensions";
 export {
+  clearResolverExtensionsForTesting,
   getResolverExtension,
   isFamilyResolverId,
   listResolverIds,
@@ -300,6 +301,15 @@ export type {
 // a projection recomputed from stored evidence.
 export { resolveObservationsForAccession } from "./resolver/resolveObservationLinks";
 export type { ObservationResolveResult } from "./resolver/resolveObservationLinks";
+// ── What a package owning the family tier builds on ─────────────────────────
+// The alias TSV format, the `sec issuer` group, and the unique-constraint
+// predicate a resolver's mint race turns on. All three are this package's and
+// stay here; the family tier that uses them does not.
+export { formatAliasLine, formatAliasTsv, parseAliasTsv } from "./task/canonical/aliasTsv";
+export type { AliasExportRow, AliasTsvParse } from "./task/canonical/aliasTsv";
+export { issuerCommandGroup } from "./commands/issuerGroup";
+export { isUniqueConstraintError } from "./util/isUniqueConstraintError";
+
 export { buildObserveOnlyEntityObserver } from "./resolver/buildObserveOnlyEntityObserver";
 export { EntityObserver } from "./resolver/EntityObserver";
 export type { ObserveOnlyEntityObserver } from "./resolver/EntityObserver";
@@ -341,11 +351,7 @@ export { isOverlongPersonName, MAX_PERSON_NAME_CHARS } from "./util/personNameBo
 export { isCallTracing, recordCall } from "./verify/callTrace";
 export type { CallOutcome, CallValidationAttempt } from "./verify/callTrace";
 // ── Family-tier primitives for downstream resolvers ────────────────────────
-export { FamilyResolver, normalizeFamilyName } from "./resolver/FamilyResolver";
-export {
-  CanonicalFamilyAliasRepo,
-  type FamilyAliasRow,
-} from "./storage/canonical/CanonicalFamilyAliasRepo";
+export { normalizeFamilyName } from "./storage/company/CompanyFamilyName";
 
 // ── Versioning internals ────────────────────────────────────────────────────
 export { computeResolverCoverage } from "./cli/queries/ResolverCoverage";
@@ -420,6 +426,25 @@ export {
 // can map a Form D issuer CIK to its canonical company — `findByResolverAndCik`
 // — and join that to its own records (startup.canonical_company_id).
 export { CanonicalCompanyRepo } from "./storage/canonical/CanonicalCompanyRepo";
+// The person/company canonical rows a downstream ceremony test seeds to prove a
+// family-kind purge leaves the other tiers alone. They move downstream with the
+// rest of that tier; until then they are read from here.
+// The version ceremonies, so a package owning a resolver kind can drive and
+// test the same lifecycle this package's own kinds go through.
+export {
+  dropNext,
+  dropPrevious,
+  promote,
+  rollback,
+  startDev,
+} from "./storage/versioning/ceremonies";
+export { VersionEventRepo } from "./storage/versioning/VersionEventRepo";
+export {
+  VERSION_EVENT_REPOSITORY_TOKEN,
+  type VersionEvent,
+} from "./storage/versioning/VersionEventSchema";
+export { CanonicalPersonRepo } from "./storage/canonical/CanonicalPersonRepo";
+export { CanonicalCompanyAddressRepo } from "./storage/canonical/CanonicalCompanyAddressRepo";
 export {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   type CanonicalCompany,
@@ -567,21 +592,9 @@ export { SpacUnitTermsRepo } from "./storage/offering/SpacUnitTermsRepo";
 // membership and links) is the one still here. `normalizeManagementTitles` is
 // the second: the title canonicalization stays only while this package's inline
 // observe path calls it.
-export { SponsorFamilyResolver } from "./resolver/SponsorFamilyResolver";
-export { UnderwriterFamilyResolver } from "./resolver/UnderwriterFamilyResolver";
-export { CanonicalSponsorFamilyAliasRepo } from "./storage/canonical/CanonicalSponsorFamilyAliasRepo";
-export { CanonicalSponsorFamilyRepo } from "./storage/canonical/CanonicalSponsorFamilyRepo";
-export { SpacSponsorLinkRepo } from "./storage/canonical/SpacSponsorLinkRepo";
 // The link tokens ride along with their repos because neither repo can answer
 // "how many links does this issuer have"; that question is a query on the
 // storage by `issuer_cik`, so a caller counting links reaches the token.
-export { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "./storage/canonical/SpacSponsorLinkSchema";
-export { SponsorFamilyMembershipRepo } from "./storage/canonical/SponsorFamilyMembershipRepo";
-export { CanonicalUnderwriterFamilyAliasRepo } from "./storage/canonical/CanonicalUnderwriterFamilyAliasRepo";
-export { CanonicalUnderwriterFamilyRepo } from "./storage/canonical/CanonicalUnderwriterFamilyRepo";
-export { UnderwriterFamilyMembershipRepo } from "./storage/canonical/UnderwriterFamilyMembershipRepo";
-export { UnderwriterLinkRepo } from "./storage/canonical/UnderwriterLinkRepo";
-export { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "./storage/canonical/UnderwriterLinkSchema";
 export { normalizeManagementTitles } from "./sec/forms/registration-statements/s1/normalizeTitle";
 
 // ── The rest of what an out-of-package extraction tier reaches for ──────────
@@ -645,8 +658,6 @@ export { Section16Repo } from "./storage/section16/Section16Repo";
 
 // Family-name normalization, so a sponsor or underwriter observed outside this
 // package folds to the same family key one observed inside it does.
-export { normalizeSponsorFamilyName } from "./resolver/SponsorFamilyResolver";
-export { normalizeUnderwriterFamilyName } from "./resolver/UnderwriterFamilyResolver";
 
 // Which filings a backfill of a given extractor should re-select, and the CLI
 // option helpers a command group is built from — an option that answers with
@@ -763,8 +774,12 @@ export {
 // registered, `editorial import` refuses a file of that shape by name rather
 // than reporting rows it stored nowhere.
 export {
+  normalizeFamilyNameForKind,
   parseEditorialCsv,
+  registerFamilyEditorialImporter,
   registerSpacEditorialImporter,
+  type FamilyDescriptionRow,
+  type FamilyEditorialImporter,
   type ImportSpacEditorialResult,
   type ParsedEditorialCsv,
   type SpacEditorialImporter,

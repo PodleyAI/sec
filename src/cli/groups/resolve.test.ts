@@ -156,6 +156,12 @@ describe("sec resolve CLI", () => {
   });
 
   it("resolve --kind sponsor-family is refused rather than run as company", async () => {
+    // Refused one step earlier than it used to be: this package registers no
+    // family kinds now, so the name is unknown rather than known-and-unsupported.
+    // A deployment that DOES register them gets the other refusal, and asserts
+    // it where the kinds exist. What must not change either way is that a family
+    // kind never silently runs as company — the two share a version string on a
+    // default install, so it would purge the person tier's tenures.
     const dir = mkdtempSync(join(tmpdir(), "sec-resolve-test-"));
     try {
       const setup = await runCli(["db", "setup"], dir);
@@ -166,8 +172,8 @@ describe("sec resolve CLI", () => {
         dir
       );
       expect(result.exitCode).not.toBe(0);
-      expect(result.stderr + result.stdout).toMatch(/does not support resolver kind/);
-      expect(result.stderr + result.stdout).toMatch(/person\|company/);
+      expect(result.stderr + result.stdout).toMatch(/--kind must be one of person\|company/);
+      expect(result.stdout).not.toContain("resolved");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

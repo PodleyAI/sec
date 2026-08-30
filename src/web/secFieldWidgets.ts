@@ -11,8 +11,6 @@ import { queryEntities } from "../cli/queries/EntityQuery";
 import { queryFilings } from "../cli/queries/FilingQuery";
 import { getVersionStatus } from "../cli/queries/VersionStatus";
 import { listResolverIds } from "../resolver/resolverExtensions";
-import { CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalSponsorFamilySchema";
-import { CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalUnderwriterFamilySchema";
 import { EXTRACTOR_IDS } from "../storage/versioning/extractorIds";
 import { allRegisteredForms } from "../sec/forms/formExtractors";
 import { readPendingDeadLetterCounts } from "./secWebReads";
@@ -21,7 +19,7 @@ import { readPendingDeadLetterCounts } from "./secWebReads";
  * The pickers behind sec's field annotations.
  *
  * A picker exists where the value is an identifier nobody remembers: a CIK, an
- * accession, an extractor id, a canonical family name. Every one of them reads
+ * accession, an extractor id. Every one of them reads
  * only what is already stored — this surface must never fetch from EDGAR, since
  * it answers a keystroke and EDGAR's budget is metered and shared.
  */
@@ -222,39 +220,6 @@ async function searchResolverKinds(query: string): Promise<WebFieldWidgetItem[]>
     .map((id) => ({ value: id, label: id, detail: undefined }));
 }
 
-/**
- * Canonical family names, for the alias ceremonies.
- *
- * The kind is read from the form — `sec canonical <kind> alias` puts it in the
- * path, and the two family tiers are separate tables — so one widget serves
- * both rather than the page having to know which command it is on.
- */
-async function searchFamilies(
-  query: string,
-  context: { readonly path: readonly string[] }
-): Promise<WebFieldWidgetItem[]> {
-  const needle = query.trim().toLowerCase();
-  const underwriter = context.path.includes("underwriter-family");
-  // Two tables, two row types — read each through its own token rather than a
-  // union, which has no common `put` and so is not a storage at all.
-  const rows = underwriter
-    ? ((await globalServiceRegistry
-        .get(CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN)
-        .getOffsetPage(0, 5_000)) ?? [])
-    : ((await globalServiceRegistry
-        .get(CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN)
-        .getOffsetPage(0, 5_000)) ?? []);
-  return rows
-    .flatMap((row) => (row.display_name ? [row.display_name] : []))
-    .filter((name) => !needle || name.toLowerCase().includes(needle))
-    .slice(0, MAX_ITEMS)
-    .map((name) => ({
-      value: name,
-      label: name,
-      detail: underwriter ? "underwriter family" : "sponsor family",
-    }));
-}
-
 export function registerSecFieldWidgets(): void {
   const source = "@workglow/sec";
   registerWebFieldWidget({ format: "sec:cik", source, search: searchCiks });
@@ -267,5 +232,4 @@ export function registerSecFieldWidgets(): void {
   registerWebFieldWidget({ format: "sec:extractor", source, search: searchExtractors });
   registerWebFieldWidget({ format: "sec:resolver-kind", source, search: searchResolverKinds });
   registerWebFieldWidget({ format: "sec:component-id", source, search: searchComponentIds });
-  registerWebFieldWidget({ format: "sec:family", source, search: searchFamilies });
 }

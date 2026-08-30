@@ -98,10 +98,13 @@
 -- Then, in this order:
 --
 -- 3a. Re-extract every extractor whose output this script deleted (see
---     REKEY_REEXTRACT_EXTRACTOR_IDS). `424` is in the list for the FAMILY
---     tier, not the person one: the priced-prospectus path writes
---     `underwriter_link` rows that the family section below wipes, and nothing
---     but a re-extraction can restore them.
+--     REKEY_REEXTRACT_EXTRACTOR_IDS) — the person-observing ones exactly.
+--
+--     ⚠️ THIS SCRIPT NO LONGER TOUCHES THE FAMILY TIER. Sponsor and underwriter
+--     families are a downstream package's, and so is the script that re-keys
+--     them; run that one too on a deployment that has them. It carries its own
+--     gate list, including the `424` whose priced-prospectus path writes
+--     `underwriter_link` rows that nothing but a re-extraction restores.
 --   sec extractor backfill S-1
 --   sec extractor backfill D
 --   sec extractor backfill C
@@ -134,24 +137,6 @@
 
 BEGIN;
 
--- ── Family tier ─────────────────────────────────────────────────────────────
--- The link row IS the attribution here (there is no observation → link
--- projection), so these go together or the survivors point at nothing.
-DELETE FROM spac_sponsor_link;
-DELETE FROM underwriter_link;
-DELETE FROM sponsor_family_membership;
-DELETE FROM underwriter_family_membership;
-DELETE FROM canonical_sponsor_family_alias;
-DELETE FROM canonical_underwriter_family_alias;
-DELETE FROM canonical_sponsor_family;
-DELETE FROM canonical_underwriter_family;
-
--- `family_description` is intentionally spared: it is hand-curated editorial
--- text keyed by (family_kind, normalized_name), not by a canonical id. The key
--- shape changed, so existing rows will not match until re-imported — but they
--- are the only copy, and deleting them destroys work no pipeline can rebuild.
---   sec editorial import data/editorial/family-descriptions.csv
-
 -- ── Person canonical + link tier ─────────────────────────────────────────────
 DELETE FROM person_role;
 DELETE FROM person_identity_link;
@@ -178,17 +163,17 @@ DELETE FROM person_observations;
 -- with it — they are keyed to runs that no longer exist.
 --
 -- Scoped to the extractors whose output this script actually deletes: the
--- person-observing ones, plus `424` for the family tier it wipes above (the
--- priced-prospectus path writes `underwriter_link` / `underwriter_family_
--- membership`, and a family link row IS the attribution — no observation
--- projection rebuilds it). `8-K`, `merger-proxy`, `redemption` and `loi` stay
--- untouched: nothing of theirs is deleted here, and clearing their runs would
--- re-pay AI cost for nothing. Keep in step with REKEY_REEXTRACT_EXTRACTOR_IDS
+-- person-observing ones exactly. `424` is NOT here — it writes family link rows
+-- and no person observation, and the package owning that tier gates it from its
+-- own script. Clearing its runs from here would re-extract every priced
+-- prospectus on a deployment whose family tier this script never touched.
+-- `8-K`, `merger-proxy`, `redemption` and `loi` stay out for the same reason:
+-- nothing of theirs is deleted here. Keep in step with REKEY_REEXTRACT_EXTRACTOR_IDS
 -- in `src/storage/versioning/extractorIds.ts` — `truncateIdentityTier.test.ts`
 -- fails if they diverge.
 DELETE FROM extraction_dead_letter
-WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1', '424');
+WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1');
 DELETE FROM extractor_runs
-WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1', '424');
+WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1');
 
 COMMIT;

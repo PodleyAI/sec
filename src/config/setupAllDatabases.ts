@@ -61,21 +61,10 @@ import {
   CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
 } from "../storage/canonical/CanonicalAliasSchemas";
-import {
-  CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
-} from "../storage/canonical/CanonicalFamilyAliasSchemas";
-import { CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalSponsorFamilySchema";
-import { FAMILY_DESCRIPTION_REPOSITORY_TOKEN } from "../storage/canonical/FamilyDescriptionSchema";
-import { SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN } from "../storage/canonical/SponsorFamilyMembershipSchema";
-import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSponsorLinkSchema";
 import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
 import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
 import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
 import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTickerSchema";
-import { CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalUnderwriterFamilySchema";
-import { UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterFamilyMembershipSchema";
-import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
 import { migrateLegacyForm8KEventsTable } from "../storage/form-8k-event/Form8KEventLegacyMigration";
@@ -210,21 +199,10 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(FAMILY_DESCRIPTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_SPONSOR_LINK_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(OFFERING_TERMS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ISSUER_TICKER_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry
-    .get(CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN)
-    .setupDatabase();
-  await globalServiceRegistry.get(UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(UNDERWRITER_LINK_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).setupDatabase();
   // Drop the legacy form_8k_events shape (no event_id / extractor_id /
   // extractor_version) before creating the current one; the natural-key PK

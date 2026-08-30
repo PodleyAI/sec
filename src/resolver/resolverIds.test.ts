@@ -20,14 +20,16 @@ describe("resolverIds", () => {
 
   it("contains the registered resolver ids", () => {
     const ids = resolverIds();
-    for (const id of ["person", "company", "sponsor-family", "underwriter-family"]) {
+    for (const id of ["person", "company"]) {
       expect(ids).toContain(id);
     }
   });
 
   it("classifies family-tier resolver kinds", () => {
-    expect(isFamilyResolverId("sponsor-family")).toBe(true);
-    expect(isFamilyResolverId("underwriter-family")).toBe(true);
+    // A kind is a family only because its registration said so, and this
+    // package registers no family kinds — the tier that does is a downstream
+    // package's, and asserts the true case there.
+    expect(isFamilyResolverId("sponsor-family")).toBe(false);
     expect(isFamilyResolverId("person")).toBe(false);
     expect(isFamilyResolverId("company")).toBe(false);
     expect(isFamilyResolverId("nope")).toBe(false);
