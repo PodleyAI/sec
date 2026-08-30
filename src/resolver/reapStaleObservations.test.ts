@@ -14,6 +14,11 @@ import { PersonObservationRepo } from "../storage/observation/PersonObservationR
 import { buildObserveOnlyEntityObserver } from "./buildObserveOnlyEntityObserver";
 import { resolveObservationsForAccession } from "./resolveObservationLinks";
 import { reapStaleObservations } from "./reapStaleObservations";
+import {
+  clearObservationReapHooksForTesting,
+  registerObservationReapHook,
+  type ReapedObservation,
+} from "./observationReapHooks";
 
 const V = "1.0.0";
 const ACC = "0001-25-000001";
@@ -42,6 +47,7 @@ function personClaim(index: number, addr: string) {
 describe("reapStaleObservations", () => {
   beforeEach(() => {
     resetDependencyInjectionsForTesting();
+    clearObservationReapHooksForTesting();
   });
 
   it("reaps orphan observations a smaller re-extraction leaves behind, with their links", async () => {
@@ -131,5 +137,72 @@ describe("reapStaleObservations", () => {
     // ...while the new person observation at the same index survives.
     const people = await personObs.listByAccessionAndExtractor(ACC, "ownership");
     expect(people.map((o) => o.observation_index)).toEqual([5]);
+  });
+
+  it("hands every reaped observation to each registered hook, and only those", async () => {
+    // The seam a package holding its own observation-keyed rows joins through.
+    // It is asserted to see exactly the reaped set: a hook that misses one
+    // leaves a row keyed to an observation that is gone, and this suite is the
+    // only place that notices — nothing here registers a hook in production.
+    const seen: ReapedObservation[][] = [[], []];
+    registerObservationReapHook(async (o) => {
+      seen[0]!.push(o);
+    });
+    registerObservationReapHook(async (o) => {
+      seen[1]!.push(o);
+    });
+
+    const obs = observer();
+    await obs.observePerson(personClaim(0, "addr0"));
+    const orphanPerson = await obs.observePerson(personClaim(1, "addr1"));
+    const orphanCompany = await obs.observeCompany({
+      accession_number: ACC,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      observation_index: 50,
+      cik: 4242,
+      name: "Reaped Holdings LLC",
+    });
+
+    await sleep(5);
+    const runStart = new Date().toISOString();
+    // Only index 0 is re-observed, so both orphans above are reaped.
+    await obs.observePerson(personClaim(0, "addr0"));
+
+    const { reaped } = await reapStaleObservations({
+      accession_number: ACC,
+      extractor_id: "S-1",
+      before: runStart,
+    });
+    expect(reaped).toBe(2);
+
+    const expected = [
+      { kind: "person", observation_id: orphanPerson.observation_id },
+      { kind: "company", observation_id: orphanCompany.observation_id },
+    ];
+    // Every hook sees every reaped observation, and nothing that survived.
+    expect(seen[0]).toEqual(expected);
+    expect(seen[1]).toEqual(expected);
+  });
+
+  it("lets a hook's failure take the reap with it", async () => {
+    // An incomplete reap is not a smaller reap: the row the hook failed to
+    // delete is keyed to an observation about to disappear, and after that
+    // nothing can name it. Raising leaves the filing to a dead letter and a
+    // re-run rather than reporting a reap that did not happen.
+    registerObservationReapHook(async () => {
+      throw new Error("downstream cleanup unavailable");
+    });
+
+    const obs = observer();
+    await obs.observePerson(personClaim(0, "addr0"));
+    await obs.observePerson(personClaim(1, "addr1"));
+    await sleep(5);
+    const runStart = new Date().toISOString();
+    await obs.observePerson(personClaim(0, "addr0"));
+
+    await expect(
+      reapStaleObservations({ accession_number: ACC, extractor_id: "S-1", before: runStart })
+    ).rejects.toThrow(/downstream cleanup unavailable/);
   });
 });

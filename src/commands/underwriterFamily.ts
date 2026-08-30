@@ -27,6 +27,7 @@ import {
 import { registerFamilyAliasExchange } from "./familyAliasExchange";
 import { registerFamilyDescribeCommands } from "./familyDescribe";
 import { registerIssuerDealCommand } from "./issuerDeal";
+import { issuerCommandGroup } from "./issuerGroup";
 
 /**
  * Returns the issuer CIKs of every IPO underwritten by the named family.
@@ -134,29 +135,26 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
         })
     );
 
-  const issuer = program
-    .command("issuer")
-    .description("Issuer queries")
-    .addCommand(
-      new Command("tickers")
-        .description("List the point-in-time ticker series for an issuer CIK")
-        .argument("<cik>", "issuer CIK")
-        .action(async (cik: string) => {
-          try {
-            const { rows } = await runWorkflowCli<IssuerTickersTaskOutput>([
-              new IssuerTickersTask({ defaults: { cik: Number(cik) } }),
-            ]);
-            for (const r of rows) {
-              console.log(
-                `${r.filing_date ?? ""}\t${r.exchange}\t${r.ticker}\t${r.is_primary ? "primary" : ""}`
-              );
-            }
-          } catch (e) {
-            console.error(`error: ${(e as Error).message}`);
-            process.exitCode = 1;
-            return;
+  issuerCommandGroup(program).addCommand(
+    new Command("tickers")
+      .description("List the point-in-time ticker series for an issuer CIK")
+      .argument("<cik>", "issuer CIK")
+      .action(async (cik: string) => {
+        try {
+          const { rows } = await runWorkflowCli<IssuerTickersTaskOutput>([
+            new IssuerTickersTask({ defaults: { cik: Number(cik) } }),
+          ]);
+          for (const r of rows) {
+            console.log(
+              `${r.filing_date ?? ""}\t${r.exchange}\t${r.ticker}\t${r.is_primary ? "primary" : ""}`
+            );
           }
-        })
-    );
-  registerIssuerDealCommand(issuer);
+        } catch (e) {
+          console.error(`error: ${(e as Error).message}`);
+          process.exitCode = 1;
+          return;
+        }
+      })
+  );
+  registerIssuerDealCommand(issuerCommandGroup(program));
 }

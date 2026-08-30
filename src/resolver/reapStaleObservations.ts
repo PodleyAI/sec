@@ -10,6 +10,7 @@ import { CompanyObservationRepo } from "../storage/observation/CompanyObservatio
 import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLinkRepo";
 import { ObservationProvenanceRepo } from "../storage/provenance/ObservationProvenanceRepo";
+import { getObservationReapHooks } from "./observationReapHooks";
 
 export interface ReapStaleObservationsArgs {
   readonly accession_number: string;
@@ -100,6 +101,12 @@ export interface ReapStaleObservationsDeps {
  * as they were rather than purging them — so this is what stops one dangling
  * row becoming a whole-table loss. Junction counts and tenures are recomputed
  * from what survives and need no retraction here.
+ *
+ * Anything else keyed to an observation is deleted by a hook
+ * ({@link registerObservationReapHook}), which is how a package holding its own
+ * observation-keyed rows joins in. A hook that throws takes the reap with it,
+ * for the reason above: an incomplete reap is not a smaller reap, it is a
+ * dangling row that stops a later rebuild.
  */
 export async function reapStaleObservations(
   args: ReapStaleObservationsArgs,
@@ -121,6 +128,9 @@ export async function reapStaleObservations(
   for (const o of people) {
     if (o.created_at >= args.before) continue; // refreshed this run — keep
     await personLinks.deleteForObservation(o.observation_id);
+    for (const hook of getObservationReapHooks()) {
+      await hook({ kind: "person", observation_id: o.observation_id });
+    }
     await provenance.deleteForObservation("person", o.observation_id);
     await personTitles.deleteForObservation(o.observation_id);
     await personObs.deleteByObservationId(o.observation_id);
@@ -134,6 +144,9 @@ export async function reapStaleObservations(
   for (const o of companies) {
     if (o.created_at >= args.before) continue; // refreshed this run — keep
     await companyLinks.deleteForObservation(o.observation_id);
+    for (const hook of getObservationReapHooks()) {
+      await hook({ kind: "company", observation_id: o.observation_id });
+    }
     await provenance.deleteForObservation("company", o.observation_id);
     await companyObs.deleteByObservationId(o.observation_id);
     reaped++;
