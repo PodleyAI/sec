@@ -285,6 +285,17 @@ export type { DeadLetterReasonCode } from "./storage/dead-letter/ExtractionDeadL
 // end a tenure. It is shared rather than restated because a roster closure
 // pass and anything recomputing tenures from stored evidence must agree on the
 // set exactly.
+// `ResolveObservationsTask` is the corpus-wide pass: it re-resolves every
+// observation of a kind into identity links and recomputes the projections
+// derived from them (junction counts always, tenures under `rebuildRoles`).
+// A downstream package needs it to turn the observations its own form modules
+// record into canonical rows and dated tenures.
+export { ResolveObservationsTask } from "./task/resolve/ResolveObservationsTask";
+export type {
+  ResolveObservationsTaskInput,
+  ResolveObservationsTaskOutput,
+} from "./task/resolve/ResolveObservationsTask";
+
 // `resolveObservationsForAccession` resolves the observations ONE filing left
 // behind into identity links, for a module that must read a canonical id back
 // before it returns. It writes links only — everything derived from them stays
