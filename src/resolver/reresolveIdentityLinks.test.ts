@@ -14,20 +14,23 @@ import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkR
 import type { PersonIdentityLink } from "../storage/canonical/PersonIdentityLinkSchema";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { ResolveObservationsTask } from "../task/resolve/ResolveObservationsTask";
-import type { EntityObserver } from "./EntityObserver";
-import { buildEntityObserver } from "./buildEntityObserver";
+import { buildObserveOnlyEntityObserver } from "./buildObserveOnlyEntityObserver";
+import type { ObservationResult, ObserveOnlyEntityObserver } from "./EntityObserver";
+import { labelCanonicalIds, readInlinePathRows } from "./testing/inlinePathFixture";
 
 const RESOLVER_VERSION = "1.0.0";
 
 const EXTRACTOR_ID = "D";
 
 /**
- * The link columns the batch pass must reproduce. `created_at` is the wall
- * clock at write time — the batch pass writes its own — so it is compared
- * separately for shape and for being no older than the last thing the inline
- * path wrote.
+ * The link columns compared across runs. `created_at` is the wall clock at
+ * write time — every pass writes its own — so it is compared separately for
+ * shape and for being no older than the last thing the previous pass wrote.
  */
 type ComparableLink = Omit<PersonIdentityLink, "created_at">;
+
+/** The canonical columns a recorded set can carry; see {@link comparableCanonicals}. */
+type ComparableCanonical = Omit<CanonicalPerson, "created_at">;
 
 async function seedFiling(
   accession_number: string,
@@ -53,9 +56,13 @@ async function seedFiling(
   });
 }
 
-/** One person named by one filing, resolved as the extraction runs. */
+/**
+ * One person named by one filing, recorded as the extraction runs. The
+ * observer holds no resolver tier, so this yields an observation id and
+ * nothing else — a canonical id exists only once the batch pass has run.
+ */
 async function observe(
-  observer: EntityObserver,
+  observer: ObserveOnlyEntityObserver,
   spec: {
     readonly accession_number: string;
     readonly observation_index: number;
@@ -66,7 +73,7 @@ async function observe(
     readonly middle_name?: string;
     readonly suffix?: string;
   }
-): Promise<{ canonical_person_id: string; observation_id: number }> {
+): Promise<ObservationResult> {
   return await observer.observePerson({
     accession_number: spec.accession_number,
     extractor_id: EXTRACTOR_ID,
@@ -100,9 +107,9 @@ function comparableLinks(rows: readonly PersonIdentityLink[]): ComparableLink[] 
 }
 
 /**
- * Canonical rows compare WHOLE, `created_at` included. The batch pass is only
- * supposed to re-find them, so a rewritten stamp is itself a difference worth
- * failing on.
+ * Canonical rows compare WHOLE, `created_at` included, whenever both sides
+ * come from this run. A canonical row is minted once and only re-found
+ * afterwards, so a rewritten stamp is itself a difference worth failing on.
  */
 function sortedCanonicals(rows: readonly CanonicalPerson[]): CanonicalPerson[] {
   return [...rows].sort((a, b) =>
@@ -112,6 +119,15 @@ function sortedCanonicals(rows: readonly CanonicalPerson[]): CanonicalPerson[] {
         ? 1
         : 0
   );
+}
+
+/**
+ * The canonical columns a RECORDED set can carry: `created_at` is dropped,
+ * since a stamp taken on the day the rows were recorded cannot survive into a
+ * later run.
+ */
+function comparableCanonicals(rows: readonly CanonicalPerson[]): ComparableCanonical[] {
+  return sortedCanonicals(rows).map(({ created_at, ...rest }) => rest);
 }
 
 function canonicalFor(links: readonly PersonIdentityLink[], observation_id: number): string {
@@ -142,7 +158,7 @@ describe("re-resolving person observations", () => {
     resetDependencyInjectionsForTesting();
   });
 
-  it("reproduces the inline path's identity links and canonical rows exactly — one person under two issuers, a name split by issuer and by suffix, a CIK that arrives late, and a merged pair", async () => {
+  it("reproduces the recorded incremental path's identity links and canonical rows exactly — one person under two issuers, a name split by issuer and by suffix, a CIK that arrives late, and a merged pair", async () => {
     for (const [accession, cik, date] of [
       ["ACC-1", 8001, "2024-01-05"],
       ["ACC-2", 8001, "2024-02-05"],
@@ -154,10 +170,7 @@ describe("re-resolving person observations", () => {
       await seedFiling(accession, cik, date);
     }
 
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
 
     // --- ACC-1, issuer 8001 ---
     // Ada carries her own CIK, so she is CIK-keyed and the issuer plays no
@@ -283,7 +296,7 @@ describe("re-resolving person observations", () => {
       last_name: "Priorcik",
     });
 
-    // --- ACC-5 / ACC-6: one human filing under two CIKs, then merged ---
+    // --- ACC-5 / ACC-6: one human filing under two CIKs, merged below ---
     const danaFirstCik = await observe(observer, {
       accession_number: "ACC-5",
       observation_index: 0,
@@ -300,17 +313,33 @@ describe("re-resolving person observations", () => {
       first_name: "Dana",
       last_name: "Dual",
     });
-    const retiredDanaId = danaFirstCik.canonical_person_id;
-    expect(retiredDanaId).not.toBe(danaSecondCik.canonical_person_id);
+    // Recording is all that has happened: an observer with no resolver tier
+    // writes observations and their titles, so every link and canonical row
+    // below is this pass's own output rather than something it inherited.
+    expect(await allLinks()).toEqual([]);
+    expect(await allCanonicals()).toEqual([]);
+
+    expect(await reresolve()).toEqual({ count: 13, skipped: 0 });
+    const firstPass = await allLinks();
+
+    // Two CIKs, one human. The CIK branch mints one canonical each and nothing
+    // in the tier merges them, so the merge is an operator act recorded as an
+    // alias — and the alias is applied inside `resolve`, so the next pass
+    // re-points the retired id's links at the survivor.
+    const retiredDanaId = canonicalFor(firstPass, danaFirstCik.observation_id);
+    const survivingDanaId = canonicalFor(firstPass, danaSecondCik.observation_id);
+    expect(retiredDanaId).not.toBe(survivingDanaId);
     await new CanonicalPersonAliasRepo().add(
       retiredDanaId,
-      danaSecondCik.canonical_person_id,
+      survivingDanaId,
       "merged duplicate",
       "test"
     );
-    // The merge reaches the links of filings already ingested when the next
-    // extraction of those filings runs — the alias is applied inside
-    // `resolve`, so a replay re-points the link at the surviving id.
+
+    // --- re-extractions, arriving after the corpus has been resolved once ---
+    // A filing already ingested, extracted again. It upserts the observation
+    // row it wrote the first time rather than adding one, which is why fifteen
+    // claims leave thirteen observations for the pass to resolve.
     await observe(observer, {
       accession_number: "ACC-5",
       observation_index: 0,
@@ -319,11 +348,14 @@ describe("re-resolving person observations", () => {
       first_name: "Dana",
       last_name: "Dual",
     });
-
-    // A re-extraction of the FIRST filing, processed last. Its observation
-    // keeps the `observation_id` it was assigned, so from here on the inline
-    // path's processing order and the batch pass's `observation_id` order
-    // disagree — which is the whole reason the two can be told apart.
+    // A re-extraction of the FIRST filing, arriving last and carrying a middle
+    // name the original claim did not. Ada's canonical was minted by the pass
+    // above, before this reading of her name existed, so the pass below
+    // re-FINDS her row: the ranked display columns take the fuller name, and
+    // the identity columns keep the mint's reading. The observation keeps the
+    // `observation_id` it was assigned, so the order the claims arrived in and
+    // the pass's own accession order disagree — which is what stops an
+    // agreement between them being an artefact of one order.
     await observe(observer, {
       accession_number: "ACC-1",
       observation_index: 0,
@@ -334,12 +366,13 @@ describe("re-resolving person observations", () => {
       last_name: "Multi",
     });
 
+    expect(await reresolve()).toEqual({ count: 13, skipped: 0 });
+
     const links = await allLinks();
     const canonicals = await allCanonicals();
 
-    // The inline path's own outcome, pinned before it is compared to
-    // anything — an equality against an empty or accidental snapshot proves
-    // nothing.
+    // The pass's own outcome, pinned before it is compared to anything — an
+    // equality against an empty or accidental snapshot proves nothing.
     expect(links).toHaveLength(13);
     expect(links.every((link) => link.resolver_version === RESOLVER_VERSION)).toBe(true);
     expect(new Set(links.map((link) => link.canonical_person_id)).size).toBe(9);
@@ -381,14 +414,16 @@ describe("re-resolving person observations", () => {
     expect(canonicals.some((row) => row.canonical_person_id === retiredDanaId)).toBe(true);
 
     // The stamped columns, pinned per row. `display_middle` comes from the
-    // re-extraction of ACC-1 processed last, which is the only observation to
-    // supply a middle name: display fields are ranked, so a more complete name
-    // upgrades them rather than the mint owning them forever. The identity
-    // columns below are NOT ranked — those the mint does own.
+    // re-extraction of ACC-1, which is the only observation to supply a middle
+    // name: display fields are ranked, so a more complete name upgrades them
+    // rather than the mint owning them forever. The identity columns below are
+    // NOT ranked — those the mint does own, which is why `normalized_middle`
+    // stays null on a row whose display name now spells the middle out.
     const adaRow = canonicalRow(canonicals, canonicalFor(links, adaFirst.observation_id));
     expect(adaRow.display_first).toBe("Ada");
     expect(adaRow.display_middle).toBe("M.");
     expect(adaRow.display_last).toBe("Multi");
+    expect(adaRow.normalized_middle).toBeNull();
     expect(adaRow.cik).toBe(6001);
     expect(adaRow.source_filing_issuer_cik).toBeNull();
 
@@ -421,34 +456,37 @@ describe("re-resolving person observations", () => {
     expect(patNameRow.cik).toBeNull();
     expect(patNameRow.source_filing_issuer_cik).toBe(8002);
 
-    expect(await reresolve()).toEqual({ count: 13, skipped: 0 });
+    // What the incrementally maintained tables held for this exact scenario,
+    // recorded from that path before it was deleted. Labelled the way those
+    // rows were, so a freshly minted canonical id still compares: this asserts
+    // the partition — who shares an identity with whom — and every other
+    // column of every row at once.
+    expect(labelCanonicalIds(comparableLinks(links), "canonical_person_id")).toEqual(
+      readInlinePathRows<ComparableLink>("links-multi-issuer")
+    );
+    expect(labelCanonicalIds(comparableCanonicals(canonicals), "canonical_person_id")).toEqual(
+      readInlinePathRows<ComparableCanonical>("canonicals-multi-issuer")
+    );
 
-    const rebuiltLinks = await allLinks();
-    const rebuiltCanonicals = await allCanonicals();
-
-    expect(comparableLinks(rebuiltLinks)).toEqual(comparableLinks(links));
-    // Canonical rows are re-FOUND, not re-minted, so they compare whole —
-    // ids, stamps and `created_at` included. A row the batch pass mints that
-    // the inline path did not fails here even if every link still matches.
-    expect(sortedCanonicals(rebuiltCanonicals)).toEqual(sortedCanonicals(canonicals));
-
-    // `created_at` on a link is the one column that legitimately differs, so
-    // it is bounded rather than skipped. Both halves are needed: a shape
-    // check cannot tell a fresh stamp from one carried off the pre-rebuild
-    // row, and a bound on its own admits any string that sorts high.
+    // `created_at` on a link is the one column a re-run legitimately rewrites,
+    // so it is bounded rather than skipped: the merge pass had to write all
+    // thirteen, not leave the first pass's rows where they lay. Both halves
+    // are needed — a shape check cannot tell a fresh stamp from one carried
+    // off the earlier row, and a bound on its own admits any string that sorts
+    // high.
     expect(
-      rebuiltLinks.map((link) => link.created_at).filter((at) => !/^\d{4}-\d{2}-\d{2}T/.test(at))
+      links.map((link) => link.created_at).filter((at) => !/^\d{4}-\d{2}-\d{2}T/.test(at))
     ).toEqual([]);
-    const newestBefore = links.map((link) => link.created_at).sort()[links.length - 1];
+    const newestBefore = firstPass.map((link) => link.created_at).sort()[firstPass.length - 1];
     expect(
-      rebuiltLinks.filter((link) => link.created_at < newestBefore).map((link) => link.created_at)
+      links.filter((link) => link.created_at < newestBefore).map((link) => link.created_at)
     ).toEqual([]);
 
-    // None of the above proves the batch pass WROTE these rows rather than
-    // leaving the inline path's untouched — an upsert of an identical value
-    // is invisible, and the timestamps only separate the two while the clock
-    // happens to tick between writes. Purging the version's links and running
-    // it again asks for all thirteen from nothing, which is also the ceremony
+    // None of the above proves the pass WROTE these rows rather than leaving
+    // the ones already there untouched — an upsert of an identical value is
+    // invisible, and the timestamps only separate two passes while the clock
+    // happens to tick between them. Purging the version's links and running it
+    // again asks for all thirteen from nothing, which is also the ceremony
     // `drop-previous` leans on: it removes the links and this pass is what
     // rebuilds them.
     expect(await new PersonIdentityLinkRepo().deleteForResolverVersion(RESOLVER_VERSION)).toBe(13);
@@ -474,7 +512,7 @@ describe("re-resolving person observations", () => {
     ]) {
       const id = canonicalFor(links, person.observation_id);
       expect(
-        comparableLinks(rebuiltLinks.filter((link) => link.canonical_person_id === id))
+        comparableLinks(fromNothing.filter((link) => link.canonical_person_id === id))
       ).toEqual(comparableLinks(links.filter((link) => link.canonical_person_id === id)));
     }
   });
@@ -482,16 +520,13 @@ describe("re-resolving person observations", () => {
   it("splits a person first observed without a CIK and later with one into two canonicals, and the batch pass reproduces the split rather than merging or re-minting", async () => {
     // The case `personKey` makes reachable and nothing else in the tier
     // repairs: the CIK branch and the name branch are separate key spaces, so
-    // the second sighting cannot find what the first minted. Both paths read
-    // the same `personKey`, so both split the same way — the batch pass is
-    // not a second chance to merge them.
+    // the second sighting cannot find what the first minted. The pass reads
+    // that same `personKey` over stored observations, so recomputing the whole
+    // corpus at once is not a second chance to merge them.
     await seedFiling("ACC-EARLY", 8100, "2024-01-01");
     await seedFiling("ACC-LATE", 8100, "2024-07-01");
 
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     const before = await observe(observer, {
       accession_number: "ACC-EARLY",
       observation_index: 0,
@@ -509,34 +544,42 @@ describe("re-resolving person observations", () => {
       last_name: "Latecik",
     });
 
+    expect(await allLinks()).toEqual([]);
+    expect(await allCanonicals()).toEqual([]);
+
+    expect(await reresolve()).toEqual({ count: 2, skipped: 0 });
+
     const links = await allLinks();
     const canonicals = await allCanonicals();
     expect(links).toHaveLength(2);
     expect(canonicals).toHaveLength(2);
-    expect(before.canonical_person_id).not.toBe(after.canonical_person_id);
-    expect(canonicalRow(canonicals, before.canonical_person_id).cik).toBeNull();
-    expect(canonicalRow(canonicals, before.canonical_person_id).source_filing_issuer_cik).toBe(
-      8100
+    const beforeId = canonicalFor(links, before.observation_id);
+    const afterId = canonicalFor(links, after.observation_id);
+    expect(beforeId).not.toBe(afterId);
+    expect(canonicalRow(canonicals, beforeId).cik).toBeNull();
+    expect(canonicalRow(canonicals, beforeId).source_filing_issuer_cik).toBe(8100);
+    expect(canonicalRow(canonicals, afterId).cik).toBe(6100);
+    expect(canonicalRow(canonicals, afterId).source_filing_issuer_cik).toBeNull();
+
+    // The rows the incremental path held for this scenario, recorded before it
+    // was deleted and labelled the same way.
+    expect(labelCanonicalIds(comparableLinks(links), "canonical_person_id")).toEqual(
+      readInlinePathRows<ComparableLink>("links-late-cik")
     );
-    expect(canonicalRow(canonicals, after.canonical_person_id).cik).toBe(6100);
-    expect(canonicalRow(canonicals, after.canonical_person_id).source_filing_issuer_cik).toBeNull();
+    expect(labelCanonicalIds(comparableCanonicals(canonicals), "canonical_person_id")).toEqual(
+      readInlinePathRows<ComparableCanonical>("canonicals-late-cik")
+    );
 
-    expect(await reresolve()).toEqual({ count: 2, skipped: 0 });
-
-    const rebuiltLinks = await allLinks();
-    expect(comparableLinks(rebuiltLinks)).toEqual(comparableLinks(links));
-    expect(sortedCanonicals(await allCanonicals())).toEqual(sortedCanonicals(canonicals));
-    // Said again against the named ids, so a failure distinguishes the two
-    // ways this can go wrong: the pair merged, or a third canonical minted.
-    expect(canonicalFor(rebuiltLinks, before.observation_id)).toBe(before.canonical_person_id);
-    expect(canonicalFor(rebuiltLinks, after.observation_id)).toBe(after.canonical_person_id);
-
-    // Again from nothing, so the equality above cannot pass on a batch pass
-    // that wrote no link at all.
+    // Again from nothing, so the equalities above cannot pass on a pass that
+    // wrote no link at all.
     expect(await new PersonIdentityLinkRepo().deleteForResolverVersion(RESOLVER_VERSION)).toBe(2);
     expect(await reresolve()).toEqual({ count: 2, skipped: 0 });
     const fromNothing = await allLinks();
     expect(comparableLinks(fromNothing)).toEqual(comparableLinks(links));
     expect(sortedCanonicals(await allCanonicals())).toEqual(sortedCanonicals(canonicals));
+    // Said again against the named ids, so a failure distinguishes the two
+    // ways this can go wrong: the pair merged, or a third canonical minted.
+    expect(canonicalFor(fromNothing, before.observation_id)).toBe(beforeId);
+    expect(canonicalFor(fromNothing, after.observation_id)).toBe(afterId);
   });
 });

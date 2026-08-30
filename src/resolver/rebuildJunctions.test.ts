@@ -28,8 +28,10 @@ import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkR
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
-import { buildEntityObserver } from "./buildEntityObserver";
+import { buildObserveOnlyEntityObserver } from "./buildObserveOnlyEntityObserver";
 import { rebuildCompanyJunctions, rebuildPersonJunctions } from "./rebuildJunctions";
+import { resolveCompanyObservations, resolvePersonObservations } from "./resolveObservationLinks";
+import { labelCanonicalIds, readInlinePathRows } from "./testing/inlinePathFixture";
 
 const RESOLVER_VERSION = "1.0.0";
 
@@ -91,6 +93,59 @@ function byKey<T>(rows: readonly T[], keyOf: (row: T) => string): Map<string, T>
   return new Map(rows.map((row) => [keyOf(row), row]));
 }
 
+/**
+ * A junction row as the incremental path's output was recorded: every column
+ * it carried except the two a run legitimately re-stamps. That path wrote
+ * `first_seen_at`/`last_seen_at` as a wall clock and the rebuild writes them
+ * as the asserting filings' dates, so those are asserted directly below
+ * rather than compared against a recording of the other meaning.
+ */
+type RecordedJunctionRow<T> = Omit<T, "first_seen_at" | "last_seen_at">;
+
+function withoutSeenAt<T extends { readonly first_seen_at: string; readonly last_seen_at: string }>(
+  rows: readonly T[]
+): RecordedJunctionRow<T>[] {
+  return rows.map(({ first_seen_at, last_seen_at, ...rest }) => rest);
+}
+
+/**
+ * The identity links the rebuild reads. `resolvePersonObservations` writes
+ * links and runs no projections, which is exactly the arrangement this file
+ * wants: the junction rows must come from the rebuild and nothing else.
+ */
+async function resolveStoredPersonObservations(): Promise<void> {
+  await resolvePersonObservations(await new PersonObservationRepo().listAll(), RESOLVER_VERSION);
+}
+
+/** Company counterpart of {@link resolveStoredPersonObservations}. */
+async function resolveStoredCompanyObservations(): Promise<void> {
+  await resolveCompanyObservations(await new CompanyObservationRepo().listAll(), RESOLVER_VERSION);
+}
+
+/** The canonical id the batch resolve keyed one person observation to. */
+async function canonicalPersonIdFor(observation_id: number): Promise<string> {
+  const link = await new PersonIdentityLinkRepo().getForObservation(
+    observation_id,
+    RESOLVER_VERSION
+  );
+  if (link === undefined) {
+    throw new Error(`no person identity link for observation ${observation_id}`);
+  }
+  return link.canonical_person_id;
+}
+
+/** The canonical id the batch resolve keyed one company observation to. */
+async function canonicalCompanyIdFor(observation_id: number): Promise<string> {
+  const link = await new CompanyIdentityLinkRepo().getForObservation(
+    observation_id,
+    RESOLVER_VERSION
+  );
+  if (link === undefined) {
+    throw new Error(`no company identity link for observation ${observation_id}`);
+  }
+  return link.canonical_company_id;
+}
+
 describe("rebuildPersonJunctions", () => {
   beforeEach(() => {
     resetDependencyInjectionsForTesting();
@@ -110,10 +165,7 @@ describe("rebuildPersonJunctions", () => {
     await seedFiling("ACC-5", 9000, "2024-05-05");
     await seedFiling("ACC-6", 9000, "2024-05-20");
 
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
 
     const alpha = await observer.observePerson({
       accession_number: "ACC-1",
@@ -193,19 +245,26 @@ describe("rebuildPersonJunctions", () => {
       address_id: "addr-delta-2",
       international_number: "+1-555-0502",
     });
-    expect(delta2.canonical_person_id).toBe(delta1.canonical_person_id);
+    await resolveStoredPersonObservations();
+
+    const alphaCanonicalId = await canonicalPersonIdFor(alpha.observation_id);
+    const betaCanonicalId = await canonicalPersonIdFor(beta.observation_id);
+    const gammaCanonicalId = await canonicalPersonIdFor(gamma.observation_id);
+    const delta1CanonicalId = await canonicalPersonIdFor(delta1.observation_id);
+    const delta2CanonicalId = await canonicalPersonIdFor(delta2.observation_id);
+    expect(delta2CanonicalId).toBe(delta1CanonicalId);
 
     const addressStorage = globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN);
     const phoneStorage = globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN);
 
-    const addressSnapshot = (await addressStorage.getAll()) ?? [];
-    const phoneSnapshot = (await phoneStorage.getAll()) ?? [];
+    // What the incrementally maintained tables held for this exact scenario,
+    // recorded from that path before it was deleted.
+    const addressSnapshot = readInlinePathRows<RecordedJunctionRow<CanonicalPersonAddress>>(
+      "junctions-person-address"
+    );
+    const phoneSnapshot =
+      readInlinePathRows<RecordedJunctionRow<CanonicalPersonPhone>>("junctions-person-phone");
 
-    // Sanity on the incremental path itself: the changed-address
-    // re-observation must leave no trace of the original address/phone —
-    // proof `removePriorPersonJunctions` actually ran.
-    expect(addressSnapshot.some((r) => r.address_hash_id === "addr-gamma-original")).toBe(false);
-    expect(phoneSnapshot.some((r) => r.international_number === "+1-555-0300")).toBe(false);
     // Alpha/Beta/Gamma/Delta's two addresses each = 5 distinct rows; same
     // shape for phone minus Beta (no phone) = 4.
     expect(addressSnapshot).toHaveLength(5);
@@ -219,31 +278,51 @@ describe("rebuildPersonJunctions", () => {
     const rebuiltAddresses = (await addressStorage.getAll()) ?? [];
     const rebuiltPhones = (await phoneStorage.getAll()) ?? [];
 
+    // The changed-address re-observation leaves no trace of the original
+    // address/phone: the stored observation carries the changed values, so
+    // the projection has nothing to project the originals from.
+    expect(rebuiltAddresses.some((r) => r.address_hash_id === "addr-gamma-original")).toBe(false);
+    expect(rebuiltPhones.some((r) => r.international_number === "+1-555-0300")).toBe(false);
+
+    // Labelled the way the recorded rows were, so a freshly minted canonical
+    // id still compares: this asserts every column of every row at once —
+    // the partition, the keys and the counts together.
+    const labelledAddresses = labelCanonicalIds(
+      withoutSeenAt(rebuiltAddresses),
+      "canonical_person_id"
+    );
+    const labelledPhones = labelCanonicalIds(withoutSeenAt(rebuiltPhones), "canonical_person_id");
+    expect(labelledAddresses).toEqual(addressSnapshot);
+    expect(labelledPhones).toEqual(phoneSnapshot);
+
     // Keys match exactly — same members, neither more nor fewer.
-    expect(new Set(rebuiltAddresses.map(personAddressKey))).toEqual(
+    expect(new Set(labelledAddresses.map(personAddressKey))).toEqual(
       new Set(addressSnapshot.map(personAddressKey))
     );
-    expect(new Set(rebuiltPhones.map(personPhoneKey))).toEqual(
+    expect(new Set(labelledPhones.map(personPhoneKey))).toEqual(
       new Set(phoneSnapshot.map(personPhoneKey))
     );
 
     // observation_count matches exactly per key.
     const snapshotAddrByKey = byKey(addressSnapshot, personAddressKey);
-    const rebuiltAddrByKey = byKey(rebuiltAddresses, personAddressKey);
+    const labelledAddrByKey = byKey(labelledAddresses, personAddressKey);
     for (const [key, snap] of snapshotAddrByKey) {
-      expect(rebuiltAddrByKey.get(key)?.observation_count).toBe(snap.observation_count);
+      expect(labelledAddrByKey.get(key)?.observation_count).toBe(snap.observation_count);
     }
     const snapshotPhoneByKey = byKey(phoneSnapshot, personPhoneKey);
-    const rebuiltPhoneByKey = byKey(rebuiltPhones, personPhoneKey);
+    const labelledPhoneByKey = byKey(labelledPhones, personPhoneKey);
     for (const [key, snap] of snapshotPhoneByKey) {
-      expect(rebuiltPhoneByKey.get(key)?.observation_count).toBe(snap.observation_count);
+      expect(labelledPhoneByKey.get(key)?.observation_count).toBe(snap.observation_count);
     }
+
+    const rebuiltAddrByKey = byKey(rebuiltAddresses, personAddressKey);
+    const rebuiltPhoneByKey = byKey(rebuiltPhones, personPhoneKey);
 
     // Timestamps are the one intended difference: assert their NEW meaning
     // (the asserting filings' dates) rather than skipping them.
     const alphaAddr = rebuiltAddrByKey.get(
       personAddressKey({
-        canonical_person_id: alpha.canonical_person_id,
+        canonical_person_id: alphaCanonicalId,
         address_hash_id: "addr-shared",
       })
     )!;
@@ -253,7 +332,7 @@ describe("rebuildPersonJunctions", () => {
 
     const betaAddr = rebuiltAddrByKey.get(
       personAddressKey({
-        canonical_person_id: beta.canonical_person_id,
+        canonical_person_id: betaCanonicalId,
         address_hash_id: "addr-shared",
       })
     )!;
@@ -263,7 +342,7 @@ describe("rebuildPersonJunctions", () => {
 
     const gammaAddr = rebuiltAddrByKey.get(
       personAddressKey({
-        canonical_person_id: gamma.canonical_person_id,
+        canonical_person_id: gammaCanonicalId,
         address_hash_id: "addr-gamma-changed",
       })
     )!;
@@ -275,13 +354,13 @@ describe("rebuildPersonJunctions", () => {
     // grouping key includes the address, not just the canonical person.
     const delta1Addr = rebuiltAddrByKey.get(
       personAddressKey({
-        canonical_person_id: delta1.canonical_person_id,
+        canonical_person_id: delta1CanonicalId,
         address_hash_id: "addr-delta-1",
       })
     )!;
     const delta2Addr = rebuiltAddrByKey.get(
       personAddressKey({
-        canonical_person_id: delta1.canonical_person_id,
+        canonical_person_id: delta1CanonicalId,
         address_hash_id: "addr-delta-2",
       })
     )!;
@@ -296,7 +375,7 @@ describe("rebuildPersonJunctions", () => {
 
     const alphaPhone = rebuiltPhoneByKey.get(
       personPhoneKey({
-        canonical_person_id: alpha.canonical_person_id,
+        canonical_person_id: alphaCanonicalId,
         international_number: "+1-555-0001",
       })
     )!;
@@ -306,7 +385,7 @@ describe("rebuildPersonJunctions", () => {
 
     const gammaPhone = rebuiltPhoneByKey.get(
       personPhoneKey({
-        canonical_person_id: gamma.canonical_person_id,
+        canonical_person_id: gammaCanonicalId,
         international_number: "+1-555-0400",
       })
     )!;
@@ -316,37 +395,23 @@ describe("rebuildPersonJunctions", () => {
     // Delta's two phones are likewise two separate rows.
     const delta1Phone = rebuiltPhoneByKey.get(
       personPhoneKey({
-        canonical_person_id: delta1.canonical_person_id,
+        canonical_person_id: delta1CanonicalId,
         international_number: "+1-555-0501",
       })
     )!;
     const delta2Phone = rebuiltPhoneByKey.get(
       personPhoneKey({
-        canonical_person_id: delta1.canonical_person_id,
+        canonical_person_id: delta1CanonicalId,
         international_number: "+1-555-0502",
       })
     )!;
     expect(delta1Phone.observation_count).toBe(1);
     expect(delta2Phone.observation_count).toBe(1);
-
-    // The incremental path's timestamps are wall-clock instants written at
-    // observation time, not the filing-derived dates the rebuild computes.
-    const snapAlphaAddr = snapshotAddrByKey.get(
-      personAddressKey({
-        canonical_person_id: alpha.canonical_person_id,
-        address_hash_id: "addr-shared",
-      })
-    )!;
-    expect(snapAlphaAddr.first_seen_at).not.toBe(alphaAddr.first_seen_at);
-    expect(snapAlphaAddr.first_seen_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   it("is idempotent: a second rebuild with no new observations replaces rather than merges", async () => {
     await seedFiling("ACC-10", 9000, "2024-05-01");
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     await observer.observePerson({
       accession_number: "ACC-10",
       extractor_id: "D",
@@ -357,6 +422,8 @@ describe("rebuildPersonJunctions", () => {
       address_id: "addr-solo",
       international_number: "+1-555-1000",
     });
+
+    await resolveStoredPersonObservations();
 
     const first = await rebuildPersonJunctions(RESOLVER_VERSION);
     const second = await rebuildPersonJunctions(RESOLVER_VERSION);
@@ -374,10 +441,7 @@ describe("rebuildPersonJunctions", () => {
     // would — moves the group to a NEW composite PK, so a merge would leave
     // the OLD PK's row sitting untouched forever.
     await seedFiling("ACC-20", 9000, "2024-08-01");
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     const solo = await observer.observePerson({
       accession_number: "ACC-20",
       extractor_id: "D",
@@ -389,13 +453,16 @@ describe("rebuildPersonJunctions", () => {
       international_number: "+1-555-9000",
     });
 
+    await resolveStoredPersonObservations();
+    const soloCanonicalId = await canonicalPersonIdFor(solo.observation_id);
+
     await rebuildPersonJunctions(RESOLVER_VERSION);
 
     const addressStorage = globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN);
     const phoneStorage = globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN);
     expect(await addressStorage.getAll()).toEqual([
       expect.objectContaining({
-        canonical_person_id: solo.canonical_person_id,
+        canonical_person_id: soloCanonicalId,
         address_hash_id: "addr-solo",
       }),
     ]);
@@ -414,12 +481,8 @@ describe("rebuildPersonJunctions", () => {
 
     // The stale row under the OLD canonical id must be gone — a merge would
     // have left it sitting untouched alongside the new one.
-    expect(rebuiltAddresses.some((r) => r.canonical_person_id === solo.canonical_person_id)).toBe(
-      false
-    );
-    expect(rebuiltPhones.some((r) => r.canonical_person_id === solo.canonical_person_id)).toBe(
-      false
-    );
+    expect(rebuiltAddresses.some((r) => r.canonical_person_id === soloCanonicalId)).toBe(false);
+    expect(rebuiltPhones.some((r) => r.canonical_person_id === soloCanonicalId)).toBe(false);
     expect(rebuiltAddresses).toEqual([
       expect.objectContaining({
         canonical_person_id: reassignedCanonicalId,
@@ -455,10 +518,7 @@ describe("rebuildPersonJunctions", () => {
     // observation is there, the filing it cites is not, so there is no date to
     // derive the seen-at bounds from. Writing the row anyway would date a
     // junction from nothing.
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     await observer.observePerson({
       // Deliberately never passed to `seedFiling`.
       accession_number: "ACC-NO-FILING",
@@ -470,6 +530,7 @@ describe("rebuildPersonJunctions", () => {
       address_id: "addr-nofiling",
       international_number: "+1-555-7100",
     });
+    await resolveStoredPersonObservations();
 
     await expect(rebuildPersonJunctions(RESOLVER_VERSION)).rejects.toThrow(
       /no filing found for accession_number "ACC-NO-FILING"/
@@ -502,10 +563,7 @@ describe("rebuildPersonJunctions", () => {
     });
 
     await seedFiling("ACC-30", 9000, "2024-09-01");
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     await observer.observePerson({
       accession_number: "ACC-30",
       extractor_id: "D",
@@ -516,6 +574,7 @@ describe("rebuildPersonJunctions", () => {
       address_id: "addr-active",
       international_number: "+1-555-7001",
     });
+    await resolveStoredPersonObservations();
 
     expect(await rebuildPersonJunctions(RESOLVER_VERSION)).toEqual({
       addressRows: 1,
@@ -560,10 +619,7 @@ describe("rebuildPersonJunctions", () => {
     // rows forever once a reap took its last observation — exactly the case
     // where no later write comes along to overwrite them.
     await seedFiling("ACC-40", 9000, "2024-10-01");
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     const solo = await observer.observePerson({
       accession_number: "ACC-40",
       extractor_id: "D",
@@ -574,6 +630,7 @@ describe("rebuildPersonJunctions", () => {
       address_id: "addr-reaped",
       international_number: "+1-555-7200",
     });
+    await resolveStoredPersonObservations();
 
     expect(await rebuildPersonJunctions(RESOLVER_VERSION)).toEqual({
       addressRows: 1,
@@ -614,10 +671,7 @@ describe("rebuildCompanyJunctions", () => {
     await seedFiling("CACC-4", 8000, "2024-07-15");
     await seedFiling("CACC-5", 8000, "2024-07-30");
 
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
 
     const acme = await observer.observeCompany({
       accession_number: "CACC-1",
@@ -686,15 +740,25 @@ describe("rebuildCompanyJunctions", () => {
       address_id: "addr-echo-2",
       international_number: "+1-555-3001",
     });
-    expect(echo2.canonical_company_id).toBe(echo1.canonical_company_id);
+    await resolveStoredCompanyObservations();
+
+    const acmeCanonicalId = await canonicalCompanyIdFor(acme.observation_id);
+    const betaCanonicalId = await canonicalCompanyIdFor(beta.observation_id);
+    const echo1CanonicalId = await canonicalCompanyIdFor(echo1.observation_id);
+    const echo2CanonicalId = await canonicalCompanyIdFor(echo2.observation_id);
+    expect(echo2CanonicalId).toBe(echo1CanonicalId);
 
     const addressStorage = globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN);
     const phoneStorage = globalServiceRegistry.get(CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN);
-    const addressSnapshot = (await addressStorage.getAll()) ?? [];
-    const phoneSnapshot = (await phoneStorage.getAll()) ?? [];
 
-    expect(addressSnapshot.some((r) => r.address_hash_id === "addr-hq")).toBe(false);
-    expect(phoneSnapshot.some((r) => r.international_number === "+1-555-2000")).toBe(false);
+    // What the incrementally maintained tables held for this exact scenario,
+    // recorded from that path before it was deleted.
+    const addressSnapshot = readInlinePathRows<RecordedJunctionRow<CanonicalCompanyAddress>>(
+      "junctions-company-address"
+    );
+    const phoneSnapshot =
+      readInlinePathRows<RecordedJunctionRow<CanonicalCompanyPhone>>("junctions-company-phone");
+
     // Acme(1) + Beta(1) + Echo's two addresses = 4.
     expect(addressSnapshot).toHaveLength(4);
     // Acme(1) + Echo's two phones = 3 (Beta has no phone).
@@ -708,27 +772,45 @@ describe("rebuildCompanyJunctions", () => {
     const rebuiltAddresses = (await addressStorage.getAll()) ?? [];
     const rebuiltPhones = (await phoneStorage.getAll()) ?? [];
 
-    expect(new Set(rebuiltAddresses.map(companyAddressKey))).toEqual(
+    // The re-observed natural key's original address/phone leave no trace:
+    // the stored observation carries the changed values.
+    expect(rebuiltAddresses.some((r) => r.address_hash_id === "addr-hq")).toBe(false);
+    expect(rebuiltPhones.some((r) => r.international_number === "+1-555-2000")).toBe(false);
+
+    // Whole labelled rows against the recording — the partition, the keys and
+    // the counts in one assertion.
+    const labelledAddresses = labelCanonicalIds(
+      withoutSeenAt(rebuiltAddresses),
+      "canonical_company_id"
+    );
+    const labelledPhones = labelCanonicalIds(withoutSeenAt(rebuiltPhones), "canonical_company_id");
+    expect(labelledAddresses).toEqual(addressSnapshot);
+    expect(labelledPhones).toEqual(phoneSnapshot);
+
+    expect(new Set(labelledAddresses.map(companyAddressKey))).toEqual(
       new Set(addressSnapshot.map(companyAddressKey))
     );
-    expect(new Set(rebuiltPhones.map(companyPhoneKey))).toEqual(
+    expect(new Set(labelledPhones.map(companyPhoneKey))).toEqual(
       new Set(phoneSnapshot.map(companyPhoneKey))
     );
 
     const snapshotAddrByKey = byKey(addressSnapshot, companyAddressKey);
-    const rebuiltAddrByKey = byKey(rebuiltAddresses, companyAddressKey);
+    const labelledAddrByKey = byKey(labelledAddresses, companyAddressKey);
     for (const [key, snap] of snapshotAddrByKey) {
-      expect(rebuiltAddrByKey.get(key)?.observation_count).toBe(snap.observation_count);
+      expect(labelledAddrByKey.get(key)?.observation_count).toBe(snap.observation_count);
     }
     const snapshotPhoneByKey = byKey(phoneSnapshot, companyPhoneKey);
-    const rebuiltPhoneByKey = byKey(rebuiltPhones, companyPhoneKey);
+    const labelledPhoneByKey = byKey(labelledPhones, companyPhoneKey);
     for (const [key, snap] of snapshotPhoneByKey) {
-      expect(rebuiltPhoneByKey.get(key)?.observation_count).toBe(snap.observation_count);
+      expect(labelledPhoneByKey.get(key)?.observation_count).toBe(snap.observation_count);
     }
+
+    const rebuiltAddrByKey = byKey(rebuiltAddresses, companyAddressKey);
+    const rebuiltPhoneByKey = byKey(rebuiltPhones, companyPhoneKey);
 
     const acmeAddr = rebuiltAddrByKey.get(
       companyAddressKey({
-        canonical_company_id: acme.canonical_company_id,
+        canonical_company_id: acmeCanonicalId,
         address_hash_id: "addr-hq-new",
       })
     )!;
@@ -738,7 +820,7 @@ describe("rebuildCompanyJunctions", () => {
 
     const betaAddr = rebuiltAddrByKey.get(
       companyAddressKey({
-        canonical_company_id: beta.canonical_company_id,
+        canonical_company_id: betaCanonicalId,
         address_hash_id: "addr-hq-new",
       })
     )!;
@@ -749,13 +831,13 @@ describe("rebuildCompanyJunctions", () => {
     // Echo's two addresses are two separate rows.
     const echo1Addr = rebuiltAddrByKey.get(
       companyAddressKey({
-        canonical_company_id: echo1.canonical_company_id,
+        canonical_company_id: echo1CanonicalId,
         address_hash_id: "addr-echo-1",
       })
     )!;
     const echo2Addr = rebuiltAddrByKey.get(
       companyAddressKey({
-        canonical_company_id: echo1.canonical_company_id,
+        canonical_company_id: echo1CanonicalId,
         address_hash_id: "addr-echo-2",
       })
     )!;
@@ -766,7 +848,7 @@ describe("rebuildCompanyJunctions", () => {
 
     const acmePhone = rebuiltPhoneByKey.get(
       companyPhoneKey({
-        canonical_company_id: acme.canonical_company_id,
+        canonical_company_id: acmeCanonicalId,
         international_number: "+1-555-2001",
       })
     )!;
@@ -778,13 +860,13 @@ describe("rebuildCompanyJunctions", () => {
     // sensitivity check the mirror is specifically for.
     const echo1Phone = rebuiltPhoneByKey.get(
       companyPhoneKey({
-        canonical_company_id: echo1.canonical_company_id,
+        canonical_company_id: echo1CanonicalId,
         international_number: "+1-555-3000",
       })
     )!;
     const echo2Phone = rebuiltPhoneByKey.get(
       companyPhoneKey({
-        canonical_company_id: echo1.canonical_company_id,
+        canonical_company_id: echo1CanonicalId,
         international_number: "+1-555-3001",
       })
     )!;
@@ -792,24 +874,11 @@ describe("rebuildCompanyJunctions", () => {
     expect(echo1Phone.first_seen_at).toBe("2024-07-15");
     expect(echo2Phone.observation_count).toBe(1);
     expect(echo2Phone.first_seen_at).toBe("2024-07-30");
-
-    // Timestamps are the one intended difference, same as the person side.
-    const snapAcmeAddr = snapshotAddrByKey.get(
-      companyAddressKey({
-        canonical_company_id: acme.canonical_company_id,
-        address_hash_id: "addr-hq-new",
-      })
-    )!;
-    expect(snapAcmeAddr.first_seen_at).not.toBe(acmeAddr.first_seen_at);
-    expect(snapAcmeAddr.first_seen_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   it("replaces rather than merges: re-keying an observation's link to a different canonical id drops the stale row on the next rebuild", async () => {
     await seedFiling("CACC-20", 8000, "2024-08-01");
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     const solo = await observer.observeCompany({
       accession_number: "CACC-20",
       extractor_id: "D",
@@ -821,13 +890,16 @@ describe("rebuildCompanyJunctions", () => {
       international_number: "+1-555-9500",
     });
 
+    await resolveStoredCompanyObservations();
+    const soloCanonicalId = await canonicalCompanyIdFor(solo.observation_id);
+
     await rebuildCompanyJunctions(RESOLVER_VERSION);
 
     const addressStorage = globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN);
     const phoneStorage = globalServiceRegistry.get(CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN);
     expect(await addressStorage.getAll()).toEqual([
       expect.objectContaining({
-        canonical_company_id: solo.canonical_company_id,
+        canonical_company_id: soloCanonicalId,
         address_hash_id: "addr-solo-hq",
       }),
     ]);
@@ -844,12 +916,8 @@ describe("rebuildCompanyJunctions", () => {
     const rebuiltAddresses = (await addressStorage.getAll()) ?? [];
     const rebuiltPhones = (await phoneStorage.getAll()) ?? [];
 
-    expect(rebuiltAddresses.some((r) => r.canonical_company_id === solo.canonical_company_id)).toBe(
-      false
-    );
-    expect(rebuiltPhones.some((r) => r.canonical_company_id === solo.canonical_company_id)).toBe(
-      false
-    );
+    expect(rebuiltAddresses.some((r) => r.canonical_company_id === soloCanonicalId)).toBe(false);
+    expect(rebuiltPhones.some((r) => r.canonical_company_id === soloCanonicalId)).toBe(false);
     expect(rebuiltAddresses).toEqual([
       expect.objectContaining({
         canonical_company_id: reassignedCanonicalId,
@@ -877,10 +945,7 @@ describe("rebuildCompanyJunctions", () => {
   });
 
   it("raises rather than fabricating a date when a company observation's filing row is missing", async () => {
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     await observer.observeCompany({
       // Deliberately never passed to `seedFiling`.
       accession_number: "CACC-NO-FILING",
@@ -892,6 +957,7 @@ describe("rebuildCompanyJunctions", () => {
       address_id: "addr-nofiling-hq",
       international_number: "+1-555-8100",
     });
+    await resolveStoredCompanyObservations();
 
     await expect(rebuildCompanyJunctions(RESOLVER_VERSION)).rejects.toThrow(
       /no filing found for accession_number "CACC-NO-FILING"/
@@ -920,10 +986,7 @@ describe("rebuildCompanyJunctions", () => {
     });
 
     await seedFiling("CACC-30", 8000, "2024-09-01");
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     await observer.observeCompany({
       accession_number: "CACC-30",
       extractor_id: "D",
@@ -934,6 +997,7 @@ describe("rebuildCompanyJunctions", () => {
       address_id: "addr-active-hq",
       international_number: "+1-555-8001",
     });
+    await resolveStoredCompanyObservations();
 
     expect(await rebuildCompanyJunctions(RESOLVER_VERSION)).toEqual({
       addressRows: 1,
@@ -971,10 +1035,7 @@ describe("rebuildCompanyJunctions", () => {
 
   it("purges the resolver version's rows even when the projection computes nothing", async () => {
     await seedFiling("CACC-40", 8000, "2024-10-01");
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+    const observer = buildObserveOnlyEntityObserver();
     const solo = await observer.observeCompany({
       accession_number: "CACC-40",
       extractor_id: "D",
@@ -985,6 +1046,7 @@ describe("rebuildCompanyJunctions", () => {
       address_id: "addr-reaped-hq",
       international_number: "+1-555-8200",
     });
+    await resolveStoredCompanyObservations();
 
     expect(await rebuildCompanyJunctions(RESOLVER_VERSION)).toEqual({
       addressRows: 1,
