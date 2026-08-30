@@ -5,17 +5,21 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
+import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { FILING_REPOSITORY_TOKEN } from "../../../storage/filing/FilingSchema";
 import { XbrlFactRepo } from "../../../storage/xbrl/XbrlFactRepo";
+import { ResolveObservationsTask } from "../../../task/resolve/ResolveObservationsTask";
 import { processForm424Structured } from "./Form_424.storage";
 import { processFormS1Structured } from "./Form_S_1.storage";
 
 const CIK = 2114227;
 const S1_ACCESSION = "0000000000-26-000801";
 const B4_ACCESSION = "0000000000-26-000802";
+const RESOLVER_VERSION = "1.0.0";
 
 const NULL_HEADER = {
   sic: null,
@@ -54,13 +58,45 @@ const B4_FEE_EXHIBIT =
   ` decimals="0" format="ixt:num-dot-decimal" scale="0">300,000,000</ix:nonFraction></p>` +
   `</body></html>`;
 
+/**
+ * The filing row each observation traces back to. Neither storage module
+ * writes one — ingest already did by the time a form is processed — and the
+ * junction half of the batch pass reads the filing date off it.
+ */
+async function seedFiling(
+  accession_number: string,
+  filing_date: string,
+  form: string
+): Promise<void> {
+  await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put({
+    cik: CIK,
+    accession_number,
+    filing_date,
+    acceptance_date: `${filing_date}T00:00:00.000Z`,
+    report_date: null,
+    form,
+    file_number: "333-000001",
+    film_number: null,
+    primary_doc: null,
+    primary_doc_description: null,
+    size: null,
+    is_xbrl: null,
+    is_inline_xbrl: null,
+    items: null,
+    act: null,
+  });
+}
+
 describe("processForm424Structured", () => {
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
   });
 
-  it("stores fee-exhibit facts and resolves the issuer to the same canonical company as the S-1", async () => {
+  it("stores fee-exhibit facts and observes an issuer the batch resolver puts under the same canonical company as the S-1's", async () => {
+    await seedFiling(S1_ACCESSION, "2026-04-02", "S-1");
+    await seedFiling(B4_ACCESSION, "2026-04-28", "424B4");
+
     await processFormS1Structured({
       cik: CIK,
       file_number: "333-000001",
@@ -103,9 +139,17 @@ describe("processForm424Structured", () => {
     )!;
     expect(JSON.parse(b4Issuer.source_context!).relation).toBe("424:issuer");
 
+    // Neither module resolves as it stores; the canonical company is the
+    // batch pass's answer over the two observations they left behind.
+    const resolved = await new ResolveObservationsTask({
+      defaults: { kind: "company", resolverVersion: RESOLVER_VERSION },
+    }).run();
+    expect(resolved.count).toBe(2);
+    expect(resolved.rebuilds.filter((r) => r.error !== null)).toEqual([]);
+
     const links = new CompanyIdentityLinkRepo();
-    const s1Link = await links.getForObservation(s1Issuer.observation_id, "1.0.0");
-    const b4Link = await links.getForObservation(b4Issuer.observation_id, "1.0.0");
+    const s1Link = await links.getForObservation(s1Issuer.observation_id, RESOLVER_VERSION);
+    const b4Link = await links.getForObservation(b4Issuer.observation_id, RESOLVER_VERSION);
     expect(s1Link?.canonical_company_id).toBeDefined();
     expect(s1Link?.canonical_company_id).toBe(b4Link?.canonical_company_id!);
   });

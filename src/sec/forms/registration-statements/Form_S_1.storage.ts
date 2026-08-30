@@ -5,7 +5,7 @@
  */
 
 import { globalServiceRegistry, type IExecuteContext } from "workglow";
-import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
+import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
 import { S1ClassificationRepo } from "../../../storage/classification/S1ClassificationRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
@@ -56,11 +56,7 @@ export async function processFormS1Structured(args: ProcessFormS1StructuredArgs)
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
   );
-  const [extractorSlot, personSlot, companySlot] = await Promise.all([
-    getActiveSlot(versionRegistry, "extractor", EXTRACTOR_ID),
-    getActiveSlot(versionRegistry, "resolver", "person"),
-    getActiveSlot(versionRegistry, "resolver", "company"),
-  ]);
+  const extractorSlot = await getActiveSlot(versionRegistry, "extractor", EXTRACTOR_ID);
   const extractor_version = extractorSlot?.semver ?? DEFAULT_EXTRACTOR_VERSION;
 
   const xbrl = await extractAndStoreXbrl({
@@ -71,10 +67,7 @@ export async function processFormS1Structured(args: ProcessFormS1StructuredArgs)
     feeExhibitHtml: formS1.feeExhibitHtml,
   });
 
-  const observer = buildEntityObserver({
-    activeResolverPersonVersion: personSlot?.semver ?? "1.0.0",
-    activeResolverCompanyVersion: companySlot?.semver ?? "1.0.0",
-  });
+  const observer = buildObserveOnlyEntityObserver();
   await observer.observeCompany({
     accession_number,
     extractor_id: EXTRACTOR_ID,

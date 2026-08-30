@@ -5,7 +5,7 @@
  */
 
 import { globalServiceRegistry, type IExecuteContext } from "workglow";
-import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
+import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
@@ -36,8 +36,10 @@ export interface ProcessForm424StructuredArgs {
 /**
  * Records what a 424 prospectus states as fact, for every variant: the
  * deterministic XBRL pass (fee-exhibit and inline facts) and the issuer
- * observation that resolves the filing to the same canonical company as its
- * registration statement.
+ * observation naming the company the prospectus is for. That observation
+ * carries the same name and CIK its registration statement filed, which is
+ * what lets the batch resolver put the two under one canonical company; the
+ * canonical id itself is not written here.
  *
  * Reads no model. The priced forms (424B1 / 424B4) also carry offering terms,
  * underwriters and use of proceeds, but those are read out of prose by a model
@@ -51,11 +53,7 @@ export async function processForm424Structured(args: ProcessForm424StructuredArg
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
   );
-  const [extractorSlot, personSlot, companySlot] = await Promise.all([
-    getActiveSlot(versionRegistry, "extractor", EXTRACTOR_ID),
-    getActiveSlot(versionRegistry, "resolver", "person"),
-    getActiveSlot(versionRegistry, "resolver", "company"),
-  ]);
+  const extractorSlot = await getActiveSlot(versionRegistry, "extractor", EXTRACTOR_ID);
   const extractor_version = extractorSlot?.semver ?? DEFAULT_EXTRACTOR_VERSION;
 
   const xbrl = await extractAndStoreXbrl({
@@ -66,10 +64,7 @@ export async function processForm424Structured(args: ProcessForm424StructuredArg
     feeExhibitHtml: form424.feeExhibitHtml,
   });
 
-  const observer = buildEntityObserver({
-    activeResolverPersonVersion: personSlot?.semver ?? "1.0.0",
-    activeResolverCompanyVersion: companySlot?.semver ?? "1.0.0",
-  });
+  const observer = buildObserveOnlyEntityObserver();
   await observer.observeCompany({
     accession_number,
     extractor_id: EXTRACTOR_ID,
