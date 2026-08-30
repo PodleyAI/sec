@@ -20,7 +20,7 @@ import {
   CanonicalUnderwriterFamilyAliasSchema,
   CanonicalUnderwriterFamilyAliasPrimaryKeyNames,
   type CanonicalUnderwriterFamilyAlias,
-} from "../storage/canonical/CanonicalAliasSchemas";
+} from "../storage/canonical/CanonicalFamilyAliasSchemas";
 import { CanonicalUnderwriterFamilyRepo } from "../storage/canonical/CanonicalUnderwriterFamilyRepo";
 import {
   CanonicalUnderwriterFamilySchema,

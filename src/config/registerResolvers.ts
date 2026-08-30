@@ -15,6 +15,10 @@ import { CanonicalCompanyPhoneRepo } from "../storage/canonical/CanonicalCompany
 import { CanonicalPersonRepo } from "../storage/canonical/CanonicalPersonRepo";
 import { PersonRoleRepo } from "../storage/canonical/PersonRoleRepo";
 import { CanonicalCompanyRepo } from "../storage/canonical/CanonicalCompanyRepo";
+import {
+  importFamilyDescriptions,
+  registerFamilyEditorialImporter,
+} from "../commands/editorialImport";
 import { SpacSponsorLinkRepo } from "../storage/canonical/SpacSponsorLinkRepo";
 import { UnderwriterLinkRepo } from "../storage/canonical/UnderwriterLinkRepo";
 
@@ -26,6 +30,10 @@ import { UnderwriterLinkRepo } from "../storage/canonical/UnderwriterLinkRepo";
  * callers read it here instead of duplicating it per call site.
  */
 export function registerSecResolvers(): void {
+  // The family tier still ships here, so this package contributes its editorial
+  // writer. When the tier moves, this call moves with it and an unregistered
+  // family CSV is refused by name rather than silently written nowhere.
+  registerFamilyEditorialImporter(importFamilyDescriptions);
   registerResolverExtension({
     id: "person",
     coverage: async (version) => {

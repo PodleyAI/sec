@@ -8,7 +8,7 @@ import { globalServiceRegistry } from "workglow";
 import {
   CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
   type CanonicalUnderwriterFamilyAliasRepositoryStorage,
-} from "./CanonicalAliasSchemas";
+} from "./CanonicalFamilyAliasSchemas";
 import { CanonicalFamilyAliasRepo } from "./CanonicalFamilyAliasRepo";
 
 interface Options {

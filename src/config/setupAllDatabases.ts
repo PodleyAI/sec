@@ -60,9 +60,11 @@ import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegASer
 import {
   CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
+} from "../storage/canonical/CanonicalAliasSchemas";
+import {
   CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
-} from "../storage/canonical/CanonicalAliasSchemas";
+} from "../storage/canonical/CanonicalFamilyAliasSchemas";
 import { CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalSponsorFamilySchema";
 import { FAMILY_DESCRIPTION_REPOSITORY_TOKEN } from "../storage/canonical/FamilyDescriptionSchema";
 import { SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN } from "../storage/canonical/SponsorFamilyMembershipSchema";

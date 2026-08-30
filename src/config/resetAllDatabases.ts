@@ -84,7 +84,7 @@ import { EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN } from "../storage/executive-co
 import {
   CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
-} from "../storage/canonical/CanonicalAliasSchemas";
+} from "../storage/canonical/CanonicalFamilyAliasSchemas";
 import { CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalSponsorFamilySchema";
 import { FAMILY_DESCRIPTION_REPOSITORY_TOKEN } from "../storage/canonical/FamilyDescriptionSchema";
 import { CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalUnderwriterFamilySchema";

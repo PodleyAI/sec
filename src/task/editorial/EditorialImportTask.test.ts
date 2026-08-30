@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import {
+  clearFamilyEditorialImporterForTesting,
   clearSpacEditorialImporterForTesting,
   registerSpacEditorialImporter,
 } from "../../commands/editorialImport";
@@ -113,5 +114,30 @@ describe("EditorialImportTask", () => {
 
     expect(seen).toEqual([{ ciks: [10], createMissing: true, dryRun: true }]);
     expect(results[0]).toMatchObject({ kind: "spac", written: 1, created: 1, importError: null });
+  });
+
+  /**
+   * The family half is contributed the same way the spac half is, and the
+   * families it names are a tier that need not ship here either. Refusing by
+   * name is the point: a caller told `written: 1` for a row nobody stored has
+   * been told something false, and it looks exactly like a successful import.
+   */
+  it("refuses the family half of the format when no writer is registered", async () => {
+    clearFamilyEditorialImporterForTesting();
+    const directory = mkdtempSync(join(tmpdir(), "sec-editorial-import-"));
+    tempDirectories.push(directory);
+    const file = join(directory, "family.csv");
+    writeFileSync(
+      file,
+      "family_kind,name,description\nunderwriter-family,Chardan,SPAC-focused investment bank.\n"
+    );
+
+    const { results } = await new EditorialImportTask({
+      defaults: { files: [file], createMissing: false, dryRun: true },
+    }).run();
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ file, kind: "family", written: 0 });
+    expect(results[0]!.importError).toMatch(/no writer for family description rows/);
   });
 });

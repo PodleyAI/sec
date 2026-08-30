@@ -205,17 +205,19 @@ import {
 import {
   CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
   CanonicalCompanyAliasSchema,
   CanonicalCompanyAliasPrimaryKeyNames,
   CanonicalPersonAliasSchema,
   CanonicalPersonAliasPrimaryKeyNames,
+} from "../storage/canonical/CanonicalAliasSchemas";
+import {
+  CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
+  CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
   CanonicalSponsorFamilyAliasSchema,
   CanonicalSponsorFamilyAliasPrimaryKeyNames,
   CanonicalUnderwriterFamilyAliasSchema,
   CanonicalUnderwriterFamilyAliasPrimaryKeyNames,
-} from "../storage/canonical/CanonicalAliasSchemas";
+} from "../storage/canonical/CanonicalFamilyAliasSchemas";
 import {
   CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN,
   CanonicalSponsorFamilyPrimaryKeyNames,

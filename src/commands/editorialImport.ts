@@ -202,7 +202,44 @@ export function spacEditorialImporter(): SpacEditorialImporter | undefined {
   return registeredSpacImporter;
 }
 
-/** Apply family-description rows to the version-independent `family_description` table. */
+/** Writes parsed family-description rows onto the families they name. */
+export type FamilyEditorialImporter = (
+  rows: readonly FamilyDescriptionRow[],
+  opts: { readonly dryRun: boolean }
+) => Promise<{ readonly written: number }>;
+
+/**
+ * The contributed writer for the family half, or undefined when nothing
+ * registered one.
+ *
+ * Same division as the spac half above, for the same reason: the CSV is this
+ * package's — its shape, its validation, its line-numbered errors — but the
+ * families it names are a tier that need not ship here. With nothing
+ * registered, a family CSV is refused by name rather than reported as
+ * imported.
+ */
+let registeredFamilyImporter: FamilyEditorialImporter | undefined;
+
+/** Contribute the writer for the family half of an editorial CSV. Idempotent. */
+export function registerFamilyEditorialImporter(importer: FamilyEditorialImporter): void {
+  registeredFamilyImporter = importer;
+}
+
+/** Test hook: forget the contributed importer. */
+export function clearFamilyEditorialImporterForTesting(): void {
+  registeredFamilyImporter = undefined;
+}
+
+/** The contributed importer, or undefined when none was contributed. */
+export function familyEditorialImporter(): FamilyEditorialImporter | undefined {
+  return registeredFamilyImporter;
+}
+
+/**
+ * Apply family-description rows to the version-independent `family_description`
+ * table. Exported as the writer a package owning the family tier registers;
+ * `sec` registers it while that tier still ships here.
+ */
 export async function importFamilyDescriptions(
   rows: readonly FamilyDescriptionRow[],
   opts: { readonly dryRun: boolean }

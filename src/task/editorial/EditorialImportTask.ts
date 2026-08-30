@@ -8,7 +8,7 @@ import { readFileSync } from "fs";
 import { Type } from "typebox";
 import { Task } from "workglow";
 import {
-  importFamilyDescriptions,
+  familyEditorialImporter,
   parseEditorialCsv,
   spacEditorialImporter,
 } from "../../commands/editorialImport";
@@ -84,7 +84,23 @@ export class EditorialImportTask extends Task<EditorialImportTaskInput, Editoria
       try {
         const parsed = parseEditorialCsv(content);
         if (parsed.kind === "family") {
-          const res = await importFamilyDescriptions(parsed.familyRows, { dryRun: input.dryRun });
+          const importFamily = familyEditorialImporter();
+          if (importFamily === undefined) {
+            results.push({
+              file,
+              kind: "family",
+              written: 0,
+              created: 0,
+              skippedMissing: 0,
+              errors: [...parsed.errors],
+              readError: null,
+              importError:
+                `cannot import ${file}: this deployment registers no writer for family ` +
+                "description rows",
+            });
+            continue;
+          }
+          const res = await importFamily(parsed.familyRows, { dryRun: input.dryRun });
           results.push({
             file,
             kind: "family",
