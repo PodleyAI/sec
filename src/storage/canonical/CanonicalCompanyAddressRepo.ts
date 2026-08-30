@@ -38,21 +38,4 @@ export class CanonicalCompanyAddressRepo extends CanonicalJunctionRepo<Canonical
       "address_hash_id"
     );
   }
-
-  recordObservation(args: RecordCompanyAddressArgs): Promise<CanonicalCompanyAddress> {
-    return this.record(
-      args.canonical_company_id,
-      args.address_hash_id,
-      args.resolver_version,
-      args.seen_at
-    );
-  }
-
-  removeObservation(pk: {
-    canonical_company_id: string;
-    address_hash_id: string;
-    resolver_version: string;
-  }): Promise<void> {
-    return this.remove(pk.canonical_company_id, pk.address_hash_id, pk.resolver_version);
-  }
 }

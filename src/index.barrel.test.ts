@@ -128,7 +128,6 @@ test("exports the extraction seam an out-of-package form extractor is built on",
     "buildObserveOnlyEntityObserver",
     "resolveObservationsForAccession",
     "ResolveObservationsTask",
-    "buildEntityObserver",
     "EntityObserver",
     "COMPLETE_ROSTER_ROLE_SCOPES",
     "LOI_TRIGGER_ITEMS",
@@ -226,17 +225,12 @@ test("the extraction seam parses, segments and guards over a real submission", (
     { section_name: "risk-factors", reason_code: "MODEL_INVALID_OUTPUT" };
   expect(failure.reason_code).toBe("MODEL_INVALID_OUTPUT");
 
-  // Both builders need live DI, so what is pinned here is their signatures.
-  // The observe-only one takes no versions at all — that is the point of it:
-  // there is no resolver to point at a version, so there is no stale version
-  // to point at by accident.
+  // The builder needs live DI, so what is pinned here is its signature. It
+  // takes no resolver versions at all: an observer records what a filing said,
+  // and there is no resolver on this path to point at a version — so there is
+  // no stale version to point at by accident.
   const buildObserveOnly: () => sec.ObserveOnlyEntityObserver = sec.buildObserveOnlyEntityObserver;
   expect(typeof buildObserveOnly).toBe("function");
-  const buildObserver: (args: {
-    readonly activeResolverPersonVersion: string;
-    readonly activeResolverCompanyVersion: string;
-  }) => sec.EntityObserver = sec.buildEntityObserver;
-  expect(typeof buildObserver).toBe("function");
   expect(sec.COMPLETE_ROSTER_ROLE_SCOPES.s1Management).toBe("s1:management");
 
   // Call tracing: off unless SEC_TRACE_DIR names a directory, so this asserts

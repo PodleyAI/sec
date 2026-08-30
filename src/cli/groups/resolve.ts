@@ -33,14 +33,16 @@ export function addResolveCommands(program: Command): void {
       false
     )
     .option(
-      "--rebuild-roles",
-      "--kind person only: also recompute person_role at the target version, which " +
-        "DELETES every tenure there and re-derives it from the observations. Filings " +
-        "extracted before person_observation.role_scope and role_roster_completeness " +
-        "existed derive no tenure at all, leaving the version empty — run " +
-        "`sec extractor reconstruct-roster-completeness` and re-extract them first. The " +
-        "tenures are snapshotted to a file before the purge",
-      false
+      "--no-rebuild-roles",
+      "--kind person only: skip recomputing person_role. Recomputing is the default " +
+        "because nothing else writes a tenure — they are derived from the observations " +
+        "and their roster-completeness verdicts, so a person pass that skips it leaves " +
+        "the version's tenures as the previous pass left them. It DELETES every tenure " +
+        "at the target version before re-deriving, and filings extracted before " +
+        "person_observation.role_scope and role_roster_completeness existed derive none " +
+        "at all, leaving the version empty — on such a corpus run " +
+        "`sec extractor reconstruct-roster-completeness` and re-extract first, or pass " +
+        "this flag until you have. The tenures are snapshotted to a file before the purge"
     )
     .action(
       async (opts: {
@@ -77,18 +79,20 @@ export function addResolveCommands(program: Command): void {
           if (!opts.all) {
             throw new Error("--all is required (no other mode supported in v1)");
           }
-          // Refused, not warned past. `person_role` is the person tier's, and
-          // the resolver versions of the two kinds are the same string on a
-          // default install, so the flag's only reachable effect on a company
-          // run is to purge the person tier's tenures at that version. The
-          // ceremony in docs/identity.md is a person line followed by a
-          // company line, which is exactly the shape that gets a flag copied
-          // onto both — and a warning on a line an operator already pasted is
-          // read after the deletion, if at all.
-          if (opts.rebuildRoles && kind !== "person") {
+          // `person_role` is the person tier's, so a company pass never rebuilds
+          // it — silently, since the default is on and an operator who ran a
+          // company pass did not ask for tenures. Explicitly saying
+          // --no-rebuild-roles on a company run is refused rather than accepted
+          // as a no-op: the ceremony in docs/identity.md is a person line
+          // followed by a company line, which is exactly the shape that gets a
+          // flag copied onto both, and a caller who believes the flag is doing
+          // something on the company line believes the person line skipped the
+          // rebuild too.
+          const rebuildRoles = kind === "person" && opts.rebuildRoles;
+          if (!opts.rebuildRoles && kind !== "person") {
             throw new Error(
-              `--rebuild-roles applies to --kind person only: it rebuilds person_role, ` +
-                `which a '${kind}' pass writes no link for. Run it on the person pass.`
+              `--no-rebuild-roles applies to --kind person only: person_role is rebuilt ` +
+                `by the person pass, and a '${kind}' pass never touches it.`
             );
           }
           // Default to the ACTIVE slot ("next if a dev cycle exists, else
@@ -122,7 +126,7 @@ export function addResolveCommands(program: Command): void {
                   kind,
                   resolverVersion,
                   renormalize: opts.renormalize,
-                  rebuildRoles: opts.rebuildRoles,
+                  rebuildRoles,
                 },
               }),
             ]);

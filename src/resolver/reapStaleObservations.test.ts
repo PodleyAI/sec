@@ -11,7 +11,8 @@ import { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLin
 import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
-import { buildEntityObserver } from "./buildEntityObserver";
+import { buildObserveOnlyEntityObserver } from "./buildObserveOnlyEntityObserver";
+import { resolveObservationsForAccession } from "./resolveObservationLinks";
 import { reapStaleObservations } from "./reapStaleObservations";
 
 const V = "1.0.0";
@@ -19,7 +20,7 @@ const ACC = "0001-25-000001";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function observer() {
-  return buildEntityObserver({ activeResolverPersonVersion: V, activeResolverCompanyVersion: V });
+  return buildObserveOnlyEntityObserver();
 }
 
 // Distinct CIKs so each resolves to its own canonical via the resolver CIK
@@ -43,7 +44,7 @@ describe("reapStaleObservations", () => {
     resetDependencyInjectionsForTesting();
   });
 
-  it("reaps orphan observations a smaller re-extraction leaves behind, with their links + junctions", async () => {
+  it("reaps orphan observations a smaller re-extraction leaves behind, with their links", async () => {
     const obs = observer();
     const personObs = new PersonObservationRepo();
     const links = new PersonIdentityLinkRepo();
@@ -61,6 +62,17 @@ describe("reapStaleObservations", () => {
     await obs.observePerson(personClaim(0, "addr0"));
     await obs.observePerson(personClaim(1, "addr1"));
 
+    // Resolved before the reap, so there is a link to be left dangling. That is
+    // the whole hazard: a rebuild raises on one rather than writing around it,
+    // and a raise leaves its tables untouched — so a link the reap failed to
+    // delete stops every later rebuild instead of corrupting one.
+    await resolveObservationsForAccession({
+      kind: "person",
+      accession_number: ACC,
+      resolverVersion: V,
+    });
+    expect(await links.listForObservation(orphan.observation_id)).toHaveLength(1);
+
     const { reaped } = await reapStaleObservations({
       accession_number: ACC,
       extractor_id: "S-1",
@@ -73,27 +85,10 @@ describe("reapStaleObservations", () => {
     const remaining = await personObs.listByAccessionAndExtractor(ACC, "S-1");
     expect(remaining.map((o) => o.observation_index).sort()).toEqual([0, 1]);
 
-    // The orphan's identity link is gone (no phantom canonical linkage).
+    // The orphan's identity link is gone (no phantom canonical linkage), while
+    // the live rows keep theirs.
     expect(await links.listForObservation(orphan.observation_id)).toEqual([]);
-
-    // The orphan's address junction is gone; the live ones remain at count 1.
-    expect(await addr.listForCanonical(orphan.canonical_person_id, V)).toEqual([]);
-  });
-
-  it("keeps junction counts idempotent across replays (no blind +1)", async () => {
-    const obs = observer();
-    const addr = new CanonicalPersonAddressRepo();
-
-    const first = await obs.observePerson(personClaim(0, "addr0"));
-    // Re-observe the SAME natural key three more times (a replay loop).
-    await obs.observePerson(personClaim(0, "addr0"));
-    await obs.observePerson(personClaim(0, "addr0"));
-    await obs.observePerson(personClaim(0, "addr0"));
-
-    const rows = await addr.listForCanonical(first.canonical_person_id, V);
-    expect(rows.length).toBe(1);
-    // Without the prior-contribution decrement this would be 4.
-    expect(rows[0].observation_count).toBe(1);
+    expect(await new PersonIdentityLinkRepo().count()).toBe(2);
   });
 
   it("removes the stale-kind orphan when a reporting owner is reclassified company->person", async () => {

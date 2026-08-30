@@ -151,11 +151,13 @@ async function seedAllTiers(): Promise<void> {
     created_at: "2026-01-01T00:00:00.000Z",
   });
   await new CompanyIdentityLinkRepo().upsert(1, PREVIOUS, COMPANY_ID);
-  await new CanonicalCompanyAddressRepo().recordObservation({
+  await new CanonicalCompanyAddressRepo().replaceAggregate({
     canonical_company_id: COMPANY_ID,
     address_hash_id: ADDRESS_HASH,
     resolver_version: PREVIOUS,
-    seen_at: "2026-01-01T00:00:00.000Z",
+    observation_count: 1,
+    first_seen_at: "2026-01-01T00:00:00.000Z",
+    last_seen_at: "2026-01-01T00:00:00.000Z",
   });
   await new CanonicalPersonRepo().create({
     canonical_person_id: PERSON_ID,

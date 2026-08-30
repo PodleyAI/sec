@@ -17,11 +17,13 @@ Reference for `src/storage/observation/`, `src/storage/canonical/`,
    alias tables (`CanonicalPersonAliasRepo`, `CanonicalCompanyAliasRepo`) redirecting merged
    IDs.
 3. **Identity link** (`PersonIdentityLinkRepo` / `CompanyIdentityLinkRepo`) — join from `observation_id` +
-   `resolver_version` → `canonical_*_id`. Written inline during extraction.
+   `resolver_version` → `canonical_*_id`. Written by a resolve pass over stored
+   observations: `ResolveObservationsTask` over a whole kind, or
+   `resolveObservationsForAccession` over one filing, for a form module that must read a
+   canonical id back before it returns.
 4. **Junction** (`Canonical*AddressRepo`, `Canonical*PhoneRepo`) — co-occurrence of
-   canonical entities with addresses/phones at a given resolver version. Two writers keep
-   these rows: `EntityObserver`'s incremental +1/-1 during extraction, and
-   `rebuildPersonJunctions` / `rebuildCompanyJunctions`
+   canonical entities with addresses/phones at a given resolver version. One writer keeps
+   these rows: `rebuildPersonJunctions` / `rebuildCompanyJunctions`
    (`src/resolver/rebuildJunctions.ts`), which recompute one resolver version's rows
    wholesale from the observations and their identity links. **A rebuild expects
    ingestion to be quiesced**: it purges the version's rows before writing the recomputed
@@ -32,8 +34,15 @@ Reference for `src/storage/observation/`, `src/storage/canonical/`,
 
 **`EntityObserver`** (`src/resolver/EntityObserver.ts`) is the single entry point: form
 storage modules call `observePerson()` / `observeCompany()` rather than writing rows
-directly. It normalizes the claim, upserts the observation, calls the resolver, writes the
-identity link, and records junctions in one step.
+directly. It normalizes the claim and upserts the observation and its titles — and that is
+all it does. Everything keyed to a canonical id (the link, the junction counts, the dated
+tenures) is derived from those stored rows by a later pass, so a replay lands the same rows
+whatever order the filings arrived in. Build one with `buildObserveOnlyEntityObserver()`.
+
+The one judgement on that path a later pass cannot reconstruct is roster completeness, which
+is why `closeUnassertedPersonRoles` exists and why it records its verdict either way: a
+person the extractor declined leaves no observation, so nothing else remembers the filing
+named them.
 
 **`PersonResolver` / `CompanyResolver`** (`src/resolver/`) — persons: CIK fast-path, then
 normalized-name + issuer-CIK fallback. Companies: CIK → CRD → normalized-name cascade. Both
@@ -236,8 +245,6 @@ has three: `previous`, `current`, `next`.
 sec resolve --kind person  --resolver-version 1.0.0 --all
 sec resolve --kind company --resolver-version 1.0.0 --all
 sec resolve --kind company --resolver-version 1.0.0 --all --renormalize
-# person only — the company line refuses it
-sec resolve --kind person  --resolver-version 1.0.0 --all --rebuild-roles
 
 sec version coverage resolver person|company|sponsor-family|underwriter-family
 sec version drop-previous resolver person|company
@@ -266,14 +273,20 @@ number that carries no per-kind name, and `db setup` seeds **every** resolver id
 an off-kind rebuild does not find an empty table at that version, it finds the other
 tier's live rows and recomputes them from links the run never wrote.
 
-`--rebuild-roles` adds `person_role` to that set, on `--kind person` only — asking for it
-on a company run is **refused**, because `person_role` is the person tier's and a company
-pass writes no link that feeds it. It is off by default even on a person run because it is
-not symmetric with the junctions: it **deletes** every tenure at the version before
-re-deriving them, and both of its inputs are columns older rows do not carry. Over a corpus
-ingested before them it derives nothing at all and leaves the version empty. Recover both
-halves first — `sec extractor reconstruct-roster-completeness`, then re-extract the roster
-filings — and keep the snapshot it writes before the purge until the result checks out.
+A person run also rebuilds `person_role`, and that is the **default** — nothing writes a
+tenure as filings are stored, so they exist only as a derivation over the observations and
+their roster-completeness verdicts. A person pass that skipped it would leave the version's
+tenures as whatever an earlier pass left. A company run never touches them; passing
+`--no-rebuild-roles` on the company line is **refused** rather than accepted as a no-op,
+because it is the person line of this ceremony where the flag would have meant something.
+
+`--no-rebuild-roles` exists because the rebuild is not symmetric with the junctions: it
+**deletes** every tenure at the version before re-deriving them, and both of its inputs are
+columns older rows do not carry. Over a corpus ingested before them it derives nothing at
+all and leaves the version empty. On such a corpus, recover both halves first —
+`sec extractor reconstruct-roster-completeness`, then re-extract the roster filings — or
+pass `--no-rebuild-roles` until you have. Either way the tenures are snapshotted to a file
+before the purge; keep it until the result checks out.
 
 ### The family tiers
 

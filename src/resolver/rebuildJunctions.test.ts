@@ -542,24 +542,23 @@ describe("rebuildPersonJunctions", () => {
     // but it is scoped to one generation: `dropPrevious` retires a version
     // while the active one keeps serving the `current_canonical_*` views, so a
     // rebuild must leave every other version's rows exactly where they are.
-    const previousAddressRepo = new CanonicalPersonAddressRepo();
-    await previousAddressRepo.recordObservation({
+    // Two sightings' worth, with the wall-clock bounds a previous generation
+    // left behind — the shape this rebuild must not touch.
+    await new CanonicalPersonAddressRepo().replaceAggregate({
       canonical_person_id: "previous-canonical-person",
       address_hash_id: "addr-previous",
       resolver_version: PREVIOUS_RESOLVER_VERSION,
-      seen_at: "2023-01-01T00:00:00.000Z",
+      observation_count: 2,
+      first_seen_at: "2023-01-01T00:00:00.000Z",
+      last_seen_at: "2023-02-02T00:00:00.000Z",
     });
-    await previousAddressRepo.recordObservation({
-      canonical_person_id: "previous-canonical-person",
-      address_hash_id: "addr-previous",
-      resolver_version: PREVIOUS_RESOLVER_VERSION,
-      seen_at: "2023-02-02T00:00:00.000Z",
-    });
-    await new CanonicalPersonPhoneRepo().recordObservation({
+    await new CanonicalPersonPhoneRepo().replaceAggregate({
       canonical_person_id: "previous-canonical-person",
       international_number: "+1-555-7000",
       resolver_version: PREVIOUS_RESOLVER_VERSION,
-      seen_at: "2023-01-01T00:00:00.000Z",
+      observation_count: 1,
+      first_seen_at: "2023-01-01T00:00:00.000Z",
+      last_seen_at: "2023-01-01T00:00:00.000Z",
     });
 
     await seedFiling("ACC-30", 9000, "2024-09-01");
@@ -965,24 +964,23 @@ describe("rebuildCompanyJunctions", () => {
   });
 
   it("purges only its own resolver version, leaving a previous generation's rows intact", async () => {
-    const previousAddressRepo = new CanonicalCompanyAddressRepo();
-    await previousAddressRepo.recordObservation({
+    // The company twin of the person case above: two sightings' worth, with the
+    // wall-clock bounds a previous generation left behind.
+    await new CanonicalCompanyAddressRepo().replaceAggregate({
       canonical_company_id: "previous-canonical-company",
       address_hash_id: "addr-previous-hq",
       resolver_version: PREVIOUS_RESOLVER_VERSION,
-      seen_at: "2023-03-03T00:00:00.000Z",
+      observation_count: 2,
+      first_seen_at: "2023-03-03T00:00:00.000Z",
+      last_seen_at: "2023-04-04T00:00:00.000Z",
     });
-    await previousAddressRepo.recordObservation({
-      canonical_company_id: "previous-canonical-company",
-      address_hash_id: "addr-previous-hq",
-      resolver_version: PREVIOUS_RESOLVER_VERSION,
-      seen_at: "2023-04-04T00:00:00.000Z",
-    });
-    await new CanonicalCompanyPhoneRepo().recordObservation({
+    await new CanonicalCompanyPhoneRepo().replaceAggregate({
       canonical_company_id: "previous-canonical-company",
       international_number: "+1-555-8000",
       resolver_version: PREVIOUS_RESOLVER_VERSION,
-      seen_at: "2023-03-03T00:00:00.000Z",
+      observation_count: 1,
+      first_seen_at: "2023-03-03T00:00:00.000Z",
+      last_seen_at: "2023-03-03T00:00:00.000Z",
     });
 
     await seedFiling("CACC-30", 8000, "2024-09-01");

@@ -7,12 +7,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
-import { buildEntityObserver } from "./buildEntityObserver";
+import { buildObserveOnlyEntityObserver } from "./buildObserveOnlyEntityObserver";
 
 const V = "1.0.0";
 
 function observer() {
-  return buildEntityObserver({ activeResolverPersonVersion: V, activeResolverCompanyVersion: V });
+  return buildObserveOnlyEntityObserver();
 }
 
 describe("EntityObserver.observePerson role_scope round-trip", () => {

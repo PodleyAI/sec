@@ -38,21 +38,4 @@ export class CanonicalPersonPhoneRepo extends CanonicalJunctionRepo<CanonicalPer
       "international_number"
     );
   }
-
-  recordObservation(args: RecordPersonPhoneArgs): Promise<CanonicalPersonPhone> {
-    return this.record(
-      args.canonical_person_id,
-      args.international_number,
-      args.resolver_version,
-      args.seen_at
-    );
-  }
-
-  removeObservation(pk: {
-    canonical_person_id: string;
-    international_number: string;
-    resolver_version: string;
-  }): Promise<void> {
-    return this.remove(pk.canonical_person_id, pk.international_number, pk.resolver_version);
-  }
 }

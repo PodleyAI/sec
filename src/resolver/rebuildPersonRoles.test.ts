@@ -1216,15 +1216,20 @@ describe("rebuildPersonRoles", () => {
     // `dropPrevious` retires a generation while the active one serves the
     // current views, so a rebuild must leave every other version alone.
     await seedFiling("ACC-30", 713, "2024-09-01");
-    await new PersonRoleRepo().recordAssertion({
+    await new PersonRoleRepo().insertTenure({
       canonical_person_id: "previous-canonical-person",
       resolver_version: PREVIOUS_RESOLVER_VERSION,
       company_cik: 713,
       extractor_id: EXTRACTOR_ID,
       role_scope: ROSTER_SCOPE,
       title: "Director",
-      filing_date: "2023-01-01",
-      accession_number: "ACC-29",
+      normalized_title: "director",
+      start_date: "2023-01-01",
+      start_accession: "ACC-29",
+      end_date: null,
+      end_accession: null,
+      last_seen_date: "2023-01-01",
+      last_seen_accession: "ACC-29",
     });
     const previous = (await allTenures()).filter(
       (r) => r.resolver_version === PREVIOUS_RESOLVER_VERSION

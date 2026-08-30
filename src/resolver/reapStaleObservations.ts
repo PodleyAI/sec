@@ -6,14 +6,9 @@
 
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
-import { PersonRoleRepo } from "../storage/canonical/PersonRoleRepo";
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLinkRepo";
-import { CanonicalPersonAddressRepo } from "../storage/canonical/CanonicalPersonAddressRepo";
-import { CanonicalPersonPhoneRepo } from "../storage/canonical/CanonicalPersonPhoneRepo";
-import { CanonicalCompanyAddressRepo } from "../storage/canonical/CanonicalCompanyAddressRepo";
-import { CanonicalCompanyPhoneRepo } from "../storage/canonical/CanonicalCompanyPhoneRepo";
 import { ObservationProvenanceRepo } from "../storage/provenance/ObservationProvenanceRepo";
 
 export interface ReapStaleObservationsArgs {
@@ -79,14 +74,9 @@ export function hasBlockingSectionFailure(
 export interface ReapStaleObservationsDeps {
   personObservationRepo?: PersonObservationRepo;
   personObservationTitleRepo?: PersonObservationTitleRepo;
-  personRoleRepo?: PersonRoleRepo;
   companyObservationRepo?: CompanyObservationRepo;
   personIdentityLinkRepo?: PersonIdentityLinkRepo;
   companyIdentityLinkRepo?: CompanyIdentityLinkRepo;
-  canonicalPersonAddressRepo?: CanonicalPersonAddressRepo;
-  canonicalPersonPhoneRepo?: CanonicalPersonPhoneRepo;
-  canonicalCompanyAddressRepo?: CanonicalCompanyAddressRepo;
-  canonicalCompanyPhoneRepo?: CanonicalCompanyPhoneRepo;
   observationProvenanceRepo?: ObservationProvenanceRepo;
 }
 
@@ -100,10 +90,16 @@ export interface ReapStaleObservationsDeps {
  * entities the filing no longer describes.
  *
  * Run AFTER a successful extraction. For each observation of (accession,
- * extractor_id) not refreshed this run (`created_at < before`): decrement its
- * address/phone junction contributions (via its links, so the count tracks live
- * observations), delete its identity links (all resolver versions) and
- * provenance, then delete the observation row. Re-observed rows are untouched.
+ * extractor_id) not refreshed this run (`created_at < before`): delete its
+ * identity links (all resolver versions) and provenance, then delete the
+ * observation row. Re-observed rows are untouched.
+ *
+ * Deleting the links is the load-bearing half and is NOT bookkeeping that a
+ * projection could redo. A link left pointing at a reaped observation makes
+ * both rebuilds raise by design, and a rebuild that raises leaves its tables
+ * as they were rather than purging them — so this is what stops one dangling
+ * row becoming a whole-table loss. Junction counts and tenures are recomputed
+ * from what survives and need no retraction here.
  */
 export async function reapStaleObservations(
   args: ReapStaleObservationsArgs,
@@ -111,14 +107,9 @@ export async function reapStaleObservations(
 ): Promise<{ reaped: number }> {
   const personObs = deps.personObservationRepo ?? new PersonObservationRepo();
   const personTitles = deps.personObservationTitleRepo ?? new PersonObservationTitleRepo();
-  const personRoles = deps.personRoleRepo ?? new PersonRoleRepo();
   const companyObs = deps.companyObservationRepo ?? new CompanyObservationRepo();
   const personLinks = deps.personIdentityLinkRepo ?? new PersonIdentityLinkRepo();
   const companyLinks = deps.companyIdentityLinkRepo ?? new CompanyIdentityLinkRepo();
-  const personAddr = deps.canonicalPersonAddressRepo ?? new CanonicalPersonAddressRepo();
-  const personPhone = deps.canonicalPersonPhoneRepo ?? new CanonicalPersonPhoneRepo();
-  const companyAddr = deps.canonicalCompanyAddressRepo ?? new CanonicalCompanyAddressRepo();
-  const companyPhone = deps.canonicalCompanyPhoneRepo ?? new CanonicalCompanyPhoneRepo();
   const provenance = deps.observationProvenanceRepo ?? new ObservationProvenanceRepo();
 
   let reaped = 0;
@@ -129,35 +120,6 @@ export async function reapStaleObservations(
   );
   for (const o of people) {
     if (o.created_at >= args.before) continue; // refreshed this run — keep
-    const links = await personLinks.listForObservation(o.observation_id);
-    for (const link of links) {
-      if (o.raw_address_id) {
-        await personAddr.removeObservation({
-          canonical_person_id: link.canonical_person_id,
-          address_hash_id: o.raw_address_id,
-          resolver_version: link.resolver_version,
-        });
-      }
-      if (o.raw_phone_id) {
-        await personPhone.removeObservation({
-          canonical_person_id: link.canonical_person_id,
-          international_number: o.raw_phone_id,
-          resolver_version: link.resolver_version,
-        });
-      }
-    }
-    // Assert-only scopes have no roster pass to retract a reaped person's
-    // tenure, so mirror closure's self-retraction here: a tenure both opened
-    // and last asserted by this filing loses its only support with the
-    // observation and is deleted.
-    for (const link of links) {
-      await personRoles.deleteSoleSupport({
-        canonical_person_id: link.canonical_person_id,
-        resolver_version: link.resolver_version,
-        extractor_id: args.extractor_id,
-        accession_number: args.accession_number,
-      });
-    }
     await personLinks.deleteForObservation(o.observation_id);
     await provenance.deleteForObservation("person", o.observation_id);
     await personTitles.deleteForObservation(o.observation_id);
@@ -171,23 +133,6 @@ export async function reapStaleObservations(
   );
   for (const o of companies) {
     if (o.created_at >= args.before) continue; // refreshed this run — keep
-    const links = await companyLinks.listForObservation(o.observation_id);
-    for (const link of links) {
-      if (o.raw_address_id) {
-        await companyAddr.removeObservation({
-          canonical_company_id: link.canonical_company_id,
-          address_hash_id: o.raw_address_id,
-          resolver_version: link.resolver_version,
-        });
-      }
-      if (o.raw_phone_id) {
-        await companyPhone.removeObservation({
-          canonical_company_id: link.canonical_company_id,
-          international_number: o.raw_phone_id,
-          resolver_version: link.resolver_version,
-        });
-      }
-    }
     await companyLinks.deleteForObservation(o.observation_id);
     await provenance.deleteForObservation("company", o.observation_id);
     await companyObs.deleteByObservationId(o.observation_id);

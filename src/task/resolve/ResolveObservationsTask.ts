@@ -41,14 +41,22 @@ export type ResolveObservationsTaskInput = {
    * Also recompute the resolver version's `person_role` tenures. Person runs
    * only — asking for it on a company run is refused, since `person_role` is
    * keyed by the PERSON resolver version and a company pass writes nothing
-   * that feeds it. Off by default even there because
+   * that feeds it.
+   *
+   * The CLI turns this ON by default, because deriving them here is the only
+   * way a tenure is written at all: nothing maintains `person_role` as filings
+   * are stored, so a person pass that skips this leaves the version's tenures
+   * as some earlier pass left them.
+   *
+   * It stays opt-out rather than unconditional because
    * {@link rebuildPersonRoles} purges the version's rows before re-deriving
    * them, and both of its inputs are columns older data does not carry: an
    * observation with no `role_scope` mints no tenure at all, and a filing with
    * no `role_roster_completeness` row re-opens every departure it had closed.
-   * Over a corpus ingested before either column existed, the purge is a loss
-   * the rebuild cannot make good. The junction projection carries no such
-   * asymmetry and always runs.
+   * Over a corpus ingested before either column existed the purge is a loss the
+   * rebuild cannot make good, which is what the pre-purge snapshot and
+   * `reconstructRosterCompleteness` are for. The junction projection carries no
+   * such asymmetry and always runs.
    */
   readonly rebuildRoles?: boolean;
 };

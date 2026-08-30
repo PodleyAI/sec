@@ -75,62 +75,6 @@ export class CanonicalJunctionRepo<TRow extends CanonicalJunctionRow> {
   }
 
   /**
-   * Record one observation's contribution: increment the co-occurrence count
-   * (creating the row on first sight), serialised per composite PK so concurrent
-   * observers of the same key can't lose an increment.
-   */
-  protected record(
-    idValue: string,
-    assocValue: string,
-    resolver_version: string,
-    seen_at: string
-  ): Promise<TRow> {
-    const pk = this.pk(idValue, assocValue, resolver_version);
-    return junctionLocks.lock(this.lockKey(idValue, assocValue, resolver_version), async () => {
-      const existing = await this.repo.get(pk as any);
-      if (existing) {
-        const updated = {
-          ...existing,
-          observation_count: existing.observation_count + 1,
-          last_seen_at: seen_at,
-        } as TRow;
-        await this.repo.put(updated);
-        return updated;
-      }
-      const fresh = {
-        ...pk,
-        observation_count: 1,
-        first_seen_at: seen_at,
-        last_seen_at: seen_at,
-      } as unknown as TRow;
-      await this.repo.put(fresh);
-      return fresh;
-    });
-  }
-
-  /**
-   * Remove one observation's contribution: decrement, deleting the row when it
-   * reaches zero. The inverse of {@link record}, used when an observation is
-   * reaped (orphan) or re-observed (idempotent replay) so the count tracks live
-   * observations rather than blindly accumulating. Serialised per PK.
-   */
-  protected remove(idValue: string, assocValue: string, resolver_version: string): Promise<void> {
-    const pk = this.pk(idValue, assocValue, resolver_version);
-    return junctionLocks.lock(this.lockKey(idValue, assocValue, resolver_version), async () => {
-      const existing = await this.repo.get(pk as any);
-      if (!existing) return;
-      if (existing.observation_count <= 1) {
-        await this.repo.delete(pk as any);
-        return;
-      }
-      await this.repo.put({
-        ...existing,
-        observation_count: existing.observation_count - 1,
-      } as TRow);
-    });
-  }
-
-  /**
    * Write one already-aggregated junction row outright — no read-modify-write,
    * unlike {@link record}'s increment. For a projection that recomputes
    * `observation_count` and the seen-at bounds from the current observations

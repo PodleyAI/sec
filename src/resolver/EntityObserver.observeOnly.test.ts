@@ -19,19 +19,16 @@ import { RoleRosterCompletenessRepo } from "../storage/canonical/RoleRosterCompl
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
-import { buildEntityObserver } from "./buildEntityObserver";
 import type { CompanyClaim, PersonClaim } from "./EntityObserver";
 import { EntityObserver } from "./EntityObserver";
 import { COMPLETE_ROSTER_ROLE_SCOPES } from "./roleScopes";
+import { resolveObservationsForAccession } from "./resolveObservationLinks";
+import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 
 const RESOLVER_VERSION = "1.0.0";
 
 /** An observer given the observation repos and nothing else. */
-function observeOnlyObserver(): EntityObserver<{
-  personObservationRepo: PersonObservationRepo;
-  personObservationTitleRepo: PersonObservationTitleRepo;
-  companyObservationRepo: CompanyObservationRepo;
-}> {
+function observeOnlyObserver(): EntityObserver {
   return new EntityObserver({
     personObservationRepo: new PersonObservationRepo(),
     personObservationTitleRepo: new PersonObservationTitleRepo(),
@@ -122,7 +119,7 @@ describe("EntityObserver without a resolver tier", () => {
   it("still records the roster completeness decision a later rebuild closes from", async () => {
     const observer = observeOnlyObserver();
     await observer.observePerson(PERSON_CLAIM);
-    const closed = await observer.closeUnassertedPersonRoles({
+    await observer.closeUnassertedPersonRoles({
       accession_number: PERSON_CLAIM.accession_number,
       extractor_id: "D",
       role_scope: COMPLETE_ROSTER_ROLE_SCOPES.formDRelatedPerson,
@@ -130,8 +127,8 @@ describe("EntityObserver without a resolver tier", () => {
       filing_date: "2026-01-15",
     });
 
-    // Nothing to close without tenures to close, but the decision is on disk.
-    expect(closed).toBe(0);
+    // Recording the decision is the whole of what the call does; the pass that
+    // derives tenures is what later closes from it.
     const decisions = await new RoleRosterCompletenessRepo().listForAccessions([
       PERSON_CLAIM.accession_number,
     ]);
@@ -139,29 +136,27 @@ describe("EntityObserver without a resolver tier", () => {
     expect(decisions[0].complete).toBe(true);
   });
 
-  it("is the same claim a resolving observer links, counts and dates a tenure from", async () => {
-    // The contrast that keeps the assertions above from passing on a claim the
-    // resolver tier would have ignored anyway.
-    const observer = buildEntityObserver({
-      activeResolverPersonVersion: RESOLVER_VERSION,
-      activeResolverCompanyVersion: RESOLVER_VERSION,
-    });
+  it("is the same claim the batch pass links and counts from", async () => {
+    // The contrast that keeps the assertions above from passing on a claim
+    // nothing would have made anything of anyway. Everything they assert is
+    // ABSENT gets written from the same claim once the pass that derives it
+    // runs, so "no link, no junction row" is a statement about when the work
+    // happens rather than about a claim that carries too little to do it.
+    const observer = observeOnlyObserver();
     const person = await observer.observePerson(PERSON_CLAIM);
     await observer.observeCompany(COMPANY_CLAIM);
+
+    for (const kind of ["person", "company"] as const) {
+      await resolveObservationsForAccession({
+        kind,
+        accession_number: PERSON_CLAIM.accession_number,
+        resolverVersion: RESOLVER_VERSION,
+      });
+    }
 
     expect(
       await new PersonIdentityLinkRepo().getForObservation(person.observation_id, RESOLVER_VERSION)
     ).toBeDefined();
     expect(await new CompanyIdentityLinkRepo().count()).toBe(1);
-    expect(
-      (await globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN).getAll()) ?? []
-    ).toHaveLength(1);
-    expect(
-      (await globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN).getAll()) ?? []
-    ).toHaveLength(1);
-    expect(
-      (await globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN).getAll()) ?? []
-    ).toHaveLength(1);
-    expect(await new PersonRoleRepo().count()).toBe(2);
   });
 });

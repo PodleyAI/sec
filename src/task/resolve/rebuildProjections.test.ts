@@ -151,20 +151,27 @@ describe("ResolveObservationsTask rebuild isolation", () => {
     const companyJunctions = globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN);
     const seeded = ((await companyJunctions.getAll()) ?? [])[0];
     expect(seeded).toBeDefined();
-    await new CanonicalCompanyAddressRepo().recordObservation({
+    await new CanonicalCompanyAddressRepo().replaceAggregate({
       canonical_company_id: seeded.canonical_company_id,
       address_hash_id: seeded.address_hash_id,
       resolver_version: RESOLVER_VERSION,
-      seen_at: MARKED_SEEN_AT,
+      // A count the projection cannot arrive at (the group holds one
+      // observation) and a stamp it does not use, so a row still carrying them
+      // is provably the one seeded here rather than a re-derived twin.
+      observation_count: 2,
+      first_seen_at: seeded.first_seen_at,
+      last_seen_at: MARKED_SEEN_AT,
     });
 
     // What an earlier pass left at this version, which the two failing
     // projections would have replaced had they got as far as their purge.
-    await new CanonicalPersonAddressRepo().recordObservation({
+    await new CanonicalPersonAddressRepo().replaceAggregate({
       canonical_person_id: "canon-earlier",
       address_hash_id: "addr-earlier",
       resolver_version: RESOLVER_VERSION,
-      seen_at: "2025-06-01",
+      observation_count: 1,
+      first_seen_at: "2025-06-01",
+      last_seen_at: "2025-06-01",
     });
     await seedClosedTenure();
 

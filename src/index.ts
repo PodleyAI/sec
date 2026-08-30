@@ -278,8 +278,6 @@ export type { DeadLetterReasonCode } from "./storage/dead-letter/ExtractionDeadL
 // records what a filing said and stops there; the canonical id a name resolves
 // to is a batch pass's answer over the stored observations, not something a
 // form module reads back as it stores.
-// `buildEntityObserver` additionally wires the resolver tier, resolving as it
-// observes at the given active versions.
 // `COMPLETE_ROSTER_ROLE_SCOPES` names the scopes whose filings list everyone
 // holding the role, and so the only ones where a later filing's silence may
 // end a tenure. It is shared rather than restated because a roster closure
@@ -303,7 +301,6 @@ export type {
 export { resolveObservationsForAccession } from "./resolver/resolveObservationLinks";
 export type { ObservationResolveResult } from "./resolver/resolveObservationLinks";
 export { buildObserveOnlyEntityObserver } from "./resolver/buildObserveOnlyEntityObserver";
-export { buildEntityObserver } from "./resolver/buildEntityObserver";
 export { EntityObserver } from "./resolver/EntityObserver";
 export type { ObserveOnlyEntityObserver } from "./resolver/EntityObserver";
 export { COMPLETE_ROSTER_ROLE_SCOPES } from "./resolver/roleScopes";
