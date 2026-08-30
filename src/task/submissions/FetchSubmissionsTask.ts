@@ -113,15 +113,31 @@ export class FetchSubmissionsTask extends Task<FetchSubmissionsTaskInput, FetchS
         }
 
         const graphResult = await graph.run();
+        // The columnar pages are concatenated per key, so every column has to
+        // advance by the same number of rows per page or the columns shear
+        // against each other. A page may legitimately omit an optional column
+        // (`isXBRLNumeric` postdates `isXBRL`, so archived payloads lack it);
+        // pad those with nulls for that page's row count rather than skipping
+        // them, which would shift every later page's values up a column.
         let allFilings: { [key: string]: any[] } = {};
+        let rowsSoFar = 0;
         for (const result of graphResult) {
           const { filings } = result.data as { filings: Filings };
+          const pageRows = filings.accessionNumber?.length ?? 0;
           for (const key of Object.keys(filings)) {
             if (!allFilings[key]) {
-              allFilings[key] = [];
+              allFilings[key] = new Array(rowsSoFar).fill(null);
             }
-            allFilings[key].push(...filings[key as keyof Filings]);
           }
+          for (const key of Object.keys(allFilings)) {
+            const column = filings[key as keyof Filings];
+            if (column === undefined) {
+              allFilings[key].push(...new Array(pageRows).fill(null));
+            } else {
+              allFilings[key].push(...column);
+            }
+          }
+          rowsSoFar += pageRows;
         }
 
         return { submission: input.submission, filings: allFilings };

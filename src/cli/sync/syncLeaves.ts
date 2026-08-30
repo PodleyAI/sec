@@ -40,6 +40,13 @@ export interface SyncRunContext {
    */
   readonly all8k: boolean;
   /**
+   * `sync facts --all-ciks`: fetch facts for every never-processed CIK rather
+   * than only those an XBRL filing or a SIC says plausibly have any. Off by
+   * default — the unfiltered lane is ~957k CIKs, ~93% of them Section 16
+   * reporting persons whose companyfacts is a guaranteed 404.
+   */
+  readonly allCiks: boolean;
+  /**
    * `sync documents --download-only`: fetch each selected filing into the
    * accession-doc cache and stop, writing no rows. The download half is
    * rate-limited by EDGAR and the conversion half is not, so they are worth
@@ -151,6 +158,7 @@ export const EMPTY_SYNC_CONTEXT: SyncRunContext = {
   limit: undefined,
   cik: undefined,
   all8k: false,
+  allCiks: false,
   downloadOnly: false,
 };
 

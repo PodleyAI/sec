@@ -97,7 +97,16 @@ export function registerSecSyncLeaves(): void {
           description: "Also re-fetch CIKs whose last facts processing failed",
           defaultValue: false,
         },
+        {
+          flags: "--all-ciks",
+          description:
+            "Fetch never-processed CIKs with no XBRL filing and no SIC too (~14x the work, almost all 404s)",
+          defaultValue: false,
+        },
       ],
+      readContext: (values) => ({
+        allCiks: values.allCiks === true,
+      }),
     },
     steps: [
       {
@@ -106,7 +115,11 @@ export function registerSecSyncLeaves(): void {
         run: async (ctx: SyncRunContext) => {
           await runWorkflowCli([
             new UpdateAllCompanyFactsTask({
-              defaults: { force: ctx.force, retryFailed: ctx.retryFailed },
+              defaults: {
+                force: ctx.force,
+                retryFailed: ctx.retryFailed,
+                allCiks: ctx.allCiks,
+              },
             }),
           ]);
         },

@@ -24,11 +24,22 @@ export interface FactsWorklist {
  * Splits the CIK universe into the three facts work lanes. Retry selection is
  * driven by `processed_facts.success === false` (NO_XBRL_FACTS rows are
  * successes and never retried) and uses `retryDate` as the cache-busting date.
+ *
+ * `eligible`, when given, bounds the never-processed lane ONLY — see
+ * {@link listFactsEligibleCiks}. The other two lanes are deliberately exempt:
+ * `needsUpdating` holds CIKs already known to answer companyfacts, and
+ * `needsRetrying` (like `force`) is an explicit operator request that a
+ * heuristic must not quietly overrule.
  */
 export function computeFactsWorklist(
   allCikUpdates: ReadonlyArray<FactsWorkItem>,
   processedMap: ReadonlyMap<number, ProcessedFacts>,
-  options: { readonly force: boolean; readonly retryFailed: boolean; readonly retryDate: string }
+  options: {
+    readonly force: boolean;
+    readonly retryFailed: boolean;
+    readonly retryDate: string;
+    readonly eligible?: ReadonlySet<number> | undefined;
+  }
 ): FactsWorklist {
   const needsUpdating: FactsWorkItem[] = [];
   const needsProcessing: FactsWorkItem[] = [];
@@ -45,6 +56,7 @@ export function computeFactsWorklist(
   for (const clu of allCikUpdates) {
     const pf = processedMap.get(clu.cik);
     if (!pf) {
+      if (options.eligible !== undefined && !options.eligible.has(clu.cik)) continue;
       needsProcessing.push({ cik: clu.cik, last_update: clu.last_update });
       selected.add(clu.cik);
     } else if (clu.last_update > pf.last_processed) {

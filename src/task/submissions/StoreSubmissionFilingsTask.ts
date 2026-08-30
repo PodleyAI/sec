@@ -87,8 +87,9 @@ export class StoreSubmissionFilingsTask extends Task<
       primary_doc: filing.primaryDocument,
       primary_doc_description: filing.primaryDocDescription || null,
       size: filing.size || null,
-      is_xbrl: filing.isXBRL || null,
-      is_inline_xbrl: filing.isInlineXBRL || null,
+      is_xbrl: filing.isXBRL ?? null,
+      is_inline_xbrl: filing.isInlineXBRL ?? null,
+      is_xbrl_numeric: filing.isXBRLNumeric ?? null,
       items: filing.items || null,
       act: filing.act || null,
     }));
