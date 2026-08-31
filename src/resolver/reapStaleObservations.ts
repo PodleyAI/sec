@@ -7,8 +7,6 @@
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
-import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
-import { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLinkRepo";
 import { ObservationProvenanceRepo } from "../storage/provenance/ObservationProvenanceRepo";
 import { getObservationReapHooks } from "./observationReapHooks";
 
@@ -76,8 +74,6 @@ export interface ReapStaleObservationsDeps {
   personObservationRepo?: PersonObservationRepo;
   personObservationTitleRepo?: PersonObservationTitleRepo;
   companyObservationRepo?: CompanyObservationRepo;
-  personIdentityLinkRepo?: PersonIdentityLinkRepo;
-  companyIdentityLinkRepo?: CompanyIdentityLinkRepo;
   observationProvenanceRepo?: ObservationProvenanceRepo;
 }
 
@@ -95,18 +91,19 @@ export interface ReapStaleObservationsDeps {
  * identity links (all resolver versions) and provenance, then delete the
  * observation row. Re-observed rows are untouched.
  *
- * Deleting the links is the load-bearing half and is NOT bookkeeping that a
- * projection could redo. A link left pointing at a reaped observation makes
- * both rebuilds raise by design, and a rebuild that raises leaves its tables
- * as they were rather than purging them — so this is what stops one dangling
- * row becoming a whole-table loss. Junction counts and tenures are recomputed
- * from what survives and need no retraction here.
+ * Everything keyed to an observation is deleted through a hook
+ * ({@link registerObservationReapHook}) — the identity links included, which is
+ * why this function names no canonical table. The tier that owns them registers
+ * the hook that deletes them, and this package registers one of its own while
+ * they still ship here.
  *
- * Anything else keyed to an observation is deleted by a hook
- * ({@link registerObservationReapHook}), which is how a package holding its own
- * observation-keyed rows joins in. A hook that throws takes the reap with it,
- * for the reason above: an incomplete reap is not a smaller reap, it is a
- * dangling row that stops a later rebuild.
+ * That deletion is the load-bearing half and is NOT bookkeeping a projection
+ * could redo. A link left pointing at a reaped observation makes both rebuilds
+ * raise by design, and a rebuild that raises leaves its tables as they were
+ * rather than purging them — so it is what stops one dangling row becoming a
+ * whole-table loss. Junction counts and tenures are recomputed from what
+ * survives and need no retraction. A hook that throws takes the reap with it
+ * for the same reason: an incomplete reap is not a smaller reap.
  */
 export async function reapStaleObservations(
   args: ReapStaleObservationsArgs,
@@ -115,8 +112,6 @@ export async function reapStaleObservations(
   const personObs = deps.personObservationRepo ?? new PersonObservationRepo();
   const personTitles = deps.personObservationTitleRepo ?? new PersonObservationTitleRepo();
   const companyObs = deps.companyObservationRepo ?? new CompanyObservationRepo();
-  const personLinks = deps.personIdentityLinkRepo ?? new PersonIdentityLinkRepo();
-  const companyLinks = deps.companyIdentityLinkRepo ?? new CompanyIdentityLinkRepo();
   const provenance = deps.observationProvenanceRepo ?? new ObservationProvenanceRepo();
 
   let reaped = 0;
@@ -127,7 +122,6 @@ export async function reapStaleObservations(
   );
   for (const o of people) {
     if (o.created_at >= args.before) continue; // refreshed this run — keep
-    await personLinks.deleteForObservation(o.observation_id);
     for (const hook of getObservationReapHooks()) {
       await hook({ kind: "person", observation_id: o.observation_id });
     }
@@ -143,7 +137,6 @@ export async function reapStaleObservations(
   );
   for (const o of companies) {
     if (o.created_at >= args.before) continue; // refreshed this run — keep
-    await companyLinks.deleteForObservation(o.observation_id);
     for (const hook of getObservationReapHooks()) {
       await hook({ kind: "company", observation_id: o.observation_id });
     }

@@ -19,6 +19,10 @@ import {
   registerObservationReapHook,
   type ReapedObservation,
 } from "./observationReapHooks";
+import {
+  registerIdentityLinkReap,
+  resetIdentityLinkReapForTesting,
+} from "./registerIdentityLinkReap";
 
 const V = "1.0.0";
 const ACC = "0001-25-000001";
@@ -48,6 +52,11 @@ describe("reapStaleObservations", () => {
   beforeEach(() => {
     resetDependencyInjectionsForTesting();
     clearObservationReapHooksForTesting();
+    // The link deletion is a registered hook now, not something the reaper does
+    // itself, so the production wiring has to be in place for these to mean
+    // anything. `registerSecResolvers` makes this same call at bootstrap.
+    resetIdentityLinkReapForTesting();
+    registerIdentityLinkReap();
   });
 
   it("reaps orphan observations a smaller re-extraction leaves behind, with their links", async () => {

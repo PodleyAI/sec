@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { registerResolverExtension } from "../resolver/resolverExtensions";
+import { registerIdentityLinkReap } from "../resolver/registerIdentityLinkReap";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
@@ -24,6 +25,10 @@ import { CanonicalCompanyRepo } from "../storage/canonical/CanonicalCompanyRepo"
  * callers read it here instead of duplicating it per call site.
  */
 export function registerSecResolvers(): void {
+  // The identity links still ship here, so this package contributes the hook
+  // that deletes a reaped observation's. When the tier moves, this call moves
+  // with it.
+  registerIdentityLinkReap();
   registerResolverExtension({
     id: "person",
     coverage: async (version) => {

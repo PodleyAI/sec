@@ -11,7 +11,11 @@ import { secFetchRateLimiterTableNames } from "../task/fetch/secFetchRateLimiter
 import { getDb } from "../util/db";
 import { getPgPool } from "../util/pg";
 import { currentSchemaName, quote } from "../util/pgIdentifiers";
-import { listDatabaseExtensionTokens, runDatabaseSetupHooks } from "./databaseExtensions";
+import {
+  listDatabaseExtensionTokens,
+  listDatabaseViewNames,
+  runDatabaseSetupHooks,
+} from "./databaseExtensions";
 import { listRegisteredTables } from "./tableRegistry";
 import { SEC_DB_TYPE } from "./tokens";
 import { CURRENT_CANONICAL_VIEW_NAMES } from "../storage/canonical/views";
@@ -234,7 +238,7 @@ async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {
     try {
       // Views first: they depend on the tables, so dropping them up front keeps
       // the table drops from needing CASCADE for sec's own objects.
-      for (const view of CURRENT_CANONICAL_VIEW_NAMES) {
+      for (const view of [...CURRENT_CANONICAL_VIEW_NAMES, ...listDatabaseViewNames()]) {
         await client.query(
           `DROP VIEW IF EXISTS ${qualify(view)}${options.cascade ? " CASCADE" : ""}`
         );
@@ -318,7 +322,7 @@ function resetSqlite(options: ResetAllDatabasesOptions): void {
   // table still referenced by one not yet dropped.
   db.exec("PRAGMA foreign_keys = OFF");
   try {
-    for (const view of CURRENT_CANONICAL_VIEW_NAMES) {
+    for (const view of [...CURRENT_CANONICAL_VIEW_NAMES, ...listDatabaseViewNames()]) {
       db.exec(`DROP VIEW IF EXISTS "${quote(view)}"`);
     }
     // SQLite has a single schema per attached database, so an unqualified name

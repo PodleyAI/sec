@@ -104,7 +104,11 @@ import { bootstrapComponentVersions } from "../storage/versioning/bootstrapCompo
 import { registerSecResolvers } from "./registerResolvers";
 import { registerSecFormExtractors } from "./registerFormExtractors";
 import { listBackfillableExtractorIds } from "../task/forms/backfillDescriptors";
-import { listDatabaseExtensionTokens, runDatabaseSetupHooks } from "./databaseExtensions";
+import {
+  listDatabaseExtensionTokens,
+  listDatabaseViewDdl,
+  runDatabaseSetupHooks,
+} from "./databaseExtensions";
 import { SEC_DB_FOLDER, SEC_DB_TYPE } from "./tokens";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
@@ -242,7 +246,7 @@ export async function setupAllDatabases(): Promise<void> {
   // repositories' ReadOnlyTabularStorage wrapper cannot intercept.
   if (dbType === "sqlite" && globalServiceRegistry.has(SEC_DB_FOLDER) && !isDryRun()) {
     const db = getDb();
-    for (const ddl of CURRENT_CANONICAL_VIEW_DDL) {
+    for (const ddl of [...CURRENT_CANONICAL_VIEW_DDL, ...listDatabaseViewDdl()]) {
       db.exec(ddl);
     }
     backfillExtractorRunsOutcome(db);

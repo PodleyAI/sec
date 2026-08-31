@@ -40,6 +40,37 @@ export function runDatabaseSetupHooks(): void {
 }
 
 /**
+ * SQL views a package contributes over its own tables.
+ *
+ * Separate from {@link registerDatabaseSetupHook} because of when each runs: a
+ * setup hook fires BEFORE tables exist, to register repos and tokens, while a
+ * view is DDL over tables that must already be there. Registering views through
+ * the hook would create them against nothing.
+ *
+ * `names` is what `db reset` drops, and it is given rather than parsed out of
+ * the DDL so a view whose definition changes shape is still dropped by name.
+ */
+export interface DatabaseViews {
+  readonly ddl: readonly string[];
+  readonly names: readonly string[];
+}
+
+const VIEWS: DatabaseViews[] = [];
+
+/** Contribute views created after `db setup` builds tables, dropped by `db reset`. */
+export function registerDatabaseViews(views: DatabaseViews): void {
+  if (!VIEWS.includes(views)) VIEWS.push(views);
+}
+
+export function listDatabaseViewDdl(): readonly string[] {
+  return VIEWS.flatMap((v) => v.ddl);
+}
+
+export function listDatabaseViewNames(): readonly string[] {
+  return VIEWS.flatMap((v) => v.names);
+}
+
+/**
  * Drop every registered token and setup hook. Both arrays are module-level, so
  * they survive any rebuild of the DI container they were registered against —
  * which is why `resetDependencyInjectionsForTesting()` calls this rather than
@@ -48,4 +79,5 @@ export function runDatabaseSetupHooks(): void {
 export function clearDatabaseExtensionsForTesting(): void {
   TOKENS.length = 0;
   SETUP_HOOKS.length = 0;
+  VIEWS.length = 0;
 }
