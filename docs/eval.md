@@ -173,7 +173,8 @@ flagged ones, and both harnesses derive their default through the same
 A golden run scores the sections carrying a label and reports every other one as skipped
 rather than quietly passing it. **The reverse gap is reported too**: a committed label whose
 _fixture_ never arrives is listed in `skipped` rather than silently dropped. That is not
-hypothetical — embarc-data vendors its own copy of the S-1 corpus (`SEC_S1_MOCK_DIR`), and
+hypothetical — a downstream package vendors its own copy of the S-1 corpus
+(`SEC_S1_MOCK_DIR`), and
 when that copy drifted behind sec's the labelled filing produced no section at all, so the
 sweep scored fewer filings than the labels covered and still printed a clean table. Re-copy
 the corpus into the vendoring package when you add a fixture.

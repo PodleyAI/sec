@@ -40,11 +40,11 @@ describe("isDiExemptCommand", () => {
   /**
    * The contract a superset CLI depends on.
    *
-   * embarc-data installs its own preAction hook that calls `createStorage()`,
+   * A superset installs its own preAction hook that calls `createStorage()`,
    * which reads `sec.db.type` — a token only sec's bootstrap registers. It must
    * decide whether to skip with THIS function and nothing else. Testing a
    * different condition has broken the superset twice: once when
-   * `golden-fixtures` joined a set embarc-data restated locally, and again when
+   * `golden-fixtures` joined a set the superset restated locally, and again when
    * `verify` needed path matching and sec grew a second set the superset never
    * consulted.
    *

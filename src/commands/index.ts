@@ -86,14 +86,14 @@ function commandPath(command: Command): string {
  * Whether a command runs without a database, so DI bring-up must be skipped.
  *
  * **This predicate is the contract, and the sets behind it are deliberately not
- * exported.** A superset CLI (embarc-data) installs its OWN preAction hook to
+ * exported.** A superset CLI installs its OWN preAction hook to
  * register private-data repos, and that registration calls `createStorage()`,
  * which reads `sec.db.type` — a token only sec's bootstrap registers. So a
  * superset testing a different condition crashes on exactly the commands sec
  * runs deliberately without a database.
  *
  * That has now happened twice. First when `golden-fixtures` was added to a set
- * embarc-data restated locally. Then again when `verify` needed path matching
+ * a superset restated locally. Then again when `verify` needed path matching
  * and gained a second set the superset did not know to consult — a superset
  * reading only the first set is not restating anything, and still breaks.
  * Exporting one function instead of the data leaves nothing to keep in sync:
@@ -144,9 +144,9 @@ export const AddCommands = (program: Command): void => {
   // registered above off the live program, so nothing here has to be restated.
   //
   // The binary name is deliberately NOT pinned to "sec". A superset calls this
-  // to inherit the whole SEC surface — embarc-data does — and a pinned name
-  // made its console render every command line as `sec …` for a binary that is
-  // not sec. `registerWebCommand` falls back to `program.name()`, which each
-  // entrypoint sets for itself.
+  // to inherit the whole SEC surface, and a pinned name made its console render
+  // every command line as `sec …` for a binary that is not sec.
+  // `registerWebCommand` falls back to `program.name()`, which each entrypoint
+  // sets for itself.
   registerWebCommand(program);
 };

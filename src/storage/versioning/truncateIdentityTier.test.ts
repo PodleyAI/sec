@@ -100,14 +100,12 @@ describe("truncate-identity-tier scripts", () => {
   });
 
   it.each(VARIANTS)("%s: leaves the family tier to the package that owns it", (_name, sql) => {
-    // The inverse of what this case used to assert. While the family tier
-    // shipped here, wiping `underwriter_link` without gating `424` would have
-    // destroyed every 424-sourced underwriter attribution permanently — a
-    // family link row IS the attribution, and no observation projection
-    // rebuilds it. The tier is a downstream package's now, and so is the script
-    // that wipes it, so BOTH halves have to be absent here together: naming the
-    // tables without the gate is the old destructive combination, and gating
-    // `424` without the tables re-extracts every priced prospectus for nothing.
+    // The tier is a downstream package's, and so is the script that wipes it,
+    // so both halves have to be absent here TOGETHER: naming the tables without
+    // gating `424` destroys every 424-sourced underwriter attribution
+    // permanently (the link row IS the attribution — no projection rebuilds
+    // it), and gating `424` without the tables re-extracts every priced
+    // prospectus for nothing.
     const targeted = targetedTables(sql);
     for (const table of [
       "spac_sponsor_link",
@@ -129,14 +127,13 @@ describe("truncate-identity-tier scripts", () => {
   it.each(VARIANTS)(
     "%s: leaves the person canonical tier to the package that owns it",
     (_name, sql) => {
-      // The same shape as the family case, for the same reason. These rows ARE
-      // invalidated by the normalizer change this script exists for — they are
-      // keyed on the `person_hash_id` it wipes — so leaving them here is not
-      // "spared", it is half a ceremony. What makes that correct is that the
-      // paired downstream script wipes exactly them; naming them from here too
-      // would delete a downstream package's tables from an upstream script, and
-      // a deployment without that tier would fail on the first missing table and
-      // roll the whole transaction back.
+      // These rows ARE invalidated by the normalizer change this script exists
+      // for — they are keyed on the `person_hash_id` it wipes — so their
+      // absence here is not "spared", it is half a ceremony whose other half
+      // is the paired downstream script. Naming them from here would delete a
+      // downstream package's tables from an upstream script, and a deployment
+      // without that tier would fail on the first missing table and roll the
+      // whole transaction back.
       const targeted = targetedTables(sql);
       for (const table of [
         "canonical_person",
@@ -242,8 +239,8 @@ describe("truncate-identity-tier scripts", () => {
     // instruction, which is what this pins.
     //
     // Matched without a binary name: the command belongs to the package that
-    // owns the canonical tier now, and pinning `sec ` here would assert a
-    // spelling that no longer runs. What must not go missing is the pass.
+    // owns the canonical tier, so pinning one here would assert a spelling this
+    // package does not control. What must not go missing is the pass.
     //
     // Read the RAW file, not `statements()`: the instruction is prose in a `--`
     // comment, which that helper strips by design.

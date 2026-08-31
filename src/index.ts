@@ -8,9 +8,9 @@
 //
 // This barrel IS the package's entry point (package.json `exports["."]` maps to
 // the built `dist/index.js`). The `sec` CLI (src/sec.ts) is one consumer of this
-// surface; downstream packages that build a *superset* CLI (e.g. `embarc-data`)
-// import from here to reuse every SEC command, plus the DI/config, job queue,
-// and teardown wiring the CLI relies on.
+// surface; downstream packages that build a *superset* CLI import from here to
+// reuse every SEC command, plus the DI/config, job queue, and teardown wiring
+// the CLI relies on.
 //
 // Everything a superset builds on is re-exported by name below — add to this
 // file when a new symbol needs to be public.
@@ -148,8 +148,8 @@ export type { TaskPorts } from "./task/taskPorts";
 export { isStaleByAsOf } from "./util/asOfGuard";
 
 // ── Extension seams for downstream feature packages ─────────────────────────
-// A downstream feature package (e.g. `embarc-data`) registers its own resolver
-// ids and DB-extension repo tokens through these seams, then reuses the
+// A downstream feature package registers its own resolver ids and
+// DB-extension repo tokens through these seams, then reuses the
 // versioning / observation / normalization internals below.
 export {
   listDatabaseExtensionTokens,
@@ -445,8 +445,8 @@ export { CHANGE_LOG_REPOSITORY_TOKEN } from "./storage/change-tracking/ChangeLog
 // ── Dated person roles (person↔company title tenures) ───────────────────────
 
 // ── Canonical company (CIK/CRD → canonical entity) ──────────────────────────
-// Exposes the resolved company tier so a downstream superset (e.g. embarc-data)
-// can map a Form D issuer CIK to its canonical company — `findByResolverAndCik`
+// Exposes the resolved company tier so a downstream superset can map a Form D
+// issuer CIK to its canonical company — `findByResolverAndCik`
 // — and join that to its own records (startup.canonical_company_id).
 // The person/company canonical rows a downstream ceremony test seeds to prove a
 // family-kind purge leaves the other tiers alone. They move downstream with the
