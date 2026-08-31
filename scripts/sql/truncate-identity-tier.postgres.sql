@@ -3,8 +3,8 @@
 -- Same intent as `truncate-identity-tier.sql` (which is portable DELETE-based
 -- SQL that also runs on SQLite); this is the Postgres-native form. See that
 -- file's header for WHY each group is here, what is deliberately spared, and
--- the ⚠️ EXPORT YOUR ALIASES FIRST warning — the alias tables below are
--- hand-curated and keyed by canonical UUIDs this statement destroys.
+-- the ⚠️ EXPORT YOUR ALIASES FIRST warning — no alias table is in this
+-- statement, but the paired downstream script destroys them all.
 --
 -- Three things this does that the portable version cannot:
 --
@@ -74,8 +74,8 @@ TRUNCATE TABLE
   -- and `Reinvent Technology Partners Y` no longer collides with `Reinvent
   -- Technology Partners`. Those rows are rebuildable rather than disposable:
   -- `normalized_name` is derived from the `name` each observation already
-  -- carries, so `sec resolve --kind company --all --renormalize` recomputes and
-  -- re-partitions in place with no re-extraction. ⚠️ That pass is REQUIRED
+  -- carries, so the downstream `resolve --kind company --all --renormalize`
+  -- recomputes and re-partitions in place with no re-extraction. ⚠️ That pass is REQUIRED
   -- after this script and nothing errors if it is skipped — the merged
   -- canonical identities simply survive. See the portable file
   -- (`truncate-identity-tier.sql`) for the full ordered command list, the
@@ -97,12 +97,9 @@ DELETE FROM observation_provenance WHERE kind = 'person';
 -- Dead letters go with it — they cite runs that no longer exist.
 --
 -- Scoped to the extractors whose output this script actually deletes: the
--- person-observing ones, plus `424` for the family tier truncated above (the
--- person-observing ones exactly. `424` is NOT here — the family tier it
--- writes for is a downstream package's, with its own script and gate list.
--- (Historical note: this list used to carry it, because the
--- membership`, and a family link row IS the attribution — no observation
--- projection rebuilds it). `8-K`, `merger-proxy`, `redemption` and `loi` stay
+-- person-observing ones exactly. `424` is NOT here — it writes family link
+-- rows and no person observation, and the package owning that tier gates it
+-- from its own script. `8-K`, `merger-proxy`, `redemption` and `loi` stay
 -- untouched: nothing of theirs is deleted here, and clearing their runs would
 -- re-pay AI cost for nothing. Keep in step with REKEY_REEXTRACT_EXTRACTOR_IDS
 -- in `src/storage/versioning/extractorIds.ts` — `truncateIdentityTier.test.ts`

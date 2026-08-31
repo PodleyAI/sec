@@ -66,7 +66,7 @@ function scopedExtractorIds(sql: string): string[][] {
  * `canonical_company` is keyed on) is stale wherever the new rules key a name
  * differently. It is spared because those rows are REBUILDABLE rather than
  * disposable: `normalized_name` derives from the `name` each observation
- * already carries, so `sec resolve --kind company --all --renormalize`
+ * already carries, so `resolve --kind company --all --renormalize`
  * recomputes and re-partitions in place. Wiping them instead would cost a full
  * re-extraction and its AI bill for a value one command can recompute — which
  * is why the scripts must PRESCRIBE that command, asserted below.
@@ -125,6 +125,31 @@ describe("truncate-identity-tier scripts", () => {
       expect(list, "424 writes no person observation this script deletes").not.toContain("424");
     }
   });
+
+  it.each(VARIANTS)(
+    "%s: leaves the person canonical tier to the package that owns it",
+    (_name, sql) => {
+      // The same shape as the family case, for the same reason. These rows ARE
+      // invalidated by the normalizer change this script exists for — they are
+      // keyed on the `person_hash_id` it wipes — so leaving them here is not
+      // "spared", it is half a ceremony. What makes that correct is that the
+      // paired downstream script wipes exactly them; naming them from here too
+      // would delete a downstream package's tables from an upstream script, and
+      // a deployment without that tier would fail on the first missing table and
+      // roll the whole transaction back.
+      const targeted = targetedTables(sql);
+      for (const table of [
+        "canonical_person",
+        "canonical_person_alias",
+        "canonical_person_address",
+        "canonical_person_phone",
+        "person_identity_link",
+        "person_role",
+      ]) {
+        expect(targeted.has(table), `${table} is not this package's to wipe`).toBe(false);
+      }
+    }
+  );
 
   it.each(VARIANTS)("%s: leaves the company canonical tier alone", (_name, sql) => {
     const targeted = targetedTables(sql);
@@ -213,12 +238,16 @@ describe("truncate-identity-tier scripts", () => {
     // An operator who skips `--renormalize` keeps every one of them. Nothing
     // errors: the stale keys still resolve, `version coverage` still reports
     // full coverage, and the two unrelated Reinvent Technology Partners filers
-    // stay one canonical company forever. The scripts are the only place that
-    // instruction can live, so it has to be in both — which is what this pins.
+    // stay one canonical company forever. Both scripts have to carry the
+    // instruction, which is what this pins.
+    //
+    // Matched without a binary name: the command belongs to the package that
+    // owns the canonical tier now, and pinning `sec ` here would assert a
+    // spelling that no longer runs. What must not go missing is the pass.
     //
     // Read the RAW file, not `statements()`: the instruction is prose in a `--`
     // comment, which that helper strips by design.
-    expect(sql).toMatch(/sec resolve --kind company --all --renormalize/);
+    expect(sql).toMatch(/resolve --kind company --all --renormalize/);
   });
 
   it.each(VARIANTS)("%s: no longer claims normalizeCompanyName is unchanged", (_name, sql) => {
