@@ -8,10 +8,6 @@ import { describe, expect, it } from "vitest";
 import { declaredVarcharWidth } from "./alignPostgresColumnTypes";
 import { FilingSchema } from "../storage/filing/FilingSchema";
 import { PhoneSchema } from "../storage/phone/PhoneSchema";
-import {
-  CanonicalCompanyPhoneSchema,
-  CanonicalPersonPhoneSchema,
-} from "../storage/canonical/CanonicalJunctionSchemas";
 
 /**
  * The longest real EDGAR values these columns have to hold. Measured over a
@@ -42,8 +38,6 @@ describe("declared column widths", () => {
     // holds. A narrower junction column silently drops the association.
     const phone = width(PhoneSchema, "international_number");
     expect(phone).toBeDefined();
-    expect(width(CanonicalPersonPhoneSchema, "international_number")).toBe(phone);
-    expect(width(CanonicalCompanyPhoneSchema, "international_number")).toBe(phone);
   });
 
   it("fits the longest normalized phone number seen in EDGAR data", () => {

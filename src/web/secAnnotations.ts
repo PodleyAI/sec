@@ -90,11 +90,6 @@ const FIELD_ANNOTATIONS: readonly CommandFieldAnnotations[] = [
       status: { choices: ["pending", "qualified", "reporting", "exit"] },
     },
   },
-  {
-    path: ["query", "person-roles"],
-    source,
-    fields: { cik: { ...CIK_FIELD, description: "Issuer CIK whose roster to read" } },
-  },
 
   // Fetch: a form is picked from what this filer actually filed.
   {
@@ -142,28 +137,7 @@ const FIELD_ANNOTATIONS: readonly CommandFieldAnnotations[] = [
     },
   },
 
-  {
-    path: ["resolve"],
-    source,
-    fields: {
-      kind: { format: "sec:resolver-kind", choices: [...listResolverIds()] },
-      "resolver-version": { placeholder: "defaults to the active slot" },
-    },
-  },
-
   // Canonical alias ceremonies name two canonical rows, both of which exist.
-  {
-    path: ["canonical", "**"],
-    source,
-    fields: {
-      kind: { format: "sec:resolver-kind" },
-      from: { placeholder: "name to retire" },
-      into: { placeholder: "name to keep" },
-      fromName: { format: "sec:family", placeholder: "family to retire" },
-      intoName: { format: "sec:family", placeholder: "family to keep" },
-      name: { format: "sec:family" },
-    },
-  },
 
   {
     path: ["sync", "**"],
@@ -230,8 +204,6 @@ const COMMAND_ANNOTATIONS: readonly WebCommandAnnotation[] = [
     note: "Re-runs the entries eligible under the current extractor version.",
   },
 
-  { path: ["resolve"], source, badges: ["writes", "slow"] },
-
   // The ceremonies that destroy something. Each confirmation says what is lost
   // and what it would take to get it back — a dialog that only says "are you
   // sure" is a dialog that gets clicked through.
@@ -273,18 +245,6 @@ const COMMAND_ANNOTATIONS: readonly WebCommandAnnotation[] = [
     source,
     badges: ["writes"],
     note: "Rotates next into current. A major bump is refused unless coverage is complete.",
-  },
-  {
-    path: ["canonical", "*", "alias-remove"],
-    source,
-    badges: ["destructive"],
-    note: "Removes a hand-curated claim that two canonical rows are one entity.",
-  },
-  {
-    path: ["canonical", "*", "alias-import"],
-    source,
-    badges: ["writes"],
-    note: "Resolves each pair by name; a pair whose target is not yet extracted is reported and skipped.",
   },
 ];
 

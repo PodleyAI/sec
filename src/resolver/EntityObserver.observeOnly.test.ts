@@ -5,16 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
-import {
-  CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
-} from "../storage/canonical/CanonicalJunctionSchemas";
-import { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLinkRepo";
-import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
-import { PersonRoleRepo } from "../storage/canonical/PersonRoleRepo";
 import { RoleRosterCompletenessRepo } from "../storage/canonical/RoleRosterCompletenessRepo";
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
@@ -22,8 +13,6 @@ import { PersonObservationTitleRepo } from "../storage/observation/PersonObserva
 import type { CompanyClaim, PersonClaim } from "./EntityObserver";
 import { EntityObserver } from "./EntityObserver";
 import { COMPLETE_ROSTER_ROLE_SCOPES } from "./roleScopes";
-import { resolveObservationsForAccession } from "./resolveObservationLinks";
-import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 
 const RESOLVER_VERSION = "1.0.0";
 
@@ -88,17 +77,10 @@ describe("EntityObserver without a resolver tier", () => {
       await new PersonObservationTitleRepo().listForObservation(result.observation_id)
     ).toEqual(["Chief Executive Officer", "Director"]);
 
-    expect(
-      await new PersonIdentityLinkRepo().getForObservation(result.observation_id, RESOLVER_VERSION)
-    ).toBeUndefined();
-    expect(await new PersonIdentityLinkRepo().count()).toBe(0);
-    expect(
-      (await globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN).getAll()) ?? []
-    ).toHaveLength(0);
-    expect(
-      (await globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN).getAll()) ?? []
-    ).toHaveLength(0);
-    expect(await new PersonRoleRepo().count()).toBe(0);
+    // The canonical tier this used to assert empty is a different package's
+    // now, so what states "observe only" here is the shape of what comes back:
+    // an observation id and nothing that could key a canonical row.
+    expect(Object.keys(result)).toEqual(["observation_id"]);
   });
 
   it("records the company observation, and no link or junction row", async () => {
@@ -109,11 +91,6 @@ describe("EntityObserver without a resolver tier", () => {
 
     const observation = await new CompanyObservationRepo().getById(result.observation_id);
     expect(observation?.normalized_name).toBe("Blue Acquisition");
-
-    expect(await new CompanyIdentityLinkRepo().count()).toBe(0);
-    expect(
-      (await globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN).getAll()) ?? []
-    ).toHaveLength(0);
   });
 
   it("still records the roster completeness decision a later rebuild closes from", async () => {
@@ -134,29 +111,5 @@ describe("EntityObserver without a resolver tier", () => {
     ]);
     expect(decisions).toHaveLength(1);
     expect(decisions[0].complete).toBe(true);
-  });
-
-  it("is the same claim the batch pass links and counts from", async () => {
-    // The contrast that keeps the assertions above from passing on a claim
-    // nothing would have made anything of anyway. Everything they assert is
-    // ABSENT gets written from the same claim once the pass that derives it
-    // runs, so "no link, no junction row" is a statement about when the work
-    // happens rather than about a claim that carries too little to do it.
-    const observer = observeOnlyObserver();
-    const person = await observer.observePerson(PERSON_CLAIM);
-    await observer.observeCompany(COMPANY_CLAIM);
-
-    for (const kind of ["person", "company"] as const) {
-      await resolveObservationsForAccession({
-        kind,
-        accession_number: PERSON_CLAIM.accession_number,
-        resolverVersion: RESOLVER_VERSION,
-      });
-    }
-
-    expect(
-      await new PersonIdentityLinkRepo().getForObservation(person.observation_id, RESOLVER_VERSION)
-    ).toBeDefined();
-    expect(await new CompanyIdentityLinkRepo().count()).toBe(1);
   });
 });

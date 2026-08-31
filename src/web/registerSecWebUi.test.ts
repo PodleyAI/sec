@@ -63,7 +63,6 @@ describe("annotated fields reach the form", () => {
   it("gives every CIK positional the search picker", async () => {
     for (const path of [
       ["query", "facts"],
-      ["query", "person-roles"],
       ["query", "entities"],
     ]) {
       const node = findCommandNode(tree, path);

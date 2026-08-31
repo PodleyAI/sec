@@ -83,20 +83,6 @@ test("exports what a downstream family tier is built out of", () => {
   }
 });
 
-test("exports the person identity tier a downstream role query joins through", () => {
-  const b = sec as Record<string, unknown>;
-  expect(typeof b.PersonIdentityLinkRepo).toBe("function");
-  expect(typeof b.CanonicalPersonAliasRepo).toBe("function");
-  expect(typeof b.PersonRoleRepo).toBe("function");
-  for (const name of [
-    "PERSON_IDENTITY_LINK_REPOSITORY_TOKEN",
-    "CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN",
-    "PERSON_ROLE_REPOSITORY_TOKEN",
-  ]) {
-    expect(sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBeDefined();
-  }
-});
-
 test("exports the EDGAR HTML parser surface", () => {
   for (const name of [
     "parseEdgarHtml",
@@ -142,8 +128,6 @@ test("exports the extraction seam an out-of-package form extractor is built on",
     "getExtractionTemperature",
     "deterministicModelRecord",
     "buildObserveOnlyEntityObserver",
-    "resolveObservationsForAccession",
-    "ResolveObservationsTask",
     "EntityObserver",
     "COMPLETE_ROSTER_ROLE_SCOPES",
     "LOI_TRIGGER_ITEMS",

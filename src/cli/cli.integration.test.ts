@@ -48,8 +48,6 @@ describe("CLI v2 integration", () => {
       "db",
       "init",
       "version",
-      "resolve",
-      "canonical",
       "issuer",
       "editorial",
       "extractor",
@@ -58,14 +56,6 @@ describe("CLI v2 integration", () => {
     ]) {
       expect(output, group).toContain(group);
     }
-  });
-
-  it("should show canonical subcommands from every resolver-kind registrar", async () => {
-    // Two kinds here, not four: the family tier registers its own onto the same
-    // group from the package that owns it, and asserts them there.
-    const output = await runCli("canonical", "--help");
-    expect(output).toContain("person");
-    expect(output).toContain("company");
   });
 
   it("should show global options", async () => {

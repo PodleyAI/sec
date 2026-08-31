@@ -154,6 +154,7 @@ export { isStaleByAsOf } from "./util/asOfGuard";
 export {
   listDatabaseExtensionTokens,
   registerDatabaseExtension,
+  registerDatabaseViews,
   registerDatabaseSetupHook,
 } from "./config/databaseExtensions";
 export {
@@ -289,18 +290,11 @@ export type { DeadLetterReasonCode } from "./storage/dead-letter/ExtractionDeadL
 // derived from them (junction counts always, tenures under `rebuildRoles`).
 // A downstream package needs it to turn the observations its own form modules
 // record into canonical rows and dated tenures.
-export { ResolveObservationsTask } from "./task/resolve/ResolveObservationsTask";
-export type {
-  ResolveObservationsTaskInput,
-  ResolveObservationsTaskOutput,
-} from "./task/resolve/ResolveObservationsTask";
 
 // `resolveObservationsForAccession` resolves the observations ONE filing left
 // behind into identity links, for a module that must read a canonical id back
 // before it returns. It writes links only — everything derived from them stays
 // a projection recomputed from stored evidence.
-export { resolveObservationsForAccession } from "./resolver/resolveObservationLinks";
-export type { ObservationResolveResult } from "./resolver/resolveObservationLinks";
 // ── What a package owning the family tier builds on ─────────────────────────
 // The alias TSV format, the `sec issuer` group, and the unique-constraint
 // predicate a resolver's mint race turns on. All three are this package's and
@@ -309,6 +303,40 @@ export { formatAliasLine, formatAliasTsv, parseAliasTsv } from "./task/canonical
 export type { AliasExportRow, AliasTsvParse } from "./task/canonical/aliasTsv";
 export { issuerCommandGroup } from "./commands/issuerGroup";
 export { isUniqueConstraintError } from "./util/isUniqueConstraintError";
+
+// ── What a package owning the identity tier is built on ─────────────────────
+// The observation side stays here — a filing's own account of who it named — so
+// the tier that resolves those observations reads them, their roster verdicts,
+// and the title/name normalizers whose single definition decides how a tenure
+// is keyed. A second copy of any of these drifting would silently re-partition
+// the tier it feeds.
+export { canonicalRoleTitles, normalizePersonNameParts } from "./resolver/EntityObserver";
+export { isCompleteRosterRoleScope } from "./resolver/roleScopes";
+export { personDisplayParts } from "./storage/person/PersonNormalization";
+export { resolverIds } from "./resolver/resolverIds";
+export { isValidSemver } from "./storage/versioning/VersionRegistry";
+// The reaper itself, so a package registering a hook can test what its hook is
+// handed rather than trusting the seam blind.
+export { reapStaleObservations } from "./resolver/reapStaleObservations";
+// The child-process CLI harness, so a package whose commands attach to this
+// one's groups drives them the same way this package drives its own.
+export { cliEnv, runCliProcess } from "./cli/testing/runCliProcess";
+export type { CliRunResult } from "./cli/testing/runCliProcess";
+export {
+  clearObservationReapHooksForTesting,
+  getObservationReapHooks,
+  registerObservationReapHook,
+} from "./resolver/observationReapHooks";
+export type { ObservationReapHook, ReapedObservation } from "./resolver/observationReapHooks";
+export { RoleRosterCompletenessRepo } from "./storage/canonical/RoleRosterCompletenessRepo";
+export {
+  ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN,
+  RoleRosterCompletenessPrimaryKeyNames,
+  RoleRosterCompletenessSchema,
+  type RoleRosterCompleteness,
+} from "./storage/canonical/RoleRosterCompletenessSchema";
+export type { QueryResult } from "./cli/queries/EntityQuery";
+export { queryResultSchema } from "./task/query/queryResultSchema";
 
 export { buildObserveOnlyEntityObserver } from "./resolver/buildObserveOnlyEntityObserver";
 export { EntityObserver } from "./resolver/EntityObserver";
@@ -362,9 +390,19 @@ export { VersionRegistry } from "./storage/versioning/VersionRegistry";
 // ── Observation + filing repos / tokens ─────────────────────────────────────
 export { FILING_REPOSITORY_TOKEN } from "./storage/filing/FilingSchema";
 export { CompanyObservationRepo } from "./storage/observation/CompanyObservationRepo";
-export { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "./storage/observation/CompanyObservationSchema";
+export {
+  COMPANY_OBSERVATION_REPOSITORY_TOKEN,
+  CompanyObservationPrimaryKeyNames,
+  CompanyObservationSchema,
+  type CompanyObservation,
+} from "./storage/observation/CompanyObservationSchema";
 export { PersonObservationRepo } from "./storage/observation/PersonObservationRepo";
-export { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "./storage/observation/PersonObservationSchema";
+export {
+  PERSON_OBSERVATION_REPOSITORY_TOKEN,
+  PersonObservationPrimaryKeyNames,
+  PersonObservationSchema,
+  type PersonObservation,
+} from "./storage/observation/PersonObservationSchema";
 export { PersonObservationTitleRepo } from "./storage/observation/PersonObservationTitleRepo";
 export {
   PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
@@ -403,29 +441,13 @@ export { CHANGE_LOG_REPOSITORY_TOKEN } from "./storage/change-tracking/ChangeLog
 // canonical id `person_role` and the junction tables are keyed by: the identity
 // link resolves it at a given `resolver_version`, and the alias table redirects
 // an id that a later merge retired.
-export {
-  CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
-  type CanonicalPersonAlias,
-} from "./storage/canonical/CanonicalAliasSchemas";
-export { CanonicalPersonAliasRepo } from "./storage/canonical/CanonicalPersonAliasRepo";
-export { PersonIdentityLinkRepo } from "./storage/canonical/PersonIdentityLinkRepo";
-export {
-  PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
-  type PersonIdentityLink,
-} from "./storage/canonical/PersonIdentityLinkSchema";
 
 // ── Dated person roles (person↔company title tenures) ───────────────────────
-export { PersonRoleRepo } from "./storage/canonical/PersonRoleRepo";
-export {
-  PERSON_ROLE_REPOSITORY_TOKEN,
-  type PersonRole,
-} from "./storage/canonical/PersonRoleSchema";
 
 // ── Canonical company (CIK/CRD → canonical entity) ──────────────────────────
 // Exposes the resolved company tier so a downstream superset (e.g. embarc-data)
 // can map a Form D issuer CIK to its canonical company — `findByResolverAndCik`
 // — and join that to its own records (startup.canonical_company_id).
-export { CanonicalCompanyRepo } from "./storage/canonical/CanonicalCompanyRepo";
 // The person/company canonical rows a downstream ceremony test seeds to prove a
 // family-kind purge leaves the other tiers alone. They move downstream with the
 // rest of that tier; until then they are read from here.
@@ -443,12 +465,6 @@ export {
   VERSION_EVENT_REPOSITORY_TOKEN,
   type VersionEvent,
 } from "./storage/versioning/VersionEventSchema";
-export { CanonicalPersonRepo } from "./storage/canonical/CanonicalPersonRepo";
-export { CanonicalCompanyAddressRepo } from "./storage/canonical/CanonicalCompanyAddressRepo";
-export {
-  CANONICAL_COMPANY_REPOSITORY_TOKEN,
-  type CanonicalCompany,
-} from "./storage/canonical/CanonicalCompanySchema";
 
 // ── Normalization helpers ───────────────────────────────────────────────────
 export { normalizeAddress, type AddressImport } from "./storage/address/AddressNormalization";
@@ -650,7 +666,6 @@ export { sectionHash } from "./verify/callTrace";
 
 // The tables a prose extractor writes and this package still reads.
 export { BeneficialOwnershipRepo } from "./storage/beneficial-ownership/BeneficialOwnershipRepo";
-export { CompanyIdentityLinkRepo } from "./storage/canonical/CompanyIdentityLinkRepo";
 export { ExecutiveCompensationRepo } from "./storage/executive-compensation/ExecutiveCompensationRepo";
 export { RelatedPartyTransactionRepo } from "./storage/related-party/RelatedPartyTransactionRepo";
 export { RelatedPartyTransactionSchema } from "./storage/related-party/RelatedPartyTransactionSchema";

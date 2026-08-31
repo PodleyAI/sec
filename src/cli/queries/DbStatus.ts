@@ -27,12 +27,7 @@ import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationSchema";
 import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationTitleSchema";
-import { PERSON_ROLE_REPOSITORY_TOKEN } from "../../storage/canonical/PersonRoleSchema";
 import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/CompanyObservationSchema";
-import { CANONICAL_PERSON_REPOSITORY_TOKEN } from "../../storage/canonical/CanonicalPersonSchema";
-import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../../storage/canonical/CanonicalCompanySchema";
-import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../../storage/canonical/PersonIdentityLinkSchema";
-import { COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN } from "../../storage/canonical/CompanyIdentityLinkSchema";
 
 /** The headline counts, without the reporting metadata beside them. */
 export interface DbStatusCounts {
@@ -264,12 +259,7 @@ const BUILT_IN_TABLE_TOKENS: readonly ServiceToken<CountableRepository>[] = [
   EXTRACTOR_RUN_REPOSITORY_TOKEN,
   PERSON_OBSERVATION_REPOSITORY_TOKEN,
   PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
-  PERSON_ROLE_REPOSITORY_TOKEN,
   COMPANY_OBSERVATION_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_REPOSITORY_TOKEN,
-  CANONICAL_COMPANY_REPOSITORY_TOKEN,
-  PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
-  COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN,
   SECTION16_FILING_REPOSITORY_TOKEN,
   SECTION16_TRANSACTION_REPOSITORY_TOKEN,
   SECTION16_HOLDING_REPOSITORY_TOKEN,

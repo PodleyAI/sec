@@ -8,11 +8,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
-import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../../storage/filing/FilingSchema";
 import { XbrlFactRepo } from "../../../storage/xbrl/XbrlFactRepo";
-import { ResolveObservationsTask } from "../../../task/resolve/ResolveObservationsTask";
 import { processForm424Structured } from "./Form_424.storage";
 import { processFormS1Structured } from "./Form_S_1.storage";
 
@@ -139,19 +137,16 @@ describe("processForm424Structured", () => {
     )!;
     expect(JSON.parse(b4Issuer.source_context!).relation).toBe("424:issuer");
 
-    // Neither module resolves as it stores; the canonical company is the
-    // batch pass's answer over the two observations they left behind.
-    const resolved = await new ResolveObservationsTask({
-      defaults: { kind: "company", resolverVersion: RESOLVER_VERSION },
-    }).run();
-    expect(resolved.count).toBe(2);
-    expect(resolved.rebuilds.filter((r) => r.error !== null)).toEqual([]);
-
-    const links = new CompanyIdentityLinkRepo();
-    const s1Link = await links.getForObservation(s1Issuer.observation_id, RESOLVER_VERSION);
-    const b4Link = await links.getForObservation(b4Issuer.observation_id, RESOLVER_VERSION);
-    expect(s1Link?.canonical_company_id).toBeDefined();
-    expect(s1Link?.canonical_company_id).toBe(b4Link?.canonical_company_id!);
+    // What this package can assert is what it wrote. Both observations carry the
+    // issuer's CIK, which is the resolver's fast path and the whole of what puts
+    // the two filings under one canonical company. The prospectus body is
+    // untagged, so it contributes no name at all — the S-1's dei cover page is
+    // where the name comes from — which is exactly why the CIK is what matters
+    // here. The canonical claim itself is asserted where the resolver ships.
+    expect(s1Issuer.cik).toBe(CIK);
+    expect(b4Issuer.cik).toBe(CIK);
+    expect(s1Issuer.normalized_name).toBeTruthy();
+    expect(b4Issuer.name).toBeNull();
   });
 
   it("handles a 424 with no XBRL anywhere (fees prepaid at registration)", async () => {

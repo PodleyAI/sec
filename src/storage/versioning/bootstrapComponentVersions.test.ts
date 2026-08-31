@@ -14,7 +14,6 @@ import { EXTRACTOR_IDS } from "./extractorIds";
 import { listBackfillableExtractorIds } from "../../task/forms/backfillDescriptors";
 import { resolverIds } from "../../resolver/resolverIds";
 import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
-import { registerSecResolvers } from "../../config/registerResolvers";
 import { VersionRegistry } from "./VersionRegistry";
 
 describe("bootstrapComponentVersions", () => {
@@ -22,7 +21,6 @@ describe("bootstrapComponentVersions", () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
     clearResolverExtensionsForTesting();
-    registerSecResolvers();
   });
 
   afterEach(() => {

@@ -6,23 +6,15 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
-import { CanonicalPersonAddressRepo } from "../storage/canonical/CanonicalPersonAddressRepo";
-import { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLinkRepo";
-import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { buildObserveOnlyEntityObserver } from "./buildObserveOnlyEntityObserver";
-import { resolveObservationsForAccession } from "./resolveObservationLinks";
 import { reapStaleObservations } from "./reapStaleObservations";
 import {
   clearObservationReapHooksForTesting,
   registerObservationReapHook,
   type ReapedObservation,
 } from "./observationReapHooks";
-import {
-  registerIdentityLinkReap,
-  resetIdentityLinkReapForTesting,
-} from "./registerIdentityLinkReap";
 
 const V = "1.0.0";
 const ACC = "0001-25-000001";
@@ -52,18 +44,14 @@ describe("reapStaleObservations", () => {
   beforeEach(() => {
     resetDependencyInjectionsForTesting();
     clearObservationReapHooksForTesting();
-    // The link deletion is a registered hook now, not something the reaper does
-    // itself, so the production wiring has to be in place for these to mean
-    // anything. `registerSecResolvers` makes this same call at bootstrap.
-    resetIdentityLinkReapForTesting();
-    registerIdentityLinkReap();
+    // No hook is registered by default here: what this package reaps is the
+    // observations it owns, and everything else keyed to one arrives through a
+    // registrant that is not this package.
   });
 
-  it("reaps orphan observations a smaller re-extraction leaves behind, with their links", async () => {
+  it("reaps orphan observations a smaller re-extraction leaves behind", async () => {
     const obs = observer();
     const personObs = new PersonObservationRepo();
-    const links = new PersonIdentityLinkRepo();
-    const addr = new CanonicalPersonAddressRepo();
 
     // v1 extraction: three directors at indices 0,1,2.
     await obs.observePerson(personClaim(0, "addr0"));
@@ -77,17 +65,6 @@ describe("reapStaleObservations", () => {
     await obs.observePerson(personClaim(0, "addr0"));
     await obs.observePerson(personClaim(1, "addr1"));
 
-    // Resolved before the reap, so there is a link to be left dangling. That is
-    // the whole hazard: a rebuild raises on one rather than writing around it,
-    // and a raise leaves its tables untouched — so a link the reap failed to
-    // delete stops every later rebuild instead of corrupting one.
-    await resolveObservationsForAccession({
-      kind: "person",
-      accession_number: ACC,
-      resolverVersion: V,
-    });
-    expect(await links.listForObservation(orphan.observation_id)).toHaveLength(1);
-
     const { reaped } = await reapStaleObservations({
       accession_number: ACC,
       extractor_id: "S-1",
@@ -95,22 +72,16 @@ describe("reapStaleObservations", () => {
     });
 
     expect(reaped).toBe(1);
-
     // Orphan index 2 is gone; the live rows survive (with stable ids).
     const remaining = await personObs.listByAccessionAndExtractor(ACC, "S-1");
     expect(remaining.map((o) => o.observation_index).sort()).toEqual([0, 1]);
-
-    // The orphan's identity link is gone (no phantom canonical linkage), while
-    // the live rows keep theirs.
-    expect(await links.listForObservation(orphan.observation_id)).toEqual([]);
-    expect(await new PersonIdentityLinkRepo().count()).toBe(2);
+    expect(remaining.map((o) => o.observation_id)).not.toContain(orphan.observation_id);
   });
 
   it("removes the stale-kind orphan when a reporting owner is reclassified company->person", async () => {
     const obs = observer();
     const personObs = new PersonObservationRepo();
     const companyObs = new CompanyObservationRepo();
-    const companyLinks = new CompanyIdentityLinkRepo();
 
     // v1 classifies the owner at index 5 as a COMPANY.
     const company = await obs.observeCompany({
@@ -140,9 +111,9 @@ describe("reapStaleObservations", () => {
       before: runStart,
     });
 
-    // The stale company observation (and its link) at index 5 is gone...
+    // The stale company observation at index 5 is gone...
     expect(await companyObs.listByAccessionAndExtractor(ACC, "ownership")).toEqual([]);
-    expect(await companyLinks.listForObservation(company.observation_id)).toEqual([]);
+    expect(company.observation_id).toBeGreaterThan(0);
     // ...while the new person observation at the same index survives.
     const people = await personObs.listByAccessionAndExtractor(ACC, "ownership");
     expect(people.map((o) => o.observation_index)).toEqual([5]);

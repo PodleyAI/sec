@@ -203,14 +203,6 @@ import {
   RegAServiceProviderSchema,
 } from "../storage/reg-a/RegAServiceProviderSchema";
 import {
-  CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
-  CanonicalCompanyAliasSchema,
-  CanonicalCompanyAliasPrimaryKeyNames,
-  CanonicalPersonAliasSchema,
-  CanonicalPersonAliasPrimaryKeyNames,
-} from "../storage/canonical/CanonicalAliasSchemas";
-import {
   OFFERING_TERMS_REPOSITORY_TOKEN,
   OfferingTermsPrimaryKeyNames,
   OfferingTermsSchema,
@@ -235,45 +227,6 @@ import {
   XbrlFactPrimaryKeyNames,
   XbrlFactRowSchema,
 } from "../storage/xbrl/XbrlFactSchema";
-import {
-  CANONICAL_COMPANY_REPOSITORY_TOKEN,
-  CanonicalCompanyPrimaryKeyNames,
-  CanonicalCompanySchema,
-} from "../storage/canonical/CanonicalCompanySchema";
-import {
-  CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
-  CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
-  CanonicalCompanyAddressPrimaryKeyNames,
-  CanonicalCompanyAddressSchema,
-  CanonicalCompanyPhonePrimaryKeyNames,
-  CanonicalCompanyPhoneSchema,
-  CanonicalPersonAddressPrimaryKeyNames,
-  CanonicalPersonAddressSchema,
-  CanonicalPersonPhonePrimaryKeyNames,
-  CanonicalPersonPhoneSchema,
-} from "../storage/canonical/CanonicalJunctionSchemas";
-import {
-  CANONICAL_PERSON_REPOSITORY_TOKEN,
-  CanonicalPersonPrimaryKeyNames,
-  CanonicalPersonSchema,
-} from "../storage/canonical/CanonicalPersonSchema";
-import {
-  COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN,
-  CompanyIdentityLinkPrimaryKeyNames,
-  CompanyIdentityLinkSchema,
-} from "../storage/canonical/CompanyIdentityLinkSchema";
-import {
-  PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
-  PersonIdentityLinkPrimaryKeyNames,
-  PersonIdentityLinkSchema,
-} from "../storage/canonical/PersonIdentityLinkSchema";
-import {
-  PERSON_ROLE_REPOSITORY_TOKEN,
-  PersonRolePrimaryKeyNames,
-  PersonRoleSchema,
-} from "../storage/canonical/PersonRoleSchema";
 import {
   ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN,
   RoleRosterCompletenessPrimaryKeyNames,
@@ -848,59 +801,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     indexes: [["cik", "sic", "is_spac", "created_at", "accession_number"]],
   }),
   defineStorage({
-    token: CANONICAL_PERSON_REPOSITORY_TOKEN,
-    table: "canonical_person",
-    schema: CanonicalPersonSchema,
-    primaryKeyNames: CanonicalPersonPrimaryKeyNames,
-    indexes: [["resolver_version", "normalized_last"]],
-    // Only CIK is a stable identity discriminator. Name tuples are NOT
-    // unique: two distinct CIKs can legitimately share a normalized name
-    // (e.g., parent/subsidiary, two registrations under the same legal
-    // name). The resolver still uses name as a fallback lookup when no
-    // CIK is present, but the storage layer cannot enforce uniqueness on
-    // it without rejecting legitimate distinct entities.
-    uniqueIndexes: [["resolver_version", "cik"]],
-  }),
-  defineStorage({
-    token: CANONICAL_COMPANY_REPOSITORY_TOKEN,
-    table: "canonical_company",
-    schema: CanonicalCompanySchema,
-    primaryKeyNames: CanonicalCompanyPrimaryKeyNames,
-    indexes: [],
-    // CIK + CRD are stable identity discriminators. normalized_name is
-    // NOT unique — see the CANONICAL_PERSON_REPOSITORY_TOKEN wiring for
-    // the same rationale.
-    uniqueIndexes: [
-      ["resolver_version", "cik"],
-      ["resolver_version", "crd_number"],
-    ],
-  }),
-  defineStorage({
-    token: PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
-    table: "person_identity_link",
-    schema: PersonIdentityLinkSchema,
-    primaryKeyNames: PersonIdentityLinkPrimaryKeyNames,
-    indexes: [["canonical_person_id", "resolver_version"], ["resolver_version"]],
-  }),
-  defineStorage({
-    token: COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN,
-    table: "company_identity_link",
-    schema: CompanyIdentityLinkSchema,
-    primaryKeyNames: CompanyIdentityLinkPrimaryKeyNames,
-    indexes: [["canonical_company_id", "resolver_version"], ["resolver_version"]],
-  }),
-  defineStorage({
-    token: PERSON_ROLE_REPOSITORY_TOKEN,
-    table: "person_role",
-    schema: PersonRoleSchema,
-    primaryKeyNames: PersonRolePrimaryKeyNames,
-    indexes: [
-      ["canonical_person_id", "resolver_version"],
-      ["company_cik", "extractor_id", "role_scope", "resolver_version"],
-      ["resolver_version"],
-    ],
-  }),
-  defineStorage({
     token: ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN,
     table: "role_roster_completeness",
     schema: RoleRosterCompletenessSchema,
@@ -908,48 +808,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     // Read back by accession, which the composite primary key already leads
     // with. Not resolver-versioned — the decision is a property of the
     // filing's extraction, not of a canonical-identity generation.
-    indexes: [],
-  }),
-  defineStorage({
-    token: CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
-    table: "canonical_person_address",
-    schema: CanonicalPersonAddressSchema,
-    primaryKeyNames: CanonicalPersonAddressPrimaryKeyNames,
-    indexes: [["canonical_person_id", "resolver_version"]],
-  }),
-  defineStorage({
-    token: CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
-    table: "canonical_person_phone",
-    schema: CanonicalPersonPhoneSchema,
-    primaryKeyNames: CanonicalPersonPhonePrimaryKeyNames,
-    indexes: [["canonical_person_id", "resolver_version"]],
-  }),
-  defineStorage({
-    token: CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
-    table: "canonical_company_address",
-    schema: CanonicalCompanyAddressSchema,
-    primaryKeyNames: CanonicalCompanyAddressPrimaryKeyNames,
-    indexes: [["canonical_company_id", "resolver_version"]],
-  }),
-  defineStorage({
-    token: CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN,
-    table: "canonical_company_phone",
-    schema: CanonicalCompanyPhoneSchema,
-    primaryKeyNames: CanonicalCompanyPhonePrimaryKeyNames,
-    indexes: [["canonical_company_id", "resolver_version"]],
-  }),
-  defineStorage({
-    token: CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
-    table: "canonical_person_alias",
-    schema: CanonicalPersonAliasSchema,
-    primaryKeyNames: CanonicalPersonAliasPrimaryKeyNames,
-    indexes: [],
-  }),
-  defineStorage({
-    token: CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
-    table: "canonical_company_alias",
-    schema: CanonicalCompanyAliasSchema,
-    primaryKeyNames: CanonicalCompanyAliasPrimaryKeyNames,
     indexes: [],
   }),
   defineStorage({

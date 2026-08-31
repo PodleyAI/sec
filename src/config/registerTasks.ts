@@ -13,7 +13,6 @@ import { QueryEntitiesTask } from "../task/query/QueryEntitiesTask";
 import { QueryFactsTask } from "../task/query/QueryFactsTask";
 import { QueryFilingsTask } from "../task/query/QueryFilingsTask";
 import { QueryOfferingsTask } from "../task/query/QueryOfferingsTask";
-import { QueryPersonRolesTask } from "../task/query/QueryPersonRolesTask";
 import { QueryPersonsTask } from "../task/query/QueryPersonsTask";
 import { QueryRegASummaryTask } from "../task/query/QueryRegASummaryTask";
 import { QueryRegATask } from "../task/query/QueryRegATask";
@@ -43,7 +42,6 @@ export const SEC_CLI_TASKS = [
   QueryFactsTask,
   QueryFilingsTask,
   QueryOfferingsTask,
-  QueryPersonRolesTask,
   QueryPersonsTask,
   QueryRegASummaryTask,
   QueryRegATask,

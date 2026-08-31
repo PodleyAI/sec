@@ -42,12 +42,10 @@ describe("CLI command graph", () => {
       "db",
       "init",
       "version",
-      "resolve",
-      "canonical",
       // Registered by registerIssuerCommands, and the only top-level evidence
-      // it ran. `spac` and `underwriter` are gone from here with the family
-      // tier that was the whole of both groups; the package owning that tier
-      // registers them now.
+      // it ran. `spac`, `underwriter`, `resolve` and `canonical` are gone from
+      // here with the tiers that were the whole of those groups; the package
+      // owning them registers them now.
       "issuer",
       "editorial",
       "extractor",

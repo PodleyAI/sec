@@ -11,7 +11,6 @@ import { getExtractionTemperature } from "./extractionTemperature";
 import { registerSecFormExtractors } from "./registerFormExtractors";
 import { registerSecModels } from "./registerModels";
 import { registerSecProviders } from "./registerProviders";
-import { registerSecResolvers } from "./registerResolvers";
 import { getSecJobQueue } from "../task/fetch/SecJobQueue";
 
 /**
@@ -39,7 +38,6 @@ export async function bootstrapSecRuntime(): Promise<void> {
   // bump can fix, instead of aborting here naming the variable.
   getExtractionTemperature();
   DefaultDI();
-  registerSecResolvers();
   // Reads nothing and touches no DI, so where it sits among the register* calls
   // does not matter, and it is a no-op once the dispatch task's own module has
   // run. This is what puts the extractors in front of a caller that only wants

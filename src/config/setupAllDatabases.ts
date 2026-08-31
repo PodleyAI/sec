@@ -57,10 +57,6 @@ import { REGA_FINANCIAL_DATA_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinan
 import { REGA_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingHistorySchema";
 import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
 import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegAServiceProviderSchema";
-import {
-  CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
-} from "../storage/canonical/CanonicalAliasSchemas";
 import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
 import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
 import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
@@ -76,21 +72,9 @@ import {
   addMissingColumnsSqlite,
   shouldAddMissingColumns,
 } from "./addMissingColumns";
-import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalCompanySchema";
-import {
-  CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
-  CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
-} from "../storage/canonical/CanonicalJunctionSchemas";
-import { CANONICAL_PERSON_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalPersonSchema";
-import { COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/CompanyIdentityLinkSchema";
-import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/PersonIdentityLinkSchema";
-import { CURRENT_CANONICAL_VIEW_DDL } from "../storage/canonical/views";
 import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
 import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
-import { PERSON_ROLE_REPOSITORY_TOKEN } from "../storage/canonical/PersonRoleSchema";
 import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/canonical/RoleRosterCompletenessSchema";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
@@ -101,7 +85,6 @@ import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1
 import { getDb } from "../util/db";
 import { setupSecFetchRateLimiter } from "../task/fetch/SecJobQueue";
 import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
-import { registerSecResolvers } from "./registerResolvers";
 import { registerSecFormExtractors } from "./registerFormExtractors";
 import { listBackfillableExtractorIds } from "../task/forms/backfillDescriptors";
 import {
@@ -191,18 +174,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(S1_CLASSIFICATION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_PERSON_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_COMPANY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_ROLE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(OFFERING_TERMS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN).setupDatabase();
@@ -246,7 +218,9 @@ export async function setupAllDatabases(): Promise<void> {
   // repositories' ReadOnlyTabularStorage wrapper cannot intercept.
   if (dbType === "sqlite" && globalServiceRegistry.has(SEC_DB_FOLDER) && !isDryRun()) {
     const db = getDb();
-    for (const ddl of [...CURRENT_CANONICAL_VIEW_DDL, ...listDatabaseViewDdl()]) {
+    // Every view is contributed now — the tier that owns the tables under one
+    // registers it — and they are created after the tables above exist.
+    for (const ddl of listDatabaseViewDdl()) {
       db.exec(ddl);
     }
     backfillExtractorRunsOutcome(db);
@@ -258,12 +232,10 @@ export async function setupAllDatabases(): Promise<void> {
     // add-column pass can express.
     addMissingColumnsSqlite(db);
   }
-  // Ensure sec's resolver kinds and form extractors are registered before we
-  // seed component-version rows: the ids seeded below are enumerated from those
-  // two registries, and this path also runs from `init` (which skips the
-  // preAction hook that otherwise calls both). Both are idempotent — safe to
-  // call again when the hook already registered them.
-  registerSecResolvers();
+  // Ensure the form extractors are registered before we seed component-version
+  // rows: the ids seeded below are enumerated from that registry, and this path
+  // also runs from `init` (which skips the preAction hook that otherwise calls
+  // it). Idempotent — safe to call again when the hook already did.
   registerSecFormExtractors();
   // Which extractors need a version slot is the same question as which
   // extractors can be RUN, so it is answered from the same place: every id in

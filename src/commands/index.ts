@@ -15,8 +15,6 @@ import { addInitCommand } from "../cli/groups/init";
 import { addQueryCommands } from "../cli/groups/query";
 import { addSyncCommand } from "../cli/groups/sync";
 import { addVersionCommands } from "../cli/groups/version";
-import { addResolveCommands } from "../cli/groups/resolve";
-import { addCanonicalCommands } from "../cli/groups/canonical";
 import { addExtractorCommands } from "../cli/groups/extractor";
 import { addVerifyCommands } from "../cli/groups/verify";
 import { registerIssuerCommands } from "./issuerTickers";
@@ -133,8 +131,6 @@ export const AddCommands = (program: Command): void => {
   addDbCommands(program);
   addInitCommand(program);
   addVersionCommands(program);
-  addResolveCommands(program);
-  addCanonicalCommands(program);
   registerIssuerCommands(program);
   registerEditorialCommands(program);
   addExtractorCommands(program);

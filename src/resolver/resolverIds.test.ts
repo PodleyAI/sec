@@ -7,22 +7,20 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolverIds, isFamilyResolverId } from "./resolverIds";
 import { clearResolverExtensionsForTesting } from "./resolverExtensions";
-import { registerSecResolvers } from "../config/registerResolvers";
 
 describe("resolverIds", () => {
   beforeEach(() => {
     clearResolverExtensionsForTesting();
-    registerSecResolvers();
   });
   afterEach(() => {
     clearResolverExtensionsForTesting();
   });
 
   it("contains the registered resolver ids", () => {
-    const ids = resolverIds();
-    for (const id of ["person", "company"]) {
-      expect(ids).toContain(id);
-    }
+    // Empty here, and that is the assertion: this package registers no resolver
+    // kind of its own. Every id comes from a package that contributes one, and
+    // asserts its own registration there.
+    expect(resolverIds()).toEqual([]);
   });
 
   it("classifies family-tier resolver kinds", () => {

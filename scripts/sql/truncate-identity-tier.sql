@@ -1,4 +1,12 @@
--- Truncate the derived identity tier after a normalizer change.
+-- Truncate the person OBSERVATIONS after a normalizer change.
+--
+-- ⚠️ THIS IS ONE HALF OF THE CEREMONY. The canonical tier keyed to these
+-- observations — `canonical_person`, the identity links, the junctions, the
+-- tenures — and the sponsor/underwriter families are a downstream package's,
+-- each with its own script. Run them together, or the survivors of one point at
+-- rows the other deleted: a canonical row whose observations are gone resolves
+-- nothing, and an observation whose link survives makes every later rebuild
+-- raise.
 --
 -- Why this exists instead of a resolver version bump: a version bump is the
 -- ceremony for changing a normalizer while KEEPING the rows minted under the
@@ -136,14 +144,6 @@
 -- TRUNCATE but avoids the ACCESS EXCLUSIVE lock, and these tables are small.
 
 BEGIN;
-
--- ── Person canonical + link tier ─────────────────────────────────────────────
-DELETE FROM person_role;
-DELETE FROM person_identity_link;
-DELETE FROM canonical_person_address;
-DELETE FROM canonical_person_phone;
-DELETE FROM canonical_person_alias;
-DELETE FROM canonical_person;
 
 -- ── Person observations, and everything keyed to one ─────────────────────────
 -- These carry `observation_id` FKs, so they cannot outlive the observations.

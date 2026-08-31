@@ -63,14 +63,6 @@ BEGIN;
 SELECT set_config('search_path', quote_ident(current_schema()), true);
 
 TRUNCATE TABLE
-  -- Person canonical + link tier.
-  person_role,
-  person_identity_link,
-  canonical_person_address,
-  canonical_person_phone,
-  canonical_person_alias,
-  canonical_person,
-
   -- Person observations, and everything carrying an `observation_id` FK.
   -- These cannot outlive the observations they cite.
   --

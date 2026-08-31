@@ -10,16 +10,7 @@ import { normalizeManagementTitles } from "../sec/forms/registration-statements/
 import type { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import type { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
 import type { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
-import type { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
-import type { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLinkRepo";
-import type { CanonicalPersonAddressRepo } from "../storage/canonical/CanonicalPersonAddressRepo";
-import type { CanonicalPersonPhoneRepo } from "../storage/canonical/CanonicalPersonPhoneRepo";
-import type { CanonicalCompanyAddressRepo } from "../storage/canonical/CanonicalCompanyAddressRepo";
-import type { CanonicalCompanyPhoneRepo } from "../storage/canonical/CanonicalCompanyPhoneRepo";
-import type { PersonRoleRepo } from "../storage/canonical/PersonRoleRepo";
 import { RoleRosterCompletenessRepo } from "../storage/canonical/RoleRosterCompletenessRepo";
-import type { PersonResolver } from "./PersonResolver";
-import type { CompanyResolver } from "./CompanyResolver";
 
 export interface PersonClaim {
   readonly accession_number: string;
@@ -206,7 +197,7 @@ export class EntityObserver {
   /**
    * Where roster completeness decisions land, resolved from DI at first use
    * and memoized (`null` once resolution has failed). Best-effort in exactly
-   * the way `PersonRoleRepo`'s alias lookup is: every registry `DefaultDI` and
+   * the way a repo's own DI lookup is: every registry `DefaultDI` and
    * `TestingDI` build registers the token, so a miss means a hand-assembled
    * unit-test registry — and an unrecorded decision reads downstream as "not
    * known to be complete", which closes nothing.
