@@ -63,7 +63,7 @@ import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KE
 import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
 import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
-import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/canonical/RoleRosterCompletenessSchema";
+import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/roster/RoleRosterCompletenessSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";

@@ -231,7 +231,7 @@ import {
   ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN,
   RoleRosterCompletenessPrimaryKeyNames,
   RoleRosterCompletenessSchema,
-} from "../storage/canonical/RoleRosterCompletenessSchema";
+} from "../storage/roster/RoleRosterCompletenessSchema";
 import {
   COMPANY_OBSERVATION_REPOSITORY_TOKEN,
   CompanyObservationPrimaryKeyNames,

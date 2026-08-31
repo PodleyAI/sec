@@ -6,7 +6,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
-import { RoleRosterCompletenessRepo } from "../storage/canonical/RoleRosterCompletenessRepo";
+import { RoleRosterCompletenessRepo } from "../storage/roster/RoleRosterCompletenessRepo";
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";

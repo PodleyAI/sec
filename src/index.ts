@@ -328,13 +328,13 @@ export {
   registerObservationReapHook,
 } from "./resolver/observationReapHooks";
 export type { ObservationReapHook, ReapedObservation } from "./resolver/observationReapHooks";
-export { RoleRosterCompletenessRepo } from "./storage/canonical/RoleRosterCompletenessRepo";
+export { RoleRosterCompletenessRepo } from "./storage/roster/RoleRosterCompletenessRepo";
 export {
   ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN,
   RoleRosterCompletenessPrimaryKeyNames,
   RoleRosterCompletenessSchema,
   type RoleRosterCompleteness,
-} from "./storage/canonical/RoleRosterCompletenessSchema";
+} from "./storage/roster/RoleRosterCompletenessSchema";
 export type { QueryResult } from "./cli/queries/EntityQuery";
 export { queryResultSchema } from "./task/query/queryResultSchema";
 

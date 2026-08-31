@@ -10,7 +10,7 @@ import { normalizeManagementTitles } from "../sec/forms/registration-statements/
 import type { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import type { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
 import type { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
-import { RoleRosterCompletenessRepo } from "../storage/canonical/RoleRosterCompletenessRepo";
+import { RoleRosterCompletenessRepo } from "../storage/roster/RoleRosterCompletenessRepo";
 
 export interface PersonClaim {
   readonly accession_number: string;

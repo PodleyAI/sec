@@ -19,7 +19,7 @@ Companion docs in this repo:
 | `SPEC.md`                   | Full CLI reference and data-flow diagrams                           |
 | `docs/fetch-and-storage.md` | Fetch layer, EDGAR rate limits, bulk downloads, `db setup`/`reset`  |
 | `docs/extraction.md`        | AI extraction, dead letters, per-extractor sections, segmentation   |
-| `docs/identity.md`          | Observations, resolvers, normalizers, versioning, re-key ceremonies |
+| `docs/identity.md`          | Observations, normalizers, roster completeness, versioning, the re-key half |
 | `docs/eval.md`              | Model comparison harnesses and golden truth                         |
 | `docs/verification.md`      | `sec verify`, block source spans, the coverage measure              |
 
@@ -40,15 +40,14 @@ bun run format-check         # CI runs this
 bun run typecheck-tests      # typecheck test files
 ```
 
-CI runs `format-check` → `build` → `test`, cheapest first.
+CI runs `format-check` → `build` → `typecheck-tests` → `test`, cheapest first.
 
-`typecheck-tests` is separate because test files are **excluded from the base
+`typecheck-tests` is a separate script because test files are **excluded from the base
 `tsconfig.json`** and vitest transpiles without typechecking — `build` and `test` both
-pass over a test file whose types are wrong. It is **not in CI yet**: the suite reports
-2 errors across 2 files, both the same `TS2719` (one structurally identical type reached by
-two paths). Run it locally on files you touch, and wire it into `test.yml` in the change
-that clears those two — the count is now close enough that landing it red would be a
-choice rather than an inheritance.
+pass over a test file whose types are wrong. It reports **0 errors** and is in CI, so keep
+it there: the two long-standing `TS2719`s left with the files that carried them, and the
+gap they justified is closed. Run it locally on files you touch rather than discovering a
+red pipeline.
 
 The CLI entrypoint is `src/sec.ts` (Commander).
 
@@ -118,15 +117,21 @@ Its body is `runWorkglowCli` from `@workglow/cli`, not a copy. Two things this d
   **Commands hold no business logic** — work lives in tasks, presentation in the command.
   Pass task inputs via `defaults`, never the graph run-input (arrays there can trigger
   fan-out semantics).
-- **`src/task/`** — task-graph tasks by domain: `ciknames/`, `facts/`, `forms/`, `index/`,
-  `submissions/`, `query/`, `db/`, `versioning/`, `resolve/`, `canonical/`, `spac/`,
-  `editorial/`, `offering/`, `fixtures/`, `init/`, `eval/`, `model/`. `taskPorts.ts`
-  exports `TaskPorts<T>`, the bridge letting an `interface`-typed result satisfy `DataPorts`.
+- **`src/task/`** — task-graph tasks by domain: `bootstrap/`, `ciknames/`, `db/`,
+  `document/`, `editorial/`, `facts/`, `fetch/`, `fixtures/`, `forms/`, `index/`, `init/`,
+  `offering/`, `query/`, `submissions/`, `verify/`, `versioning/` (plus `canonical/`, which
+  holds only the shared alias TSV format). `taskPorts.ts` exports `TaskPorts<T>`, the bridge
+  letting an `interface`-typed result satisfy `DataPorts`.
 - **`src/sec/`** — parsing and schemas, `forms/` split per form category. Each form type
   has a parser (`.ts`), a TypeBox schema (`.schema.ts`), and optional `.storage.ts`.
 - **`src/storage/`** — repository-pattern persistence: `entity/`, `filing/`, `address/`,
-  `investment-offering/`, `portal/` (core EDGAR-linked, by CIK); `observation/`,
-  `canonical/`, `versioning/` (the identity tier — see `docs/identity.md`).
+  `investment-offering/`, `portal/` (core EDGAR-linked, by CIK); `observation/`, `roster/`,
+  `versioning/` (the observation tier and its version slots — see `docs/identity.md`).
+  **The canonical tier is not here.** Resolving observations into canonical people,
+  companies and underwriting houses is judgement about human text and belongs to the
+  consumer package; this one ships the observations, the reap and its
+  `registerObservationReapHook` seam, the normalizers, and the roster-completeness
+  verdict.
 - **`src/config/`** — DI. `tokens.ts` defines tokens, `EnvToDI.ts` reads env,
   `storageRegistry.ts` declares every tabular storage as one
   `{ token, table, schema, primaryKeyNames, indexes, uniqueIndexes }` list.
