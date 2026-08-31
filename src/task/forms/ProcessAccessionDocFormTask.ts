@@ -574,6 +574,21 @@ export class ProcessAccessionDocFormTask extends Task<
     };
 
     /**
+     * The siblings that DID store, on a path where another extractor did not.
+     *
+     * `recordRunFailed` covers only the unfinished ids, so without this a
+     * sibling that stored carries no row of either kind. The failure row keeps
+     * the filing selected, which is correct — but once that failure is fixed
+     * and gets its success row, the anti-join still finds the sibling missing
+     * and re-selects the filing forever, re-paying its model calls each sweep.
+     *
+     * Recorded as `success` rather than the filing's `partial`: the row is per
+     * extractor, and this one's reading did complete. What is unfinished has
+     * its own failure row saying so.
+     */
+    const recordStoredSiblings = (): Promise<void> => recordRunsStored("success");
+
+    /**
      * The single dispatch point for the filing: every extractor registered for
      * the form, in the order the registry hands them back. Each resolves its
      * OWN version slot — two extractors over one form have independent gates —
@@ -704,6 +719,7 @@ export class ProcessAccessionDocFormTask extends Task<
         console.error(`STORE_ERROR ${accessionNumber}@${unfinishedLabel()}:`, err);
         await recordDeadLetterSafe("STORE_ERROR", detail.slice(0, 1024));
         await recordRunFailed(`STORE_ERROR: ${detail}`);
+        await recordStoredSiblings();
         return { success: false };
       }
       await markFilingLevelResolved();
@@ -936,6 +952,7 @@ export class ProcessAccessionDocFormTask extends Task<
     console.error(`STORE_ERROR ${accessionNumber}@${unfinishedLabel()}:`, storeError);
     await recordDeadLetterSafe("STORE_ERROR", detail.slice(0, 1024));
     await recordRunFailed(`STORE_ERROR: ${detail}`);
+    await recordStoredSiblings();
     return { success: false };
   }
 }

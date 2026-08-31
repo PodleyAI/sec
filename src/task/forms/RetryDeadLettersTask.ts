@@ -19,6 +19,7 @@ import {
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
+import { extractorIsSuppliedElsewhere } from "../../sec/forms/parserOnlyForms";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 const InputSchema = () =>
@@ -64,6 +65,21 @@ export class RetryDeadLettersTask extends Task<
     context: IExecuteContext
   ): Promise<RetryDeadLettersTaskOutput> {
     const { extractorId } = input;
+
+    // `db setup` seeds a slot for every id the CLI knows, which includes the
+    // readings a consumer package ships. Without this the slot resolves, the
+    // dead letters list, and each filing reaches a dispatch that finds no
+    // extractor and returns success: every entry counts as reprocessed, none
+    // resolves, and the same set is re-selected on every later run. Refused by
+    // name, as `extractor backfill` refuses it.
+    if (extractorIsSuppliedElsewhere(extractorId)) {
+      throw new TaskError(
+        `Cannot retry dead letters for '${extractorId}': this deployment registers no extractor ` +
+          `under that id. Its forms are parsed here and read by a consumer package — run the ` +
+          `retry under that package, or name an extractor this one ships.`
+      );
+    }
+
     const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     const slot = await getActiveSlot(reg, "extractor", extractorId);
     if (!slot) throw new TaskError(`No active slot for extractor '${extractorId}'`);

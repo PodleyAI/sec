@@ -695,6 +695,11 @@ export {
   type ExtractorBackfillResult,
 } from "./task/forms/BackfillExtractorTask";
 export { listBackfillableExtractorIds } from "./task/forms/backfillDescriptors";
+
+// The keyset resume a contributed descriptor selects candidates with. Shared
+// rather than copied: a two-query walk that has to page past one filer holding
+// more filings than the page size is not a thing to reimplement per package.
+export { pageFilingsOfForm, type FilingPageRow } from "./task/forms/backfillDescriptors";
 export type { ExtractorId } from "./storage/versioning/extractorIds";
 
 // Putting one filing's document on disk the way the sweeps already do.

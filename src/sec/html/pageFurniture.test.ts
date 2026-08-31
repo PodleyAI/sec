@@ -34,10 +34,37 @@ describe("isPageNumber", () => {
     }
   });
 
+  it("does not take a form type or an exhibit code", () => {
+    // `[a-z]{1,3}-\d{1,3}` also spells every short form type and exhibit
+    // number. A one-cell layout table is unwrapped to a paragraph BEFORE this
+    // test runs, and an exhibit index or a cover page is exactly where a block
+    // whose whole text is `EX-99` or `S-1` comes from — dropped here it leaves
+    // the document counted as depaginated rather than lost, so the coverage
+    // measure reports nothing wrong. The prefixes a prospectus actually
+    // numbers with are the four above, and none of these is one.
+    for (const t of ["S-1", "S-4", "N-2", "T-3", "EX-99", "EX-10", "EX-3"]) {
+      expect(isPageNumber(t), t).toBe(false);
+    }
+  });
+
   it("does not take a bare `x` or `l`, whatever they are worth in roman", () => {
     // `x` alone is a checkbox mark and a multiplication sign long before it is
     // ten, and front matter stops at `ix` in every filing in the corpus.
     for (const t of ["x", "X", "l", "L"]) {
+      expect(isPageNumber(t), t).toBe(false);
+    }
+  });
+
+  it("stops at the xlix its bound claims, rather than running to lxxxix", () => {
+    // The rule's safety argument is that front matter never runs past 49
+    // pages. `l?x{0,3}` admitted `li` through `lxxxix` anyway, so the range it
+    // implemented was not the one the argument covers. Erring toward keeping
+    // text: a stray numeral left in the document is recoverable, a dropped
+    // block is counted as depaginated and reads as nothing lost.
+    for (const t of ["i", "iv", "ix", "xxxix", "xl", "xlix"]) {
+      expect(isPageNumber(t), t).toBe(true);
+    }
+    for (const t of ["l", "li", "lv", "lx", "lxxxix"]) {
       expect(isPageNumber(t), t).toBe(false);
     }
   });

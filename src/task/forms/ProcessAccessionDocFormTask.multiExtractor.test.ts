@@ -153,9 +153,15 @@ describe("ProcessAccessionDocFormTask keys what it writes by the extractor that 
     // version-gating work that actually succeeded.
     expect(await deadLetters.get("D", ACCESSION, "")).toBeFalsy();
 
-    const rows = await runsForFiling();
-    expect(rows.map((r) => r.extractor_id)).toEqual([SIDE_ID]);
-    expect(rows[0]!.success).toBe(false);
+    // Each extractor's row states its OWN outcome. The one that threw is a
+    // failure, so a retry re-selects the filing; the one that stored is a
+    // success, because it did. Leaving the sibling with no row instead is what
+    // made the filing un-retirable: the anti-join reads one row per extractor,
+    // so even after the failure is fixed the missing row keeps re-selecting it.
+    const byId = new Map((await runsForFiling()).map((r) => [r.extractor_id, r]));
+    expect([...byId.keys()].sort()).toEqual([SIDE_ID, "D"].sort());
+    expect(byId.get(SIDE_ID)!.success).toBe(false);
+    expect(byId.get("D")!.success).toBe(true);
   });
 
   it("fails every extractor of the form when the filing never reached the dispatch", async () => {

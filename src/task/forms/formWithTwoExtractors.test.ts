@@ -58,6 +58,8 @@ const D_ACCESSION = "0000000000-26-000700";
 const C_ACCESSION = "0000000000-26-000701";
 const UNHANDLED_ACCESSION = "0000000000-26-000702";
 
+const THROW_ACCESSION = "0001929594-26-000777";
+
 /** A real committed Form D that parses AND stores end to end. */
 const GOOD_FORM_D = readFileSync(
   path.join(
@@ -173,6 +175,53 @@ describe("a form carrying two extractors", () => {
     expect(byId.get(SECOND_ID)!.extractor_version).toBe(await activeVersion(SECOND_ID));
     expect(byId.get("D")!.form).toBe("D");
     expect(byId.get(SECOND_ID)!.form).toBe("D");
+  });
+
+  it("still records the sibling that stored when the other throws", async () => {
+    // The failure row keeps the filing selected, which is right — the failing
+    // reading has to be retried. What is wrong is the sibling having NO row:
+    // once the failure is fixed and gets its success row, the filing is STILL
+    // selected, because the anti-join reads one row per extractor and the
+    // sibling never got one. It re-runs, model calls included, forever.
+    const THROWING_ID = "throws-on-store";
+    registerFormExtractor({
+      id: THROWING_ID,
+      section: "throwing-section",
+      forms: ["D", "D/A"],
+      store: async () => {
+        throw new Error("sibling store failure");
+      },
+    });
+    try {
+      await setupAllDatabases();
+      await seedFiling(THROW_ACCESSION, "D");
+
+      const result = await new FixedFetchTask().run({ accessionNumber: THROW_ACCESSION });
+      expect((result as { success: boolean }).success).toBe(false);
+
+      const byId = new Map((await runsFor(THROW_ACCESSION)).map((r) => [r.extractor_id, r]));
+      // The one that threw is recorded as a failure, so a retry re-selects it.
+      expect(byId.get(THROWING_ID)?.success).toBe(false);
+      // The ones that stored are recorded as having stored. Without this they
+      // carry no row at all and the filing can never leave the worklist.
+      expect(byId.get("D")?.success).toBe(true);
+      expect(byId.get(SECOND_ID)?.success).toBe(true);
+    } finally {
+      clearFormExtractorsForTesting();
+      registerSecFormExtractors();
+      registerFormExtractor({
+        id: SECOND_ID,
+        section: SECOND_SECTION,
+        forms: ["D", "D/A"],
+        store: noopStore,
+      });
+      registerFormExtractor({
+        id: "D",
+        section: SEAM_SECTION,
+        forms: [NOVEL_FORM],
+        store: noopStore,
+      });
+    }
   });
 
   it("keeps selecting the filing until BOTH extractors have succeeded", async () => {

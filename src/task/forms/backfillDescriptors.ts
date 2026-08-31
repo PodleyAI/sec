@@ -115,7 +115,7 @@ export function formsForExtractor(extractorId: string): string[] {
 const BACKFILL_PAGE_SIZE = 10_000;
 
 /** The columns a candidate selector reads off a filing row. */
-interface FilingPageRow {
+export interface FilingPageRow {
   readonly cik: number;
   readonly accession_number: string;
   readonly items?: string | null;
@@ -131,8 +131,12 @@ interface FilingPageRow {
  * CIK" followed by "later CIKs". That is what lets one filer hold more filings
  * of a form than the page size — a serial 8-K filer, a shelf issuer's 424B2s —
  * without the scan stalling on it.
+ *
+ * Exported because a consumer package contributing its own backfill descriptors
+ * needs the same resume, and a second copy of a two-query keyset walk is one
+ * that drifts: a fix found in either has to be made in both.
  */
-async function* pageFilingsOfForm(form: string): AsyncGenerator<FilingPageRow[]> {
+export async function* pageFilingsOfForm(form: string): AsyncGenerator<FilingPageRow[]> {
   const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
   const orderBy = [
     { column: "cik" as const, direction: "ASC" as const },

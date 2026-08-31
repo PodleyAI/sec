@@ -44,6 +44,19 @@ describe("RetryDeadLettersTask", () => {
     expect(out.eligibleAccessions).toEqual(["acc-stale"]);
   });
 
+  it("refuses an id this deployment registers no extractor for", async () => {
+    // `db setup` seeds a version slot for every id in the CLI's vocabulary,
+    // including readings a consumer ships. Without a guard the slot resolves,
+    // the dead letters list, and every filing reaches a dispatch that finds no
+    // extractor and returns success — each counts as reprocessed, none
+    // resolves, and the identical set is re-selected on every later run.
+    // Refused by name, through the same predicate `extractor backfill` and the
+    // worklist both use.
+    await expect(
+      new RetryDeadLettersTask({ defaults: { extractorId: "merger-proxy" } }).run()
+    ).rejects.toThrow(/registers no extractor under that id/);
+  });
+
   it("resolves expected-negative 8-K detector entries without reprocessing the filing", async () => {
     const dl = new ExtractionDeadLetterRepo();
     await dl.record({
