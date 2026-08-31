@@ -8,7 +8,11 @@ import { Type } from "typebox";
 import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
-import { allRegisteredForms, extractorsForForm } from "../../sec/forms/formExtractors";
+import {
+  allRegisteredForms,
+  extractorIdsForForm,
+  extractorsForForm,
+} from "../../sec/forms/formExtractors";
 import { noExtractorReason } from "../../sec/forms/parserOnlyForms";
 import { isDryRun } from "../../cli/isDryRun";
 import {
@@ -275,12 +279,17 @@ export class ComputeFormsWorklistTask extends Task<
       // registry is open, so a form can be registered after the `db setup`
       // that seeded slots; losing every other form's work to that is a far
       // worse outcome than losing the one form that cannot be versioned.
+      //
+      // One gate per extractor ID, not per registry entry: an extractor split
+      // into sections holds several keys under ONE id, and the run ledger keys
+      // on the id — so an entry-keyed list would ask `extractor_runs` the same
+      // question once per section, on every page of every form.
       let gates: readonly { readonly extractorId: string; readonly extractorVersion: string }[];
       try {
         gates = await Promise.all(
-          extractorsForForm(form).map(async (extractor) => ({
-            extractorId: extractor.id,
-            extractorVersion: await resolveVersion(extractor.id),
+          extractorIdsForForm(form).map(async (extractorId) => ({
+            extractorId,
+            extractorVersion: await resolveVersion(extractorId),
           }))
         );
       } catch (e) {

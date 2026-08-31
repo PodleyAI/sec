@@ -46,10 +46,11 @@ describe("componentRegistry", () => {
   });
 
   it("listRegisteredComponents returns one entry per extractor and resolver", () => {
-    // 25 extractors (D, C, CFPORTAL, 1-A, 1-A-W, 1-K, 1-Z, 1-U, 253G,
-    // QUALIF, 3, 4, 5, 144, S-1, S-1-xbrl, 424, 424-xbrl, 8-K, 8-K-items,
-    // merger-proxy, redemption, loi, 25-15, RW) and no resolver: every resolver
-    // kind now comes from a package that contributes one.
-    expect(listRegisteredComponents()).toHaveLength(25);
+    // 26 extractors (D, C, CFPORTAL, 1-A, 1-A-W, 1-K, 1-Z, 1-U, 253G,
+    // QUALIF, rega-financials-1sa, 3, 4, 5, 144, S-1, S-1-xbrl, 424, 424-xbrl,
+    // 8-K, 8-K-items, merger-proxy, redemption, loi, 25-15, RW) and no
+    // resolver: every resolver kind now comes from a package that contributes
+    // one.
+    expect(listRegisteredComponents()).toHaveLength(26);
   });
 });

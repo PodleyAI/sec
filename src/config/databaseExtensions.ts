@@ -55,29 +55,39 @@ export interface DatabaseViews {
   readonly names: readonly string[];
 }
 
-const VIEWS: DatabaseViews[] = [];
+const VIEWS = new Map<string, DatabaseViews>();
 
-/** Contribute views created after `db setup` builds tables, dropped by `db reset`. */
+/**
+ * Contribute views created after `db setup` builds tables, dropped by `db reset`.
+ *
+ * Idempotent on the view NAMES, not on the object handed in. A caller builds its
+ * argument at the call site — `registerDatabaseViews({ ddl, names })` — so a
+ * fresh object arrives on every call and an identity check would never fire.
+ * That matters because the registering function is itself called twice in one
+ * process, by the CLI preAction hook and again by the database setup hook: with
+ * an identity check the same views would be created and dropped once per call
+ * and the list would grow for the life of the process.
+ */
 export function registerDatabaseViews(views: DatabaseViews): void {
-  if (!VIEWS.includes(views)) VIEWS.push(views);
+  VIEWS.set([...views.names].join("\u0000"), views);
 }
 
 export function listDatabaseViewDdl(): readonly string[] {
-  return VIEWS.flatMap((v) => v.ddl);
+  return [...VIEWS.values()].flatMap((v) => v.ddl);
 }
 
 export function listDatabaseViewNames(): readonly string[] {
-  return VIEWS.flatMap((v) => v.names);
+  return [...VIEWS.values()].flatMap((v) => v.names);
 }
 
 /**
- * Drop every registered token and setup hook. Both arrays are module-level, so
- * they survive any rebuild of the DI container they were registered against —
- * which is why `resetDependencyInjectionsForTesting()` calls this rather than
- * leaving each test file to remember it.
+ * Drop every registered token, setup hook and view. All three registries are
+ * module-level, so they survive any rebuild of the DI container they were
+ * registered against — which is why `resetDependencyInjectionsForTesting()`
+ * calls this rather than leaving each test file to remember it.
  */
 export function clearDatabaseExtensionsForTesting(): void {
   TOKENS.length = 0;
   SETUP_HOOKS.length = 0;
-  VIEWS.length = 0;
+  VIEWS.clear();
 }

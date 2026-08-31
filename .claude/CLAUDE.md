@@ -246,9 +246,10 @@ are required so each call site states its intent. Two guards force the repositor
   clean — `resetDependencyInjectionsForTesting` strips these `ENV_DERIVED_TOKENS` and vitest
   isolates with `pool: "forks"`.)
 
-  Call sites: `cikNameBulkWriter.ts`, `Form8KEventReplace.ts`, `SpacDealReplace.ts` (writes);
-  `feedFilings.ts` (reads). The raw **DDL** in `setupAllDatabases.ts` / `resetAllDatabases.ts`
-  is not a fast path and keeps its own `isDryRun()` guard.
+  Call sites: `cikNameBulkWriter.ts`, `Form8KEventReplace.ts` (writes); `feedFilings.ts`,
+  `factsEligibleCiks.ts`, `selectFilingsToConvert.ts`, `DbStatus.ts` (reads). The raw **DDL**
+  in `setupAllDatabases.ts` / `resetAllDatabases.ts` is not a fast path and keeps its own
+  `isDryRun()` guard.
 
 **A bulk read is not a reason to reach for raw SQL.** `ITabularStorage` expresses set
 membership directly — `query({ col: { value: [...], operator: "in" } })` — so "rows for

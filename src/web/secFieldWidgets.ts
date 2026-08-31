@@ -11,7 +11,7 @@ import { queryEntities } from "../cli/queries/EntityQuery";
 import { queryFilings } from "../cli/queries/FilingQuery";
 import { getVersionStatus } from "../cli/queries/VersionStatus";
 import { listResolverIds } from "../resolver/resolverExtensions";
-import { EXTRACTOR_IDS } from "../storage/versioning/extractorIds";
+import { listBackfillableExtractorIds } from "../task/forms/backfillDescriptors";
 import { allRegisteredForms } from "../sec/forms/formExtractors";
 import { readPendingDeadLetterCounts } from "./secWebReads";
 
@@ -157,6 +157,13 @@ async function searchForms(
 /**
  * Extractor ids, carrying the two numbers that decide whether you want this one:
  * the version a retry would run under, and how much is waiting on the worklist.
+ *
+ * Read from {@link listBackfillableExtractorIds} — the same open vocabulary
+ * `extractor backfill` and `spac process --force` accept — rather than from the
+ * closed `EXTRACTOR_IDS` list. A downstream package registers extractors of its
+ * own through the form-extractor registry, and a picker built on the closed list
+ * cannot offer one: the CLI accepts a value the box refuses to suggest, which is
+ * exactly the drift a picker exists to remove.
  */
 async function searchExtractors(query: string): Promise<WebFieldWidgetItem[]> {
   const needle = query.trim().toLowerCase();
@@ -169,7 +176,8 @@ async function searchExtractors(query: string): Promise<WebFieldWidgetItem[]> {
       .filter((row) => row.component_kind === "extractor")
       .map((row) => [row.component_id, row])
   );
-  return EXTRACTOR_IDS.filter((id) => !needle || id.toLowerCase().includes(needle))
+  return listBackfillableExtractorIds()
+    .filter((id) => !needle || id.toLowerCase().includes(needle))
     .slice(0, MAX_ITEMS)
     .map((id) => {
       const version = versionById.get(id);
@@ -206,7 +214,7 @@ async function searchComponentIds(
   if (kind === "resolver") return searchResolverKinds(query);
   if (kind === "extractor") return searchExtractors(query);
   const needle = query.trim().toLowerCase();
-  return [...EXTRACTOR_IDS, ...listResolverIds()]
+  return [...listBackfillableExtractorIds(), ...listResolverIds()]
     .filter((id) => !needle || id.toLowerCase().includes(needle))
     .slice(0, MAX_ITEMS)
     .map((id) => ({ value: id, label: id, detail: "choose a kind to narrow this" }));

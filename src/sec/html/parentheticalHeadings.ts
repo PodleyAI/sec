@@ -3,8 +3,7 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { NodeKind, uuid4 } from "workglow";
-import type { ParagraphNode } from "workglow";
+import { headingAsParagraph } from "./joinSplitHeadings";
 import type { EdgarBlock } from "./types";
 
 /**
@@ -32,16 +31,6 @@ function isWhollyParenthetical(text: string): boolean {
     }
   }
   return depth === 0;
-}
-
-/** A demoted heading keeps its text as prose, and its span with it. */
-function asParagraph(text: string): ParagraphNode {
-  return {
-    nodeId: uuid4(),
-    kind: NodeKind.PARAGRAPH,
-    range: { startOffset: 0, endOffset: 0 },
-    text,
-  };
 }
 
 /**
@@ -79,7 +68,7 @@ function asParagraph(text: string): ParagraphNode {
 export function demoteParentheticalHeadings(blocks: readonly EdgarBlock[]): EdgarBlock[] {
   return blocks.map((block) =>
     block.type === "heading" && isWhollyParenthetical(block.text)
-      ? { type: "paragraph" as const, node: asParagraph(block.text), source: block.source }
+      ? headingAsParagraph(block)
       : block
   );
 }

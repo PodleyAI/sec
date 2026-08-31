@@ -690,6 +690,15 @@ export class ProcessAccessionDocFormTask extends Task<
         if (err instanceof TaskAbortedError || context.signal?.aborted) {
           throw err;
         }
+        // The same two escapes the document path takes below, and for the same
+        // reasons: neither a registry that emptied out mid-filing nor a
+        // misconfigured environment is a property of THIS filing, so containing
+        // either would stamp a version-gated STORE_ERROR on every filing of the
+        // form on every sweep. This dispatch reaches the registry exactly as
+        // that one does, so it can raise exactly the same two.
+        if (err instanceof MissingStorageHandlerError || err instanceof SecCliConfigurationError) {
+          throw err;
+        }
         const message = err instanceof Error ? err.message : String(err);
         const detail = `Store failed for form '${form}': ${message}`;
         console.error(`STORE_ERROR ${accessionNumber}@${unfinishedLabel()}:`, err);

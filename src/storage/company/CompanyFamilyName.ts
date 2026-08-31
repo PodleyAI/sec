@@ -321,7 +321,7 @@ export function isCompanyFamilyPrefixEcho(name: string, among: readonly string[]
  * Case convention is UPPER and is locked in. Changing the fold re-partitions
  * existing `canonical_*_family.normalized_name` rows and orphans
  * operator-installed aliases, so it needs a resolver version bump and a
- * re-resolve, not a quiet edit. `FamilyResolver.test.ts` pins it.
+ * re-resolve, not a quiet edit.
  */
 export function normalizeFamilyName(name: string): string {
   return companyFamilyName(name).toUpperCase();

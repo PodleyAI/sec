@@ -237,8 +237,13 @@ export class VerifyFilingTask extends Task<
         parsed.doc,
         parsed.sourceByNodeId
       );
-      const sectionTrace = buildSectionTrace(parsed.doc, segmentation);
       if (stages.includes("sections")) {
+        // Built only for the stage that reads it, for the same reason the parse
+        // trace above is: it walks the whole tree and normalizes every resolved
+        // section's text to answer the containment question, which on a
+        // multi-megabyte prospectus is seconds of work `verify chunks` never
+        // looks at.
+        const sectionTrace = buildSectionTrace(parsed.doc, segmentation);
         write("sections", sectionTrace);
         const resolved = sectionTrace.sections.filter((s) => s.resolved);
         sections = {

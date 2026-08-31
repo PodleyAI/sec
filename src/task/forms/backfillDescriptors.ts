@@ -165,7 +165,7 @@ async function* pageFilingsOfForm(form: string): AsyncGenerator<FilingPageRow[]>
               { orderBy, limit: remaining }
             )) ?? []) as FilingPageRow[])
           : [];
-      rows = restOfCik.length === 0 ? laterCiks : [...restOfCik, ...laterCiks];
+      rows = [...restOfCik, ...laterCiks];
     }
 
     if (rows.length === 0) return;

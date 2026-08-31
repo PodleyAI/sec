@@ -3,9 +3,7 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { NodeKind, uuid4 } from "workglow";
-import type { ParagraphNode } from "workglow";
-import { isTargetSectionLine } from "./joinSplitHeadings";
+import { headingAsParagraph, isTargetSectionLine } from "./joinSplitHeadings";
 import type { EdgarBlock } from "./types";
 
 /**
@@ -45,16 +43,6 @@ const TABLE_OF_CONTENTS = /^\s*(table of contents|index to (the )?(prospectus|fi
  */
 const MAX_FRONT_MATTER_BLOCKS = 200;
 
-/** A demoted heading keeps its text as prose, and its span with it. */
-function asParagraph(text: string): ParagraphNode {
-  return {
-    nodeId: uuid4(),
-    kind: NodeKind.PARAGRAPH,
-    range: { startOffset: 0, endOffset: 0 },
-    text,
-  };
-}
-
 /**
  * Demote the headings a filing's cover page is typeset as, so front matter
  * becomes one preamble rather than a dozen one-line sections.
@@ -90,7 +78,7 @@ export function demoteCoverPageHeadings(blocks: readonly EdgarBlock[]): EdgarBlo
 
   return blocks.map((block, i) =>
     i < contents && block.type === "heading" && !isTargetSectionLine(block.text)
-      ? { type: "paragraph" as const, node: asParagraph(block.text), source: block.source }
+      ? headingAsParagraph(block)
       : block
   );
 }

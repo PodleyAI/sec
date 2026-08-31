@@ -15,6 +15,7 @@ export const EXTRACTOR_IDS = [
   "1-Z",
   "1-U",
   "QUALIF",
+  "rega-financials-1sa",
   "3",
   "4",
   "5",
@@ -35,8 +36,10 @@ export const EXTRACTOR_IDS = [
  * An extractor's id. Deliberately a plain string, not a union over
  * {@link EXTRACTOR_IDS}: a downstream package registers its own extractors
  * through the form-extractor registry, and a closed union would make that
- * impossible without editing this file. {@link EXTRACTOR_IDS} remains the list
- * sec itself ships — what the CLI offers for completion. `db setup` no longer
+ * impossible without editing this file. {@link EXTRACTOR_IDS} is the vocabulary
+ * the CLI offers for completion, which is NOT the same as the readings this
+ * package ships: an id whose whole reading is a consumer's still belongs here
+ * once one of this package's own sweeps has to name it. `db setup` no longer
  * seeds `component_versions` from it: a closed list cannot name an extractor
  * registered through the open seam, so the ids seeded there are enumerated
  * from that registry instead.

@@ -57,11 +57,14 @@ export function expandFormTypes(tokens: readonly string[]): string[] {
 export const SYNC_FORM_DOMAINS = {
   portals: ["CFPORTAL"],
   crowdfunding: ["C"],
-  // 1-SA is absent because sec ships no extractor for it: a semiannual report
-  // is nothing but its financial statements, and reading those is a scan of
-  // human-authored tables a downstream package owns. A sweep that wants it
-  // names the form (or that package's extractor id) directly.
-  "reg-a": ["1-A", "1-K", "1-Z", "1-U", "QUALIF", "253G", "1-A-W"],
+  // `rega-financials-1sa` is named for the same reason `spacs` names
+  // `merger-proxy` and `25-15`: this package ships no reading for 1-SA — a
+  // semiannual report is nothing but its financial statements, and reading
+  // those is a scan of human-authored tables a consumer owns — but no OTHER id
+  // here expands to the 1-SA forms, so leaving it out sweeps zero of them and
+  // reports success. An id nothing registered contributes no forms, so naming
+  // it costs a package running alone nothing.
+  "reg-a": ["1-A", "1-K", "1-Z", "1-U", "QUALIF", "253G", "1-A-W", "rega-financials-1sa"],
   "form-d": ["D"],
   // Both readings of a registration statement, a prospectus and a current
   // report: the structured one this package ships and the one a consumer may

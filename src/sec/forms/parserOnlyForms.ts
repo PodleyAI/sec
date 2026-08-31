@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { allRegisteredExtractorIds, formHasExtractor } from "./formExtractors";
+import { allRegisteredExtractorIds } from "./formExtractors";
 
 /**
  * Forms this package can PARSE but ships no extractor for, grouped under the

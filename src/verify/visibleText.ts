@@ -44,7 +44,7 @@ export function visibleTextRuns(html: string): readonly TextRun[] {
       runs.push({ start: el.startIndex, end: el.endIndex, text });
       return;
     }
-    if (el.type !== "text" && isHidden(node)) return;
+    if (isHidden(node)) return;
     for (const child of el.children ?? []) visit(child);
   };
   visit($.root().get(0));

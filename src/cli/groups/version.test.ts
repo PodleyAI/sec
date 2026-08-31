@@ -69,6 +69,7 @@ describe("sec version CLI", () => {
         "loi",
         "merger-proxy",
         "redemption",
+        "rega-financials-1sa",
       ]);
       const extractorRows = parsed.filter(
         (r: { component_kind: string }) => r.component_kind === "extractor"

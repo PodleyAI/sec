@@ -65,6 +65,7 @@ describe("extractorIds", () => {
       "loi",
       "merger-proxy",
       "redemption",
+      "rega-financials-1sa",
     ]);
   });
 
