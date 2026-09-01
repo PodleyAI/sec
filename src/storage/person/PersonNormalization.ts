@@ -156,7 +156,7 @@ function generatePersonHash(person: Omit<Person, "person_hash_id">): string {
     .filter((v) => v !== null && v !== undefined)
     .join("-")
     .toLowerCase()
-    .replaceAll(/[\. ]/g, "-")
+    .replaceAll(/[. ]/g, "-")
     .replaceAll(/--+/g, "-")
     .trim()
     .replace(/^-|-$/g, "");

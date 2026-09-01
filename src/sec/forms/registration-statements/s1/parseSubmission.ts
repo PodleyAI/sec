@@ -65,7 +65,7 @@ export function parseSecHeader(txt: string): FormS1Header {
 
   let sic: number | null = null;
   let sicDescription: string | null = null;
-  const sicLine = head.match(/STANDARD INDUSTRIAL CLASSIFICATION:\s*([^\[\n\r]*?)\s*\[(\d+)\]/i);
+  const sicLine = head.match(/STANDARD INDUSTRIAL CLASSIFICATION:\s*([^[\n\r]*?)\s*\[(\d+)\]/i);
   if (sicLine) {
     sicDescription = sicLine[1].trim() || null;
     sic = Number(sicLine[2]);

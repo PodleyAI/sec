@@ -28,7 +28,7 @@ const SCHEMA = "public";
 
 function table(
   name: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test fixtures pass raw TypeBox schemas
+  // `any` here: test fixtures pass raw TypeBox schemas.
   schema: any,
   primaryKeyNames: ReadonlyArray<string>
 ): RegisteredTable {

@@ -96,19 +96,19 @@ function dateDayMonthNameYear(text: string): string {
 
 function dateMonthDayYear(text: string): string {
   // numeric "9/3/2024" / "09-03-2024" / "9.3.2024"
-  const m = text.match(/(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})/);
+  const m = text.match(/(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
   return (m && toIsoDate(Number(m[3]), Number(m[1]), Number(m[2]))) || text.trim();
 }
 
 function dateDayMonthYear(text: string): string {
   // numeric "3/9/2024" / "03-09-2024"
-  const m = text.match(/(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})/);
+  const m = text.match(/(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
   return (m && toIsoDate(Number(m[3]), Number(m[2]), Number(m[1]))) || text.trim();
 }
 
 function dateYearMonthDay(text: string): string {
   // numeric "2024/9/3" / "2024-09-03"
-  const m = text.match(/(\d{4})[/.\-](\d{1,2})[/.\-](\d{1,2})/);
+  const m = text.match(/(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})/);
   return (m && toIsoDate(Number(m[1]), Number(m[2]), Number(m[3]))) || text.trim();
 }
 

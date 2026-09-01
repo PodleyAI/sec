@@ -13,7 +13,7 @@
   "description": "Workglow SEC is an example of using the Workglow AI library to build a tool for retrieving SEC data.",
   "scripts": {
     "bunset": "bunset --patch --push --commit --tag",
-    "release": "bun run format && bun run build && bun run test && bun run prepack-check && bun run bunset",
+    "release": "bun run format && bun run lint && bun run build && bun run test && bun run prepack-check && bun run bunset",
     "prepack-check": "bun ./scripts/checkPackedContents.ts",
     "dev": "concurrently -c 'auto' -n 'sec:' 'bun:dev-*'",
     "dev-js": "bun build --watch --target=bun --sourcemap=external --packages=external --outdir ./dist ./src/index.ts",
@@ -33,7 +33,9 @@
     "test": "vitest run",
     "typecheck-tests": "tsc -p tsconfig.test.json",
     "format": "prettier --write .",
-    "format-check": "prettier --check ."
+    "format-check": "prettier --check .",
+    "lint": "oxlint --type-aware --report-unused-disable-directives --deny-warnings src scripts",
+    "lint-fix": "oxlint --fix src scripts"
   },
   "bin": {
     "sec": "./dist/sec.js",
@@ -76,6 +78,8 @@
     "@types/xml2js": "^0.4.14",
     "better-sqlite3": "^13.0.3",
     "bunset": "1.0.13",
+    "oxlint": "^1.81.0",
+    "oxlint-tsgolint": "^7.0.2001",
     "concurrently": "^10.0.5",
     "prettier": "3.9.6",
     "vitest": "^4.1.11"

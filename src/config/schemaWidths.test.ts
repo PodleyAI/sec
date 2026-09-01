@@ -27,7 +27,7 @@ const UNBOUNDED_COLUMNS = ["file_number", "film_number"] as const;
 
 const PHONE_SAMPLE = "+1 516 482 1200 ext. 108";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- reading raw TypeBox schema properties
+// `any` here: reading raw TypeBox schema properties.
 function width(schema: any, column: string): number | undefined {
   return declaredVarcharWidth(schema.properties[column]);
 }

@@ -37,10 +37,12 @@ bun test                     # all tests
 bun test src/path/to/file.test.ts
 bun run format               # Prettier write — run before pushing
 bun run format-check         # CI runs this
+bun run lint                 # oxlint + tsgolint type-aware rules; CI runs this
+bun run lint-fix             # oxlint --fix
 bun run typecheck-tests      # typecheck test files
 ```
 
-CI runs `format-check` → `build` → `typecheck-tests` → `test`, cheapest first.
+CI runs `format-check` → `lint` → `build` → `typecheck-tests` → `test`, cheapest first.
 
 `typecheck-tests` is a separate script because test files are **excluded from the base
 `tsconfig.json`** and vitest transpiles without typechecking — `build` and `test` both
@@ -324,6 +326,30 @@ From `.cursor/rules/`:
 - **Discriminated unions** for variant data
 - `as any` only inside generic function bodies where TS cannot narrow
 - Concise JSDoc only when behavior is non-obvious; `@link` for cross-references
+
+## Linting
+
+`oxlint` with `oxlint-tsgolint` for the type-aware rules, configured in
+`.oxlintrc.json` and scoped to `src` and `scripts`. It replaces an
+`eslint.config.js` that had been dead for a while: no `eslint` dependency was
+installed, no script invoked it, and CI never ran it — so none of the rules it
+named had ever fired. Several of the findings fixed on the way in were the
+backlog that had built up behind that.
+
+Type-aware rules need no build here: they resolve `@workglow/*` through the
+published `dist/*.d.ts` that `bun install` already puts in `node_modules`.
+
+Most type-aware rules are staged **off**, each with the count it reports today
+written beside it in the config. They are real findings, not false positives,
+and each is a cleanup of its own — `no-floating-promises` (22) is the one worth
+doing first. `no-duplicate-type-constituents` is off permanently: it reports
+`string | undefined` on optional parameters, which is the house style.
+
+Gone with ESLint: `eslint-plugin-regexp`, which oxlint has no equivalent for.
+`no-super-linear-backtracking` — the ReDoS guard — is the one with no
+substitute; `no-control-regex`, `no-invalid-regexp`,
+`no-misleading-character-class` and `no-useless-backreference` all survive in
+oxlint's `correctness` set.
 
 ## Formatting
 
