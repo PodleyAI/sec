@@ -13,15 +13,14 @@ import {
   globalServiceRegistry,
   InMemoryQueueStorage,
   InMemoryRateLimiterStorage,
-  type IRateLimiterStorage,
   JobQueueClient,
   JobQueueServer,
-  type Pool,
   PostgresRateLimiterStorage,
   RateLimiter,
   wrapQueueStorage,
+  type IRateLimiterStorage,
+  type Pool,
 } from "workglow";
-
 import { SecFetchMaxConcurrent, SecFetchMaxPerSec, SecJobQueueName } from "../../config/Constants";
 import { SEC_DB_TYPE } from "../../config/tokens";
 import { getPgPool } from "../../util/pg";

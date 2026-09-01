@@ -4,20 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { globalServiceRegistry } from "workglow";
-import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
-import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
-import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
-import type { ExtractorId } from "../../storage/versioning/extractorIds";
-import { EXTRACTOR_IDS } from "../../storage/versioning/extractorIds";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import {
   allRegisteredExtractorIds,
   allRegisteredForms,
   formHandledByExtractor,
 } from "../../sec/forms/formExtractors";
-import { registerSecFormExtractors } from "../../config/registerFormExtractors";
+import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
+import type { ExtractorId } from "../../storage/versioning/extractorIds";
+import { EXTRACTOR_IDS } from "../../storage/versioning/extractorIds";
+import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
+import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 
 /**
  * Both {@link formsForExtractor} and {@link listBackfillableExtractorIds} read

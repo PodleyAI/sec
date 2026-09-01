@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { Static, Type } from "typebox";
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 import { TypeSecCik } from "../../util/TypeSecCik";

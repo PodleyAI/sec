@@ -5,11 +5,11 @@
  */
 import { afterEach, expect, test } from "vitest";
 import {
-  registerResolverExtension,
-  getResolverExtension,
-  listResolverIds,
-  isFamilyResolverId,
   clearResolverExtensionsForTesting,
+  getResolverExtension,
+  isFamilyResolverId,
+  listResolverIds,
+  registerResolverExtension,
 } from "./resolverExtensions";
 
 afterEach(() => clearResolverExtensionsForTesting());

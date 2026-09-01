@@ -20,12 +20,12 @@ import {
   REGA_FULL_SUBMISSION_FORMS,
   REGISTRATION_PROSPECTUS_FORMS,
 } from "../forms/ProcessAccessionDocFormTask";
+import { filingsForDate, listFilingDates, type FeedFiling } from "./feedFilings";
 import { extractPrimaryDocFromSubmission } from "./feedTarball";
 import {
   FeedTarballExtractTask,
   type FeedTarballExtractTaskOutput,
 } from "./FeedTarballExtractTask";
-import { filingsForDate, listFilingDates, type FeedFiling } from "./feedFilings";
 
 export type BootstrapAccessionDocsTaskInput = {
   /** Inclusive lower bound (YYYY-MM-DD). Omit to start at the earliest filing. */

@@ -12,8 +12,8 @@ import { getActiveSlot } from "../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../storage/versioning/VersionRegistry";
 import { ComputeFormsWorklistTask } from "../task/forms/ComputeFormsWorklistTask";
 import { registerSecFormExtractors } from "./registerFormExtractors";
-import { resetDependencyInjectionsForTesting } from "./TestingDI";
 import { setupAllDatabases } from "./setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "./TestingDI";
 
 /**
  * A version slot is what lets an extractor be selected, run and recorded. The

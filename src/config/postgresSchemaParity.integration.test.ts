@@ -6,23 +6,23 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
-import { DefaultDI } from "./DefaultDI";
+import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
+import { PHONE_REPOSITORY_TOKEN } from "../storage/phone/PhoneSchema";
+import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
+import { getPgPool } from "../util/pg";
 import { planColumnAlignment, type LiveColumn } from "./alignPostgresColumnTypes";
+import { DefaultDI } from "./DefaultDI";
 import { planStaleCheckDrops, type LiveCheckConstraint } from "./dropStaleCheckConstraints";
 import { resetAllDatabases } from "./resetAllDatabases";
-import { setupAllDatabases } from "./setupAllDatabases";
 import {
   ALL_SECURITIES_OFFERED_TYPES,
   LONG_FILE_NUMBER,
   LONG_PHONE_INTERNATIONAL,
 } from "./schemaRoundTripFixtures";
+import { setupAllDatabases } from "./setupAllDatabases";
 import { listRegisteredTables } from "./tableRegistry";
 import { resetDependencyInjectionsForTesting } from "./TestingDI";
 import { SEC_DB_TYPE, SEC_PG_URL } from "./tokens";
-import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
-import { PHONE_REPOSITORY_TOKEN } from "../storage/phone/PhoneSchema";
-import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
-import { getPgPool } from "../util/pg";
 
 /**
  * Live-Postgres parity: only SQLite is exercised by the normal suite, and

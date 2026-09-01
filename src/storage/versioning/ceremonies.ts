@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { BumpType, ComponentKind } from "./ComponentVersionSchema";
+import { getResolverExtension } from "../../resolver/resolverExtensions";
 import { isRegisteredComponent } from "./componentRegistry";
+import type { BumpType, ComponentKind } from "./ComponentVersionSchema";
 import type { ExtractorRunRepo } from "./ExtractorRunRepo";
 import { validateBumpProgression } from "./semver";
 import type { VersionEventRepo } from "./VersionEventRepo";
 import type { VersionRegistry } from "./VersionRegistry";
-import { getResolverExtension } from "../../resolver/resolverExtensions";
 
 interface BaseArgs {
   readonly reg: VersionRegistry;

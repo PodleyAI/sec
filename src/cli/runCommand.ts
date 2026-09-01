@@ -1,5 +1,5 @@
-import { statusMessage } from "./output/Progress";
 import { isDryRun } from "./isDryRun";
+import { statusMessage } from "./output/Progress";
 
 export interface RunCommandOptions {
   readonly onError?: (error: unknown) => void;

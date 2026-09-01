@@ -5,9 +5,9 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { resolverIds } from "../../resolver/resolverIds";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "./ComponentVersionSchema";
 import type { ComponentKind } from "./ComponentVersionSchema";
-import { resolverIds } from "../../resolver/resolverIds";
 import { VersionRegistry } from "./VersionRegistry";
 
 /**

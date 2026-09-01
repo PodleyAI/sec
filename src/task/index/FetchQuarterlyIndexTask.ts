@@ -7,7 +7,6 @@
 import { parse } from "csv-parse";
 import { Type } from "typebox";
 import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError } from "workglow";
-import { response_type, SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import {
   parseDate,
@@ -16,6 +15,7 @@ import {
   TypeSecDate,
   YYYYdMMdDD,
 } from "../../util/parseDate";
+import { response_type, SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
 
 // NOTE: ONLY PREVIOUS QUARTYS master index are immutable, current one is not (though should switch to daily)
 

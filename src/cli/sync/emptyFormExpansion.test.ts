@@ -11,7 +11,7 @@ import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { SEC_DRY_RUN } from "../../config/tokens";
 import { ComputeFormsWorklistTask } from "../../task/forms/ComputeFormsWorklistTask";
 import { runFormsSweep } from "./runFormsSweep";
-import { SYNC_FORM_DOMAINS, expandFormTypes, formsForExtractorIds } from "./syncFormDomains";
+import { expandFormTypes, formsForExtractorIds, SYNC_FORM_DOMAINS } from "./syncFormDomains";
 
 /**
  * A request that resolved to no forms and a request never made are different

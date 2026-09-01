@@ -5,8 +5,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resolverIds, isFamilyResolverId } from "./resolverIds";
 import { clearResolverExtensionsForTesting } from "./resolverExtensions";
+import { isFamilyResolverId, resolverIds } from "./resolverIds";
 
 describe("resolverIds", () => {
   beforeEach(() => {

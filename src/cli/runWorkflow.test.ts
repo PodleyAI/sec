@@ -3,8 +3,8 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
 import { Type } from "typebox";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry, Task } from "workglow";
 import { SEC_JSON_OUTPUT } from "../config/tokens";
 

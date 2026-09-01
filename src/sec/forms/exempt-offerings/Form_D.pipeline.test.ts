@@ -10,8 +10,8 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { InvestmentOfferingRepo } from "../../../storage/investment-offering/InvestmentOfferingRepo";
 import { IssuerRepo } from "../../../storage/investment-offering/IssuerRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";

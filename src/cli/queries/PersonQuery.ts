@@ -11,8 +11,8 @@ import {
   type PersonObservation,
 } from "../../storage/observation/PersonObservationSchema";
 import { PersonObservationTitleRepo } from "../../storage/observation/PersonObservationTitleRepo";
-import type { QueryResult } from "./EntityQuery";
 import { collectPage, streamMatchingRows } from "./_streamMatches";
+import type { QueryResult } from "./EntityQuery";
 
 export interface PersonQueryParams {
   readonly search?: string;

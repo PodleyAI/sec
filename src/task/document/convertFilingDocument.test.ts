@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it } from "vitest";
-import { conversionCandidates } from "./ConvertFilingDocumentTask";
 import { convertFilingSubmission, filingDocumentTitle } from "./convertFilingDocument";
+import { conversionCandidates } from "./ConvertFilingDocumentTask";
 
 const HEADING = 'style="font-weight:700;text-align:center;font-size:14pt"';
 

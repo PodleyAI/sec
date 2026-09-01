@@ -6,12 +6,12 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry } from "workglow";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
+import { resetNoExtractorWarningsForTesting } from "../../sec/forms/parserOnlyForms";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
-import { resetNoExtractorWarningsForTesting } from "../../sec/forms/parserOnlyForms";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 async function seedFiling(opts: {

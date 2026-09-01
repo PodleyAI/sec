@@ -6,13 +6,13 @@
 
 import { Type } from "typebox";
 import {
+  globalServiceRegistry,
   IExecuteContext,
+  parallel,
   Task,
   TaskAbortedError,
   TaskError,
   Workflow,
-  globalServiceRegistry,
-  parallel,
 } from "workglow";
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../../storage/processing/CikLastUpdateSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";

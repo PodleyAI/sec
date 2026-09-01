@@ -15,15 +15,15 @@ import {
   type DataPorts,
   type ITask,
 } from "workglow";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { SEC_DRY_RUN } from "../../config/tokens";
+import { registerFormExtractor } from "../../sec/forms/formExtractors";
+import { PARSER_ONLY_FORMS_BY_EXTRACTOR } from "../../sec/forms/parserOnlyForms";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { registerFormExtractor } from "../../sec/forms/formExtractors";
-import { PARSER_ONLY_FORMS_BY_EXTRACTOR } from "../../sec/forms/parserOnlyForms";
 import { ComputeFormsWorklistTask } from "./ComputeFormsWorklistTask";
 import { formsSweepLoop, parseShardOption } from "./formsSweep";
 import {

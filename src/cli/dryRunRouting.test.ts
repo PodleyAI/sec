@@ -3,8 +3,8 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { describe, expect, it } from "vitest";
 import { Command } from "commander";
+import { describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { SEC_DRY_RUN } from "../config/tokens";
 import { applyGlobalOptions, parseGlobalOptions } from "./GlobalOptions";

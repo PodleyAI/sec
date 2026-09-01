@@ -5,11 +5,11 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
 import { decode } from "html-entities";
+import { describe, expect, it } from "vitest";
 import { renderMarkdown } from "workglow";
-import { parseEdgarHtml, parseEdgarHtmlWithTrace } from "./parseEdgarHtml";
 import { depaginateWithTrace } from "./DePaginator";
+import { parseEdgarHtml, parseEdgarHtmlWithTrace } from "./parseEdgarHtml";
 import { parseToBlocks } from "./parseToBlocks";
 import type { EdgarBlock } from "./types";
 

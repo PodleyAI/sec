@@ -1,33 +1,33 @@
 import type { ServiceToken } from "workglow";
 import { globalServiceRegistry } from "workglow";
 import { SEC_STORAGE_REGISTRY } from "../../config/storageRegistry";
-import { getPgPool } from "../../util/pg";
-import { resolveSqlBackend } from "../../util/sqlBackend";
 import { ADDRESS_REPOSITORY_TOKEN } from "../../storage/address/AddressSchema";
 import { CIK_NAME_REPOSITORY_TOKEN } from "../../storage/entity/CikNameSchema";
 import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../../storage/investment-offering/InvestmentOfferingSchema";
-import { PHONE_REPOSITORY_TOKEN } from "../../storage/phone/PhoneSchema";
-import { CROWDFUNDING_REPOSITORY_TOKEN } from "../../storage/portal/CrowdfundingSchema";
-import { PORTAL_REPOSITORY_TOKEN } from "../../storage/portal/PortalSchema";
-import {
-  SECTION16_FILING_REPOSITORY_TOKEN,
-  SECTION16_HOLDING_REPOSITORY_TOKEN,
-  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
-} from "../../storage/section16/Section16Schema";
 import {
   FORM144_ACQUISITION_REPOSITORY_TOKEN,
   FORM144_FILING_REPOSITORY_TOKEN,
   FORM144_RECENT_SALE_REPOSITORY_TOKEN,
 } from "../../storage/form144/Form144Schema";
-import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
-import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../../storage/investment-offering/InvestmentOfferingSchema";
+import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/CompanyObservationSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationSchema";
 import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationTitleSchema";
-import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/CompanyObservationSchema";
+import { PHONE_REPOSITORY_TOKEN } from "../../storage/phone/PhoneSchema";
+import { CROWDFUNDING_REPOSITORY_TOKEN } from "../../storage/portal/CrowdfundingSchema";
+import { PORTAL_REPOSITORY_TOKEN } from "../../storage/portal/PortalSchema";
+import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
+import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
+import {
+  SECTION16_FILING_REPOSITORY_TOKEN,
+  SECTION16_HOLDING_REPOSITORY_TOKEN,
+  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
+} from "../../storage/section16/Section16Schema";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { getPgPool } from "../../util/pg";
+import { resolveSqlBackend } from "../../util/sqlBackend";
 
 /** The headline counts, without the reporting metadata beside them. */
 export interface DbStatusCounts {

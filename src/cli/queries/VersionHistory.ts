@@ -6,9 +6,9 @@
 
 import { globalServiceRegistry } from "workglow";
 import type { ComponentKind } from "../../storage/versioning/ComponentVersionSchema";
+import { VersionEventRepo } from "../../storage/versioning/VersionEventRepo";
 import type { VersionEvent } from "../../storage/versioning/VersionEventSchema";
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "../../storage/versioning/VersionEventSchema";
-import { VersionEventRepo } from "../../storage/versioning/VersionEventRepo";
 
 export async function getVersionHistory(
   kind: ComponentKind,

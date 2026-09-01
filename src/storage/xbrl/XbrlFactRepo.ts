@@ -7,8 +7,8 @@
 import { globalServiceRegistry } from "workglow";
 import {
   XBRL_FACT_REPOSITORY_TOKEN,
-  type XbrlFactRow,
   type XbrlFactRepositoryStorage,
+  type XbrlFactRow,
 } from "./XbrlFactSchema";
 
 export class XbrlFactRepo {

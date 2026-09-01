@@ -4,19 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { resolveCountryCode } from "../../../storage/address/resolveCountryCode";
-import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
-import { normalizeCompanyName } from "../../../storage/company/CompanyNormalization";
-import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
-import type { RegAOffering } from "../../../storage/reg-a/RegAOfferingSchema";
-import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
-import { extractServiceProviders } from "./RegA_shared";
-import type { Form1K } from "./Form_1_K.schema";
-import type { ParsedForm1K } from "./Form_1_K";
 import { numScalar } from "../_valueHelpers";
 import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
 import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
+import { AddressRepo } from "../../../storage/address/AddressRepo";
+import { resolveCountryCode } from "../../../storage/address/resolveCountryCode";
+import { normalizeCompanyName } from "../../../storage/company/CompanyNormalization";
+import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
+import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
+import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
+import type { RegAOffering } from "../../../storage/reg-a/RegAOfferingSchema";
+import type { ParsedForm1K } from "./Form_1_K";
+import type { Form1K } from "./Form_1_K.schema";
+import { extractServiceProviders } from "./RegA_shared";
 
 interface Form1KStorageContext {
   readonly accession_number: string;

@@ -7,8 +7,9 @@
 import { Type } from "typebox";
 import { IExecuteContext, Task, TaskAbortedError, TaskError } from "workglow";
 import { EntityRepo } from "../../storage/entity/EntityRepo";
-import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
 import { normalizeListedTicker } from "../../util/listedTicker";
+import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
+
 export type StoreSubmissionTickersTaskInput = FetchSubmissionsOutput;
 
 export type StoreSubmissionTickersTaskOutput = {

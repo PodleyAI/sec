@@ -4,22 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { readdirSync, readFileSync } from "fs";
+import { join } from "path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
-import { readFileSync, readdirSync } from "fs";
-import { join } from "path";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
+import { ADDRESS_REPOSITORY_TOKEN } from "../../../storage/address/AddressSchema";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { Section16Repo } from "../../../storage/section16/Section16Repo";
+import { accessionFromFixtureName } from "../../../util/accession";
+import { parseCikSafely } from "../../../util/parseCik";
 import { Form_3 } from "./Form_3";
 import { Form_4 } from "./Form_4";
 import { Form_5 } from "./Form_5";
 import { processOwnershipForm } from "./OwnershipDocument.storage";
-import { Section16Repo } from "../../../storage/section16/Section16Repo";
-import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
-import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
-import { ADDRESS_REPOSITORY_TOKEN } from "../../../storage/address/AddressSchema";
-import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
-import { setupAllDatabases } from "../../../config/setupAllDatabases";
-import { accessionFromFixtureName } from "../../../util/accession";
-import { parseCikSafely } from "../../../util/parseCik";
 
 const CASES = [
   { dir: "form-3", form: "3" as const, parser: Form_3 },

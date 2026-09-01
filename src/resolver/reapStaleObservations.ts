@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
-import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { ObservationProvenanceRepo } from "../storage/provenance/ObservationProvenanceRepo";
 import { getObservationReapHooks } from "./observationReapHooks";
 

@@ -6,10 +6,10 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
-import { RoleRosterCompletenessRepo } from "../storage/roster/RoleRosterCompletenessRepo";
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
+import { RoleRosterCompletenessRepo } from "../storage/roster/RoleRosterCompletenessRepo";
 import type { CompanyClaim, PersonClaim } from "./EntityObserver";
 import { EntityObserver } from "./EntityObserver";
 import { COMPLETE_ROSTER_ROLE_SCOPES } from "./roleScopes";

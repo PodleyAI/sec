@@ -4,24 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Command } from "commander";
 import { registerWebCommand } from "@workglow/cli";
+import type { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
 import { parseGlobalOptions } from "../cli/GlobalOptions";
 import { addBootstrapCommands } from "../cli/groups/bootstrap";
 import { addDbCommands } from "../cli/groups/db";
+import { addExtractorCommands } from "../cli/groups/extractor";
 import { addFetchCommands } from "../cli/groups/fetch";
 import { addInitCommand } from "../cli/groups/init";
 import { addQueryCommands } from "../cli/groups/query";
 import { addSyncCommand } from "../cli/groups/sync";
-import { addVersionCommands } from "../cli/groups/version";
-import { addExtractorCommands } from "../cli/groups/extractor";
 import { addVerifyCommands } from "../cli/groups/verify";
-import { registerIssuerCommands } from "./issuerTickers";
-import { registerEditorialCommands } from "./editorial";
+import { addVersionCommands } from "../cli/groups/version";
 import { bootstrapSecRuntime } from "../config/bootstrapSecRuntime";
-import { registerSecWebUi } from "../web/registerSecWebUi";
 import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../config/tokens";
+import { registerSecWebUi } from "../web/registerSecWebUi";
+import { registerEditorialCommands } from "./editorial";
+import { registerIssuerCommands } from "./issuerTickers";
 
 /**
  * Commands that touch neither the database nor the job queue, so requiring a

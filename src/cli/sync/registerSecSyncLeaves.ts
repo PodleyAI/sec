@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
-import { CatchUpDailyIndexTask } from "../../task/index/CatchUpDailyIndexTask";
 import {
   ConvertFilingDocumentsTask,
   DEFAULT_CONVERT_LIMIT,
 } from "../../task/document/ConvertFilingDocumentsTask";
+import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
+import { CatchUpDailyIndexTask } from "../../task/index/CatchUpDailyIndexTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
 import { parseIntOption } from "../GlobalOptions";
 import { runWorkflowCli } from "../runWorkflow";
 import { runFormsSweep } from "./runFormsSweep";
-import { SYNC_FORM_DOMAINS, expandFormTypes, formsForExtractorIds } from "./syncFormDomains";
+import { expandFormTypes, formsForExtractorIds, SYNC_FORM_DOMAINS } from "./syncFormDomains";
 import {
   getSyncLeaf,
   registerSyncLeaf,

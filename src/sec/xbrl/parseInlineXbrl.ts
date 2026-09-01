@@ -7,16 +7,16 @@
 import * as cheerio from "cheerio";
 import type { DomElement, DomNode, DomTextNode } from "./domNodes";
 import {
-  INLINE_XBRL_NAMESPACES,
-  XBRL_INSTANCE_NAMESPACE,
   collectNamespacePrefixes,
   getAttr,
+  INLINE_XBRL_NAMESPACES,
   localName,
   namespaceForQName,
   normalizeFactValue,
   parseContextElement,
   parseUnitElement,
   prefixForNamespace,
+  XBRL_INSTANCE_NAMESPACE,
 } from "./parseXbrlCore";
 import type { XbrlContext, XbrlDocument, XbrlFact, XbrlUnit } from "./types";
 

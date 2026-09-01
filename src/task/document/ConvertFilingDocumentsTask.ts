@@ -6,8 +6,8 @@
 
 import { Type } from "typebox";
 import { IExecuteContext, Task, TaskAbortedError } from "workglow";
-import { ConvertFilingDocumentTask } from "./ConvertFilingDocumentTask";
 import { FILING_CONVERTER_VERSION } from "./convertFilingDocument";
+import { ConvertFilingDocumentTask } from "./ConvertFilingDocumentTask";
 import { CONVERTIBLE_FORMS, selectFilingsToConvert } from "./selectFilingsToConvert";
 
 export type ConvertFilingDocumentsTaskInput = {

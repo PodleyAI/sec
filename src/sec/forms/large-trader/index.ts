@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Form_13FCONP } from "./Form_13FCONP";
 import { Form_13H } from "./Form_13H";
-import { Form_13H_Q } from "./Form_13H_Q";
 import { Form_13H_A } from "./Form_13H_A";
 import { Form_13H_I } from "./Form_13H_I";
+import { Form_13H_Q } from "./Form_13H_Q";
 import { Form_13H_R } from "./Form_13H_R";
 import { Form_13H_T } from "./Form_13H_T";
-import { Form_13FCONP } from "./Form_13FCONP";
 
 export const LARGE_TRADER_FORM_NAMES_MAP = [
   ...Form_13H.forms.map((form) => [form, Form_13H] as const),

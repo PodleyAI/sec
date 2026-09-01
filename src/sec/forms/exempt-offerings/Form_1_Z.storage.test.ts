@@ -4,18 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
-import { readFileSync, readdirSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
-import { Form_1_Z } from "./Form_1_Z";
-import { processForm1Z } from "./Form_1_Z.storage";
+import { beforeEach, describe, expect, it } from "vitest";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
-import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
-import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { Form_1_Z } from "./Form_1_Z";
+import { processForm1Z } from "./Form_1_Z.storage";
 
 describe("Form_1_Z storage test", () => {
   let addressRepo: AddressRepo;

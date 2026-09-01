@@ -4,22 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
-import { readFileSync, readdirSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
-import { Form_D } from "./Form_D";
-import { processFormD } from "./Form_D.storage";
-
+import { beforeEach, describe, expect, it } from "vitest";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 // Import all repository schemas and types
 
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { InvestmentOfferingRepo } from "../../../storage/investment-offering/InvestmentOfferingRepo";
 import { IssuerRepo } from "../../../storage/investment-offering/IssuerRepo";
-import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
-import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
-import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
-import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
+import { Form_D } from "./Form_D";
+import { processFormD } from "./Form_D.storage";
 
 describe("Form_D comprehensive storage test", () => {
   let addressRepo: AddressRepo;

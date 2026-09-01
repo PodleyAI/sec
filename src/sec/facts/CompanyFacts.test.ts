@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "vitest";
 import { Value } from "typebox/value";
+import { describe, expect, it } from "vitest";
 import { CompanyFactsSchema } from "../../storage/facts/CompanyFactsSchema";
 import { FactoidSchema, FP, normalizeFp, type Factoid } from "./CompanyFacts";
 

@@ -3,16 +3,17 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { SectionNode, TableNode } from "workglow";
 import { NodeKind, traverseDepthFirst } from "workglow";
-import type { S1SectionName } from "./sectionVocabulary";
-import { S1_SECTIONS } from "./sectionVocabulary";
 import { DocumentTreeSegmenter } from "../forms/registration-statements/s1/DocumentTreeSegmenter";
 import { parseEdgarHtml } from "./parseEdgarHtml";
-import { fileURLToPath } from "node:url";
+import type { S1SectionName } from "./sectionVocabulary";
+import { S1_SECTIONS } from "./sectionVocabulary";
+
 const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
 const {

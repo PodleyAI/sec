@@ -6,9 +6,9 @@
 
 import { Type } from "typebox";
 import { Task } from "workglow";
-import { edgarGoldenFixtureDeps } from "./goldenFixtureSource";
 import type { GoldenFixtureMode } from "./goldenFixtures";
 import { runGoldenFixtures } from "./goldenFixtures";
+import { edgarGoldenFixtureDeps } from "./goldenFixtureSource";
 
 export type GoldenFixturesTaskInput = {
   readonly mode?: GoldenFixtureMode;

@@ -5,15 +5,15 @@
  */
 
 import { TaskAbortedError } from "workglow";
+import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { resolveCountryCode } from "../../../storage/address/resolveCountryCode";
+import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { PortalRepo } from "../../../storage/portal/PortalRepo";
-import { recordSuccessions } from "./portalSuccession";
-import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
-import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
 import { parseCikSafely } from "../../../util/parseCik";
 import type { FormCfportal } from "./Form_CFPORTAL.schema";
+import { recordSuccessions } from "./portalSuccession";
 
 const EXTRACTOR_ID = "CFPORTAL" as const;
 const EXTRACTOR_VERSION = "1.0.0";

@@ -19,9 +19,9 @@
  * Intersecting with the installed set (rather than linking everything `libs`
  * has) keeps this from introducing packages this repo does not depend on.
  */
-import { $ } from "bun";
 import fs from "node:fs";
 import path from "node:path";
+import { $ } from "bun";
 
 const REPO_ROOT = path.resolve(import.meta.dir, "..");
 const LIBS_ROOT = path.resolve(REPO_ROOT, "../libs");

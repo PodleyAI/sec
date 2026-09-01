@@ -7,8 +7,8 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeSecCik } from "../../util/TypeSecCik";
 import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /** Filing-level common-equity offering terms (one row per non-SPAC filing). */
 export const OfferingTermsSchema = Type.Object({

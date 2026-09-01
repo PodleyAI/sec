@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Type, Static } from "typebox";
-import { SCHEMA_VERSION_TYPE, CIK_TYPE } from "../FormSchemaUtil";
+import { Static, Type } from "typebox";
+import { CIK_TYPE, SCHEMA_VERSION_TYPE } from "../FormSchemaUtil";
 
 export const SubTypeList = Type.Union([Type.Literal("8-K"), Type.Literal("8-K/A")], {
   description: "Submission Type Form",

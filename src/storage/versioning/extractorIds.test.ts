@@ -5,16 +5,16 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import { ALL_FORMS_MAP, isFormParsingSupported } from "../../sec/forms/all-forms";
-import { Form_DRS } from "../../sec/forms/registration-statements/Form_DRS";
-import { Form_DRSLTR } from "../../sec/forms/registration-statements/Form_DRSLTR";
 import {
   allRegisteredForms,
   extractorIdsForForm,
   formsForExtractorIds,
 } from "../../sec/forms/formExtractors";
 import { parserOnlyExtractorIdForForm } from "../../sec/forms/parserOnlyForms";
-import { registerSecFormExtractors } from "../../config/registerFormExtractors";
+import { Form_DRS } from "../../sec/forms/registration-statements/Form_DRS";
+import { Form_DRSLTR } from "../../sec/forms/registration-statements/Form_DRSLTR";
 import { EXTRACTOR_IDS } from "./extractorIds";
 
 // Every routing assertion below answers from the form-extractor registry, which

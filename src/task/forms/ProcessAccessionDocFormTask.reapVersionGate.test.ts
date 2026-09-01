@@ -4,24 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { registerSecFormExtractors } from "../../config/registerFormExtractors";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import {
   clearFormExtractorsForTesting,
   registerFormExtractor,
 } from "../../sec/forms/formExtractors";
-import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 

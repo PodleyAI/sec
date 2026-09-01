@@ -5,18 +5,18 @@
  */
 
 import type { Command } from "commander";
-import { parseIntOption } from "../GlobalOptions";
-import { runCommand } from "../runCommand";
-import { runWorkflowCli } from "../runWorkflow";
-import { sectionFilePath } from "../../verify/callTrace";
-import { listFixtures } from "../../verify/loadFilingHtml";
-import { callsForSection, readCallTrace } from "../../verify/readCallTrace";
 import {
-  VerifyFilingTask,
   VERIFY_STAGES,
+  VerifyFilingTask,
   type VerifyFilingInput,
   type VerifyFilingResult,
 } from "../../task/verify/VerifyFilingTask";
+import { sectionFilePath } from "../../verify/callTrace";
+import { listFixtures } from "../../verify/loadFilingHtml";
+import { callsForSection, readCallTrace } from "../../verify/readCallTrace";
+import { parseIntOption } from "../GlobalOptions";
+import { runCommand } from "../runCommand";
+import { runWorkflowCli } from "../runWorkflow";
 
 interface SourceOptions {
   readonly fixture: string | undefined;

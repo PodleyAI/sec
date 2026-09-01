@@ -5,9 +5,9 @@
  */
 
 import { Form_ANNLRPT } from "./Form_ANNLRPT";
-import { Form_QRTLYRPT } from "./Form_QRTLYRPT";
-import { Form_DSTRBRPT } from "./Form_DSTRBRPT";
 import { Form_DEV_BANK } from "./Form_DEV_BANK";
+import { Form_DSTRBRPT } from "./Form_DSTRBRPT";
+import { Form_QRTLYRPT } from "./Form_QRTLYRPT";
 
 export const DEVELOPMENT_BANK_FORM_NAMES_MAP = [
   ...Form_ANNLRPT.forms.map((form) => [form, Form_ANNLRPT] as const),

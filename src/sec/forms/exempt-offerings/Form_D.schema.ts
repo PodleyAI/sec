@@ -4,29 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Type, Static } from "typebox";
+import { Static, Type } from "typebox";
+import { STATE_COUNTRY_CODE } from "../../../storage/address/AddressSchema";
 import {
-  TRUE_FALSE_LIST,
+  ACCESSION_NUMBER_TYPE,
+  CIK_TYPE,
+  CITY_TYPE,
+  ENTITY_NAME_TYPE,
+  ENTITY_TYPE_LIST,
+  IS_TRUE_TYPE,
+  PHONE_NUMBER_TYPE,
+  POSITIVE_INTEGER_TYPE,
   RELATIONSHIP_LIST,
+  SCHEMA_VERSION_TYPE,
+  STREET_TYPE,
+  STRING_50_TYPE,
   STRING_150_TYPE,
   STRING_200_TYPE,
-  ENTITY_NAME_TYPE,
-  YEAR_VALUE_TYPE,
-  CIK_TYPE,
   STRING_255_TYPE,
-  IS_TRUE_TYPE,
   TEST_LIVE_LIST,
-  POSITIVE_INTEGER_TYPE,
-  SCHEMA_VERSION_TYPE,
-  PHONE_NUMBER_TYPE,
-  STRING_50_TYPE,
-  ENTITY_TYPE_LIST,
-  ACCESSION_NUMBER_TYPE,
-  STREET_TYPE,
-  CITY_TYPE,
+  TRUE_FALSE_LIST,
+  YEAR_VALUE_TYPE,
   ZIP_CODE_TYPE,
 } from "../FormSchemaUtil";
-import { STATE_COUNTRY_CODE } from "../../../storage/address/AddressSchema";
 
 export const SubTypeList = Type.Union([Type.Literal("D"), Type.Literal("D/A")], {
   description: "Submission Type Form",

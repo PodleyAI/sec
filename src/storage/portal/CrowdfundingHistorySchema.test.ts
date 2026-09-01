@@ -5,8 +5,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { CrowdfundingSchema } from "./CrowdfundingSchema";
 import { CrowdfundingHistorySchema } from "./CrowdfundingHistorySchema";
+import { CrowdfundingSchema } from "./CrowdfundingSchema";
 
 /**
  * `crowdfunding_history` versions `crowdfunding`, so every column the two share

@@ -6,8 +6,8 @@
 
 import { Type } from "typebox";
 import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError } from "workglow";
-import { response_type, SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
 import { parseDate, secDate, TypeOptionalSecDate, YYYYdMMdDD } from "../../util/parseDate";
+import { response_type, SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
 
 /**
  * Quarterly form-sorted EDGAR index (`form.idx`). Same set of filings as

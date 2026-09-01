@@ -6,15 +6,15 @@
 
 import { describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
+import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
+import { PHONE_REPOSITORY_TOKEN } from "../storage/phone/PhoneSchema";
+import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
 import {
   ALL_SECURITIES_OFFERED_TYPES,
   LONG_FILE_NUMBER,
   LONG_PHONE_INTERNATIONAL,
 } from "./schemaRoundTripFixtures";
 import { withSqliteDb } from "./testing/withSqliteDb";
-import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
-import { PHONE_REPOSITORY_TOKEN } from "../storage/phone/PhoneSchema";
-import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
 
 /**
  * Round-trips the two values that overflowed their original column widths.

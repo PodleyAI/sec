@@ -5,8 +5,8 @@
  */
 
 import { Form } from "../Form";
-import { parseRegistrationSubmission } from "../registration-statements/s1/parseSubmission";
 import type { FormS1Parsed } from "../registration-statements/Form_S_1";
+import { parseRegistrationSubmission } from "../registration-statements/s1/parseSubmission";
 
 export class Form_DEFR14A extends Form {
   static readonly name = "Definitive Revised Proxy Soliciting Materials";

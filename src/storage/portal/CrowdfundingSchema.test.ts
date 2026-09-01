@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { readFileSync, readdirSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { CrowdfundingReportsSchema, CrowdfundingSchema } from "./CrowdfundingSchema";
 import { determineStatus } from "../../sec/forms/exempt-offerings/Form_C.storage";
 import { EXEMPT_OFFERING_FORM_CODES } from "../../sec/forms/exempt-offerings/form-slugs";
+import { CrowdfundingReportsSchema, CrowdfundingSchema } from "./CrowdfundingSchema";
 
 /**
  * `crowdfunding_reports.disclosure_value` must carry no lower bound.

@@ -8,8 +8,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { withSqliteDb } from "../../config/testing/withSqliteDb";
 import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../../storage/document/FilingDocumentSchema";
-import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
+import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import {
   clearFilingConversionGateForTesting,
   registerFilingConversionGate,

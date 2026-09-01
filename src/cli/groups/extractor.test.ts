@@ -6,10 +6,10 @@
 
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
-import { addExtractorCommands, countEligibleDeadLetters } from "./extractor";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { addExtractorCommands, countEligibleDeadLetters } from "./extractor";
 
 describe("countEligibleDeadLetters", () => {
   beforeEach(async () => {

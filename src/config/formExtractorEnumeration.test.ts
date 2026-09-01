@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { WebFieldWidget, WebFieldWidgetItem } from "@workglow/cli";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry } from "workglow";
-import type { WebFieldWidget, WebFieldWidgetItem } from "@workglow/cli";
 import { clearFormExtractorsForTesting, registerFormExtractor } from "../sec/forms/formExtractors";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { formsForExtractor, listBackfillableExtractorIds } from "../task/forms/backfillDescriptors";
 import { VersionStartDevTask } from "../task/versioning/VersionStartDevTask";
 import { registerSecFormExtractors } from "./registerFormExtractors";
-import { resetDependencyInjectionsForTesting } from "./TestingDI";
 import { setupAllDatabases } from "./setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "./TestingDI";
 
 /**
  * The field-widget registry lives in `@workglow/cli` and offers no read-back,

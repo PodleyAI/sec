@@ -6,8 +6,6 @@
 
 import type { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
-import type { ResolverCoverageResult } from "../queries/ResolverCoverage";
-import type { VersionCoverageResult } from "../queries/VersionCoverage";
 import { isRegisteredComponent } from "../../storage/versioning/componentRegistry";
 import {
   COMPONENT_KINDS,
@@ -48,6 +46,8 @@ import {
 } from "../../task/versioning/VersionStatusTask";
 import { parseGlobalOptions } from "../GlobalOptions";
 import { renderTable } from "../output/TableRenderer";
+import type { ResolverCoverageResult } from "../queries/ResolverCoverage";
+import type { VersionCoverageResult } from "../queries/VersionCoverage";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
 

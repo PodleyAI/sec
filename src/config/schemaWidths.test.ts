@@ -5,9 +5,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { declaredVarcharWidth } from "./alignPostgresColumnTypes";
 import { FilingSchema } from "../storage/filing/FilingSchema";
 import { PhoneSchema } from "../storage/phone/PhoneSchema";
+import { declaredVarcharWidth } from "./alignPostgresColumnTypes";
 
 /**
  * The longest real EDGAR values these columns have to hold. Measured over a

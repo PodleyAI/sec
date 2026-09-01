@@ -6,9 +6,9 @@
 
 import { Type } from "typebox";
 import { Task } from "workglow";
-import type { TaskPorts } from "../taskPorts";
 import { queryEntities, type QueryResult } from "../../cli/queries/EntityQuery";
 import type { Entity } from "../../storage/entity/EntitySchema";
+import type { TaskPorts } from "../taskPorts";
 import { queryResultSchema } from "./queryResultSchema";
 
 export type QueryEntitiesTaskInput = {

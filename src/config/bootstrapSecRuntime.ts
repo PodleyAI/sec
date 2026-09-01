@@ -5,13 +5,13 @@
  */
 
 import { getTaskQueueRegistry, Sqlite } from "workglow";
+import { getSecJobQueue } from "../task/fetch/SecJobQueue";
 import { DefaultDI } from "./DefaultDI";
 import { EnvToDI } from "./EnvToDI";
 import { getExtractionTemperature } from "./extractionTemperature";
 import { registerSecFormExtractors } from "./registerFormExtractors";
 import { registerSecModels } from "./registerModels";
 import { registerSecProviders } from "./registerProviders";
-import { getSecJobQueue } from "../task/fetch/SecJobQueue";
 
 /**
  * Brings up everything a sec task needs before it runs: the SQLite binding, the

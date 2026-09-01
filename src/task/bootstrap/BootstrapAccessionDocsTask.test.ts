@@ -18,9 +18,9 @@ import {
   type StreamEvent,
 } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import type { TaskPorts } from "../taskPorts";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { FILING_REPOSITORY_TOKEN, type Filing } from "../../storage/filing/FilingSchema";
+import type { TaskPorts } from "../taskPorts";
 import {
   BootstrapAccessionDocsTask,
   type BootstrapAccessionDocsTaskInput,

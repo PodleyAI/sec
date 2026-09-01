@@ -1,4 +1,3 @@
-import { Command } from "commander";
 import {
   buildCommandTree,
   findCommandNode,
@@ -8,6 +7,7 @@ import {
   resolveFieldAnnotations,
   type WebCommandNode,
 } from "@workglow/cli";
+import { Command } from "commander";
 import { beforeAll, describe, expect, it } from "vitest";
 import { AddCommands } from "../commands";
 import { SEC_COMMAND_ANNOTATION_PATHS, SEC_FIELD_ANNOTATION_PATHS } from "./secAnnotations";

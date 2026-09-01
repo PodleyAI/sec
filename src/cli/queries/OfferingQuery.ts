@@ -2,8 +2,8 @@ import { globalServiceRegistry } from "workglow";
 import type { SearchCriteria } from "workglow";
 import type { InvestmentOffering } from "../../storage/investment-offering/InvestmentOfferingSchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../../storage/investment-offering/InvestmentOfferingSchema";
-import type { QueryResult } from "./EntityQuery";
 import { collectPage, streamMatchingRows } from "./_streamMatches";
+import type { QueryResult } from "./EntityQuery";
 
 export interface OfferingQueryParams {
   readonly search?: string;

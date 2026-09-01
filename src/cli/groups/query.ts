@@ -1,8 +1,5 @@
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
-import type { QueryResult } from "../queries/EntityQuery";
-import type { CikQueryResult } from "../queries/CikQuery";
-import { formatXbrlDimensions, formatXbrlPeriod } from "../queries/XbrlQuery";
 import type { XbrlFactRow } from "../../storage/xbrl/XbrlFactSchema";
 import { QueryCiksTask } from "../../task/query/QueryCiksTask";
 import { QueryCrowdfundingTask } from "../../task/query/QueryCrowdfundingTask";
@@ -19,6 +16,9 @@ import { QueryRegATask } from "../../task/query/QueryRegATask";
 import { QueryXbrlTask } from "../../task/query/QueryXbrlTask";
 import { parseIntOption } from "../GlobalOptions";
 import { renderTable, type ColumnDef } from "../output/TableRenderer";
+import type { CikQueryResult } from "../queries/CikQuery";
+import type { QueryResult } from "../queries/EntityQuery";
+import { formatXbrlDimensions, formatXbrlPeriod } from "../queries/XbrlQuery";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
 

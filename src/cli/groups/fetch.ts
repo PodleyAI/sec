@@ -8,24 +8,24 @@ import {
   type FetchCompanyFactsForCikTaskOutput,
 } from "../../task/facts/FetchCompanyFactsForCikTask";
 import {
-  FetchFixturesTask,
-  type FetchFixturesTaskOutput,
-} from "../../task/fixtures/FetchFixturesTask";
-import {
-  FetchS1FixturesTask,
-  type FetchS1FixturesTaskOutput,
-} from "../../task/fixtures/FetchS1FixturesTask";
-import {
-  GoldenFixturesTask,
-  type GoldenFixturesTaskOutput,
-} from "../../task/fixtures/GoldenFixturesTask";
-import { GOLDEN_FIXTURES } from "../../task/fixtures/goldenFixtureManifest";
-import {
   DEFAULT_FIXTURES_PER_FORM,
   parseFormCodes,
   parseQuarterStrings,
 } from "../../task/fixtures/fetchFixtures";
+import {
+  FetchFixturesTask,
+  type FetchFixturesTaskOutput,
+} from "../../task/fixtures/FetchFixturesTask";
 import { DEFAULT_MIN_SPAC, DEFAULT_S1_SAMPLE_COUNT } from "../../task/fixtures/fetchS1Fixtures";
+import {
+  FetchS1FixturesTask,
+  type FetchS1FixturesTaskOutput,
+} from "../../task/fixtures/FetchS1FixturesTask";
+import { GOLDEN_FIXTURES } from "../../task/fixtures/goldenFixtureManifest";
+import {
+  GoldenFixturesTask,
+  type GoldenFixturesTaskOutput,
+} from "../../task/fixtures/GoldenFixturesTask";
 import {
   FetchAndStoreFormsTask,
   type FetchAndStoreFormsTaskOutput,

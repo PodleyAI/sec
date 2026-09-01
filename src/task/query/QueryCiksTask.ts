@@ -6,8 +6,8 @@
 
 import { Type } from "typebox";
 import { Task } from "workglow";
-import type { TaskPorts } from "../taskPorts";
 import { queryCiks, type CikQueryResult } from "../../cli/queries/CikQuery";
+import type { TaskPorts } from "../taskPorts";
 import { queryResultSchema } from "./queryResultSchema";
 
 export type QueryCiksTaskInput = {

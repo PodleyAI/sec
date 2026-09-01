@@ -16,14 +16,13 @@
  */
 import { Command } from "commander";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { addSyncCommand } from "../groups/sync";
+import { registerSecSyncLeaves } from "./registerSecSyncLeaves";
 
 const runWorkflowCli = vi.fn(async (..._args: readonly unknown[]) => undefined);
 vi.mock("../runWorkflow", () => ({
   runWorkflowCli: (...args: readonly unknown[]) => runWorkflowCli(...args),
 }));
-
-import { addSyncCommand } from "../groups/sync";
-import { registerSecSyncLeaves } from "./registerSecSyncLeaves";
 
 /** The defaults the leaf handed its task on this run. */
 function convertDefaults(): Record<string, unknown> {

@@ -8,12 +8,12 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Pool, RateLimiterStorageOptions } from "workglow";
 import { globalServiceRegistry, PostgresRateLimiterStorage } from "workglow";
-import { createSecFetchRateLimiterStorage } from "../task/fetch/SecJobQueue";
 import {
   rateLimiterStorageTableNames,
   SecFetchRateLimiterOptions,
   secFetchRateLimiterTableNames,
 } from "../task/fetch/secFetchRateLimiterConfig";
+import { createSecFetchRateLimiterStorage } from "../task/fetch/SecJobQueue";
 import { ownedTableNames, resetAllDatabases } from "./resetAllDatabases";
 import { SEC_STORAGE_REGISTRY } from "./storageRegistry";
 import { resetDependencyInjectionsForTesting } from "./TestingDI";

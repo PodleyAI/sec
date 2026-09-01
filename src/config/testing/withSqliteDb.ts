@@ -9,11 +9,11 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, vi } from "vitest";
 import { globalServiceRegistry, Sqlite, type ServiceToken } from "workglow";
-import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../tokens";
 import { closeDb } from "../../util/db";
 import { DefaultDI } from "../DefaultDI";
 import { setupAllDatabases } from "../setupAllDatabases";
 import { resetDependencyInjectionsForTesting } from "../TestingDI";
+import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../tokens";
 
 /** The one member this helper needs off a repository token's storage. */
 interface SetupDatabaseCapable {

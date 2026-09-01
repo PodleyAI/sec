@@ -4,20 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Type } from "typebox";
 import { describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry } from "workglow";
-import { Type } from "typebox";
-import { addMissingColumnsSqlite, planMissingColumns } from "./addMissingColumns";
-import type { RegisteredTable } from "./tableRegistry";
-import { withSqliteDb } from "./testing/withSqliteDb";
-import { getDb } from "../util/db";
 import {
   FILING_REPOSITORY_TOKEN,
   FilingPrimaryKeyNames,
   FilingSchema,
   type Filing,
 } from "../storage/filing/FilingSchema";
+import { getDb } from "../util/db";
 import { TypeNullable } from "../util/TypeBoxUtil";
+import { addMissingColumnsSqlite, planMissingColumns } from "./addMissingColumns";
+import type { RegisteredTable } from "./tableRegistry";
+import { withSqliteDb } from "./testing/withSqliteDb";
 
 /**
  * What this fixture is, and what it is not.

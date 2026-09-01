@@ -6,8 +6,8 @@
 
 import { Type } from "typebox";
 import { DataPortSchemaObject, TaskInput } from "workglow";
-import { SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
 
 // NOTE: accession documents are immutable, so we don't need to pass in a date for invalidation
 

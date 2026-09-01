@@ -6,8 +6,8 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
-import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { REGA_OFFERING_EVENT_REPOSITORY_TOKEN } from "../../../storage/reg-a/RegAOfferingEventSchema";
 import { processRegAOfferingEvent } from "./RegAOfferingEvent.storage";
 

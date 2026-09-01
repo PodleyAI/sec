@@ -16,15 +16,8 @@
  */
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const runWorkflowCli = vi.fn(async (..._args: readonly unknown[]) => undefined);
-vi.mock("../runWorkflow", () => ({
-  runWorkflowCli: (...args: readonly unknown[]) => runWorkflowCli(...args),
-}));
-
-import { addSyncCommand } from "./sync";
-import { registerSecSyncLeaves } from "../sync/registerSecSyncLeaves";
 import { parseIntOption } from "../GlobalOptions";
+import { registerSecSyncLeaves } from "../sync/registerSecSyncLeaves";
 import {
   clearSyncLeavesForTesting,
   registerSyncLeaf,
@@ -32,6 +25,12 @@ import {
   type SyncLeafOptionValues,
   type SyncRunContext,
 } from "../sync/syncLeaves";
+import { addSyncCommand } from "./sync";
+
+const runWorkflowCli = vi.fn(async (..._args: readonly unknown[]) => undefined);
+vi.mock("../runWorkflow", () => ({
+  runWorkflowCli: (...args: readonly unknown[]) => runWorkflowCli(...args),
+}));
 
 /** What a step saw on the run it was given. */
 interface SeenRun {

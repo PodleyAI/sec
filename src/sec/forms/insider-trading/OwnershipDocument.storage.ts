@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { numWrapped as num, strWrapped as str } from "../_valueHelpers";
 import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
 import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
 import type { AddressImport } from "../../../storage/address/AddressNormalization";
@@ -17,7 +18,6 @@ import type {
 import { isBadPersonField } from "../../../types/edgar/bad-data";
 import { parseCikSafely } from "../../../util/parseCik";
 import type { OwnershipDocument } from "./OwnershipDocument.schema";
-import { numWrapped as num, strWrapped as str } from "../_valueHelpers";
 
 // EDGAR ownership flags appear as "1"/"0" (X0609) or "true"/"false" (X0607).
 function toBool(raw: string | undefined): boolean {

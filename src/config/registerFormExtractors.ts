@@ -3,35 +3,35 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
+import type { Form1A } from "../sec/forms/exempt-offerings/Form_1_A.schema";
+import { processForm1A } from "../sec/forms/exempt-offerings/Form_1_A.storage";
+import type { ParsedForm1K } from "../sec/forms/exempt-offerings/Form_1_K";
+import { processForm1K } from "../sec/forms/exempt-offerings/Form_1_K.storage";
+import { processForm1U } from "../sec/forms/exempt-offerings/Form_1_U.storage";
+import type { Form1Z } from "../sec/forms/exempt-offerings/Form_1_Z.schema";
+import { processForm1Z } from "../sec/forms/exempt-offerings/Form_1_Z.storage";
+import type { FormC } from "../sec/forms/exempt-offerings/Form_C.schema";
+import { processFormC } from "../sec/forms/exempt-offerings/Form_C.storage";
+import type { FormD } from "../sec/forms/exempt-offerings/Form_D.schema";
+import { processFormD } from "../sec/forms/exempt-offerings/Form_D.storage";
+import type { FormQualif } from "../sec/forms/exempt-offerings/Form_QUALIF.schema";
+import { processFormQualif } from "../sec/forms/exempt-offerings/Form_QUALIF.storage";
+import { processRegAOfferingEvent } from "../sec/forms/exempt-offerings/RegAOfferingEvent.storage";
 import {
   formExtractorRegistryGeneration,
   registerFormExtractor,
 } from "../sec/forms/formExtractors";
-import { processForm1A } from "../sec/forms/exempt-offerings/Form_1_A.storage";
-import { processForm1K } from "../sec/forms/exempt-offerings/Form_1_K.storage";
-import { processForm1U } from "../sec/forms/exempt-offerings/Form_1_U.storage";
-import { processForm1Z } from "../sec/forms/exempt-offerings/Form_1_Z.storage";
-import { processFormC } from "../sec/forms/exempt-offerings/Form_C.storage";
-import { processFormD } from "../sec/forms/exempt-offerings/Form_D.storage";
-import { processFormQualif } from "../sec/forms/exempt-offerings/Form_QUALIF.storage";
-import { processRegAOfferingEvent } from "../sec/forms/exempt-offerings/RegAOfferingEvent.storage";
+import type { Form144 } from "../sec/forms/insider-trading/Form_144.schema";
 import { processForm144 } from "../sec/forms/insider-trading/Form_144.storage";
+import type { OwnershipDocument } from "../sec/forms/insider-trading/OwnershipDocument.schema";
 import { processOwnershipForm } from "../sec/forms/insider-trading/OwnershipDocument.storage";
+import type { Form8K } from "../sec/forms/miscellaneous-filings/Form_8_K.schema";
 import { processForm8K } from "../sec/forms/miscellaneous-filings/Form_8_K.storage";
+import type { FormCfportal } from "../sec/forms/portal/Form_CFPORTAL.schema";
 import { processFormCFPORTAL } from "../sec/forms/portal/Form_CFPORTAL.storage";
 import { processForm424Structured } from "../sec/forms/registration-statements/Form_424.storage";
-import { processFormS1Structured } from "../sec/forms/registration-statements/Form_S_1.storage";
-import type { Form1A } from "../sec/forms/exempt-offerings/Form_1_A.schema";
-import type { ParsedForm1K } from "../sec/forms/exempt-offerings/Form_1_K";
-import type { FormC } from "../sec/forms/exempt-offerings/Form_C.schema";
-import type { FormD } from "../sec/forms/exempt-offerings/Form_D.schema";
-import type { FormQualif } from "../sec/forms/exempt-offerings/Form_QUALIF.schema";
-import type { Form1Z } from "../sec/forms/exempt-offerings/Form_1_Z.schema";
-import type { Form144 } from "../sec/forms/insider-trading/Form_144.schema";
-import type { OwnershipDocument } from "../sec/forms/insider-trading/OwnershipDocument.schema";
-import type { Form8K } from "../sec/forms/miscellaneous-filings/Form_8_K.schema";
-import type { FormCfportal } from "../sec/forms/portal/Form_CFPORTAL.schema";
 import type { FormS1Parsed } from "../sec/forms/registration-statements/Form_S_1";
+import { processFormS1Structured } from "../sec/forms/registration-statements/Form_S_1.storage";
 
 /**
  * Which registry generation this function has already registered into, so a

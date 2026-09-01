@@ -6,36 +6,41 @@
 
 import { globalServiceRegistry, MIGRATIONS_TABLE } from "workglow";
 import { isDryRun } from "../cli/isDryRun";
-import { secFetchRateLimiterLedgerComponents } from "../task/fetch/SecJobQueue";
-import { secFetchRateLimiterTableNames } from "../task/fetch/secFetchRateLimiterConfig";
-import { getDb } from "../util/db";
-import { getPgPool } from "../util/pg";
-import { currentSchemaName, quote } from "../util/pgIdentifiers";
-import {
-  listDatabaseExtensionTokens,
-  listDatabaseViewNames,
-  runDatabaseSetupHooks,
-} from "./databaseExtensions";
-import { listRegisteredTables } from "./tableRegistry";
-import { SEC_DB_TYPE } from "./tokens";
 import { ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN } from "../storage/address/AddressHistorySchema";
 import {
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
   ADDRESS_REPOSITORY_TOKEN,
 } from "../storage/address/AddressSchema";
+import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
 import { CHANGE_LOG_REPOSITORY_TOKEN } from "../storage/change-tracking/ChangeLogSchema";
+import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1ClassificationSchema";
+import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/ExtractionDeadLetterSchema";
+import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../storage/document/FilingDocumentSchema";
+import { FILING_SECTION_REPOSITORY_TOKEN } from "../storage/document/FilingSectionSchema";
 import { CIK_NAME_REPOSITORY_TOKEN } from "../storage/entity/CikNameSchema";
 import { ENTITY_HISTORY_REPOSITORY_TOKEN } from "../storage/entity/EntityHistorySchema";
 import { ENTITY_REPOSITORY_TOKEN } from "../storage/entity/EntitySchema";
 import { ENTITY_TICKER_REPOSITORY_TOKEN } from "../storage/entity/EntityTickerSchema";
 import { SIC_CODE_REPOSITORY_TOKEN } from "../storage/entity/SicCodeSchema";
+import { EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN } from "../storage/executive-compensation/ExecutiveCompensationSchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../storage/facts/CompanyFactsSchema";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
-import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../storage/document/FilingDocumentSchema";
-import { FILING_SECTION_REPOSITORY_TOKEN } from "../storage/document/FilingSectionSchema";
+import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
+import {
+  FORM144_ACQUISITION_REPOSITORY_TOKEN,
+  FORM144_FILING_REPOSITORY_TOKEN,
+  FORM144_RECENT_SALE_REPOSITORY_TOKEN,
+} from "../storage/form144/Form144Schema";
 import { INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingSchema";
 import { ISSUER_REPOSITORY_TOKEN } from "../storage/investment-offering/IssuerSchema";
+import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
+import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
+import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
+import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTickerSchema";
+import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
+import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
+import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
 import {
   PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN,
   PHONE_REPOSITORY_TOKEN,
@@ -52,42 +57,37 @@ import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../storage/processing/CikLastU
 import { DAILY_INDEX_CURSOR_REPOSITORY_TOKEN } from "../storage/processing/DailyIndexCursorSchema";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFactsSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedSubmissionsSchema";
+import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { REGA_CURRENT_REPORT_REPOSITORY_TOKEN } from "../storage/reg-a/RegACurrentReportSchema";
-import { REGA_OFFERING_EVENT_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingEventSchema";
 import { REGA_EQUITY_CLASS_REPOSITORY_TOKEN } from "../storage/reg-a/RegAEquityClassSchema";
 import { REGA_FINANCIAL_DATA_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinancialDataSchema";
+import { REGA_OFFERING_EVENT_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingEventSchema";
 import { REGA_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingHistorySchema";
 import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
 import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegAServiceProviderSchema";
-import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
-import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
-import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
-import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
-import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/roster/RoleRosterCompletenessSchema";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
-import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
-import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
-import { EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN } from "../storage/executive-compensation/ExecutiveCompensationSchema";
-import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1ClassificationSchema";
-import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/ExtractionDeadLetterSchema";
-import {
-  FORM144_ACQUISITION_REPOSITORY_TOKEN,
-  FORM144_FILING_REPOSITORY_TOKEN,
-  FORM144_RECENT_SALE_REPOSITORY_TOKEN,
-} from "../storage/form144/Form144Schema";
-import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTickerSchema";
-import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
-import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
-import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
-import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
+import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/roster/RoleRosterCompletenessSchema";
 import {
   SECTION16_FILING_REPOSITORY_TOKEN,
   SECTION16_HOLDING_REPOSITORY_TOKEN,
   SECTION16_TRANSACTION_REPOSITORY_TOKEN,
 } from "../storage/section16/Section16Schema";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
+import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
+import { secFetchRateLimiterTableNames } from "../task/fetch/secFetchRateLimiterConfig";
+import { secFetchRateLimiterLedgerComponents } from "../task/fetch/SecJobQueue";
+import { getDb } from "../util/db";
+import { getPgPool } from "../util/pg";
+import { currentSchemaName, quote } from "../util/pgIdentifiers";
+import {
+  listDatabaseExtensionTokens,
+  listDatabaseViewNames,
+  runDatabaseSetupHooks,
+} from "./databaseExtensions";
+import { listRegisteredTables } from "./tableRegistry";
+import { SEC_DB_TYPE } from "./tokens";
 
 /** Options for {@link resetAllDatabases}. */
 export interface ResetAllDatabasesOptions {

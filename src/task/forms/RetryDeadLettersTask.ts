@@ -12,14 +12,14 @@ import {
   TaskAbortedError,
   TaskError,
 } from "workglow";
+import { extractorIsSuppliedElsewhere } from "../../sec/forms/parserOnlyForms";
 import {
   ExtractionDeadLetterRepo,
   isExpectedNegativeDeadLetter,
 } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
-import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
-import { extractorIsSuppliedElsewhere } from "../../sec/forms/parserOnlyForms";
+import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { getBackfillDescriptor } from "./backfillDescriptors";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 

@@ -5,8 +5,8 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import { KeyedMutex } from "../../util/KeyedMutex";
 import { isStaleByAsOf } from "../../util/asOfGuard";
+import { KeyedMutex } from "../../util/KeyedMutex";
 import { Portal, PORTAL_REPOSITORY_TOKEN, PortalRepositoryStorage } from "./PortalSchema";
 
 // Options for the PortalRepo

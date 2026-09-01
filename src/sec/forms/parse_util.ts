@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TSchema, Type } from "typebox";
 import { Readable } from "node:stream";
+import { TSchema, Type } from "typebox";
 
 /** Read a Node.js Readable stream completely into a UTF-8 string */
 export async function streamToString(stream: Readable): Promise<string> {

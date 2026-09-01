@@ -6,12 +6,12 @@
 
 import { Static, Type } from "typebox";
 import { DataPortSchemaObject } from "workglow";
-import { SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
 import {
   FullCompanySubmissionSchema,
   TypeSecCik,
 } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeOptionalSecDate } from "../../util/parseDate";
+import { SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
 
 // NOTE: company submissions are mutable, so we need to pass in a date to break the cache
 

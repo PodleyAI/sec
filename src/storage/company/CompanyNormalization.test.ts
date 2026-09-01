@@ -6,13 +6,13 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  CompanyImport,
+  hasCompanyAnywhere,
+  hasCompanyEnding,
+  isCompanyEnding,
+  isUnnamedCompanyName,
   normalizeCompany,
   normalizeCompanyName,
-  isUnnamedCompanyName,
-  hasCompanyEnding,
-  hasCompanyAnywhere,
-  isCompanyEnding,
-  CompanyImport,
 } from "./CompanyNormalization";
 
 describe("CompanyNormalization", () => {

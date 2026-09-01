@@ -6,9 +6,9 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  normalizeInternationalPhone,
   normalizePhone,
   PhoneImport,
-  normalizeInternationalPhone,
   regionCodeFor,
 } from "./PhoneNormalization";
 

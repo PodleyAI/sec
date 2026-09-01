@@ -2,8 +2,8 @@ import { globalServiceRegistry } from "workglow";
 import type { SearchCriteria } from "workglow";
 import type { Crowdfunding } from "../../storage/portal/CrowdfundingSchema";
 import { CROWDFUNDING_REPOSITORY_TOKEN } from "../../storage/portal/CrowdfundingSchema";
-import type { QueryResult } from "./EntityQuery";
 import { collectPage, streamMatchingRows } from "./_streamMatches";
+import type { QueryResult } from "./EntityQuery";
 
 export interface CrowdfundingQueryParams {
   readonly search?: string;

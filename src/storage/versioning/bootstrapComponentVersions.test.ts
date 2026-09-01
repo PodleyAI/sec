@@ -6,14 +6,14 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
+import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
+import { resolverIds } from "../../resolver/resolverIds";
+import { listBackfillableExtractorIds } from "../../task/forms/backfillDescriptors";
 import { bootstrapComponentVersions } from "./bootstrapComponentVersions";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "./ComponentVersionSchema";
 import { EXTRACTOR_IDS } from "./extractorIds";
-import { listBackfillableExtractorIds } from "../../task/forms/backfillDescriptors";
-import { resolverIds } from "../../resolver/resolverIds";
-import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
 import { VersionRegistry } from "./VersionRegistry";
 
 describe("bootstrapComponentVersions", () => {

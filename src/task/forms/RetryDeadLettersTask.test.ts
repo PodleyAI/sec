@@ -5,8 +5,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import {
   clearRegisteredBackfillDescriptorsForTesting,

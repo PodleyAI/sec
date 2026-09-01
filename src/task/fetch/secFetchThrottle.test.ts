@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { RateLimiter } from "workglow";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { RateLimiter } from "workglow";
 import {
   resetSecFetchThrottleForTesting,
   setSecFetchLimiter,

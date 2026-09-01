@@ -10,14 +10,14 @@ import { globalServiceRegistry, IExecuteContext, Task, TaskError } from "workglo
 import { isDryRun } from "../../cli/isDryRun";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../../storage/document/FilingDocumentSchema";
+import type { FilingDocument } from "../../storage/document/FilingDocumentSchema";
 import {
   FILING_SECTION_REPOSITORY_TOKEN,
   type FilingSection,
 } from "../../storage/document/FilingSectionSchema";
-import type { FilingDocument } from "../../storage/document/FilingDocumentSchema";
 import { cachedAccessionDocPath, resolvePrimaryDocName } from "../../util/accessionDocPath";
-import { fullSubmissionFileName, submissionFetchKind } from "../forms/submissionFetchPolicy";
 import { SecFetchAccessionDocTask } from "../forms/SecFetchAccessionDocTask";
+import { fullSubmissionFileName, submissionFetchKind } from "../forms/submissionFetchPolicy";
 import {
   convertFilingSubmission,
   FILING_CONVERTER_VERSION,

@@ -8,14 +8,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import "workglow";
 import type { FetchUrlTaskInput, RateLimiter, SafeFetchFn } from "workglow";
 import { registerSafeFetch, RetryableJobError } from "workglow";
-
 import { SecFetchMaxConcurrent, SecUserAgent } from "../../config/Constants";
-import { SecFetchJob } from "./SecFetchJob";
 import {
   installEdgarBlockTranslation,
   isEdgarRateLimitBody,
   resetEdgarBlockTranslationForTesting,
 } from "./edgarBlockResponse";
+import { SecFetchJob } from "./SecFetchJob";
 import { resetSecFetchThrottleForTesting, setSecFetchLimiter } from "./secFetchThrottle";
 
 /** A 200 whose body errors part-way through, i.e. a mid-body socket reset. */

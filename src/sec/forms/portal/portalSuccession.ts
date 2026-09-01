@@ -5,15 +5,15 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import {
+  buildPortalFileNumberIndex,
+  normalizePortalFileNumber,
+} from "../../../storage/portal/portalFileNumberIndex";
 import { PortalRepo } from "../../../storage/portal/PortalRepo";
 import {
   PORTAL_SUCCESSION_REPOSITORY_TOKEN,
   type PortalSuccession,
 } from "../../../storage/portal/PortalSuccessionSchema";
-import {
-  buildPortalFileNumberIndex,
-  normalizePortalFileNumber,
-} from "../../../storage/portal/portalFileNumberIndex";
 import type { FormCfportal } from "./Form_CFPORTAL.schema";
 
 /** One acquired-portal entry, resolved as far as the filing allows. */

@@ -5,8 +5,8 @@
  */
 
 import { Form } from "../Form";
-import { parseRegistrationSubmission } from "../registration-statements/s1/parseSubmission";
 import type { FormS1Parsed } from "../registration-statements/Form_S_1";
+import { parseRegistrationSubmission } from "../registration-statements/s1/parseSubmission";
 
 export class Form_PREM14C extends Form {
   static readonly name = "Preliminary Information Statement for Merger or Acquisition";

@@ -6,13 +6,13 @@
 import * as cheerio from "cheerio";
 import { NodeKind, uuid4 } from "workglow";
 import type { ImageNode, ListNode, ParagraphNode } from "workglow";
-import type { EdgarBlock, ResolvedStyle, SourceSpan } from "./types";
-import { resolveStyle } from "./StyleResolver";
-import { isHeadingCandidate, assignHeadingLevels } from "./HeadingDetector";
-import { isPageFurniture } from "./pageFurniture";
-import { extractTable, isLayoutTable, leadingOfferingCaption } from "./TableExtractor";
 import { consumeCssTwoColumnRun } from "./cssTwoColumnTable";
 import { isHidden, stripNonProse } from "./domPrep";
+import { assignHeadingLevels, isHeadingCandidate } from "./HeadingDetector";
+import { isPageFurniture } from "./pageFurniture";
+import { resolveStyle } from "./StyleResolver";
+import { extractTable, isLayoutTable, leadingOfferingCaption } from "./TableExtractor";
+import type { EdgarBlock, ResolvedStyle, SourceSpan } from "./types";
 
 const BLOCK_TAGS = new Set(["p", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6", "td", "th"]);
 

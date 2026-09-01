@@ -6,10 +6,10 @@
 
 import { Type } from "typebox";
 import { Task } from "workglow";
-import type { TaskPorts } from "../taskPorts";
 import type { QueryResult } from "../../cli/queries/EntityQuery";
 import { queryFacts } from "../../cli/queries/FactsQuery";
 import type { CompanyFact } from "../../storage/facts/CompanyFactsSchema";
+import type { TaskPorts } from "../taskPorts";
 import { queryResultSchema } from "./queryResultSchema";
 
 export type QueryFactsTaskInput = {

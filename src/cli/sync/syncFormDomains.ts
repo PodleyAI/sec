@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ExtractorId } from "../../storage/versioning/extractorIds";
 import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import { allRegisteredExtractorIds, formsForExtractorIds } from "../../sec/forms/formExtractors";
+import type { ExtractorId } from "../../storage/versioning/extractorIds";
 
 /**
  * `expandFormTypes` reads the form-extractor registry during CLI argument

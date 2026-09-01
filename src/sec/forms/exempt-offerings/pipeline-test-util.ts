@@ -12,7 +12,7 @@
  * accession derivation, all-or-fail iteration).
  */
 
-import { readFileSync, readdirSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { accessionFromFixtureName } from "../../../util/accession";
 import { parseCikSafely } from "../../../util/parseCik";

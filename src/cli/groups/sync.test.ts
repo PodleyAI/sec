@@ -6,8 +6,8 @@
 
 import { Command } from "commander";
 import { afterEach, describe, expect, it } from "vitest";
-import { addSyncCommand, validateLookback } from "./sync";
 import { clearSyncLeavesForTesting, listSyncLeaves } from "../sync/syncLeaves";
+import { addSyncCommand, validateLookback } from "./sync";
 
 describe("validateLookback", () => {
   it("rejects lookback below 1", () => {
