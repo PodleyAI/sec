@@ -34,7 +34,9 @@ import path from "node:path";
 import { globalServiceRegistry } from "workglow";
 import { EnvToDI } from "../src/config/EnvToDI";
 import { SEC_RAW_DATA_FOLDER } from "../src/config/tokens";
+import { secBooleanFromWire } from "../src/sec/submissions/EnititySubmissionSchema";
 import { closePgPool, getPgPool } from "../src/util/pg";
+import { currentSchemaName, quote } from "../src/util/pgIdentifiers";
 
 interface FlagRow {
   readonly cik: number;
@@ -47,8 +49,19 @@ interface FlagRow {
 /** Postgres caps a statement at 65535 binds; 5 per row leaves headroom at 10k. */
 const ROWS_PER_STATEMENT = 10_000;
 
-function truthy(value: unknown): boolean {
-  return value === true || value === 1 || value === "1";
+/**
+ * The staging table, schema-qualified like every other raw-SQL identifier here.
+ * Resolved once against `current_schema()` — an unqualified name resolves
+ * through `search_path` and would create, read and drop objects in whichever
+ * schema happens to come first.
+ */
+let qualifiedPrefix: string | undefined;
+
+function qualify(table: string): string {
+  if (qualifiedPrefix === undefined) {
+    throw new Error("qualify() called before the current schema was resolved");
+  }
+  return `${qualifiedPrefix}."${quote(table)}"`;
 }
 
 /**
@@ -91,9 +104,9 @@ function rowsFromFile(name: string, parsed: unknown, allRows: boolean): FlagRow[
     const row = {
       cik,
       accession,
-      xbrl: truthy(xbrl[i]),
-      inline: truthy(inline[i]),
-      numeric: truthy(numeric[i]),
+      xbrl: secBooleanFromWire(xbrl[i]),
+      inline: secBooleanFromWire(inline[i]),
+      numeric: secBooleanFromWire(numeric[i]),
     };
     if (allRows || row.xbrl || row.inline || row.numeric) rows.push(row);
   }
@@ -115,7 +128,7 @@ async function flushBatch(rows: ReadonlyArray<FlagRow>): Promise<void> {
       values.push(r.cik, r.accession, r.xbrl, r.inline, r.numeric);
     });
     await pool.query(
-      `INSERT INTO "xbrl_flag_backfill" ("cik", "accession_number", "is_xbrl", "is_inline_xbrl", "is_xbrl_numeric")
+      `INSERT INTO ${qualify("xbrl_flag_backfill")} ("cik", "accession_number", "is_xbrl", "is_inline_xbrl", "is_xbrl_numeric")
        VALUES ${placeholders.join(", ")}
        ON CONFLICT DO NOTHING`,
       values
@@ -142,15 +155,16 @@ async function main(): Promise<void> {
   console.log(allRows ? "Mode: every row (writes explicit false)" : "Mode: true rows only");
 
   const pool = getPgPool();
+  qualifiedPrefix = `"${quote(await currentSchemaName(pool, "backfillFilingXbrlFlags"))}"`;
   if (!dryRun) {
     // A real (not TEMP) staging table: TEMP is per-connection and the pool
     // hands out a different connection per query, so a TEMP table created here
     // would be invisible to the very next INSERT. UNLOGGED skips the WAL, which
     // is safe because the table is derived from files on disk — a crash means
     // re-running the script, not lost data.
-    await pool.query(`DROP TABLE IF EXISTS "xbrl_flag_backfill"`);
+    await pool.query(`DROP TABLE IF EXISTS ${qualify("xbrl_flag_backfill")}`);
     await pool.query(
-      `CREATE UNLOGGED TABLE "xbrl_flag_backfill" (
+      `CREATE UNLOGGED TABLE ${qualify("xbrl_flag_backfill")} (
          "cik" bigint NOT NULL,
          "accession_number" varchar(20) NOT NULL,
          "is_xbrl" boolean,
@@ -198,11 +212,11 @@ async function main(): Promise<void> {
 
   console.log("Applying to filings…");
   const applied = await pool.query(
-    `UPDATE "filings" f
+    `UPDATE ${qualify("filings")} f
         SET "is_xbrl" = b."is_xbrl",
             "is_inline_xbrl" = b."is_inline_xbrl",
             "is_xbrl_numeric" = b."is_xbrl_numeric"
-       FROM "xbrl_flag_backfill" b
+       FROM ${qualify("xbrl_flag_backfill")} b
       WHERE f."cik" = b."cik"
         AND f."accession_number" = b."accession_number"
         AND (f."is_xbrl" IS DISTINCT FROM b."is_xbrl"
@@ -212,12 +226,12 @@ async function main(): Promise<void> {
   console.log(`Updated ${(applied.rowCount ?? 0).toLocaleString()} filings rows.`);
 
   const check = await pool.query<{ ciks: string }>(
-    `SELECT count(DISTINCT "cik") AS ciks FROM "filings"
+    `SELECT count(DISTINCT "cik") AS ciks FROM ${qualify("filings")}
       WHERE "is_xbrl" OR "is_inline_xbrl" OR "is_xbrl_numeric"`
   );
   console.log(`${Number(check.rows[0]?.ciks ?? 0).toLocaleString()} CIKs now have an XBRL filing.`);
 
-  await pool.query(`DROP TABLE IF EXISTS "xbrl_flag_backfill"`);
+  await pool.query(`DROP TABLE IF EXISTS ${qualify("xbrl_flag_backfill")}`);
   await closePgPool();
 }
 
