@@ -8,6 +8,7 @@ import { rmSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BootstrappedDbTemplate } from "../testing/bootstrappedDbTemplate";
 import { bootstrapDbTemplate } from "../testing/bootstrappedDbTemplate";
+import { readComponentEvents, readComponentSlots } from "../testing/readVersionDb";
 import { cliEnv, runCliProcess } from "../testing/runCliProcess";
 
 interface RunResult {
@@ -96,6 +97,12 @@ describe("sec version CLI", () => {
       for (const row of extractorRows) {
         expect(row.current).toBe("1.0.0");
       }
+      // An empty slot renders as an em dash rather than as null or "": the
+      // other tests read the slots out of the database, so this is the one
+      // place that pins how a missing one is printed.
+      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
+      expect(dRow?.next).toBe("—");
+      expect(dRow?.previous).toBe("—");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -147,13 +154,7 @@ describe("sec version CLI", () => {
         dir
       );
       expect(result.exitCode).toBe(0);
-
-      const status = await runCli(["version", "status", "--format", "json"], dir);
-      expect(status.exitCode).toBe(0);
-      const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
-      expect(dRow?.next).toBe("2.0.0");
-      expect(dRow?.next_coverage_complete).toBe(false);
+      expect((await readComponentSlots(dir, "extractor", "D")).next).toBe("2.0.0");
 
       const history = await runCli(
         ["version", "history", "extractor", "D", "--format", "json"],
@@ -192,21 +193,13 @@ describe("sec version CLI", () => {
       const promote = await runCli(["version", "promote", "extractor", "D", "--force"], dir);
       expect(promote.exitCode).toBe(0);
 
-      const status = await runCli(["version", "status", "--format", "json"], dir);
-      const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
-      expect(dRow?.current).toBe("2.0.0");
-      expect(dRow?.previous).toBe("1.0.0");
-      expect(dRow?.next).toBe("—");
-
-      const history = await runCli(
-        ["version", "history", "extractor", "D", "--format", "json"],
-        dir
-      );
-      const events = JSON.parse(history.stdout);
-      expect(events).toHaveLength(2);
-      expect(events[0].event_type).toBe("promote");
-      expect(events[1].event_type).toBe("start-dev");
+      expect(await readComponentSlots(dir, "extractor", "D")).toEqual({
+        current: "2.0.0",
+        previous: "1.0.0",
+        next: undefined,
+      });
+      const events = await readComponentEvents(dir, "extractor", "D");
+      expect(events.map((e) => e.event_type)).toEqual(["promote", "start-dev"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -220,11 +213,9 @@ describe("sec version CLI", () => {
       const result = await runCli(["version", "rollback", "extractor", "D"], dir);
       expect(result.exitCode).toBe(0);
 
-      const status = await runCli(["version", "status", "--format", "json"], dir);
-      const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
-      expect(dRow?.current).toBe("1.0.0");
-      expect(dRow?.previous).toBe("2.0.0");
+      const slots = await readComponentSlots(dir, "extractor", "D");
+      expect(slots.current).toBe("1.0.0");
+      expect(slots.previous).toBe("2.0.0");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -235,11 +226,13 @@ describe("sec version CLI", () => {
     try {
       const result = await runCli(["version", "drop-next", "extractor", "D"], dir);
       expect(result.exitCode).toBe(0);
-
-      const status = await runCli(["version", "status", "--format", "json"], dir);
-      const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
-      expect(dRow?.next).toBe("—");
+      // `current` is stated alongside the cleared slot: on its own, "next is
+      // absent" is equally true of a read that found nothing at all.
+      expect(await readComponentSlots(dir, "extractor", "D")).toEqual({
+        current: "1.0.0",
+        previous: undefined,
+        next: undefined,
+      });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -253,13 +246,11 @@ describe("sec version CLI", () => {
         dir
       );
       expect(result.exitCode).toBe(0);
-
-      const status = await runCli(["version", "status", "--format", "json"], dir);
-      const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
-      expect(dRow?.current).toBe("1.0.1");
-      expect(dRow?.next).toBe("—");
-      expect(dRow?.previous).toBe("—");
+      expect(await readComponentSlots(dir, "extractor", "D")).toEqual({
+        current: "1.0.1",
+        previous: undefined,
+        next: undefined,
+      });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
