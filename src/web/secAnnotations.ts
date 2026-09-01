@@ -13,8 +13,6 @@ import {
 } from "@workglow/cli";
 import type { Command } from "commander";
 import { formatChoicesByPath } from "./formatChoices";
-import { listResolverIds } from "../resolver/resolverExtensions";
-import { EXTRACTOR_IDS } from "../storage/versioning/extractorIds";
 
 /**
  * What sec's commands mean, said in the terms the console can render.
@@ -24,9 +22,10 @@ import { EXTRACTOR_IDS } from "../storage/versioning/extractorIds";
  * `db status`. These tables are where that is stated. Nothing here changes what
  * a command does — the CLI is unchanged and the terminal is unaffected.
  *
- * Vocabularies are read from the same constants the commands validate against
- * (`EXTRACTOR_IDS`, the resolver registry) rather than written out, so a
- * dropdown cannot offer a value the CLI would reject.
+ * Vocabularies a value has to come FROM are named as a `format` and resolved by
+ * the matching picker in `secFieldWidgets.ts`, which reads the live registries,
+ * so a dropdown cannot offer a value the CLI would reject. Only closed
+ * vocabularies with nowhere else to live are written out as `choices` here.
  */
 
 const source = "@workglow/sec";

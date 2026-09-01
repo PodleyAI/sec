@@ -258,7 +258,7 @@ the database:
 
 ```sh
 sec fetch submissions 1811882     # filings, entity, tickers, addresses for that CIK
-sec sync forms S-1,424 --cik ...  # or an extractor sweep over the forms you want read
+sec sync forms S-1,424           # sweep those forms corpus-wide (no per-CIK narrowing)
 sec sync documents --cik 1811882  # convert those filings to markdown sections
 ```
 

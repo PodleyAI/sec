@@ -11,7 +11,6 @@ import {
   EditorialImportTask,
   type EditorialImportTaskOutput,
 } from "../task/editorial/EditorialImportTask";
-import { normalizeFamilyNameForKind } from "./editorialImport";
 
 function fail(message: string): void {
   console.error(`error: ${message}`);
