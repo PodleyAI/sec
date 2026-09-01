@@ -231,6 +231,9 @@ test("the extraction seam parses, segments and guards over a real submission", (
   // no stale version to point at by accident.
   const buildObserveOnly: () => sec.ObserveOnlyEntityObserver = sec.buildObserveOnlyEntityObserver;
   expect(typeof buildObserveOnly).toBe("function");
+  // What its observe methods return, so a caller can name the type it awaits.
+  const observed: sec.ObservationResult = { observation_id: 1 };
+  expect(observed.observation_id).toBe(1);
   expect(sec.COMPLETE_ROSTER_ROLE_SCOPES.s1Management).toBe("s1:management");
 
   // Call tracing: off unless SEC_TRACE_DIR names a directory, so this asserts

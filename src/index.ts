@@ -340,7 +340,7 @@ export { queryResultSchema } from "./task/query/queryResultSchema";
 
 export { buildObserveOnlyEntityObserver } from "./resolver/buildObserveOnlyEntityObserver";
 export { EntityObserver } from "./resolver/EntityObserver";
-export type { ObserveOnlyEntityObserver } from "./resolver/EntityObserver";
+export type { ObservationResult, ObserveOnlyEntityObserver } from "./resolver/EntityObserver";
 export { COMPLETE_ROSTER_ROLE_SCOPES } from "./resolver/roleScopes";
 
 // ── 8-K item codes that mark a SPAC letter of intent or redemption ──────────
