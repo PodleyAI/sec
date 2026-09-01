@@ -17,8 +17,63 @@ export interface BootstrappedDbTemplate {
    * test to mutate. The caller removes it.
    */
   materialize(): string;
+  /**
+   * A second template: this one with more CLI commands applied, paid once
+   * rather than per test. Tests whose subject is some LATER command reach
+   * their starting state through this instead of re-running the ceremonies
+   * that build it.
+   */
+  derive(prefix: string, commands: readonly (readonly string[])[]): Promise<BootstrappedDbTemplate>;
   /** Removes the template itself. */
   dispose(): void;
+}
+
+function templateOver(dir: string, prefix: string): BootstrappedDbTemplate {
+  const files = readdirSync(dir);
+  return {
+    materialize(): string {
+      const target = mkdtempSync(join(tmpdir(), prefix));
+      for (const file of files) {
+        copyFileSync(join(dir, file), join(target, file));
+      }
+      return target;
+    },
+    async derive(
+      derivedPrefix: string,
+      commands: readonly (readonly string[])[]
+    ): Promise<BootstrappedDbTemplate> {
+      const derivedDir = mkdtempSync(join(tmpdir(), `${derivedPrefix}template-`));
+      for (const file of files) {
+        copyFileSync(join(dir, file), join(derivedDir, file));
+      }
+      for (const command of commands) {
+        await runTemplateCommand(derivedDir, command, derivedPrefix);
+      }
+      return templateOver(derivedDir, derivedPrefix);
+    },
+    dispose(): void {
+      rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+/** One CLI command against a template folder, failing loudly rather than leaving a half-built fixture. */
+async function runTemplateCommand(
+  dir: string,
+  command: readonly string[],
+  prefix: string
+): Promise<void> {
+  const result = await runCliProcess(
+    ["bun", "src/sec.ts", ...command],
+    cliEnv({ SEC_DB_TYPE: "sqlite", SEC_DB_FOLDER: dir, SEC_DB_NAME: DB_NAME })
+  );
+  if (result.exitCode !== 0) {
+    rmSync(dir, { recursive: true, force: true });
+    throw new Error(
+      `\`${command.join(" ")}\` failed building the ${prefix} template (exit ${result.exitCode}): ` +
+        `${result.stderr || result.stdout}`
+    );
+  }
 }
 
 /**
@@ -36,27 +91,6 @@ export interface BootstrappedDbTemplate {
  */
 export async function bootstrapDbTemplate(prefix: string): Promise<BootstrappedDbTemplate> {
   const templateDir = mkdtempSync(join(tmpdir(), `${prefix}template-`));
-  const setup = await runCliProcess(
-    ["bun", "src/sec.ts", "db", "setup"],
-    cliEnv({ SEC_DB_TYPE: "sqlite", SEC_DB_FOLDER: templateDir, SEC_DB_NAME: DB_NAME })
-  );
-  if (setup.exitCode !== 0) {
-    rmSync(templateDir, { recursive: true, force: true });
-    throw new Error(
-      `db setup failed for the test template (exit ${setup.exitCode}): ${setup.stderr || setup.stdout}`
-    );
-  }
-  const files = readdirSync(templateDir);
-  return {
-    materialize(): string {
-      const dir = mkdtempSync(join(tmpdir(), prefix));
-      for (const file of files) {
-        copyFileSync(join(templateDir, file), join(dir, file));
-      }
-      return dir;
-    },
-    dispose(): void {
-      rmSync(templateDir, { recursive: true, force: true });
-    },
-  };
+  await runTemplateCommand(templateDir, ["db", "setup"], prefix);
+  return templateOver(templateDir, prefix);
 }
