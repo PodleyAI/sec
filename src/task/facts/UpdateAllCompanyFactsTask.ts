@@ -110,10 +110,18 @@ export class UpdateAllCompanyFactsTask extends Task<
         const retrySuffix = input.retryFailed
           ? `, retrying ${needsRetrying.length} previously failed,`
           : "";
+        // Counted over `allCikUpdates` rather than as `length - processedMap.size`:
+        // `processed_facts` can hold a CIK the current universe no longer lists,
+        // and the subtraction would then under-report — or go negative — while
+        // looking like a real number.
+        const neverProcessed = allCikUpdates.reduce(
+          (n, clu) => (processedMap.has(clu.cik) ? n : n + 1),
+          0
+        );
         const scope =
           eligible === undefined
             ? " (unfiltered — every never-processed CIK)"
-            : ` (of ${allCikUpdates.length - processedMap.size} never processed, ${eligible.size} pass the XBRL/SIC filter)`;
+            : ` (of ${neverProcessed} never processed, ${eligible.size} pass the XBRL/SIC filter)`;
         console.log(
           `Would update ${needsUpdating.length} changed${retrySuffix} and ${needsProcessing.length} new company facts${scope}`
         );

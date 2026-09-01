@@ -285,16 +285,12 @@ export type { DeadLetterReasonCode } from "./storage/dead-letter/ExtractionDeadL
 // end a tenure. It is shared rather than restated because a roster closure
 // pass and anything recomputing tenures from stored evidence must agree on the
 // set exactly.
-// `ResolveObservationsTask` is the corpus-wide pass: it re-resolves every
-// observation of a kind into identity links and recomputes the projections
-// derived from them (junction counts always, tenures under `rebuildRoles`).
-// A downstream package needs it to turn the observations its own form modules
-// record into canonical rows and dated tenures.
+//
+// Resolving those observations into canonical ids — the corpus-wide pass and
+// the one-filing variant a module uses when it must read an id back before it
+// returns — belongs to the package that owns the identity tier, and is not
+// exported from here.
 
-// `resolveObservationsForAccession` resolves the observations ONE filing left
-// behind into identity links, for a module that must read a canonical id back
-// before it returns. It writes links only — everything derived from them stays
-// a projection recomputed from stored evidence.
 // ── What a package owning the family tier builds on ─────────────────────────
 // The alias TSV format, the `sec issuer` group, and the unique-constraint
 // predicate a resolver's mint race turns on. All three are this package's and
@@ -436,23 +432,11 @@ export {
 // state from, rather than keeping a second history nothing else can read.
 export { CHANGE_LOG_REPOSITORY_TOKEN } from "./storage/change-tracking/ChangeLogSchema";
 
-// ── Canonical person identity tier (observation → canonical id, merge aliases)
-// The join a downstream superset needs to get from a person observation to the
-// canonical id `person_role` and the junction tables are keyed by: the identity
-// link resolves it at a given `resolver_version`, and the alias table redirects
-// an id that a later merge retired.
-
-// ── Dated person roles (person↔company title tenures) ───────────────────────
-
-// ── Canonical company (CIK/CRD → canonical entity) ──────────────────────────
-// Exposes the resolved company tier so a downstream superset can map a Form D
-// issuer CIK to its canonical company — `findByResolverAndCik`
-// — and join that to its own records (startup.canonical_company_id).
-// The person/company canonical rows a downstream ceremony test seeds to prove a
-// family-kind purge leaves the other tiers alone. They move downstream with the
-// rest of that tier; until then they are read from here.
-// The version ceremonies, so a package owning a resolver kind can drive and
-// test the same lifecycle this package's own kinds go through.
+// ── Version ceremonies ──────────────────────────────────────────────────────
+// So a package owning a resolver kind can drive and test the same lifecycle
+// this package's own kinds go through. The canonical person/company tier those
+// ceremonies version — the identity links, the aliases, the dated tenures — is
+// that package's and is no longer exported from here.
 export {
   dropNext,
   dropPrevious,
@@ -604,13 +588,8 @@ export { SpacUnitTermsRepo } from "./storage/offering/SpacUnitTermsRepo";
 // it out of this package. Anything outside that migration should treat them as
 // private and use the surfaces above instead.
 //
-// The canonical family tier (sponsor and underwriter family resolution,
-// membership and links) is the one still here. `normalizeManagementTitles` is
-// the second: the title canonicalization stays only while this package's inline
-// observe path calls it.
-// The link tokens ride along with their repos because neither repo can answer
-// "how many links does this issuer have"; that question is a query on the
-// storage by `issuer_cik`, so a caller counting links reaches the token.
+// `normalizeManagementTitles` is the one left: the title canonicalization stays
+// only while this package's inline observe path calls it.
 export { normalizeManagementTitles } from "./sec/forms/registration-statements/s1/normalizeTitle";
 
 // ── The rest of what an out-of-package extraction tier reaches for ──────────
@@ -670,9 +649,6 @@ export { ExecutiveCompensationRepo } from "./storage/executive-compensation/Exec
 export { RelatedPartyTransactionRepo } from "./storage/related-party/RelatedPartyTransactionRepo";
 export { RelatedPartyTransactionSchema } from "./storage/related-party/RelatedPartyTransactionSchema";
 export { Section16Repo } from "./storage/section16/Section16Repo";
-
-// Family-name normalization, so a sponsor or underwriter observed outside this
-// package folds to the same family key one observed inside it does.
 
 // Which filings a backfill of a given extractor should re-select, and the CLI
 // option helpers a command group is built from — an option that answers with

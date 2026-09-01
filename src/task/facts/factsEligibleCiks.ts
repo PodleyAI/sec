@@ -50,7 +50,18 @@ export async function listFactsEligibleCiks(): Promise<Set<number>> {
   const filingRepo = globalServiceRegistry.has(FILING_REPOSITORY_TOKEN)
     ? globalServiceRegistry.get(FILING_REPOSITORY_TOKEN)
     : undefined;
-  const backend = resolveSqlBackend("read", filingRepo);
+  const entityRepo = globalServiceRegistry.has(ENTITY_REPOSITORY_TOKEN)
+    ? globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN)
+    : undefined;
+  // BOTH tables gate the fast path, because the queries below read both: an
+  // in-memory `entities` binding is invisible to `getDb()`/`getPgPool()`, so a
+  // raw-SQL read would answer the SIC half from a different store than the
+  // caller populated — and silently return an eligible set missing every CIK
+  // whose only signal is its SIC.
+  const backend =
+    resolveSqlBackend("read", entityRepo) === "repository"
+      ? "repository"
+      : resolveSqlBackend("read", filingRepo);
   const eligible = new Set<number>();
 
   if (backend === "sqlite") {
@@ -87,7 +98,8 @@ export async function listFactsEligibleCiks(): Promise<Set<number>> {
   for await (const row of filings.records(5000)) {
     if (row.is_xbrl || row.is_inline_xbrl || row.is_xbrl_numeric) eligible.add(Number(row.cik));
   }
-  const entities = globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN) as EntityRepositoryStorage;
+  const entities =
+    entityRepo ?? (globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN) as EntityRepositoryStorage);
   for await (const row of entities.records(5000)) {
     if (row.sic !== null && row.sic !== undefined) eligible.add(Number(row.cik));
   }

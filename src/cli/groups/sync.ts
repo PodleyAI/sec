@@ -123,9 +123,13 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
   const cmd = sync.command(leaf.id).description(leaf.description);
 
   // A single-step leaf is its own command: there is nothing to choose between,
-  // so `sync quotes all` would only be a longer way to say `sync quotes`.
+  // so `sync quotes all` would only be a longer way to say `sync quotes`. That
+  // command IS the step, so a step-scoped option is declared against it —
+  // passing `undefined` here would silently drop every option the leaf scoped
+  // to its only step, leaving a flag declared nowhere and rejected by
+  // commander.
   if (leaf.steps.length <= 1) {
-    applyLeafOptions(cmd, leaf, undefined);
+    applyLeafOptions(cmd, leaf, leaf.steps[0]?.id);
     cmd.action(async (opts: LeafOpts) => runLeaf(leaf, opts, undefined));
     return;
   }

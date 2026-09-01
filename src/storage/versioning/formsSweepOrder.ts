@@ -17,16 +17,18 @@ import { SWEEP_PRIORITY } from "./extractorIds";
  * 25-15) can land ahead of the registration statement that mints the `spac`
  * row it depends on.
  *
- * Ranked by the FIRST extractor id registered for the form — the one
- * `extractorsForForm` runs first. A single ordered pass can honour only one
- * rank per form, and a form carrying several extractors may have several
- * priorities to choose between. Sweep order is a heuristic (it exists so a
- * gated form lands after the one that mints the row it reads), so there is no
- * right answer among them; ranking by the leading extractor is consistent,
- * cheap to reason about, and beats the registration order it replaces. Forms
- * with no ranked extractor — a form with no registered extractor at all
- * included, which the caller refuses or skips separately — keep their
- * declaration order at the end.
+ * Ranked by the EARLIEST {@link SWEEP_PRIORITY} slot any of the form's
+ * extractors holds. A single ordered pass can honour only one rank per form,
+ * and a form carrying several extractors may have several priorities to choose
+ * between — but reading the rank off whichever one happens to lead makes the
+ * sweep order depend on registration order, which is the accident this
+ * function exists to remove: an id absent from `SWEEP_PRIORITY` (a consumer's
+ * narrative reading of an 8-K, say) leading a form would send that whole family
+ * to the tail, behind the gated forms that read what it writes. Taking the
+ * earliest slot is order-independent and never later than the form's most
+ * urgent extractor needs. Forms with no ranked extractor — a form with no
+ * registered extractor at all included, which the caller refuses or skips
+ * separately — keep their declaration order at the end.
  *
  * Lives in its own module rather than in `extractorIds.ts` beside
  * `SWEEP_PRIORITY` because it reads the form-extractor registry:
@@ -36,9 +38,12 @@ import { SWEEP_PRIORITY } from "./extractorIds";
  */
 export function sortFormsForSweep(forms: readonly string[]): string[] {
   const rank = (form: string): number => {
-    const [leadExtractorId] = extractorIdsForForm(form);
-    const i = leadExtractorId === undefined ? -1 : SWEEP_PRIORITY.indexOf(leadExtractorId);
-    return i === -1 ? SWEEP_PRIORITY.length : i;
+    let best = SWEEP_PRIORITY.length;
+    for (const extractorId of extractorIdsForForm(form)) {
+      const i = SWEEP_PRIORITY.indexOf(extractorId);
+      if (i !== -1 && i < best) best = i;
+    }
+    return best;
   };
   return [...forms]
     .map((form, i) => ({ form, i, rank: rank(form) }))

@@ -125,11 +125,4 @@ export function addExtractorCommands(program: Command): void {
         );
       });
     });
-
-  // A leaf an operator types once, deliberately, and not a step of any sweep.
-  // It belongs beside `backfill` because that is the alternative: both restore
-  // the same decisions, and this one restores the half that is recoverable
-  // without paying a model to read the filings again. It is also why it cannot
-  // be folded into the rebuild — it reads the very tenures the rebuild deletes,
-  // so it is sound only when run first, as its own command, on its own.
 }
