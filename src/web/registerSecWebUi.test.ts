@@ -63,8 +63,7 @@ describe("annotated fields reach the form", () => {
   it("gives every CIK positional the search picker", async () => {
     for (const path of [
       ["query", "facts"],
-      ["query", "person-roles"],
-      ["spac", "report"],
+      ["query", "entities"],
     ]) {
       const node = findCommandNode(tree, path);
       expect(node, path.join(" ")).toBeDefined();
@@ -74,11 +73,6 @@ describe("annotated fields reach the form", () => {
     }
   });
 
-  it("scopes the SPAC commands to known SPACs, not to any filer", () => {
-    expect(resolveFieldAnnotations(["spac", "report"]).get("cik")?.format).toBe("sec:spac-cik");
-    expect(resolveFieldAnnotations(["query", "facts"]).get("cik")?.format).toBe("sec:cik");
-  });
-
   it("gives each command the format vocabulary its own help text states", async () => {
     const cases: readonly [readonly string[], readonly string[]][] = [
       [
@@ -86,12 +80,8 @@ describe("annotated fields reach the form", () => {
         ["table", "json", "csv"],
       ],
       [
-        ["spac", "report"],
-        ["text", "json"],
-      ],
-      [
-        ["spac", "candidates"],
-        ["table", "csv", "json"],
+        ["query", "filings"],
+        ["table", "json", "csv"],
       ],
       [
         ["version", "status"],
@@ -108,9 +98,9 @@ describe("annotated fields reach the form", () => {
   });
 
   /**
-   * The failure a stated list produced: `spac report --format` defaults to
-   * `text`, which the query group's `table, json, csv` does not contain, so the
-   * dropdown could not express the value the command would use anyway.
+   * The failure a stated list produced: a `--format` defaulting to a value the
+   * group-wide vocabulary did not contain, so the dropdown could not express
+   * the value the command would use anyway.
    */
   it("never offers a vocabulary missing the command's own default", async () => {
     const check = async (nodes: readonly WebCommandNode[]): Promise<void> => {
@@ -126,11 +116,6 @@ describe("annotated fields reach the form", () => {
       }
     };
     await check(tree);
-  });
-
-  it("marks a list-valued field so a pick appends to it", () => {
-    expect(resolveFieldAnnotations(["eval", "s1"]).get("models")?.multiple).toBe(true);
-    expect(resolveFieldAnnotations(["query", "facts"]).get("cik")?.multiple).toBeUndefined();
   });
 });
 
@@ -156,10 +141,10 @@ describe("cost and safety badges", () => {
     const backfill = resolveCommandAnnotation(["extractor", "backfill"]);
     expect(backfill.badges).toContain("ai");
 
-    const spacs = resolveCommandAnnotation(["sync", "spacs", "process"]);
-    expect(spacs.badges).toContain("ai");
+    const forms = resolveCommandAnnotation(["sync", "forms"]);
+    expect(forms.badges).toContain("ai");
     // From `sync **`, which the narrower pattern must not shadow.
-    expect(spacs.badges).toContain("network");
-    expect(spacs.badges).toContain("slow");
+    expect(forms.badges).toContain("network");
+    expect(forms.badges).toContain("slow");
   });
 });

@@ -17,8 +17,8 @@ import { SecCachedFetchTask } from "./SecCachedFetchTask";
 
 /**
  * End-to-end cover for every `SecCachedFetchTask` subclass at once — sec's
- * seven, plus embarc-data's ADV archive fetch, which all reach the network
- * through this one base.
+ * seven, plus a downstream archive fetch, which all reach the network through
+ * this one base.
  *
  * It exists because implementing `saveOutputStreamPort` changed the write path
  * under all of them without changing a line they own: the cache now reports
@@ -88,7 +88,7 @@ describe("SecCachedFetchTask round trip with the streaming sink live", () => {
   });
 
   it("returns .arraybuffer AND writes the origin's bytes verbatim", async () => {
-    // The shape embarc-data's ADV archive fetch uses — it states the type
+    // The shape a downstream archive fetch uses — it states the type
     // explicitly, which is what makes it `arraybuffer` rather than the `blob`
     // the extension mapping would otherwise pick for a `.zip`. Non-UTF-8 bytes
     // make the point: whatever writes the file must not route them through a

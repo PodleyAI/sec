@@ -18,9 +18,28 @@ import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../../storage/document/FilingDocumentSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import { minimalSpac } from "../../config/testing/minimalSpac";
-import { SPAC_REPOSITORY_TOKEN } from "../../storage/spac/SpacSchema";
+import {
+  clearFilingConversionGateForTesting,
+  registerFilingConversionGate,
+} from "./filingConversionGate";
 import { selectFilingsToConvert } from "./selectFilingsToConvert";
+
+/**
+ * A gate admitting exactly the given filers, declining the pushdown.
+ *
+ * The filer set comes from a package this one does not ship, so what is under
+ * test here is the sweep's half of the contract: which filings a registered
+ * gate's answer selects, and what happens when no gate answered at all. A
+ * literal set says that in one line; the rule behind a real one is that
+ * package's to state and to test.
+ */
+function registerGateAdmitting(...ciks: readonly number[]): void {
+  const admitted = new Set(ciks);
+  registerFilingConversionGate({
+    admittedCiks: async () => admitted,
+    pushdown: () => undefined,
+  });
+}
 
 const CIK = 1811882;
 const VERSION = "1";
@@ -167,7 +186,75 @@ describe("selectFilingsToConvert primary gate (repository path)", () => {
  * them.
  */
 describe("selectFilingsToConvert 8-K gate (repository path)", () => {
-  const SPAC_CIK = 1811882;
+  const ADMITTED_CIK = 1811882;
+  const OTHER_CIK = 320193;
+
+  const eightK = (cik: number, accession: string) => ({
+    ...filing(accession, "8-K", "2026-04-01"),
+    cik,
+  });
+
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    clearFilingConversionGateForTesting();
+    const filings = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+    await filings.setupDatabase();
+    await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).setupDatabase();
+    await filings.putBulk([
+      eightK(ADMITTED_CIK, "0001213900-26-000010"),
+      eightK(OTHER_CIK, "0001213900-26-000011"),
+      // A registration is never gated: the whole point of the gate is that 8-Ks
+      // are the form every filer files.
+      { ...filing("0001213900-26-000012", "S-1", "2026-04-02"), cik: OTHER_CIK },
+    ]);
+  });
+
+  afterEach(() => {
+    clearFilingConversionGateForTesting();
+    resetDependencyInjectionsForTesting();
+  });
+
+  const select = (over: Partial<Parameters<typeof selectFilingsToConvert>[0]> = {}) =>
+    selectFilingsToConvert({ limit: 10, converterVersion: VERSION, ...over });
+
+  it("takes an admitted filer's 8-K and leaves everyone else's", async () => {
+    registerGateAdmitting(ADMITTED_CIK);
+    const rows = await select();
+    expect(rows.map((r) => r.accession_number).sort()).toEqual([
+      "0001213900-26-000010",
+      "0001213900-26-000012",
+    ]);
+  });
+
+  it("takes no 8-K at all when the gate admits nobody", async () => {
+    registerGateAdmitting();
+    expect((await select()).map((r) => r.form)).toEqual(["S-1"]);
+  });
+
+  it("takes every filer's 8-K under all8k", async () => {
+    registerGateAdmitting(ADMITTED_CIK);
+    const rows = await select({ forms: ["8-K"], all8k: true });
+    expect(rows).toHaveLength(2);
+  });
+
+  it("gates an explicit --types 8-K too, so the narrowing is not also a widening", async () => {
+    registerGateAdmitting(ADMITTED_CIK);
+    const rows = await select({ forms: ["8-K", "8-K/A"] });
+    expect(rows.map((r) => r.accession_number)).toEqual(["0001213900-26-000010"]);
+  });
+});
+
+/**
+ * The gate is contributed, not built in — and an absent one closes.
+ *
+ * The filer set comes from a lifecycle model that need not ship in the same
+ * package as the sweep, so the sweep has to behave when nothing registered one.
+ * Falling OPEN there would convert every 8-K of every filer, which is the one
+ * outcome the gate exists to prevent, and it would do it silently on a
+ * deployment that never asked for a single 8-K.
+ */
+describe("selectFilingsToConvert 8-K gate seam (repository path)", () => {
+  const ADMITTED_CIK = 1811882;
   const OTHER_CIK = 320193;
 
   const eightK = (cik: number, accession: string) => ({
@@ -180,62 +267,39 @@ describe("selectFilingsToConvert 8-K gate (repository path)", () => {
     const filings = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
     await filings.setupDatabase();
     await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).setupDatabase();
-    await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).setupDatabase();
     await filings.putBulk([
-      eightK(SPAC_CIK, "0001213900-26-000010"),
+      eightK(ADMITTED_CIK, "0001213900-26-000010"),
       eightK(OTHER_CIK, "0001213900-26-000011"),
-      // A registration is never gated: the whole point of the gate is that 8-Ks
-      // are the form every filer files.
       { ...filing("0001213900-26-000012", "S-1", "2026-04-02"), cik: OTHER_CIK },
     ]);
+    clearFilingConversionGateForTesting();
   });
 
   afterEach(() => {
+    clearFilingConversionGateForTesting();
     resetDependencyInjectionsForTesting();
   });
-
-  const markSpac = async (cik: number, currentCik: number | null = null) => {
-    await globalServiceRegistry
-      .get(SPAC_REPOSITORY_TOKEN)
-      .put(minimalSpac(cik, { current_cik: currentCik }));
-  };
 
   const select = (over: Partial<Parameters<typeof selectFilingsToConvert>[0]> = {}) =>
     selectFilingsToConvert({ limit: 10, converterVersion: VERSION, ...over });
 
-  it("takes a SPAC's 8-K and leaves everyone else's", async () => {
-    await markSpac(SPAC_CIK);
-    const rows = await select();
-    expect(rows.map((r) => r.accession_number).sort()).toEqual([
+  it("converts no 8-K at all with no gate registered, and leaves every other form alone", async () => {
+    expect((await select()).map((r) => r.accession_number)).toEqual(["0001213900-26-000012"]);
+    expect(await select({ forms: ["8-K", "8-K/A"] })).toEqual([]);
+  });
+
+  it("takes the admitted filer's 8-K again once a gate is registered", async () => {
+    registerGateAdmitting(ADMITTED_CIK);
+    expect((await select({ forms: ["8-K"] })).map((r) => r.accession_number)).toEqual([
       "0001213900-26-000010",
-      "0001213900-26-000012",
     ]);
   });
 
-  it("takes no 8-K at all when the spac table is empty", async () => {
-    expect((await select()).map((r) => r.form)).toEqual(["S-1"]);
-  });
-
-  it("follows a de-SPAC to its surviving CIK", async () => {
-    // The combination moved the reporting entity, and the closing 8-K is filed
-    // under the new CIK. Keying only on the origin CIK would drop exactly the
-    // filing the lifecycle is built from.
-    await markSpac(SPAC_CIK, OTHER_CIK);
-    const rows = await select({ forms: ["8-K"] });
+  it("still converts everyone's 8-K under all8k, which asks for them explicitly", async () => {
+    const rows = await select({ forms: ["8-K"], all8k: true });
     expect(rows.map((r) => r.accession_number).sort()).toEqual([
       "0001213900-26-000010",
       "0001213900-26-000011",
     ]);
-  });
-
-  it("takes every filer's 8-K under all8k", async () => {
-    const rows = await select({ forms: ["8-K"], all8k: true });
-    expect(rows).toHaveLength(2);
-  });
-
-  it("gates an explicit --types 8-K too, so the narrowing is not also a widening", async () => {
-    await markSpac(SPAC_CIK);
-    const rows = await select({ forms: ["8-K", "8-K/A"] });
-    expect(rows.map((r) => r.accession_number)).toEqual(["0001213900-26-000010"]);
   });
 });

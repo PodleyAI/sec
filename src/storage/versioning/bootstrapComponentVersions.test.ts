@@ -11,9 +11,9 @@ import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { bootstrapComponentVersions } from "./bootstrapComponentVersions";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "./ComponentVersionSchema";
 import { EXTRACTOR_IDS } from "./extractorIds";
+import { listBackfillableExtractorIds } from "../../task/forms/backfillDescriptors";
 import { resolverIds } from "../../resolver/resolverIds";
 import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
-import { registerSecResolvers } from "../../config/registerResolvers";
 import { VersionRegistry } from "./VersionRegistry";
 
 describe("bootstrapComponentVersions", () => {
@@ -21,7 +21,6 @@ describe("bootstrapComponentVersions", () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
     clearResolverExtensionsForTesting();
-    registerSecResolvers();
   });
 
   afterEach(() => {
@@ -30,7 +29,7 @@ describe("bootstrapComponentVersions", () => {
   });
 
   it("seeds every known extractor at 1.0.0 in the current slot", async () => {
-    await bootstrapComponentVersions();
+    await bootstrapComponentVersions(listBackfillableExtractorIds());
     const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     for (const id of EXTRACTOR_IDS) {
       const cur = await reg.getCurrent("extractor", id);
@@ -41,7 +40,7 @@ describe("bootstrapComponentVersions", () => {
   });
 
   it("seeds resolver:person and resolver:company at 1.0.0", async () => {
-    await bootstrapComponentVersions();
+    await bootstrapComponentVersions(listBackfillableExtractorIds());
     const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     for (const id of resolverIds()) {
       const cur = await reg.getCurrent("resolver", id);
@@ -50,26 +49,12 @@ describe("bootstrapComponentVersions", () => {
     }
   });
 
-  it("seeds the sponsor-family resolver at 1.0.0", async () => {
-    await bootstrapComponentVersions();
-    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
-    const slot = await reg.getCurrent("resolver", "sponsor-family");
-    expect(slot?.semver).toBe("1.0.0");
-  });
-
-  it("seeds the underwriter-family resolver at 1.0.0", async () => {
-    await bootstrapComponentVersions();
-    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
-    const slot = await reg.getCurrent("resolver", "underwriter-family");
-    expect(slot?.semver).toBe("1.0.0");
-  });
-
   it("is idempotent: running it twice does not change anything", async () => {
-    await bootstrapComponentVersions();
+    await bootstrapComponentVersions(listBackfillableExtractorIds());
     const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     const before = await reg.getCurrent("extractor", "D");
 
-    await bootstrapComponentVersions();
+    await bootstrapComponentVersions(listBackfillableExtractorIds());
     const after = await reg.getCurrent("extractor", "D");
 
     expect(after?.semver).toBe(before?.semver);
@@ -89,14 +74,14 @@ describe("bootstrapComponentVersions", () => {
       target_count: null,
     });
 
-    await bootstrapComponentVersions();
+    await bootstrapComponentVersions(listBackfillableExtractorIds());
 
     const cur = await reg.getCurrent("extractor", "D");
     expect(cur?.semver).toBe("2.5.0");
   });
 
   it("leaves previous and next slots empty", async () => {
-    await bootstrapComponentVersions();
+    await bootstrapComponentVersions(listBackfillableExtractorIds());
     const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     expect(await reg.getPrevious("extractor", "D")).toBeUndefined();
     expect(await reg.getNext("extractor", "D")).toBeUndefined();

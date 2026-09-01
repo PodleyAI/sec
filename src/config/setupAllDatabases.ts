@@ -20,7 +20,6 @@ import { SIC_CODE_REPOSITORY_TOKEN } from "../storage/entity/SicCodeSchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../storage/facts/CompanyFactsSchema";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../storage/document/FilingDocumentSchema";
-import { EXTRACTION_CACHE_REPOSITORY_TOKEN } from "../storage/extraction/ExtractionCacheSchema";
 import { FILING_SECTION_REPOSITORY_TOKEN } from "../storage/document/FilingSectionSchema";
 import { INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingSchema";
@@ -52,41 +51,16 @@ import { DAILY_INDEX_CURSOR_REPOSITORY_TOKEN } from "../storage/processing/Daily
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFactsSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedSubmissionsSchema";
 import { REGA_CURRENT_REPORT_REPOSITORY_TOKEN } from "../storage/reg-a/RegACurrentReportSchema";
-import { REGA_FINANCIAL_LINE_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinancialLineSchema";
 import { REGA_OFFERING_EVENT_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingEventSchema";
 import { REGA_EQUITY_CLASS_REPOSITORY_TOKEN } from "../storage/reg-a/RegAEquityClassSchema";
 import { REGA_FINANCIAL_DATA_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinancialDataSchema";
 import { REGA_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingHistorySchema";
 import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
 import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegAServiceProviderSchema";
-import { SPAC_REPOSITORY_TOKEN } from "../storage/spac/SpacSchema";
-import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../storage/spac/SpacCandidateSchema";
-import { SPAC_DEAL_REPOSITORY_TOKEN } from "../storage/spac/SpacDealSchema";
-import { SPAC_EVENT_REPOSITORY_TOKEN } from "../storage/spac/SpacEventSchema";
-import { SPAC_HISTORY_REPOSITORY_TOKEN } from "../storage/spac/SpacHistorySchema";
-import { SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacMergerExtractionSchema";
-import { SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacRedemptionExtractionSchema";
-import { SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacLoiExtractionSchema";
-import {
-  CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
-} from "../storage/canonical/CanonicalAliasSchemas";
-import { CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalSponsorFamilySchema";
-import { FAMILY_DESCRIPTION_REPOSITORY_TOKEN } from "../storage/canonical/FamilyDescriptionSchema";
-import { SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN } from "../storage/canonical/SponsorFamilyMembershipSchema";
-import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSponsorLinkSchema";
 import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
 import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
 import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
-import { SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacLockupTermsSchema";
 import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTickerSchema";
-import { CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalUnderwriterFamilySchema";
-import { UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterFamilyMembershipSchema";
-import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
-import { RISK_FACTOR_REPOSITORY_TOKEN } from "../storage/risk-factor/RiskFactorSchema";
-import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
 import { migrateLegacyForm8KEventsTable } from "../storage/form-8k-event/Form8KEventLegacyMigration";
@@ -98,23 +72,10 @@ import {
   addMissingColumnsSqlite,
   shouldAddMissingColumns,
 } from "./addMissingColumns";
-import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalCompanySchema";
-import {
-  CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
-  CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
-} from "../storage/canonical/CanonicalJunctionSchemas";
-import { CANONICAL_PERSON_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalPersonSchema";
-import { COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/CompanyIdentityLinkSchema";
-import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/PersonIdentityLinkSchema";
-import { CURRENT_CANONICAL_VIEW_DDL } from "../storage/canonical/views";
 import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
 import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
-import { PERSON_ROLE_REPOSITORY_TOKEN } from "../storage/canonical/PersonRoleSchema";
-import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/canonical/RoleRosterCompletenessSchema";
-import { FIELD_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/FieldProvenanceSchema";
+import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/roster/RoleRosterCompletenessSchema";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
 import { EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN } from "../storage/executive-compensation/ExecutiveCompensationSchema";
@@ -124,8 +85,13 @@ import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1
 import { getDb } from "../util/db";
 import { setupSecFetchRateLimiter } from "../task/fetch/SecJobQueue";
 import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
-import { registerSecResolvers } from "./registerResolvers";
-import { listDatabaseExtensionTokens, runDatabaseSetupHooks } from "./databaseExtensions";
+import { registerSecFormExtractors } from "./registerFormExtractors";
+import { listBackfillableExtractorIds } from "../task/forms/backfillDescriptors";
+import {
+  listDatabaseExtensionTokens,
+  listDatabaseViewDdl,
+  runDatabaseSetupHooks,
+} from "./databaseExtensions";
 import { SEC_DB_FOLDER, SEC_DB_TYPE } from "./tokens";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
@@ -170,7 +136,6 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(EXTRACTION_CACHE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(FILING_SECTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CROWDFUNDING_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN).setupDatabase();
@@ -191,16 +156,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(REGA_FINANCIAL_DATA_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_EQUITY_CLASS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_CURRENT_REPORT_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(REGA_FINANCIAL_LINE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_OFFERING_EVENT_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_DEAL_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_EVENT_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_HISTORY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN).setupDatabase();
@@ -213,42 +169,16 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(FIELD_PROVENANCE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(S1_CLASSIFICATION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_PERSON_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_COMPANY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_ROLE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(FAMILY_DESCRIPTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_SPONSOR_LINK_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(OFFERING_TERMS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ISSUER_TICKER_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry
-    .get(CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN)
-    .setupDatabase();
-  await globalServiceRegistry.get(UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(UNDERWRITER_LINK_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(RISK_FACTOR_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(USE_OF_PROCEEDS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).setupDatabase();
   // Drop the legacy form_8k_events shape (no event_id / extractor_id /
   // extractor_version) before creating the current one; the natural-key PK
@@ -288,25 +218,32 @@ export async function setupAllDatabases(): Promise<void> {
   // repositories' ReadOnlyTabularStorage wrapper cannot intercept.
   if (dbType === "sqlite" && globalServiceRegistry.has(SEC_DB_FOLDER) && !isDryRun()) {
     const db = getDb();
-    for (const ddl of CURRENT_CANONICAL_VIEW_DDL) {
+    // Every view is contributed now — the tier that owns the tables under one
+    // registers it — and they are created after the tables above exist.
+    for (const ddl of listDatabaseViewDdl()) {
       db.exec(ddl);
     }
     backfillExtractorRunsOutcome(db);
-    // Generic, and it subsumes the hand-written `spac.current_trust_*` pass
-    // that used to sit here: every one of those columns is nullable, so the
-    // planner emits exactly the same three ALTERs for each of `spac` and
-    // `spac_history`. `backfillExtractorRunsOutcome` stays hand-rolled — it
+    // Generic over the live table registry, which is why it replaced the
+    // hand-written per-column passes that used to sit here — and why it reaches
+    // a table a downstream package registered, since `createStorage` is what
+    // fills that registry. `backfillExtractorRunsOutcome` stays hand-rolled: it
     // seeds `outcome` from the existing `success` flag, which no generic
     // add-column pass can express.
     addMissingColumnsSqlite(db);
   }
-  // Ensure sec's resolver kinds are in the ResolverExtensionRegistry before we
-  // seed component-version rows: bootstrapComponentVersions() enumerates the
-  // registry, and this path also runs from `init` (which skips the preAction
-  // hook that otherwise calls registerSecResolvers). Idempotent — safe to call
-  // again when the hook already registered them.
-  registerSecResolvers();
-  await bootstrapComponentVersions();
+  // Ensure the form extractors are registered before we seed component-version
+  // rows: the ids seeded below are enumerated from that registry, and this path
+  // also runs from `init` (which skips the preAction hook that otherwise calls
+  // it). Idempotent — safe to call again when the hook already did.
+  registerSecFormExtractors();
+  // Which extractors need a version slot is the same question as which
+  // extractors can be RUN, so it is answered from the same place: every id in
+  // the open form-extractor registry (a downstream package's registrations
+  // included), every id a package contributed a backfill descriptor for, and
+  // the ids this package still holds rows under whether or not it ships the
+  // reading that wrote them.
+  await bootstrapComponentVersions(listBackfillableExtractorIds());
 
   // Create the shared SEC-fetch rate-limiter tables once here (Postgres only,
   // no-op otherwise), so a multi-shard sweep can enforce EDGAR's 10 req/sec

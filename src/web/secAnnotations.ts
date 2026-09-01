@@ -13,9 +13,6 @@ import {
 } from "@workglow/cli";
 import type { Command } from "commander";
 import { formatChoicesByPath } from "./formatChoices";
-import { listResolverIds } from "../resolver/resolverExtensions";
-import { SPAC_CANDIDATE_CONFIDENCES } from "../storage/spac/SpacCandidateSchema";
-import { EXTRACTOR_IDS } from "../storage/versioning/extractorIds";
 
 /**
  * What sec's commands mean, said in the terms the console can render.
@@ -25,9 +22,10 @@ import { EXTRACTOR_IDS } from "../storage/versioning/extractorIds";
  * `db status`. These tables are where that is stated. Nothing here changes what
  * a command does — the CLI is unchanged and the terminal is unaffected.
  *
- * Vocabularies are read from the same constants the commands validate against
- * (`EXTRACTOR_IDS`, `SPAC_CANDIDATE_CONFIDENCES`, the resolver registry) rather
- * than written out, so a dropdown cannot offer a value the CLI would reject.
+ * Vocabularies a value has to come FROM are named as a `format` and resolved by
+ * the matching picker in `secFieldWidgets.ts`, which reads the live registries,
+ * so a dropdown cannot offer a value the CLI would reject. Only closed
+ * vocabularies with nowhere else to live are written out as `choices` here.
  */
 
 const source = "@workglow/sec";
@@ -91,11 +89,6 @@ const FIELD_ANNOTATIONS: readonly CommandFieldAnnotations[] = [
       status: { choices: ["pending", "qualified", "reporting", "exit"] },
     },
   },
-  {
-    path: ["query", "person-roles"],
-    source,
-    fields: { cik: { ...CIK_FIELD, description: "Issuer CIK whose roster to read" } },
-  },
 
   // Fetch: a form is picked from what this filer actually filed.
   {
@@ -143,95 +136,7 @@ const FIELD_ANNOTATIONS: readonly CommandFieldAnnotations[] = [
     },
   },
 
-  {
-    path: ["resolve"],
-    source,
-    fields: {
-      kind: { format: "sec:resolver-kind", choices: [...listResolverIds()] },
-      "resolver-version": { placeholder: "defaults to the active slot" },
-    },
-  },
-
   // Canonical alias ceremonies name two canonical rows, both of which exist.
-  {
-    path: ["canonical", "**"],
-    source,
-    fields: {
-      kind: { format: "sec:resolver-kind" },
-      from: { placeholder: "name to retire" },
-      into: { placeholder: "name to keep" },
-      fromName: { format: "sec:family", placeholder: "family to retire" },
-      intoName: { format: "sec:family", placeholder: "family to keep" },
-      name: { format: "sec:family" },
-    },
-  },
-
-  // SPAC: two different populations, and the difference matters. `report` and
-  // `history` read a `spac` row, so their picker offers only known SPACs;
-  // `download` works off the cheap screen, so its picker offers candidates.
-  {
-    path: ["spac", "**"],
-    source,
-    fields: { cik: { format: "sec:spac-cik", placeholder: "known SPAC — search by name" } },
-  },
-  {
-    // `--confidence` is a single rung here and a CSV list on `spac download`,
-    // so the vocabulary is stated only where one value is what the flag takes.
-    // A select cannot express `high,medium`, which is that command's default.
-    path: ["spac", "candidates"],
-    source,
-    fields: {
-      confidence: {
-        choices: [...SPAC_CANDIDATE_CONFIDENCES],
-        description: "Screen confidence to include",
-      },
-    },
-  },
-  {
-    path: ["spac", "download", "*"],
-    source,
-    fields: {
-      confidence: {
-        placeholder: "high,medium",
-        multiple: true,
-        description: `Screen confidences to include, comma-separated (${SPAC_CANDIDATE_CONFIDENCES.join(", ")})`,
-      },
-    },
-  },
-  {
-    path: ["spac", "process"],
-    source,
-    fields: { ciks: { format: "sec:spac-candidate-cik", multiple: true } },
-  },
-
-  {
-    path: ["editorial", "**"],
-    source,
-    fields: {
-      cik: { format: "sec:spac-cik" },
-      "url-sponsor": { placeholder: "https://…" },
-      "url-spac": { placeholder: "https://…" },
-      details: { placeholder: '{"unit_price": 10}' },
-    },
-  },
-
-  // Eval takes model ids as a list, so a pick appends rather than replaces.
-  {
-    path: ["eval", "**"],
-    source,
-    fields: {
-      models: {
-        format: "model",
-        multiple: true,
-        placeholder: "comma-separated model ids",
-        description: "Candidate models to rank",
-      },
-      reference: { format: "model", description: "Oracle model, or 'golden' for committed labels" },
-      extractor: { format: "sec:extractor" },
-      extractors: { format: "sec:extractor", multiple: true },
-      cik: { ...CIK_FIELD, multiple: true },
-    },
-  },
 
   {
     path: ["sync", "**"],
@@ -280,53 +185,9 @@ const COMMAND_ANNOTATIONS: readonly WebCommandAnnotation[] = [
     badges: ["network", "slow", "writes"],
   },
   {
-    path: ["sync", "spacs", "**"],
-    source,
-    badges: ["network", "slow", "writes", "ai"],
-    note: "Processing runs the S-1 / 424 / 8-K extractors, which call a model per section.",
-  },
-  {
     path: ["sync", "forms"],
     source,
     badges: ["network", "slow", "writes", "ai"],
-  },
-
-  {
-    path: ["spac", "process"],
-    source,
-    badges: ["network", "slow", "writes", "ai"],
-    note: "Runs the AI extractors over each CIK's filings.",
-  },
-  {
-    path: ["spac", "download"],
-    source,
-    badges: ["network", "slow", "writes"],
-    note: "Fills the document cache only — no extractors run. `--force` deletes each cached file before re-fetching it, so a failed re-fetch leaves nothing.",
-  },
-  {
-    path: ["spac", "backfill-despac"],
-    source,
-    badges: ["writes"],
-  },
-  {
-    path: ["spac", "backfill-trust"],
-    source,
-    badges: ["writes"],
-  },
-  {
-    path: ["spac", "backfill-redemptions"],
-    source,
-    badges: ["writes", "ai", "slow"],
-  },
-  {
-    path: ["spac", "backfill-lois"],
-    source,
-    badges: ["writes", "ai", "slow"],
-  },
-  {
-    path: ["spac", "backfill-merger-proxies"],
-    source,
-    badges: ["writes", "ai", "slow"],
   },
 
   {
@@ -341,16 +202,6 @@ const COMMAND_ANNOTATIONS: readonly WebCommandAnnotation[] = [
     badges: ["writes", "ai"],
     note: "Re-runs the entries eligible under the current extractor version.",
   },
-
-  { path: ["eval", "**"], source, badges: ["ai", "slow"] },
-  {
-    path: ["eval", "s1"],
-    source,
-    badges: ["ai", "slow"],
-    note: "A bare sweep scores roughly 350 real sections per candidate model. Narrow it with --extractors or --cik.",
-  },
-
-  { path: ["resolve"], source, badges: ["writes", "slow"] },
 
   // The ceremonies that destroy something. Each confirmation says what is lost
   // and what it would take to get it back — a dialog that only says "are you
@@ -393,18 +244,6 @@ const COMMAND_ANNOTATIONS: readonly WebCommandAnnotation[] = [
     source,
     badges: ["writes"],
     note: "Rotates next into current. A major bump is refused unless coverage is complete.",
-  },
-  {
-    path: ["canonical", "*", "alias-remove"],
-    source,
-    badges: ["destructive"],
-    note: "Removes a hand-curated claim that two canonical rows are one entity.",
-  },
-  {
-    path: ["canonical", "*", "alias-import"],
-    source,
-    badges: ["writes"],
-    note: "Resolves each pair by name; a pair whose target is not yet extracted is reported and skipped.",
   },
 ];
 

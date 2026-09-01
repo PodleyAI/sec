@@ -4,32 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry, TaskAbortedError } from "workglow";
+import { TaskAbortedError } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { resolveCountryCode } from "../../../storage/address/resolveCountryCode";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { PortalRepo } from "../../../storage/portal/PortalRepo";
 import { recordSuccessions } from "./portalSuccession";
-import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
-import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
-import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
-import { PersonRoleRepo } from "../../../storage/canonical/PersonRoleRepo";
-import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
-import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
-import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
-import { CanonicalPersonRepo } from "../../../storage/canonical/CanonicalPersonRepo";
-import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
-import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
-import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
-import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
-import { PersonObservationTitleRepo } from "../../../storage/observation/PersonObservationTitleRepo";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
-import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
-import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
-import { CompanyResolver } from "../../../resolver/CompanyResolver";
-import { EntityObserver } from "../../../resolver/EntityObserver";
-import { PersonResolver } from "../../../resolver/PersonResolver";
+import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
 import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
 import { parseCikSafely } from "../../../util/parseCik";
 import type { FormCfportal } from "./Form_CFPORTAL.schema";
@@ -76,42 +57,7 @@ export async function processFormCFPORTAL({
   filing_date: string;
   formCfportal: FormCfportal;
 }): Promise<void> {
-  const versionRegistry = new VersionRegistry(
-    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-  );
-  const [personSlot, companySlot] = await Promise.all([
-    getActiveSlot(versionRegistry, "resolver", "person"),
-    getActiveSlot(versionRegistry, "resolver", "company"),
-  ]);
-  const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
-  const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
-
-  const canonicalPersonRepo = new CanonicalPersonRepo();
-  const canonicalCompanyRepo = new CanonicalCompanyRepo();
-  const observer = new EntityObserver({
-    personObservationRepo: new PersonObservationRepo(),
-    personObservationTitleRepo: new PersonObservationTitleRepo(),
-    companyObservationRepo: new CompanyObservationRepo(),
-    personIdentityLinkRepo: new PersonIdentityLinkRepo(),
-    companyIdentityLinkRepo: new CompanyIdentityLinkRepo(),
-    personResolver: new PersonResolver({
-      canonicalPersonRepo,
-      canonicalPersonAliasRepo: new CanonicalPersonAliasRepo(),
-      activeResolverVersion: activeResolverPersonVersion,
-    }),
-    companyResolver: new CompanyResolver({
-      canonicalCompanyRepo,
-      canonicalCompanyAliasRepo: new CanonicalCompanyAliasRepo(),
-      activeResolverVersion: activeResolverCompanyVersion,
-    }),
-    canonicalPersonAddressRepo: new CanonicalPersonAddressRepo(),
-    canonicalPersonPhoneRepo: new CanonicalPersonPhoneRepo(),
-    canonicalCompanyAddressRepo: new CanonicalCompanyAddressRepo(),
-    canonicalCompanyPhoneRepo: new CanonicalCompanyPhoneRepo(),
-    personRoleRepo: new PersonRoleRepo(),
-    activeResolverPersonVersion,
-    activeResolverCompanyVersion,
-  });
+  const observer = buildObserveOnlyEntityObserver();
 
   const submissionType = formCfportal.headerData.submissionType;
   const identifying = formCfportal.formData?.identifyingInformation;

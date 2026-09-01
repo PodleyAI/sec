@@ -5,6 +5,7 @@
  */
 import { Static, Type } from "typebox";
 import { IExecuteContext, Task, TaskAbortedError } from "workglow";
+import { extractorIsSuppliedElsewhere } from "../../sec/forms/parserOnlyForms";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 import {
   defaultFilterTodo,
@@ -48,8 +49,41 @@ export interface ExtractorBackfillResult {
 export async function runExtractorBackfill(
   opts: RunExtractorBackfillOptions
 ): Promise<ExtractorBackfillResult> {
+  // Asked BEFORE the descriptor, because it is the more specific diagnosis and
+  // the two populations overlap: an id this package declares as parser-only and
+  // nothing registers has no descriptor either, and "your forms are parsed here
+  // and read elsewhere" is what the operator can act on. It is also the guard
+  // for the other shape — a consumer that contributed a descriptor but never
+  // registered the extractor, where a descriptor DOES resolve and the sweep
+  // would select an empty set and report itself done having read nothing. A
+  // zero-filing success is indistinguishable from a corpus already complete,
+  // which is the one answer this cannot afford to give. An empty selection on a
+  // REGISTERED extractor stays a legitimate outcome: that is a database with
+  // nothing owing.
+  if (extractorIsSuppliedElsewhere(opts.extractorId)) {
+    throw new Error(
+      `Cannot backfill '${opts.extractorId}': this deployment registers no extractor under ` +
+        `that id. Its forms are parsed here and read by a consumer package — run the ` +
+        `backfill under that package, or name an extractor this one ships.`
+    );
+  }
+
   const descriptor = getBackfillDescriptor(opts.extractorId);
   if (!descriptor) {
+    // Two different answers, and the operator's next step differs. An id this
+    // package holds STATE for — a seeded version slot, run rows, dead letters,
+    // stored tables — is one it knows about and cannot re-run: the reading
+    // behind it is supplied by a package this deployment does not have. Say so,
+    // rather than repeating a list that names the id back at them. Anything
+    // else is a typo, and the list is the useful reply to that.
+    if (listBackfillableExtractorIds().includes(opts.extractorId)) {
+      throw new Error(
+        `Cannot backfill '${opts.extractorId}': this deployment registers no backfill wiring ` +
+          `for that id. Its stored rows and version slot are here, but the extractor that ` +
+          `writes them is supplied by a consumer package — run the backfill under that ` +
+          `package, or name an extractor this one ships.`
+      );
+    }
     throw new Error(
       `No backfill wiring for extractor '${opts.extractorId}'. Backfillable: ` +
         listBackfillableExtractorIds().join(", ")

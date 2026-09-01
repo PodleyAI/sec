@@ -8,9 +8,9 @@ import { readFileSync } from "fs";
 import { Type } from "typebox";
 import { Task } from "workglow";
 import {
-  importFamilyDescriptions,
-  importSpacEditorial,
+  familyEditorialImporter,
   parseEditorialCsv,
+  spacEditorialImporter,
 } from "../../commands/editorialImport";
 
 export type EditorialImportTaskInput = {
@@ -84,7 +84,23 @@ export class EditorialImportTask extends Task<EditorialImportTaskInput, Editoria
       try {
         const parsed = parseEditorialCsv(content);
         if (parsed.kind === "family") {
-          const res = await importFamilyDescriptions(parsed.familyRows, { dryRun: input.dryRun });
+          const importFamily = familyEditorialImporter();
+          if (importFamily === undefined) {
+            results.push({
+              file,
+              kind: "family",
+              written: 0,
+              created: 0,
+              skippedMissing: 0,
+              errors: [...parsed.errors],
+              readError: null,
+              importError:
+                `cannot import ${file}: this deployment registers no writer for family ` +
+                "description rows",
+            });
+            continue;
+          }
+          const res = await importFamily(parsed.familyRows, { dryRun: input.dryRun });
           results.push({
             file,
             kind: "family",
@@ -94,6 +110,25 @@ export class EditorialImportTask extends Task<EditorialImportTaskInput, Editoria
             errors: [...parsed.errors],
             readError: null,
             importError: null,
+          });
+          continue;
+        }
+        const importSpacEditorial = spacEditorialImporter();
+        if (importSpacEditorial === undefined) {
+          // Refused by name rather than reported as written: the parse belongs
+          // to this package and the rows do not, so with no importer
+          // contributed there is nowhere for them to go.
+          results.push({
+            file,
+            kind: "failed",
+            written: 0,
+            created: 0,
+            skippedMissing: 0,
+            errors: [...parsed.errors],
+            readError: null,
+            importError:
+              `cannot import ${file}: this deployment registers no writer for spac ` +
+              "editorial rows",
           });
           continue;
         }

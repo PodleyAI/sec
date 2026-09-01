@@ -14,11 +14,20 @@ import {
 } from "../../storage/processing/ProcessedFactsSchema";
 import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { computeFactsWorklist, type FactsWorkItem } from "./computeFactsWorklist";
+import { listFactsEligibleCiks } from "./factsEligibleCiks";
 import { fetchAndStoreCompanyFacts } from "./fetchAndStoreCompanyFacts";
 
 export type UpdateAllCompanyFactsTaskInput = {
   readonly force?: boolean;
   readonly retryFailed?: boolean;
+  /**
+   * Sweep every never-processed CIK instead of only those plausibly holding
+   * facts. The default filter drops ~93% of that lane — almost all of it
+   * Section 16 reporting persons who answer companyfacts with a 404 — so this
+   * is the escape hatch for auditing what the filter excludes, not a routine
+   * setting. Has no effect on the changed/retry lanes, which are never filtered.
+   */
+  readonly allCiks?: boolean;
 };
 
 export type UpdateAllCompanyFactsTaskOutput = {
@@ -41,6 +50,7 @@ export class UpdateAllCompanyFactsTask extends Task<
     return Type.Object({
       force: Type.Optional(Type.Boolean()),
       retryFailed: Type.Optional(Type.Boolean()),
+      allCiks: Type.Optional(Type.Boolean()),
     });
   }
 
@@ -76,6 +86,10 @@ export class UpdateAllCompanyFactsTask extends Task<
       }
     }
 
+    // Skipped under `force` (which routes everything through needsUpdating and
+    // so never consults it) and under `allCiks`, so neither pays for the scan.
+    const eligible = input.force || input.allCiks ? undefined : await listFactsEligibleCiks();
+
     const { needsUpdating, needsProcessing, needsRetrying } = computeFactsWorklist(
       allCikUpdates,
       processedMap,
@@ -83,6 +97,7 @@ export class UpdateAllCompanyFactsTask extends Task<
         force: input.force ?? false,
         retryFailed: input.retryFailed ?? false,
         retryDate: todayYYYYdMMdDD(),
+        eligible,
       }
     );
 
@@ -95,8 +110,20 @@ export class UpdateAllCompanyFactsTask extends Task<
         const retrySuffix = input.retryFailed
           ? `, retrying ${needsRetrying.length} previously failed,`
           : "";
+        // Counted over `allCikUpdates` rather than as `length - processedMap.size`:
+        // `processed_facts` can hold a CIK the current universe no longer lists,
+        // and the subtraction would then under-report — or go negative — while
+        // looking like a real number.
+        const neverProcessed = allCikUpdates.reduce(
+          (n, clu) => (processedMap.has(clu.cik) ? n : n + 1),
+          0
+        );
+        const scope =
+          eligible === undefined
+            ? " (unfiltered — every never-processed CIK)"
+            : ` (of ${neverProcessed} never processed, ${eligible.size} pass the XBRL/SIC filter)`;
         console.log(
-          `Would update ${needsUpdating.length} changed${retrySuffix} and ${needsProcessing.length} new company facts`
+          `Would update ${needsUpdating.length} changed${retrySuffix} and ${needsProcessing.length} new company facts${scope}`
         );
       }
       return { success: true };

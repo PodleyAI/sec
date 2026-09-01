@@ -62,6 +62,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
             filing_date: "2026-05-27",
             primary_doc: file,
             form,
+            extractor_id: form.replace("/A", ""),
             doc,
           });
           const filing = await repo.getFiling(accession);
@@ -91,6 +92,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "4",
+      extractor_id: "4",
       doc,
     });
 
@@ -115,6 +117,34 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
     expect(deriv.underlying_security_shares).toBe(177936);
   });
 
+  it("stamps observations with the dispatching extractor's id, not the form symbol", async () => {
+    // Forms 3, 4 and 5 register three separate extractors over this one
+    // handler precisely so each keeps its own version slot, so the id has to
+    // arrive with the dispatch. Re-deriving it here from the form symbol
+    // answers a different question — and once one form carries two extractors
+    // there is no single right answer to derive.
+    const accession = "0001493152-26-025476";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-4", "000149315226025476-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_4.parse("4", xml);
+    await processOwnershipForm({
+      cik: 1828673,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "4",
+      extractor_id: "sec16-pass-2",
+      doc,
+    });
+
+    const persons = await new PersonObservationRepo().listByAccession(accession);
+    expect(persons.length).toBeGreaterThan(0);
+    expect([...new Set(persons.map((p) => p.extractor_id))]).toEqual(["sec16-pass-2"]);
+  });
+
   it("classifies directors/officers as persons and entities as companies", async () => {
     // Multi-owner Form 4: an individual 10% owner plus two fund entities.
     const accession = "0000902664-26-002604";
@@ -130,6 +160,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "4",
+      extractor_id: "4",
       doc,
     });
 
@@ -162,6 +193,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "4",
+      extractor_id: "4",
       doc,
     });
     expect((await repo.getTransactions(accession)).length).toBe(2);
@@ -176,6 +208,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "4",
+      extractor_id: "4",
       doc: fewer,
     });
 
@@ -198,6 +231,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "3/A",
+      extractor_id: "3",
       doc,
     });
 
@@ -241,6 +275,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "4",
+      extractor_id: "4",
       doc,
     });
 
@@ -267,6 +302,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "4",
+      extractor_id: "4",
       doc,
     });
 
@@ -292,6 +328,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "4",
+      extractor_id: "4",
       doc,
     });
 
@@ -317,6 +354,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "3/A",
+      extractor_id: "3",
       doc,
     });
 
@@ -341,6 +379,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "3/A",
+      extractor_id: "3",
       doc,
     });
 
@@ -386,6 +425,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       filing_date: "2026-05-27",
       primary_doc: "a.xml",
       form: "4",
+      extractor_id: "4",
       doc: docA,
     });
     await processOwnershipForm({
@@ -395,6 +435,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       filing_date: "2026-05-27",
       primary_doc: "b.xml",
       form: "4",
+      extractor_id: "4",
       doc: docB,
     });
 
@@ -427,6 +468,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "4",
+      extractor_id: "4",
       doc,
     });
 
@@ -458,6 +500,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "4",
+      extractor_id: "4",
       doc,
     });
 
@@ -502,6 +545,7 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
           filing_date: "2026-05-27",
           primary_doc: "x.xml",
           form: "4",
+          extractor_id: "4",
           doc,
         })
       ).rejects.toThrow("db down");

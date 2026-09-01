@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry, type IExecuteContext } from "workglow";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
+import { registerFormExtractor } from "../../sec/forms/formExtractors";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import {
   EXTRACTOR_RUN_REPOSITORY_TOKEN,
@@ -18,6 +19,7 @@ import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 const CIK = 1234567;
 const ACC = "0001234567-26-000001";
+const noopStore = async (): Promise<void> => {};
 
 async function seedFiling(form: string): Promise<void> {
   const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
@@ -63,6 +65,8 @@ async function seedRun(row: {
     success: row.outcome === "success",
     outcome: row.outcome,
     error: null,
+    read_full_submission: null,
+    gate_verdict: null,
   } as ExtractorRun);
 }
 
@@ -104,12 +108,12 @@ describe("FetchAndStoreFormsTask outcome counts", () => {
 
   it("counts only the form's own extractor, not the sub-extractors it gates", async () => {
     // A known-SPAC 8-K writes three run rows for one filing: the form's own
-    // `8-K` extractor plus the `loi` and `redemption` sub-extractors. Counting
-    // every row for the accession reported the filing as failed whenever a
-    // sub-extractor's row happened to come back last.
+    // `8-K-items` extractor plus the `loi` and `redemption` sub-extractors.
+    // Counting every row for the accession reported the filing as failed
+    // whenever a sub-extractor's row happened to come back last.
     await seedFiling("8-K");
     await seedRun({
-      extractor_id: "8-K",
+      extractor_id: "8-K-items",
       extractor_version: "1.0.0",
       outcome: "success",
       ran_at: "2026-02-01T00:00:00.000Z",
@@ -142,14 +146,14 @@ describe("FetchAndStoreFormsTask outcome counts", () => {
     // backend, and here the older row is inserted last.
     await seedFiling("8-K");
     await seedRun({
-      extractor_id: "8-K",
+      extractor_id: "8-K-items",
       extractor_version: "1.1.0",
       outcome: "success",
       ran_at: "2026-03-01T00:00:00.000Z",
       form: "8-K",
     });
     await seedRun({
-      extractor_id: "8-K",
+      extractor_id: "8-K-items",
       extractor_version: "1.0.0",
       outcome: "failure",
       ran_at: "2026-01-01T00:00:00.000Z",
@@ -179,5 +183,48 @@ describe("FetchAndStoreFormsTask outcome counts", () => {
   it("throws naming the form when no extractor is wired for it", async () => {
     await seedFiling("NOT-A-FORM");
     await expect(runTask("NOT-A-FORM")).rejects.toThrow(/NOT-A-FORM/);
+  });
+
+  it("counts a filing succeeded only when every extractor of its form did", async () => {
+    // A de-SPAC `S-4` is a registration statement AND the merger proxy for the
+    // same vote, so the form carries two extractors with two version slots and
+    // two run rows. There is no single id to count it by: reading one of them
+    // reports the filing done while the other still owes its work.
+    //
+    // Both registrations are additive — `S-4` is a symbol the shipped map has
+    // no entry for, and the second is keyed by its own `section`, so the
+    // shipped `merger-proxy` key that every `DEF 14A` runs through is untouched.
+    registerFormExtractor({ id: "S-4", forms: ["S-4"], store: noopStore });
+    registerFormExtractor({
+      id: "merger-proxy",
+      section: "de-spac",
+      forms: ["S-4"],
+      store: noopStore,
+    });
+    await seedFiling("S-4");
+    await seedRun({
+      extractor_id: "S-4",
+      extractor_version: "1.0.0",
+      outcome: "success",
+      ran_at: "2026-02-01T00:00:00.000Z",
+      form: "S-4",
+    });
+
+    const halfDone = await runTask("S-4");
+    expect(halfDone.succeeded).toBe(0);
+    expect(halfDone.failed).toBe(1);
+
+    await seedRun({
+      extractor_id: "merger-proxy",
+      extractor_version: "1.0.0",
+      outcome: "success",
+      ran_at: "2026-02-01T00:00:01.000Z",
+      form: "S-4",
+    });
+
+    const done = await runTask("S-4");
+    expect(done.succeeded).toBe(1);
+    expect(done.failed).toBe(0);
+    expect(done.partial).toBe(0);
   });
 });

@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { resolveCountryCode } from "../../../storage/address/resolveCountryCode";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
@@ -15,34 +14,15 @@ import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHis
 import { extractServiceProviders } from "./RegA_shared";
 import type { Form1K } from "./Form_1_K.schema";
 import type { ParsedForm1K } from "./Form_1_K";
-import { storeRegAFinancialStatements } from "./regAFinancialStatements.storage";
 import { numScalar } from "../_valueHelpers";
-import { EntityObserver } from "../../../resolver/EntityObserver";
-import { PersonResolver } from "../../../resolver/PersonResolver";
-import { CompanyResolver } from "../../../resolver/CompanyResolver";
-import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
-import { PersonObservationTitleRepo } from "../../../storage/observation/PersonObservationTitleRepo";
-import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
-import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
-import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
-import { CanonicalPersonRepo } from "../../../storage/canonical/CanonicalPersonRepo";
-import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
-import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
-import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
-import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
-import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
-import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
-import { PersonRoleRepo } from "../../../storage/canonical/PersonRoleRepo";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
-import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
-import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
+import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
+import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
 
 interface Form1KStorageContext {
   readonly accession_number: string;
   readonly extractor_id: "1-K";
   readonly extractor_version: string;
-  readonly observer: EntityObserver;
+  readonly observer: ObserveOnlyEntityObserver;
 }
 
 async function processIssuer(
@@ -201,7 +181,6 @@ export async function processForm1K({
   accession_number,
   filing_date,
   primary_doc,
-  form,
   form1K,
 }: {
   cik: number;
@@ -209,71 +188,23 @@ export async function processForm1K({
   accession_number: string;
   filing_date: string;
   primary_doc: string;
+  /**
+   * The form as filed — `1-K` or `1-K/A`. Part of the shape every extractor's
+   * `store` is handed and accepted here so the dispatcher's arguments spread in
+   * unchanged; nothing below distinguishes an amendment from an original,
+   * because a 1-K amendment restates the same cover page.
+   */
   form: string;
   form1K: ParsedForm1K;
 }): Promise<void> {
-  // The cover page (`primary_doc.xml`) drives everything below; the annual
-  // report's financial statements are stored separately at the end. They arrive
-  // together because they are two documents of ONE submission — see
-  // {@link ParsedForm1K}.
+  // The cover page (`primary_doc.xml`) is the whole of what a 1-K parses to
+  // here — see {@link ParsedForm1K}.
   const cover = form1K.cover;
-  const versionRegistry = new VersionRegistry(
-    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-  );
-
-  const [personSlot, companySlot] = await Promise.all([
-    getActiveSlot(versionRegistry, "resolver", "person"),
-    getActiveSlot(versionRegistry, "resolver", "company"),
-  ]);
-
-  const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
-  const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
-
   // 1.1.0: numScalar() treats whitespace-only/empty numeric elements as null
   // instead of fabricating 0 via Value.Convert. Bumped to force re-extract.
   const extractor_version = "1.1.0";
 
-  const personObservationRepo = new PersonObservationRepo();
-  const companyObservationRepo = new CompanyObservationRepo();
-  const personIdentityLinkRepo = new PersonIdentityLinkRepo();
-  const companyIdentityLinkRepo = new CompanyIdentityLinkRepo();
-  const canonicalPersonRepo = new CanonicalPersonRepo();
-  const canonicalCompanyRepo = new CanonicalCompanyRepo();
-  const canonicalPersonAliasRepo = new CanonicalPersonAliasRepo();
-  const canonicalCompanyAliasRepo = new CanonicalCompanyAliasRepo();
-  const canonicalPersonAddressRepo = new CanonicalPersonAddressRepo();
-  const canonicalPersonPhoneRepo = new CanonicalPersonPhoneRepo();
-  const canonicalCompanyAddressRepo = new CanonicalCompanyAddressRepo();
-  const canonicalCompanyPhoneRepo = new CanonicalCompanyPhoneRepo();
-
-  const personResolver = new PersonResolver({
-    canonicalPersonRepo,
-    canonicalPersonAliasRepo,
-    activeResolverVersion: activeResolverPersonVersion,
-  });
-
-  const companyResolver = new CompanyResolver({
-    canonicalCompanyRepo,
-    canonicalCompanyAliasRepo,
-    activeResolverVersion: activeResolverCompanyVersion,
-  });
-
-  const observer = new EntityObserver({
-    personObservationRepo,
-    personObservationTitleRepo: new PersonObservationTitleRepo(),
-    companyObservationRepo,
-    personIdentityLinkRepo,
-    companyIdentityLinkRepo,
-    personResolver,
-    companyResolver,
-    canonicalPersonAddressRepo,
-    canonicalPersonPhoneRepo,
-    canonicalCompanyAddressRepo,
-    canonicalCompanyPhoneRepo,
-    personRoleRepo: new PersonRoleRepo(),
-    activeResolverPersonVersion,
-    activeResolverCompanyVersion,
-  });
+  const observer = buildObserveOnlyEntityObserver();
 
   const ctx: Form1KStorageContext = {
     accession_number,
@@ -308,15 +239,4 @@ export async function processForm1K({
 
   await processIssuer(cik, cover, ctx, 0);
   await processOfferingHistory(cik, file_number, accession_number, filing_date, cover, ctx, 100);
-
-  // The financial statements — the reason the 1-K fetch was escalated to the
-  // full submission. Stored last so a parse that yielded none still leaves the
-  // cover data committed.
-  await storeRegAFinancialStatements({
-    cik,
-    accession_number,
-    form,
-    filing_date,
-    statements: form1K.statements,
-  });
 }

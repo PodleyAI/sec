@@ -6,20 +6,28 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { IExecuteContext } from "workglow";
-import { getGlobalModelRepository, globalServiceRegistry } from "workglow";
+import { globalServiceRegistry } from "workglow";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
-import { registerFakeStructuredProvider } from "../../sec/forms/registration-statements/s1/testing/fakeStructuredProvider";
 import {
-  getFormExtractor,
+  clearFormExtractorsForTesting,
   registerFormExtractor,
-  type FormExtractorWithDocument,
 } from "../../sec/forms/formExtractors";
+import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
+import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
+import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
+
+/** The form's extractor, and the narrative pass it runs behind a gate. */
+const EIGHT_K_ID = "synth-8k";
+const GATED_ID = "synth-gated";
+const ACTIVE_VERSION = "1.0.0";
 
 class CapturingTask extends ProcessAccessionDocFormTask {
   public readonly fetched: string[] = [];
@@ -35,41 +43,82 @@ class CapturingTask extends ProcessAccessionDocFormTask {
   }
 }
 
-/**
- * Records what the driver hands the REAL 8-K extractor, without displacing it:
- * the wrapper carries the same axis declarations and delegates to the original
- * `store`, so the filing is processed exactly as it would be unwrapped.
- */
-function captureEightKInput(): {
+/** What the extractor was handed to read, one entry per store. */
+interface ExtractorCapture {
   readonly seen: Array<string | undefined>;
-  readonly restore: () => void;
-} {
-  const original = getFormExtractor("8-K");
-  if (original === undefined || original.needsDocument === false) {
-    throw new Error("expected a document-reading 8-K extractor to be registered");
-  }
-  const documentExtractor: FormExtractorWithDocument<unknown> = original;
-  const seen: Array<string | undefined> = [];
-  registerFormExtractor<unknown>({
-    ...documentExtractor,
-    store: async (args) => {
-      seen.push(args.fullSubmissionText);
-      await documentExtractor.store(args);
-    },
-  });
-  return { seen, restore: () => registerFormExtractor<unknown>(documentExtractor) };
 }
 
-async function seedSpac(cik: number): Promise<void> {
-  await new SpacReportWriter().recordRegistration({
-    cik,
-    accession_number: `${cik}-reg`,
-    filing_date: "2025-12-01",
-    form: "S-1",
-    primary_document: "s1.htm",
-    spac_name: "Redeem SPAC Inc.",
-    spac_sic: 6770,
+/**
+ * An 8-K extractor shaped like the one the driver runs in production: it wants
+ * the whole submission fetched for EVERY filing of the form, and it reads those
+ * exhibits only for an admitted filer carrying a redemption or letter-of-intent
+ * item. Its gated pass records an `extractor_runs` row under an id of its own,
+ * which is what makes "the gate was closed" observable as an absent row rather
+ * than only as an absent argument.
+ *
+ * The real predicate asks a lifecycle table this package no longer holds, so
+ * the filer half is a plain set here. What is under test is the DISPATCHER —
+ * which file it fetches, what it hands a `store`, and what it records — and
+ * that is unchanged by how the extractor decides.
+ */
+function registerScriptedExtractor(): ExtractorCapture {
+  const seen: Array<string | undefined> = [];
+  registerFormExtractor<string>({
+    id: EIGHT_K_ID,
+    forms: ["8-K", "8-K/A"],
+    needsFullSubmission: true,
+    readsFullSubmission: async ({ cik, items }) => {
+      if (cik === undefined) return false;
+      if (!hasRedemptionTriggerItem(items) && !hasLoiTriggerItem(items)) return false;
+      return admittedCiks.has(cik);
+    },
+    parse: async (_form, text) => text,
+    store: async (args) => {
+      seen.push(args.fullSubmissionText);
+      // The narrative pass runs on the exhibits or not at all, so a closed gate
+      // leaves it with no run of its own to record.
+      if (args.fullSubmissionText === undefined) return;
+      const slot = await getActiveSlot(
+        new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)),
+        "extractor",
+        GATED_ID
+      );
+      await new ExtractorRunRepo(
+        globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+      ).recordRun({
+        cik: args.cik,
+        accession_number: args.accession_number,
+        form: args.form,
+        extractor_id: GATED_ID,
+        extractor_version: slot?.semver ?? ACTIVE_VERSION,
+        slot_at_run: slot?.slot ?? "current",
+        success: true,
+        error: null,
+      });
+    },
   });
+  return { seen };
+}
+
+/** Gives an extractor id a `current` slot, as `db setup` does for shipped ids. */
+async function seedExtractorVersion(id: string, semver: string): Promise<void> {
+  await new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)).putSlot({
+    component_kind: "extractor",
+    component_id: id,
+    slot: "current",
+    semver,
+    bump_type: null,
+    started_at: "2026-01-01T00:00:00.000Z",
+    coverage_complete: true,
+    target_count: null,
+  });
+}
+
+/** The filers the scripted extractor's own gate admits. */
+const admittedCiks = new Set<number>();
+
+function admitCik(cik: number): void {
+  admittedCiks.add(cik);
 }
 
 async function seedFiling(opts: {
@@ -99,56 +148,48 @@ async function seedFiling(opts: {
   } as never);
 }
 
+/** Registry and version state a case needs, restored afterwards. */
+async function installScriptedExtractor(): Promise<ExtractorCapture> {
+  admittedCiks.clear();
+  clearFormExtractorsForTesting();
+  await seedExtractorVersion(EIGHT_K_ID, ACTIVE_VERSION);
+  await seedExtractorVersion(GATED_ID, ACTIVE_VERSION);
+  return registerScriptedExtractor();
+}
+
+function restoreShippedExtractors(): void {
+  // Leave the registry as it was found: clearing re-arms `registerSecFormExtractors`.
+  clearFormExtractorsForTesting();
+  registerSecFormExtractors();
+}
+
 /**
- * The 8-K fetch policy and the redemption gate, which used to be one flag.
+ * The 8-K fetch policy and the narrative-pass gate, which used to be one flag.
  *
- * Fetching the whole submission is now unconditional for 8-K; handing its EX-99
- * exhibits to the redemption extractor is still gated on a known SPAC with a
- * trigger item. Pinning both halves together is the point — a single flag is
- * how "fetch more" and "feed the model more" became impossible to do
- * separately.
+ * Fetching the whole submission is unconditional for 8-K; handing its EX-99
+ * exhibits to a narrative pass is still gated, on a trigger item and on a filer
+ * the extractor's own gate admits. Pinning both halves together is the point —
+ * a single flag is how "fetch more" and "feed the model more" became impossible
+ * to do separately.
  */
-describe("ProcessAccessionDocFormTask 8-K fetch policy and redemption gate", () => {
-  let escCleanup: (() => void) | undefined;
-  let escPrevRedemptionModel: string | undefined;
-  let capture: ReturnType<typeof captureEightKInput> | undefined;
+describe("ProcessAccessionDocFormTask 8-K fetch policy and narrative-pass gate", () => {
+  let capture: ExtractorCapture | undefined;
 
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
-    // processRedemption8K now reaches `getRedemptionModel()` on the
-    // known-SPAC + trigger-item path; register a fake model so the call
-    // doesn't throw before the assertions this suite cares about (which file
-    // is fetched, and what the extractor is then handed). The fake provider is
-    // wired in only for the trigger-item test that actually reaches the AI
-    // extractor.
-    escPrevRedemptionModel = process.env.SEC_REDEMPTION_MODEL;
-    process.env.SEC_REDEMPTION_MODEL = "fake-s1-model";
-    await getGlobalModelRepository().addModel({
-      model_id: "fake-s1-model",
-      capabilities: ["text.generation", "json-mode"],
-      title: "Fake",
-      description: "Fake",
-      provider: "fake-structured",
-      provider_config: {},
-      metadata: {},
-    } as any);
-    capture = captureEightKInput();
+    capture = await installScriptedExtractor();
   });
 
-  afterEach(async () => {
-    escCleanup?.();
-    escCleanup = undefined;
-    capture?.restore();
+  afterEach(() => {
     capture = undefined;
-    await getGlobalModelRepository().removeModel("fake-s1-model");
-    if (escPrevRedemptionModel === undefined) delete process.env.SEC_REDEMPTION_MODEL;
-    else process.env.SEC_REDEMPTION_MODEL = escPrevRedemptionModel;
+    restoreShippedExtractors();
+    resetDependencyInjectionsForTesting();
   });
 
-  it("fetches the full .txt for a known-SPAC trigger-item 8-K and feeds it to the extractor", async () => {
+  it("fetches the full .txt for an admitted filer's trigger-item 8-K and feeds it to the extractor", async () => {
     const accession = "0000000000-26-000007";
-    await seedSpac(7);
+    admitCik(7);
     await seedFiling({
       cik: 7,
       accession_number: accession,
@@ -156,18 +197,6 @@ describe("ProcessAccessionDocFormTask 8-K fetch policy and redemption gate", () 
       primary_doc: "primary.htm",
       items: "5.07,9.01",
     });
-    // The fake provider must be registered before the run so the redemption
-    // AI extractor can complete; its output is irrelevant here.
-    const reg = registerFakeStructuredProvider([
-      {
-        redemption_shares: 0,
-        redemption_amount: 0,
-        price_per_share: 0,
-        confidence: 0,
-        source_span: "",
-      },
-    ]);
-    escCleanup = reg.unregister;
     const task = new CapturingTask();
     await task.run({ accessionNumber: accession });
     expect(task.fetched).toContain(`${accession}.txt`);
@@ -178,7 +207,7 @@ describe("ProcessAccessionDocFormTask 8-K fetch policy and redemption gate", () 
   // every 8-K, and what the extractor reads did not move with it.
   it("fetches the full .txt for a non-trigger item without feeding it to the extractor", async () => {
     const accession = "0000000000-26-000008";
-    await seedSpac(7);
+    admitCik(7);
     await seedFiling({
       cik: 7,
       accession_number: accession,
@@ -193,10 +222,10 @@ describe("ProcessAccessionDocFormTask 8-K fetch policy and redemption gate", () 
     expect(capture?.seen).toEqual([undefined]);
   });
 
-  it("fetches the full .txt for a non-SPAC CIK without feeding it to the extractor", async () => {
-    // The two halves of the split, in one filing. It has a trigger item and no
-    // `spac` row: the fetch is unconditional so the exhibits reach disk, and the
-    // gate is unchanged so nothing reaches the model.
+  it("fetches the full .txt for an unadmitted CIK without feeding it to the extractor", async () => {
+    // The two halves of the split, in one filing. It has a trigger item and a
+    // filer the gate does not admit: the fetch is unconditional so the exhibits
+    // reach disk, and the gate is unchanged so nothing reaches the gated pass.
     const accession = "0000000000-26-000010";
     await seedFiling({
       cik: 99,
@@ -212,14 +241,11 @@ describe("ProcessAccessionDocFormTask 8-K fetch policy and redemption gate", () 
     expect(capture?.seen).toEqual([undefined]);
 
     const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
-    expect(await runRepo.findRun(99, accession, "redemption", "1.0.0")).toBeUndefined();
+    expect(await runRepo.findRun(99, accession, GATED_ID, ACTIVE_VERSION)).toBeUndefined();
   });
 });
 
-describe("ProcessAccessionDocFormTask redemption extractor_runs recording", () => {
-  let cleanup: (() => void) | undefined;
-  let prevRedemptionModel: string | undefined;
-
+describe("ProcessAccessionDocFormTask 8-K extractor_runs recording", () => {
   const FULL_TXT =
     "<SEC-HEADER>\nACCESSION NUMBER: 0000000000-26-000050\n</SEC-HEADER>\n" +
     "<DOCUMENT>\n<TYPE>8-K\n<SEQUENCE>1\n<TEXT>\n<p>Vote results.</p>\n</TEXT>\n</DOCUMENT>\n" +
@@ -230,26 +256,11 @@ describe("ProcessAccessionDocFormTask redemption extractor_runs recording", () =
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
-    prevRedemptionModel = process.env.SEC_REDEMPTION_MODEL;
-    process.env.SEC_REDEMPTION_MODEL = "fake-s1-model";
-
-    await getGlobalModelRepository().addModel({
-      model_id: "fake-s1-model",
-      capabilities: ["text.generation", "json-mode"],
-      title: "Fake",
-      description: "Fake",
-      provider: "fake-structured",
-      provider_config: {},
-      metadata: {},
-    } as any);
+    await installScriptedExtractor();
   });
 
-  afterEach(async () => {
-    cleanup?.();
-    cleanup = undefined;
-    await getGlobalModelRepository().removeModel("fake-s1-model");
-    if (prevRedemptionModel === undefined) delete process.env.SEC_REDEMPTION_MODEL;
-    else process.env.SEC_REDEMPTION_MODEL = prevRedemptionModel;
+  afterEach(() => {
+    restoreShippedExtractors();
     resetDependencyInjectionsForTesting();
   });
 
@@ -267,62 +278,106 @@ describe("ProcessAccessionDocFormTask redemption extractor_runs recording", () =
     }
   }
 
-  it("records a successful redemption extractor_runs row after a clean run", async () => {
+  it("records a successful run for the extractor and for its gated pass after a clean run", async () => {
     const cik = 50;
     const accession = "0000000000-26-000050";
 
-    await new SpacReportWriter().recordRegistration({
-      cik,
-      accession_number: `${cik}-reg`,
-      filing_date: "2025-12-01",
-      form: "S-1",
-      primary_document: "s1.htm",
-      spac_name: "Redeem SPAC Inc.",
-      spac_sic: 6770,
-    });
-    await new SpacReportWriter().recordDealMilestones({
-      cik,
-      accession_number: `${cik}-da`,
-      filing_date: "2026-01-10",
-      form: "8-K",
-      primary_document: null,
-      events: [{ event_type: "definitive_agreement", event_date: "2026-01-10" }],
-    });
-    const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
-    await repo.put({
+    admitCik(cik);
+    await seedFiling({
       cik,
       accession_number: accession,
       form: "8-K",
       primary_doc: "primary.htm",
-      file_number: "",
-      filing_date: "2026-03-20",
-      acceptance_date: "2026-03-20T00:00:00.000Z",
-      report_date: "2026-03-19",
-      film_number: null,
-      primary_doc_description: null,
-      size: null,
-      is_xbrl: null,
-      is_inline_xbrl: null,
       items: "5.07",
-      act: null,
-    } as never);
+    });
 
-    const registration = registerFakeStructuredProvider([
-      {
-        redemption_shares: 1234567,
-        redemption_amount: 12400000,
-        price_per_share: 10.05,
-        confidence: 0.95,
-        source_span: "1,234,567 shares elected to redeem for $12,400,000",
-      },
-    ]);
-    cleanup = registration.unregister;
+    const result = await new FixedBodyTask(FULL_TXT).run({ accessionNumber: accession });
+    expect((result as { success: boolean }).success).toBe(true);
+
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    // The gated pass ran on the exhibits and recorded its own row.
+    const gated = await runRepo.findRun(cik, accession, GATED_ID, ACTIVE_VERSION);
+    expect(gated?.success).toBe(true);
+    expect(gated?.error).toBeNull();
+    // And the driver recorded one for the extractor it dispatched through.
+    const dispatched = await runRepo.findRun(cik, accession, EIGHT_K_ID, ACTIVE_VERSION);
+    expect(dispatched?.success).toBe(true);
+    expect(dispatched?.error).toBeNull();
+  });
+
+  // The three below pin the run row's account of WHAT the extractor was handed,
+  // which is the only place that fact survives the dispatch. Two 8-Ks of the
+  // same admitted filer, differing only in their item codes, produce classifications
+  // of different worth: one made over the EX-99 exhibits and one made over four
+  // sentences pointing at them. Without this column a stored answer carrying no
+  // merger detail cannot be told from a filing that genuinely had none, and a
+  // later pass run with the exhibits would disagree with nothing recording why.
+  it("records that the dispatched extractor read the full submission when the gate opened", async () => {
+    const cik = 51;
+    const accession = "0000000000-26-000051";
+
+    admitCik(cik);
+    await seedFiling({
+      cik,
+      accession_number: accession,
+      form: "8-K",
+      primary_doc: "primary.htm",
+      items: "5.07",
+    });
 
     await new FixedBodyTask(FULL_TXT).run({ accessionNumber: accession });
 
     const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
-    const run = await runRepo.findRun(cik, accession, "redemption", "1.0.0");
-    expect(run?.success).toBe(true);
-    expect(run?.error).toBeNull();
+    const dispatched = await runRepo.findRun(cik, accession, EIGHT_K_ID, ACTIVE_VERSION);
+    expect(dispatched?.read_full_submission).toBe(true);
+  });
+
+  it("records that it did not, for a filing whose items never open the gate", async () => {
+    // Same admitted filer and the same bytes on disk — only the item codes differ,
+    // and 2.02 is not a trigger item.
+    const cik = 52;
+    const accession = "0000000000-26-000052";
+
+    admitCik(cik);
+    await seedFiling({
+      cik,
+      accession_number: accession,
+      form: "8-K",
+      primary_doc: "primary.htm",
+      items: "2.02",
+    });
+
+    await new FixedBodyTask(FULL_TXT).run({ accessionNumber: accession });
+
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    const dispatched = await runRepo.findRun(cik, accession, EIGHT_K_ID, ACTIVE_VERSION);
+    expect(dispatched?.read_full_submission).toBe(false);
+    expect(dispatched?.read_full_submission).not.toBeNull();
+  });
+
+  it("leaves the verdict null for a run recorded by a caller that does not state it", async () => {
+    // The gated pass writes its own row from inside the extractor's `store`,
+    // through the same call shape every writer used before the column existed.
+    // Null is what such a row must report: nobody wrote the answer down, which
+    // is not the same fact as the extractor having read the primary document
+    // alone.
+    const cik = 53;
+    const accession = "0000000000-26-000053";
+
+    admitCik(cik);
+    await seedFiling({
+      cik,
+      accession_number: accession,
+      form: "8-K",
+      primary_doc: "primary.htm",
+      items: "5.07",
+    });
+
+    await new FixedBodyTask(FULL_TXT).run({ accessionNumber: accession });
+
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    const gated = await runRepo.findRun(cik, accession, GATED_ID, ACTIVE_VERSION);
+    expect(gated).toBeDefined();
+    expect(gated?.read_full_submission).toBeNull();
   });
 });

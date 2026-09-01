@@ -71,7 +71,7 @@ describe("sync documents", () => {
   it("passes the other narrowing options through", async () => {
     const defaults = await run([
       "--types",
-      "S-1,424B4",
+      "S-1-xbrl,424B4",
       "--since",
       "2026-01-01",
       "--limit",

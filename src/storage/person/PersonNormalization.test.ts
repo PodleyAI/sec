@@ -5,7 +5,12 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { normalizePerson, PersonImport } from "./PersonNormalization";
+import {
+  normalizePerson,
+  parsePersonDisplayName,
+  personDisplayParts,
+  PersonImport,
+} from "./PersonNormalization";
 
 describe("PersonNormalization", () => {
   describe("cleanPerson", () => {
@@ -31,6 +36,46 @@ describe("PersonNormalization", () => {
       expect(result!.first).toBe("John");
       expect(result!.last).toBe("Smith");
       expect(result!.person_hash_id).toBeDefined();
+    });
+
+    it("removes case-insensitive SEC signature markers", () => {
+      for (const filed of ["/s/ Aric Anderson", "/S/ Aric Anderson", "/ s / Aric Anderson"]) {
+        expect(normalizePerson({ name: filed })?.person_hash_id).toBe("aric-anderson");
+        expect(parsePersonDisplayName(filed)).toMatchObject({ first: "Aric", last: "Anderson" });
+      }
+    });
+
+    it("parses an honorific followed by an unpunctuated middle initial", () => {
+      expect(normalizePerson({ name: "Dr Sam A Dowling" })).toMatchObject({
+        first: "Sam",
+        middle: "A",
+        last: "Dowling",
+      });
+    });
+
+    it("keeps a credential's filed capitalisation out of the case-fixer's hands", () => {
+      // `fixCase` title-cases every part, which is right for a name and wrong
+      // for an initialism — and this string is presentation text, reaching
+      // `canonical_person.display_suffix`.
+      expect(parsePersonDisplayName("John Smith, CPA")).toMatchObject({
+        first: "John",
+        last: "Smith",
+        credentials: "CPA",
+      });
+      expect(parsePersonDisplayName("Isaac Manke, Ph.D.")).toMatchObject({
+        credentials: "Ph.D.",
+      });
+    });
+
+    it("repairs a suffix duplicated across last_name and suffix", () => {
+      expect(personDisplayParts({ last_name: "Charles A. Ross, Jr.", suffix: "Jr" })).toMatchObject(
+        {
+          first: "Charles",
+          middle: "A.",
+          last: "Ross",
+          suffix: "Jr.",
+        }
+      );
     });
 
     it("should handle middle names", () => {

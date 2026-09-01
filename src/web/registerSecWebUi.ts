@@ -19,9 +19,9 @@ import { registerSecStatusWidgets } from "./secStatusWidgets";
  * with no database configured. The reads happen when a page asks, by which
  * point the `web` command's own bootstrap has run.
  *
- * A superset (embarc-data) inherits all of it by calling `AddCommands`, and
- * layers its own registrations on top; the seams are keyed so a later
- * registration of the same id replaces rather than duplicates.
+ * A superset inherits all of it by calling `AddCommands`, and layers its own
+ * registrations on top; the seams are keyed so a later registration of the
+ * same id replaces rather than duplicates.
  */
 export function registerSecWebUi(program?: Command): void {
   registerSecFieldWidgets();

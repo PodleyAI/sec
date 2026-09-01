@@ -42,31 +42,16 @@ describe("CLI command graph", () => {
       "db",
       "init",
       "version",
-      "resolve",
-      "canonical",
-      "spac",
-      // Registered by registerUnderwriterFamilyCommands / the issuer query
-      // group, and the only top-level evidence either of them ran.
-      "underwriter",
+      // Registered by registerIssuerCommands, and the only top-level evidence
+      // it ran. `spac`, `underwriter`, `resolve` and `canonical` are gone from
+      // here with the tiers that were the whole of those groups; the package
+      // owning them registers them now.
       "issuer",
       "editorial",
       "extractor",
-      "eval",
     ]) {
       expect(names).toContain(expected);
     }
-  });
-
-  it("registers the eval subcommands the harness documents", () => {
-    const program = new Command();
-    AddCommands(program);
-
-    const evalCmd = program.commands.find((c) => c.name() === "eval");
-    expect(evalCmd).toBeDefined();
-    const subNames = evalCmd!.commands.map((c) => c.name());
-    expect(subNames).toContain("extract");
-    expect(subNames).toContain("s1");
-    expect(subNames).toContain("unit-terms");
   });
 
   it("registers sync subcommands without update or adv", () => {
@@ -88,10 +73,11 @@ describe("CLI command graph", () => {
       "crowdfunding",
       "reg-a",
       "forms",
-      "spacs",
     ]) {
       expect(subNames).toContain(expected);
     }
+    // Both belong to leaves a downstream package registers.
     expect(subNames).not.toContain("adv");
+    expect(subNames).not.toContain("spacs");
   });
 });

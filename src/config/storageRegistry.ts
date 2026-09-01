@@ -178,11 +178,6 @@ import {
   RegAOfferingEventSchema,
 } from "../storage/reg-a/RegAOfferingEventSchema";
 import {
-  REGA_FINANCIAL_LINE_REPOSITORY_TOKEN,
-  RegAFinancialLinePrimaryKeyNames,
-  RegAFinancialLineSchema,
-} from "../storage/reg-a/RegAFinancialLineSchema";
-import {
   REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
   RegAEquityClassPrimaryKeyNames,
   RegAEquityClassSchema,
@@ -208,40 +203,6 @@ import {
   RegAServiceProviderSchema,
 } from "../storage/reg-a/RegAServiceProviderSchema";
 import {
-  CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
-  CanonicalCompanyAliasSchema,
-  CanonicalCompanyAliasPrimaryKeyNames,
-  CanonicalPersonAliasSchema,
-  CanonicalPersonAliasPrimaryKeyNames,
-  CanonicalSponsorFamilyAliasSchema,
-  CanonicalSponsorFamilyAliasPrimaryKeyNames,
-  CanonicalUnderwriterFamilyAliasSchema,
-  CanonicalUnderwriterFamilyAliasPrimaryKeyNames,
-} from "../storage/canonical/CanonicalAliasSchemas";
-import {
-  CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN,
-  CanonicalSponsorFamilyPrimaryKeyNames,
-  CanonicalSponsorFamilySchema,
-} from "../storage/canonical/CanonicalSponsorFamilySchema";
-import {
-  FAMILY_DESCRIPTION_REPOSITORY_TOKEN,
-  FamilyDescriptionPrimaryKeyNames,
-  FamilyDescriptionSchema,
-} from "../storage/canonical/FamilyDescriptionSchema";
-import {
-  SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
-  SponsorFamilyMembershipPrimaryKeyNames,
-  SponsorFamilyMembershipSchema,
-} from "../storage/canonical/SponsorFamilyMembershipSchema";
-import {
-  SPAC_SPONSOR_LINK_REPOSITORY_TOKEN,
-  SpacSponsorLinkPrimaryKeyNames,
-  SpacSponsorLinkSchema,
-} from "../storage/canonical/SpacSponsorLinkSchema";
-import {
   OFFERING_TERMS_REPOSITORY_TOKEN,
   OfferingTermsPrimaryKeyNames,
   OfferingTermsSchema,
@@ -257,89 +218,20 @@ import {
   SpacPromoteTermsSchema,
 } from "../storage/offering/SpacPromoteTermsSchema";
 import {
-  SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN,
-  SpacLockupTermsPrimaryKeyNames,
-  SpacLockupTermsSchema,
-} from "../storage/offering/SpacLockupTermsSchema";
-import {
   ISSUER_TICKER_REPOSITORY_TOKEN,
   IssuerTickerPrimaryKeyNames,
   IssuerTickerSchema,
 } from "../storage/offering/IssuerTickerSchema";
-import {
-  CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN,
-  CanonicalUnderwriterFamilyPrimaryKeyNames,
-  CanonicalUnderwriterFamilySchema,
-} from "../storage/canonical/CanonicalUnderwriterFamilySchema";
-import {
-  UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
-  UnderwriterFamilyMembershipPrimaryKeyNames,
-  UnderwriterFamilyMembershipSchema,
-} from "../storage/canonical/UnderwriterFamilyMembershipSchema";
-import {
-  UNDERWRITER_LINK_REPOSITORY_TOKEN,
-  UnderwriterLinkPrimaryKeyNames,
-  UnderwriterLinkSchema,
-} from "../storage/canonical/UnderwriterLinkSchema";
-import {
-  RISK_FACTOR_REPOSITORY_TOKEN,
-  RiskFactorPrimaryKeyNames,
-  RiskFactorSchema,
-} from "../storage/risk-factor/RiskFactorSchema";
-import {
-  USE_OF_PROCEEDS_REPOSITORY_TOKEN,
-  UseOfProceedsPrimaryKeyNames,
-  UseOfProceedsSchema,
-} from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import {
   XBRL_FACT_REPOSITORY_TOKEN,
   XbrlFactPrimaryKeyNames,
   XbrlFactRowSchema,
 } from "../storage/xbrl/XbrlFactSchema";
 import {
-  CANONICAL_COMPANY_REPOSITORY_TOKEN,
-  CanonicalCompanyPrimaryKeyNames,
-  CanonicalCompanySchema,
-} from "../storage/canonical/CanonicalCompanySchema";
-import {
-  CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
-  CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
-  CanonicalCompanyAddressPrimaryKeyNames,
-  CanonicalCompanyAddressSchema,
-  CanonicalCompanyPhonePrimaryKeyNames,
-  CanonicalCompanyPhoneSchema,
-  CanonicalPersonAddressPrimaryKeyNames,
-  CanonicalPersonAddressSchema,
-  CanonicalPersonPhonePrimaryKeyNames,
-  CanonicalPersonPhoneSchema,
-} from "../storage/canonical/CanonicalJunctionSchemas";
-import {
-  CANONICAL_PERSON_REPOSITORY_TOKEN,
-  CanonicalPersonPrimaryKeyNames,
-  CanonicalPersonSchema,
-} from "../storage/canonical/CanonicalPersonSchema";
-import {
-  COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN,
-  CompanyIdentityLinkPrimaryKeyNames,
-  CompanyIdentityLinkSchema,
-} from "../storage/canonical/CompanyIdentityLinkSchema";
-import {
-  PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
-  PersonIdentityLinkPrimaryKeyNames,
-  PersonIdentityLinkSchema,
-} from "../storage/canonical/PersonIdentityLinkSchema";
-import {
-  PERSON_ROLE_REPOSITORY_TOKEN,
-  PersonRolePrimaryKeyNames,
-  PersonRoleSchema,
-} from "../storage/canonical/PersonRoleSchema";
-import {
   ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN,
   RoleRosterCompletenessPrimaryKeyNames,
   RoleRosterCompletenessSchema,
-} from "../storage/canonical/RoleRosterCompletenessSchema";
+} from "../storage/roster/RoleRosterCompletenessSchema";
 import {
   COMPANY_OBSERVATION_REPOSITORY_TOKEN,
   CompanyObservationPrimaryKeyNames,
@@ -356,11 +248,6 @@ import {
   PersonObservationTitleSchema,
   PersonObservationTitleTable,
 } from "../storage/observation/PersonObservationTitleSchema";
-import {
-  FIELD_PROVENANCE_REPOSITORY_TOKEN,
-  FieldProvenancePrimaryKeyNames,
-  FieldProvenanceSchema,
-} from "../storage/provenance/FieldProvenanceSchema";
 import {
   OBSERVATION_PROVENANCE_REPOSITORY_TOKEN,
   ObservationProvenancePrimaryKeyNames,
@@ -387,11 +274,6 @@ import {
   ExtractionDeadLetterSchema,
 } from "../storage/dead-letter/ExtractionDeadLetterSchema";
 import {
-  EXTRACTION_CACHE_REPOSITORY_TOKEN,
-  ExtractionCachePrimaryKeyNames,
-  ExtractionCacheSchema,
-} from "../storage/extraction/ExtractionCacheSchema";
-import {
   S1_CLASSIFICATION_REPOSITORY_TOKEN,
   S1ClassificationPrimaryKeyNames,
   S1ClassificationSchema,
@@ -417,42 +299,6 @@ import {
   Form8KEventSchema,
   Form8KEventUniqueIndexes,
 } from "../storage/form-8k-event/Form8KEventSchema";
-import { SPAC_REPOSITORY_TOKEN, SpacPrimaryKeyNames, SpacSchema } from "../storage/spac/SpacSchema";
-import {
-  SPAC_CANDIDATE_REPOSITORY_TOKEN,
-  SpacCandidatePrimaryKeyNames,
-  SpacCandidateSchema,
-} from "../storage/spac/SpacCandidateSchema";
-import {
-  SPAC_DEAL_REPOSITORY_TOKEN,
-  SpacDealPrimaryKeyNames,
-  SpacDealSchema,
-} from "../storage/spac/SpacDealSchema";
-import {
-  SPAC_EVENT_REPOSITORY_TOKEN,
-  SpacEventPrimaryKeyNames,
-  SpacEventSchema,
-} from "../storage/spac/SpacEventSchema";
-import {
-  SPAC_HISTORY_REPOSITORY_TOKEN,
-  SpacHistoryPrimaryKeyNames,
-  SpacHistorySchema,
-} from "../storage/spac/SpacHistorySchema";
-import {
-  SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN,
-  SpacMergerExtractionPrimaryKeyNames,
-  SpacMergerExtractionSchema,
-} from "../storage/spac/SpacMergerExtractionSchema";
-import {
-  SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN,
-  SpacRedemptionExtractionPrimaryKeyNames,
-  SpacRedemptionExtractionSchema,
-} from "../storage/spac/SpacRedemptionExtractionSchema";
-import {
-  SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN,
-  SpacLoiExtractionPrimaryKeyNames,
-  SpacLoiExtractionSchema,
-} from "../storage/spac/SpacLoiExtractionSchema";
 
 /**
  * One tabular storage: the DI token it is registered under, the table it maps
@@ -866,20 +712,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     indexes: [["cik", "filing_date"], ["event_type"]],
   }),
   defineStorage({
-    token: REGA_FINANCIAL_LINE_REPOSITORY_TOKEN,
-    table: "rega_financial_line",
-    schema: RegAFinancialLineSchema,
-    primaryKeyNames: RegAFinancialLinePrimaryKeyNames,
-    // Indexed by issuer over time (an issuer's statements across filings) and by
-    // the line item itself, which is how a series is pulled: "total assets for
-    // this CIK, every period". Without the second index that query scans the
-    // whole table, since the primary key leads with the accession.
-    indexes: [
-      ["cik", "filing_date"],
-      ["cik", "label"],
-    ],
-  }),
-  defineStorage({
     token: REGA_OFFERING_EVENT_REPOSITORY_TOKEN,
     table: "rega_offering_event",
     schema: RegAOfferingEventSchema,
@@ -887,63 +719,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     // By issuer over time (the timeline query) and by the offering the event
     // belongs to, which is how a supplement is joined back to its `024-` line.
     indexes: [["cik", "filing_date"], ["file_number"]],
-  }),
-  // ------------------------------ SPAC ------------------------------------------
-  defineStorage({
-    token: SPAC_REPOSITORY_TOKEN,
-    table: "spac",
-    schema: SpacSchema,
-    primaryKeyNames: SpacPrimaryKeyNames,
-    indexes: [["status"], ["current_cik"]],
-  }),
-  defineStorage({
-    token: SPAC_CANDIDATE_REPOSITORY_TOKEN,
-    table: "spac_candidate",
-    schema: SpacCandidateSchema,
-    primaryKeyNames: SpacCandidatePrimaryKeyNames,
-    indexes: [["confidence"], ["first_reg_date"]],
-  }),
-  defineStorage({
-    token: SPAC_DEAL_REPOSITORY_TOKEN,
-    table: "spac_deal",
-    schema: SpacDealSchema,
-    primaryKeyNames: SpacDealPrimaryKeyNames,
-    indexes: [["cik"], ["outcome"]],
-  }),
-  defineStorage({
-    token: SPAC_EVENT_REPOSITORY_TOKEN,
-    table: "spac_event",
-    schema: SpacEventSchema,
-    primaryKeyNames: SpacEventPrimaryKeyNames,
-    indexes: [["cik"], ["event_type"]],
-  }),
-  defineStorage({
-    token: SPAC_HISTORY_REPOSITORY_TOKEN,
-    table: "spac_history",
-    schema: SpacHistorySchema,
-    primaryKeyNames: SpacHistoryPrimaryKeyNames,
-    indexes: [["cik"]],
-  }),
-  defineStorage({
-    token: SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN,
-    table: "spac_merger_extraction",
-    schema: SpacMergerExtractionSchema,
-    primaryKeyNames: SpacMergerExtractionPrimaryKeyNames,
-    indexes: [["cik"]],
-  }),
-  defineStorage({
-    token: SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN,
-    table: "spac_redemption_extraction",
-    schema: SpacRedemptionExtractionSchema,
-    primaryKeyNames: SpacRedemptionExtractionPrimaryKeyNames,
-    indexes: [["cik"]],
-  }),
-  defineStorage({
-    token: SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN,
-    table: "spac_loi_extraction",
-    schema: SpacLoiExtractionSchema,
-    primaryKeyNames: SpacLoiExtractionPrimaryKeyNames,
-    indexes: [["cik"]],
   }),
   // ----- Observation / Canonical / Resolver -----
   defineStorage({
@@ -993,13 +768,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     primaryKeyNames: ObservationProvenancePrimaryKeyNames,
   }),
   defineStorage({
-    token: FIELD_PROVENANCE_REPOSITORY_TOKEN,
-    table: "field_provenance",
-    schema: FieldProvenanceSchema,
-    primaryKeyNames: FieldProvenancePrimaryKeyNames,
-    indexes: [["accession_number"]],
-  }),
-  defineStorage({
     token: BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN,
     table: "beneficial_ownership",
     schema: BeneficialOwnershipSchema,
@@ -1019,15 +787,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     schema: RelatedPartyTransactionSchema,
     primaryKeyNames: RelatedPartyTransactionPrimaryKeyNames,
     indexes: [["accession_number"]],
-  }),
-  defineStorage({
-    token: EXTRACTION_CACHE_REPOSITORY_TOKEN,
-    table: "extraction_cache",
-    schema: ExtractionCacheSchema,
-    primaryKeyNames: ExtractionCachePrimaryKeyNames,
-    // Every read is by primary key, which the key already serves. These are for
-    // the operator: "what is this table full of" and "what can be pruned".
-    indexes: [["label"], ["created_at"]],
   }),
   defineStorage({
     token: EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN,
@@ -1051,59 +810,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     indexes: [["cik", "sic", "is_spac", "created_at", "accession_number"]],
   }),
   defineStorage({
-    token: CANONICAL_PERSON_REPOSITORY_TOKEN,
-    table: "canonical_person",
-    schema: CanonicalPersonSchema,
-    primaryKeyNames: CanonicalPersonPrimaryKeyNames,
-    indexes: [["resolver_version", "normalized_last"]],
-    // Only CIK is a stable identity discriminator. Name tuples are NOT
-    // unique: two distinct CIKs can legitimately share a normalized name
-    // (e.g., parent/subsidiary, two registrations under the same legal
-    // name). The resolver still uses name as a fallback lookup when no
-    // CIK is present, but the storage layer cannot enforce uniqueness on
-    // it without rejecting legitimate distinct entities.
-    uniqueIndexes: [["resolver_version", "cik"]],
-  }),
-  defineStorage({
-    token: CANONICAL_COMPANY_REPOSITORY_TOKEN,
-    table: "canonical_company",
-    schema: CanonicalCompanySchema,
-    primaryKeyNames: CanonicalCompanyPrimaryKeyNames,
-    indexes: [],
-    // CIK + CRD are stable identity discriminators. normalized_name is
-    // NOT unique — see the CANONICAL_PERSON_REPOSITORY_TOKEN wiring for
-    // the same rationale.
-    uniqueIndexes: [
-      ["resolver_version", "cik"],
-      ["resolver_version", "crd_number"],
-    ],
-  }),
-  defineStorage({
-    token: PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
-    table: "person_identity_link",
-    schema: PersonIdentityLinkSchema,
-    primaryKeyNames: PersonIdentityLinkPrimaryKeyNames,
-    indexes: [["canonical_person_id", "resolver_version"], ["resolver_version"]],
-  }),
-  defineStorage({
-    token: COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN,
-    table: "company_identity_link",
-    schema: CompanyIdentityLinkSchema,
-    primaryKeyNames: CompanyIdentityLinkPrimaryKeyNames,
-    indexes: [["canonical_company_id", "resolver_version"], ["resolver_version"]],
-  }),
-  defineStorage({
-    token: PERSON_ROLE_REPOSITORY_TOKEN,
-    table: "person_role",
-    schema: PersonRoleSchema,
-    primaryKeyNames: PersonRolePrimaryKeyNames,
-    indexes: [
-      ["canonical_person_id", "resolver_version"],
-      ["company_cik", "extractor_id", "role_scope", "resolver_version"],
-      ["resolver_version"],
-    ],
-  }),
-  defineStorage({
     token: ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN,
     table: "role_roster_completeness",
     schema: RoleRosterCompletenessSchema,
@@ -1112,92 +818,6 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     // with. Not resolver-versioned — the decision is a property of the
     // filing's extraction, not of a canonical-identity generation.
     indexes: [],
-  }),
-  defineStorage({
-    token: CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
-    table: "canonical_person_address",
-    schema: CanonicalPersonAddressSchema,
-    primaryKeyNames: CanonicalPersonAddressPrimaryKeyNames,
-    indexes: [["canonical_person_id", "resolver_version"]],
-  }),
-  defineStorage({
-    token: CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
-    table: "canonical_person_phone",
-    schema: CanonicalPersonPhoneSchema,
-    primaryKeyNames: CanonicalPersonPhonePrimaryKeyNames,
-    indexes: [["canonical_person_id", "resolver_version"]],
-  }),
-  defineStorage({
-    token: CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
-    table: "canonical_company_address",
-    schema: CanonicalCompanyAddressSchema,
-    primaryKeyNames: CanonicalCompanyAddressPrimaryKeyNames,
-    indexes: [["canonical_company_id", "resolver_version"]],
-  }),
-  defineStorage({
-    token: CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN,
-    table: "canonical_company_phone",
-    schema: CanonicalCompanyPhoneSchema,
-    primaryKeyNames: CanonicalCompanyPhonePrimaryKeyNames,
-    indexes: [["canonical_company_id", "resolver_version"]],
-  }),
-  defineStorage({
-    token: CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
-    table: "canonical_person_alias",
-    schema: CanonicalPersonAliasSchema,
-    primaryKeyNames: CanonicalPersonAliasPrimaryKeyNames,
-    indexes: [],
-  }),
-  defineStorage({
-    token: CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
-    table: "canonical_company_alias",
-    schema: CanonicalCompanyAliasSchema,
-    primaryKeyNames: CanonicalCompanyAliasPrimaryKeyNames,
-    indexes: [],
-  }),
-  defineStorage({
-    token: CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN,
-    table: "canonical_sponsor_family",
-    schema: CanonicalSponsorFamilySchema,
-    primaryKeyNames: CanonicalSponsorFamilyPrimaryKeyNames,
-    indexes: [],
-    // (resolver_version, normalized_name) is the family natural key — must be
-    // enforced at the storage layer so two processes racing to mint the same
-    // family converge on one row. Without this, the family-tier identity
-    // tables silently forked under multi-process load.
-    uniqueIndexes: [["resolver_version", "normalized_name"]],
-  }),
-  defineStorage({
-    token: CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
-    table: "canonical_sponsor_family_alias",
-    schema: CanonicalSponsorFamilyAliasSchema,
-    primaryKeyNames: CanonicalSponsorFamilyAliasPrimaryKeyNames,
-    indexes: [["target_canonical_id"]],
-  }),
-  defineStorage({
-    token: FAMILY_DESCRIPTION_REPOSITORY_TOKEN,
-    table: "family_description",
-    schema: FamilyDescriptionSchema,
-    primaryKeyNames: FamilyDescriptionPrimaryKeyNames,
-    indexes: [["family_kind"]],
-  }),
-  defineStorage({
-    token: SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
-    table: "sponsor_family_membership",
-    schema: SponsorFamilyMembershipSchema,
-    primaryKeyNames: SponsorFamilyMembershipPrimaryKeyNames,
-    indexes: [["resolver_version", "canonical_sponsor_family_id"]],
-  }),
-  defineStorage({
-    token: SPAC_SPONSOR_LINK_REPOSITORY_TOKEN,
-    table: "spac_sponsor_link",
-    schema: SpacSponsorLinkSchema,
-    primaryKeyNames: SpacSponsorLinkPrimaryKeyNames,
-    // "Which families sponsor this issuer", always qualified by the active
-    // resolver version. The issuer leads because it is the selective term —
-    // a resolver_version-first index degenerates to a scan, since nearly
-    // every row carries the current version.
-    indexes: [["accession_number"], ["sponsor_family_id"], ["issuer_cik", "resolver_version"]],
   }),
   defineStorage({
     token: OFFERING_TERMS_REPOSITORY_TOKEN,
@@ -1221,67 +841,11 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     indexes: [["cik"]],
   }),
   defineStorage({
-    token: SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN,
-    table: "spac_lockup_terms",
-    schema: SpacLockupTermsSchema,
-    primaryKeyNames: SpacLockupTermsPrimaryKeyNames,
-    indexes: [["cik"]],
-  }),
-  defineStorage({
     token: ISSUER_TICKER_REPOSITORY_TOKEN,
     table: "issuer_ticker",
     schema: IssuerTickerSchema,
     primaryKeyNames: IssuerTickerPrimaryKeyNames,
     indexes: [["cik"], ["accession_number"]],
-  }),
-  defineStorage({
-    token: CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN,
-    table: "canonical_underwriter_family",
-    schema: CanonicalUnderwriterFamilySchema,
-    primaryKeyNames: CanonicalUnderwriterFamilyPrimaryKeyNames,
-    indexes: [],
-    // (resolver_version, normalized_name) is the family natural key — must be
-    // enforced at the storage layer so two processes racing to mint the same
-    // family converge on one row. Without this, the family-tier identity
-    // tables silently forked under multi-process load.
-    uniqueIndexes: [["resolver_version", "normalized_name"]],
-  }),
-  defineStorage({
-    token: CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
-    table: "canonical_underwriter_family_alias",
-    schema: CanonicalUnderwriterFamilyAliasSchema,
-    primaryKeyNames: CanonicalUnderwriterFamilyAliasPrimaryKeyNames,
-    indexes: [["target_canonical_id"]],
-  }),
-  defineStorage({
-    token: UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
-    table: "underwriter_family_membership",
-    schema: UnderwriterFamilyMembershipSchema,
-    primaryKeyNames: UnderwriterFamilyMembershipPrimaryKeyNames,
-    indexes: [["resolver_version", "canonical_underwriter_family_id"]],
-  }),
-  defineStorage({
-    token: UNDERWRITER_LINK_REPOSITORY_TOKEN,
-    table: "underwriter_link",
-    schema: UnderwriterLinkSchema,
-    primaryKeyNames: UnderwriterLinkPrimaryKeyNames,
-    // Mirrors spac_sponsor_link: issuer-led so the per-issuer read at the
-    // active resolver version does not scan the table.
-    indexes: [["accession_number"], ["underwriter_family_id"], ["issuer_cik", "resolver_version"]],
-  }),
-  defineStorage({
-    token: RISK_FACTOR_REPOSITORY_TOKEN,
-    table: "risk_factor",
-    schema: RiskFactorSchema,
-    primaryKeyNames: RiskFactorPrimaryKeyNames,
-    indexes: [["accession_number"], ["cik"]],
-  }),
-  defineStorage({
-    token: USE_OF_PROCEEDS_REPOSITORY_TOKEN,
-    table: "use_of_proceeds",
-    schema: UseOfProceedsSchema,
-    primaryKeyNames: UseOfProceedsPrimaryKeyNames,
-    indexes: [["accession_number"]],
   }),
   defineStorage({
     token: XBRL_FACT_REPOSITORY_TOKEN,

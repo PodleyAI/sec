@@ -5,14 +5,12 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { registerSecResolvers } from "../../config/registerResolvers";
 import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
 import { isRegisteredComponent, listRegisteredComponents } from "./componentRegistry";
 
 describe("componentRegistry", () => {
   beforeEach(() => {
     clearResolverExtensionsForTesting();
-    registerSecResolvers();
   });
   afterEach(() => {
     clearResolverExtensionsForTesting();
@@ -38,11 +36,8 @@ describe("componentRegistry", () => {
     }
   });
 
-  it("registers person, company, sponsor-family, and underwriter-family resolvers", () => {
-    expect(isRegisteredComponent("resolver", "person")).toBe(true);
-    expect(isRegisteredComponent("resolver", "company")).toBe(true);
-    expect(isRegisteredComponent("resolver", "sponsor-family")).toBe(true);
-    expect(isRegisteredComponent("resolver", "underwriter-family")).toBe(true);
+  it("registers no resolver of its own", () => {
+    expect(isRegisteredComponent("resolver", "person")).toBe(false);
   });
 
   it("rejects unknown ids", () => {
@@ -51,10 +46,11 @@ describe("componentRegistry", () => {
   });
 
   it("listRegisteredComponents returns one entry per extractor and resolver", () => {
-    // 23 extractors (D, C, CFPORTAL, 1-A, 1-A-W, 1-K, 1-SA, 1-Z, 1-U, 253G,
-    // QUALIF, 3, 4, 5, 144, S-1, 424, 8-K, merger-proxy, redemption, loi,
-    // 25-15, RW) + 4 resolvers (person, company, sponsor-family,
-    // underwriter-family).
-    expect(listRegisteredComponents()).toHaveLength(27);
+    // 26 extractors (D, C, CFPORTAL, 1-A, 1-A-W, 1-K, 1-Z, 1-U, 253G,
+    // QUALIF, rega-financials-1sa, 3, 4, 5, 144, S-1, S-1-xbrl, 424, 424-xbrl,
+    // 8-K, 8-K-items, merger-proxy, redemption, loi, 25-15, RW) and no
+    // resolver: every resolver kind now comes from a package that contributes
+    // one.
+    expect(listRegisteredComponents()).toHaveLength(26);
   });
 });

@@ -7,10 +7,8 @@ import {
   formExtractorRegistryGeneration,
   registerFormExtractor,
 } from "../sec/forms/formExtractors";
-import { processDeregistration } from "../sec/forms/exchange-listing-withdrawal/processDeregistration";
 import { processForm1A } from "../sec/forms/exempt-offerings/Form_1_A.storage";
 import { processForm1K } from "../sec/forms/exempt-offerings/Form_1_K.storage";
-import { processForm1SA } from "../sec/forms/exempt-offerings/Form_1_SA.storage";
 import { processForm1U } from "../sec/forms/exempt-offerings/Form_1_U.storage";
 import { processForm1Z } from "../sec/forms/exempt-offerings/Form_1_Z.storage";
 import { processFormC } from "../sec/forms/exempt-offerings/Form_C.storage";
@@ -19,18 +17,12 @@ import { processFormQualif } from "../sec/forms/exempt-offerings/Form_QUALIF.sto
 import { processRegAOfferingEvent } from "../sec/forms/exempt-offerings/RegAOfferingEvent.storage";
 import { processForm144 } from "../sec/forms/insider-trading/Form_144.storage";
 import { processOwnershipForm } from "../sec/forms/insider-trading/OwnershipDocument.storage";
-import { hasLoiTriggerItem } from "../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
 import { processForm8K } from "../sec/forms/miscellaneous-filings/Form_8_K.storage";
-import { hasRedemptionTriggerItem } from "../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { processFormCFPORTAL } from "../sec/forms/portal/Form_CFPORTAL.storage";
-import { processMergerProxy } from "../sec/forms/proxies-information-statements/Form_DEFM14A.storage";
-import { processForm424 } from "../sec/forms/registration-statements/Form_424.storage";
-import { processFormS1 } from "../sec/forms/registration-statements/Form_S_1.storage";
-import { processWithdrawal } from "../sec/forms/registration-withdrawal-termination/processWithdrawal";
-import { SpacRepo } from "../storage/spac/SpacRepo";
+import { processForm424Structured } from "../sec/forms/registration-statements/Form_424.storage";
+import { processFormS1Structured } from "../sec/forms/registration-statements/Form_S_1.storage";
 import type { Form1A } from "../sec/forms/exempt-offerings/Form_1_A.schema";
 import type { ParsedForm1K } from "../sec/forms/exempt-offerings/Form_1_K";
-import type { ParsedForm1SA } from "../sec/forms/exempt-offerings/Form_1_SA";
 import type { FormC } from "../sec/forms/exempt-offerings/Form_C.schema";
 import type { FormD } from "../sec/forms/exempt-offerings/Form_D.schema";
 import type { FormQualif } from "../sec/forms/exempt-offerings/Form_QUALIF.schema";
@@ -59,12 +51,13 @@ let registeredGeneration = -1;
  * the `.storage.ts` handlers they call already do.
  *
  * Registering ONCE per registry generation is what makes an override stick.
- * Every call builds fresh closures, so a second one would `set` all 21 keys
- * again and silently replace a downstream package's registration under any key
- * it shares — including the natural case of that package registering at its own
- * module scope and then calling `bootstrapSecRuntime()`. Keying the guard to the
- * registry's generation rather than a plain boolean means clearing the registry
- * re-arms it, so a test that starts from an empty registry still gets these.
+ * Every call builds fresh closures, so a second one would `set` every key it
+ * holds again and silently replace a downstream package's registration under
+ * any key it shares — including the natural case of that package registering
+ * at its own module scope and then calling `bootstrapSecRuntime()`. Keying the
+ * guard to the registry's generation rather than a plain boolean means clearing
+ * the registry re-arms it, so a test that starts from an empty registry still
+ * gets these.
  *
  * That re-arming cuts the other way around `clearFormExtractorsForTesting()`:
  * this function only refuses to clobber a registration made AFTER it last ran
@@ -131,14 +124,6 @@ export function registerSecFormExtractors(): void {
     },
   });
 
-  registerFormExtractor<ParsedForm1SA>({
-    id: "1-SA",
-    forms: ["1-SA", "1-SA/A"],
-    store: async ({ cik, accession_number, filing_date, form, parsed }) => {
-      await processForm1SA({ cik, accession_number, form, filing_date, form1SA: parsed });
-    },
-  });
-
   registerFormExtractor<FormQualif>({
     id: "QUALIF",
     forms: ["QUALIF"],
@@ -188,40 +173,51 @@ export function registerSecFormExtractors(): void {
     },
   });
 
+  // The registration and prospectus families carry two readings apiece. What is
+  // registered here is the structured one — the tagged facts, the issuer, the
+  // header SIC — under an id of its own. Reading the prospectus PROSE takes a
+  // model, and whatever supplies that registers `S-1` / `424` separately;
+  // distinct ids give each its own version slot and run ledger, so a change to
+  // one never re-selects the corpus for the other.
+  //
+  // Neither declares `readsFullSubmission`: both read the parse, and the parse
+  // already carries the XBRL instance and the fee exhibit the whole `.txt` was
+  // fetched for.
   registerFormExtractor<FormS1Parsed>({
-    id: "S-1",
+    id: "S-1-xbrl",
     forms: ["S-1", "S-1/A", "S-1MEF", "DRS", "DRS/A", "F-1", "F-1/A", "F-1MEF"],
     needsFullSubmission: true,
-    readsFullSubmission: true,
     store: async ({ parsed, form, ...args }) => {
-      await processFormS1({ ...args, form, formS1: parsed });
+      await processFormS1Structured({ ...args, form, formS1: parsed });
     },
   });
 
   registerFormExtractor<FormS1Parsed>({
-    id: "424",
+    id: "424-xbrl",
     forms: ["424A", "424B1", "424B2", "424B3", "424B4", "424B5", "424B7"],
     needsFullSubmission: true,
-    readsFullSubmission: true,
     store: async ({ parsed, form, ...args }) => {
-      await processForm424({ ...args, form, form424: parsed });
+      await processForm424Structured({ ...args, form, form424: parsed });
     },
   });
 
+  // The 8-K carries two readings, split the way the registration and
+  // prospectus families are. This is the STRUCTURED one — the item codes the
+  // submissions payload declares, one `form_8k_events` row apiece — under an id
+  // of its own. Reading those codes as de-SPAC lifecycle milestones takes the
+  // filing's exhibit manifest and its Item 1.01 narrative, and whatever ships
+  // that registers `8-K` separately; distinct ids give each its own version
+  // slot and run ledger.
+  //
+  // No `readsFullSubmission`: the item codes arrive in the submissions
+  // metadata and in the XML envelope, so this half never opens an exhibit or a
+  // narrative, and `extractor_runs.read_full_submission` records `false` for it
+  // however the filing was fetched. No `needsFullSubmission` either — every
+  // 8-K is fetched whole by form policy (`submissionFetchKind`), so declaring
+  // it here would only restate a decision already made for the filing.
   registerFormExtractor<Form8K>({
-    id: "8-K",
+    id: "8-K-items",
     forms: ["8-K", "8-K/A"],
-    // Every 8-K is fetched whole, so its exhibits are in the cached body and
-    // searchable without a second request. What reaches the extractor stays
-    // narrow: those exhibits are read only for a known SPAC carrying a
-    // redemption or letter-of-intent item, which is the input the redemption
-    // and LOI passes are calibrated against.
-    needsFullSubmission: true,
-    readsFullSubmission: async ({ cik, items }) => {
-      if (cik === undefined) return false;
-      if (!hasRedemptionTriggerItem(items) && !hasLoiTriggerItem(items)) return false;
-      return (await new SpacRepo().getSpac(cik)) !== undefined;
-    },
     store: async (args) => {
       const { cik, accession_number, filing_date, form, items, report_date, parsed, context } =
         args;
@@ -235,40 +231,12 @@ export function registerSecFormExtractors(): void {
         form8K: parsed,
         extractor_id: args.extractor_id,
         extractor_version: args.extractor_version,
-        fullSubmissionText: args.fullSubmissionText,
         context,
       });
     },
   });
 
-  registerFormExtractor<FormS1Parsed>({
-    id: "merger-proxy",
-    forms: [
-      "DEFM14A",
-      "PREM14A",
-      "DEFM14C",
-      "PREM14C",
-      "DEFR14A",
-      "PRER14A",
-      "DEF 14A",
-      "PRE 14A",
-      "PRE 14A/A",
-      "PRE14A",
-      "PREN14A",
-      "PREN14A/A",
-      "PREM14A/A",
-      "PREC14A/A",
-      "DEFA14A",
-      "DEF 14C",
-      "PRE 14C",
-      "PREA14C",
-    ],
-    store: async ({ parsed, form, ...args }) => {
-      await processMergerProxy({ ...args, form, formMergerProxy: parsed });
-    },
-  });
-
-  // The five extractors below declare `needsDocument: false`: everything they
+  // The three extractors below declare `needsDocument: false`: everything they
   // record — the `024-` file number, the item codes, the event date — arrives in
   // the submissions payload, so the driver fetches and parses nothing for them
   // and their `store` receives `parsed: undefined`.
@@ -315,43 +283,6 @@ export function registerSecFormExtractors(): void {
         file_number: file_number || null,
         items: items ?? null,
       });
-    },
-  });
-
-  registerFormExtractor<unknown>({
-    id: "25-15",
-    forms: [
-      "25",
-      "25/A",
-      "25-NSE",
-      "25-NSE/A",
-      "15-12B",
-      "15-12B/A",
-      "15-12G",
-      "15-12G/A",
-      "15-15D",
-      "15-15D/A",
-      "15F-12B",
-      "15F-12B/A",
-      "15F-12G",
-      "15F-12G/A",
-      "15F-15D",
-      "15F-15D/A",
-      "20-F",
-      "20-F/A",
-    ],
-    needsDocument: false,
-    store: async ({ cik, accession_number, filing_date, form }) => {
-      await processDeregistration({ cik, accession_number, form, filing_date });
-    },
-  });
-
-  registerFormExtractor<unknown>({
-    id: "RW",
-    forms: ["RW", "SEC STAFF ACTION"],
-    needsDocument: false,
-    store: async ({ cik, accession_number, filing_date, form }) => {
-      await processWithdrawal({ cik, accession_number, form, filing_date });
     },
   });
 

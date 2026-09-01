@@ -24,7 +24,7 @@ export { countEligibleDeadLetters } from "../../task/forms/ListDeadLettersTask";
 export function addExtractorCommands(program: Command): void {
   const cmd = program
     .command("extractor")
-    .description("Extractor dead-letters and generalized backfill");
+    .description("Extractor dead-letters, generalized backfill, and one-shot repairs");
 
   cmd
     .command("dead-letters [extractorId]")

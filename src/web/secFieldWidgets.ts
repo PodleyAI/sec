@@ -11,18 +11,15 @@ import { queryEntities } from "../cli/queries/EntityQuery";
 import { queryFilings } from "../cli/queries/FilingQuery";
 import { getVersionStatus } from "../cli/queries/VersionStatus";
 import { listResolverIds } from "../resolver/resolverExtensions";
-import { CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalSponsorFamilySchema";
-import { CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalUnderwriterFamilySchema";
-import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../storage/spac/SpacCandidateSchema";
-import { SpacRepo } from "../storage/spac/SpacRepo";
-import { EXTRACTOR_IDS, FORM_TO_EXTRACTOR_ID } from "../storage/versioning/extractorIds";
+import { listBackfillableExtractorIds } from "../task/forms/backfillDescriptors";
+import { allRegisteredForms } from "../sec/forms/formExtractors";
 import { readPendingDeadLetterCounts } from "./secWebReads";
 
 /**
  * The pickers behind sec's field annotations.
  *
  * A picker exists where the value is an identifier nobody remembers: a CIK, an
- * accession, an extractor id, a canonical family name. Every one of them reads
+ * accession, an extractor id. Every one of them reads
  * only what is already stored — this surface must never fetch from EDGAR, since
  * it answers a keystroke and EDGAR's budget is metered and shared.
  */
@@ -92,48 +89,6 @@ async function searchCiks(query: string): Promise<WebFieldWidgetItem[]> {
   }));
 }
 
-/** Known SPACs only — the vehicles a `spac` row exists for. */
-async function searchSpacCiks(query: string): Promise<WebFieldWidgetItem[]> {
-  const needle = query.trim().toLowerCase();
-  const spacs = await new SpacRepo().getAllSpacs();
-  return spacs
-    .filter((spac) => {
-      if (!needle) return true;
-      if (String(spac.cik).startsWith(needle)) return true;
-      const names = [spac.spac_name, spac.current_name, spac.target_name];
-      return names.some((name) => name?.toLowerCase().includes(needle));
-    })
-    .slice(0, MAX_ITEMS)
-    .map((spac) => ({
-      value: String(spac.cik),
-      label: spac.spac_name ?? spac.current_name ?? padCik(spac.cik),
-      detail: [spac.status, spac.target_name ? `-> ${spac.target_name}` : undefined]
-        .filter(Boolean)
-        .join(" · "),
-    }));
-}
-
-/** The cheap screen's worklist, so `spac download` can be aimed by eye. */
-async function searchSpacCandidates(query: string): Promise<WebFieldWidgetItem[]> {
-  const needle = query.trim().toLowerCase();
-  const rows =
-    (await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).getOffsetPage(0, 5_000)) ??
-    [];
-  return rows
-    .filter(
-      (row) =>
-        !needle ||
-        String(row.cik).startsWith(needle) ||
-        (row.name ?? "").toLowerCase().includes(needle)
-    )
-    .slice(0, MAX_ITEMS)
-    .map((row) => ({
-      value: String(row.cik),
-      label: row.name ?? padCik(row.cik),
-      detail: `${row.confidence} confidence${row.first_reg_form ? ` · ${row.first_reg_form}` : ""}`,
-    }));
-}
-
 /**
  * Accessions belonging to the CIK the form has already named.
  *
@@ -192,7 +147,7 @@ async function searchForms(
   // extractor ids are a different vocabulary that merely overlaps it: `S-1` is
   // both, but `merger-proxy`, `redemption`, `loi` and `25-15` name extractors
   // and no form, so offering them produces a pick the CLI can never match.
-  return Object.keys(FORM_TO_EXTRACTOR_ID)
+  return allRegisteredForms()
     .filter((form) => !needle || form.toLowerCase().includes(needle))
     .sort((a, b) => a.localeCompare(b))
     .slice(0, MAX_ITEMS)
@@ -202,6 +157,13 @@ async function searchForms(
 /**
  * Extractor ids, carrying the two numbers that decide whether you want this one:
  * the version a retry would run under, and how much is waiting on the worklist.
+ *
+ * Read from {@link listBackfillableExtractorIds} — the same open vocabulary
+ * `extractor backfill` and `spac process --force` accept — rather than from the
+ * closed `EXTRACTOR_IDS` list. A downstream package registers extractors of its
+ * own through the form-extractor registry, and a picker built on the closed list
+ * cannot offer one: the CLI accepts a value the box refuses to suggest, which is
+ * exactly the drift a picker exists to remove.
  */
 async function searchExtractors(query: string): Promise<WebFieldWidgetItem[]> {
   const needle = query.trim().toLowerCase();
@@ -214,7 +176,8 @@ async function searchExtractors(query: string): Promise<WebFieldWidgetItem[]> {
       .filter((row) => row.component_kind === "extractor")
       .map((row) => [row.component_id, row])
   );
-  return EXTRACTOR_IDS.filter((id) => !needle || id.toLowerCase().includes(needle))
+  return listBackfillableExtractorIds()
+    .filter((id) => !needle || id.toLowerCase().includes(needle))
     .slice(0, MAX_ITEMS)
     .map((id) => {
       const version = versionById.get(id);
@@ -251,7 +214,7 @@ async function searchComponentIds(
   if (kind === "resolver") return searchResolverKinds(query);
   if (kind === "extractor") return searchExtractors(query);
   const needle = query.trim().toLowerCase();
-  return [...EXTRACTOR_IDS, ...listResolverIds()]
+  return [...listBackfillableExtractorIds(), ...listResolverIds()]
     .filter((id) => !needle || id.toLowerCase().includes(needle))
     .slice(0, MAX_ITEMS)
     .map((id) => ({ value: id, label: id, detail: "choose a kind to narrow this" }));
@@ -265,39 +228,6 @@ async function searchResolverKinds(query: string): Promise<WebFieldWidgetItem[]>
     .map((id) => ({ value: id, label: id, detail: undefined }));
 }
 
-/**
- * Canonical family names, for the alias ceremonies.
- *
- * The kind is read from the form — `sec canonical <kind> alias` puts it in the
- * path, and the two family tiers are separate tables — so one widget serves
- * both rather than the page having to know which command it is on.
- */
-async function searchFamilies(
-  query: string,
-  context: { readonly path: readonly string[] }
-): Promise<WebFieldWidgetItem[]> {
-  const needle = query.trim().toLowerCase();
-  const underwriter = context.path.includes("underwriter-family");
-  // Two tables, two row types — read each through its own token rather than a
-  // union, which has no common `put` and so is not a storage at all.
-  const rows = underwriter
-    ? ((await globalServiceRegistry
-        .get(CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN)
-        .getOffsetPage(0, 5_000)) ?? [])
-    : ((await globalServiceRegistry
-        .get(CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN)
-        .getOffsetPage(0, 5_000)) ?? []);
-  return rows
-    .flatMap((row) => (row.display_name ? [row.display_name] : []))
-    .filter((name) => !needle || name.toLowerCase().includes(needle))
-    .slice(0, MAX_ITEMS)
-    .map((name) => ({
-      value: name,
-      label: name,
-      detail: underwriter ? "underwriter family" : "sponsor family",
-    }));
-}
-
 export function registerSecFieldWidgets(): void {
   const source = "@workglow/sec";
   registerWebFieldWidget({ format: "sec:cik", source, search: searchCiks });
@@ -305,16 +235,9 @@ export function registerSecFieldWidgets(): void {
   // schema, so registering the same picker there gives `task run` — and the
   // whole `sec-base` surface — the search box for free, with no annotation.
   registerWebFieldWidget({ format: "cik", source, search: searchCiks });
-  registerWebFieldWidget({ format: "sec:spac-cik", source, search: searchSpacCiks });
-  registerWebFieldWidget({
-    format: "sec:spac-candidate-cik",
-    source,
-    search: searchSpacCandidates,
-  });
   registerWebFieldWidget({ format: "sec:accession", source, search: searchAccessions });
   registerWebFieldWidget({ format: "sec:form", source, search: searchForms });
   registerWebFieldWidget({ format: "sec:extractor", source, search: searchExtractors });
   registerWebFieldWidget({ format: "sec:resolver-kind", source, search: searchResolverKinds });
   registerWebFieldWidget({ format: "sec:component-id", source, search: searchComponentIds });
-  registerWebFieldWidget({ format: "sec:family", source, search: searchFamilies });
 }

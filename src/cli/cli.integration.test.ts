@@ -34,9 +34,11 @@ describe("CLI v2 integration", () => {
   it("should show help with all command groups", async () => {
     // Every top-level name AddCommands registers, not a sample of them. A group
     // whose registrar throws or is dropped is otherwise invisible here: the
-    // remaining ones still print, and the assertions still pass. `underwriter`
-    // and `issuer` in particular went unasserted, and they are the only
-    // top-level evidence that registerUnderwriterFamilyCommands ran at all.
+    // remaining ones still print, and the assertions still pass. `issuer` in
+    // particular went unasserted, and it is the only top-level evidence that
+    // registerIssuerCommands ran at all. `spac` and `underwriter` are not here:
+    // the family tier was the whole of both groups and a deployment of this
+    // package alone offers neither.
     const output = await runCli("--help");
     for (const group of [
       "bootstrap",
@@ -46,50 +48,14 @@ describe("CLI v2 integration", () => {
       "db",
       "init",
       "version",
-      "resolve",
-      "canonical",
-      "spac",
-      "underwriter",
       "issuer",
       "editorial",
       "extractor",
-      "eval",
       // Inherited from @workglow/cli, and the only evidence it registered.
       "web",
     ]) {
       expect(output, group).toContain(group);
     }
-  });
-
-  it("should show canonical subcommands from every resolver-kind registrar", async () => {
-    // The only proof that registerSponsorFamilyCommands ran. It also creates
-    // the top-level `spac` group — but registerSpacCommands find-or-creates the
-    // same name, so a missing sponsor-family registration still leaves `spac`
-    // in the root help. `canonical sponsor-family` has no such second author.
-    const output = await runCli("canonical", "--help");
-    expect(output).toContain("person");
-    expect(output).toContain("company");
-    expect(output).toContain("sponsor-family");
-    expect(output).toContain("underwriter-family");
-  });
-
-  it("should show spac subcommands from both registrars that share the group", async () => {
-    // Two registrars contribute to one group, so asserting the group name
-    // separates neither. `by-family` comes from the sponsor-family registrar;
-    // the rest from the spac registrar.
-    const output = await runCli("spac", "--help");
-    expect(output).toContain("by-family");
-    expect(output).toContain("process");
-    expect(output).toContain("report");
-    expect(output).toContain("history");
-    expect(output).toContain("candidates");
-  });
-
-  it("should show eval subcommands", async () => {
-    const output = await runCli("eval", "--help");
-    expect(output).toContain("extract");
-    expect(output).toContain("s1");
-    expect(output).toContain("unit-terms");
   });
 
   it("should show global options", async () => {
@@ -139,10 +105,11 @@ describe("CLI v2 integration", () => {
       "crowdfunding",
       "reg-a",
       "forms",
-      "spacs",
     ]) {
       expect(output, sub).toContain(sub);
     }
+    // A leaf a downstream package registers, like `adv` below.
+    expect(output).not.toContain("spacs");
   });
 
   it("should reject unknown sync adv subcommand", async () => {
@@ -166,12 +133,5 @@ describe("CLI v2 integration", () => {
     expect(output).toContain("status");
     expect(output).toContain("stats");
     expect(output).toContain("reset");
-  });
-
-  it("should show spac download subcommands", async () => {
-    const output = await runCli("spac", "download", "--help");
-    expect(output).toContain("registration");
-    expect(output).toContain("8k");
-    expect(output).toContain("everything");
   });
 });

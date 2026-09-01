@@ -10,8 +10,7 @@ import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { XbrlFactRepo } from "../../../storage/xbrl/XbrlFactRepo";
-import { processFormS1 } from "./Form_S_1.storage";
-import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
+import { processFormS1Structured } from "./Form_S_1.storage";
 
 const ACCESSION = "0000000000-26-000777";
 const CIK = 2114227;
@@ -63,24 +62,17 @@ const NULL_HEADER = {
   filingDate: null,
 };
 
-let cleanup: (() => void) | undefined;
-
-describe("processFormS1 XBRL integration", () => {
+describe("processFormS1Structured XBRL integration", () => {
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
   });
   afterEach(() => {
-    cleanup?.();
-    cleanup = undefined;
     resetDependencyInjectionsForTesting();
   });
 
   it("stores facts and enriches the issuer observation from dei cover-page facts", async () => {
-    const { unregister } = registerFakeStructuredProvider([]);
-    cleanup = unregister;
-
-    await processFormS1({
+    await processFormS1Structured({
       cik: CIK,
       file_number: "333-2",
       accession_number: ACCESSION,
@@ -93,7 +85,6 @@ describe("processFormS1 XBRL integration", () => {
         xbrlInstanceXml: null,
         feeExhibitHtml: FEE_EXHIBIT_HTML,
       },
-      model: fakeS1Model(),
     });
 
     const facts = await new XbrlFactRepo().getByAccession(ACCESSION);
@@ -130,9 +121,6 @@ describe("processFormS1 XBRL integration", () => {
   });
 
   it("parses a standalone instance document when the HTML carries no inline tags", async () => {
-    const { unregister } = registerFakeStructuredProvider([]);
-    cleanup = unregister;
-
     const instance = `<?xml version="1.0"?>
       <xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:dei="http://xbrl.sec.gov/dei/2014-01-31">
         <xbrli:context id="d1"><xbrli:entity>
@@ -142,7 +130,7 @@ describe("processFormS1 XBRL integration", () => {
         <dei:EntityRegistrantName contextRef="d1">Instance Only Corp</dei:EntityRegistrantName>
       </xbrli:xbrl>`;
 
-    await processFormS1({
+    await processFormS1Structured({
       cik: CIK,
       file_number: "333-2",
       accession_number: ACCESSION,
@@ -155,7 +143,6 @@ describe("processFormS1 XBRL integration", () => {
         xbrlInstanceXml: instance,
         feeExhibitHtml: null,
       },
-      model: fakeS1Model(),
     });
 
     const facts = await new XbrlFactRepo().getByAccession(ACCESSION);
@@ -167,10 +154,7 @@ describe("processFormS1 XBRL integration", () => {
   });
 
   it("stores fee-exhibit facts even when the prospectus itself is untagged", async () => {
-    const { unregister } = registerFakeStructuredProvider([]);
-    cleanup = unregister;
-
-    await processFormS1({
+    await processFormS1Structured({
       cik: CIK,
       file_number: "333-2",
       accession_number: ACCESSION,
@@ -183,7 +167,6 @@ describe("processFormS1 XBRL integration", () => {
         xbrlInstanceXml: null,
         feeExhibitHtml: FEE_EXHIBIT_HTML,
       },
-      model: fakeS1Model(),
     });
 
     const facts = await new XbrlFactRepo().getByAccession(ACCESSION);
@@ -198,9 +181,6 @@ describe("processFormS1 XBRL integration", () => {
   });
 
   it("stores facts but skips issuer enrichment when the dei CIK mismatches the filing CIK", async () => {
-    const { unregister } = registerFakeStructuredProvider([]);
-    cleanup = unregister;
-
     // Same shape as IXBRL_HTML but tagged for a DIFFERENT registrant CIK.
     const wrongCikHtml = IXBRL_HTML.replace(
       `<p><ix:nonNumeric contextRef="c1" name="dei:EntityRegistrantName">`,
@@ -208,7 +188,7 @@ describe("processFormS1 XBRL integration", () => {
         `<ix:nonNumeric contextRef="c1" name="dei:EntityRegistrantName">`
     );
 
-    await processFormS1({
+    await processFormS1Structured({
       cik: CIK,
       file_number: "333-2",
       accession_number: ACCESSION,
@@ -221,7 +201,6 @@ describe("processFormS1 XBRL integration", () => {
         xbrlInstanceXml: null,
         feeExhibitHtml: null,
       },
-      model: fakeS1Model(),
     });
 
     // Facts are stored regardless...
@@ -234,10 +213,7 @@ describe("processFormS1 XBRL integration", () => {
   });
 
   it("leaves the issuer observation bare for untagged filings", async () => {
-    const { unregister } = registerFakeStructuredProvider([]);
-    cleanup = unregister;
-
-    await processFormS1({
+    await processFormS1Structured({
       cik: CIK,
       file_number: "333-2",
       accession_number: ACCESSION,
@@ -250,7 +226,6 @@ describe("processFormS1 XBRL integration", () => {
         xbrlInstanceXml: null,
         feeExhibitHtml: null,
       },
-      model: fakeS1Model(),
     });
 
     expect(await new XbrlFactRepo().countByAccession(ACCESSION)).toBe(0);

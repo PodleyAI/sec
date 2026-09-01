@@ -56,6 +56,7 @@ describe("Form 144 storage", () => {
             filing_date: "2026-05-27",
             primary_doc: file,
             form,
+            extractor_id: "144",
             doc,
           });
           const filing = await repo.getFiling(accession);
@@ -85,6 +86,7 @@ describe("Form 144 storage", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "144",
+      extractor_id: "144",
       doc,
     });
 
@@ -127,6 +129,7 @@ describe("Form 144 storage", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "144",
+      extractor_id: "144",
       doc,
     });
 
@@ -140,6 +143,36 @@ describe("Form 144 storage", () => {
     expect(persons).toContain("Go Timothy");
     expect(companies).toContain("HF Sinclair");
     expect(companies).toContain("Pershing Advisor Solutions");
+  });
+
+  it("stamps observations with the dispatching extractor's id, not the form symbol", async () => {
+    // The id reaches the observation rows and the run ledger, so it has to be
+    // the id of the extractor that produced them. Re-deriving it from `form`
+    // answers a different question, and answers it arbitrarily once a form
+    // carries two extractors.
+    const accession = "0001663266-26-000003";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-144", "000166326626000003-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_144.parse("144", xml);
+    await processForm144({
+      cik: 1534263,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "144",
+      extractor_id: "144-second",
+      doc,
+    });
+
+    const ids = [
+      ...(await new PersonObservationRepo().listByAccession(accession)).map((p) => p.extractor_id),
+      ...(await new CompanyObservationRepo().listByAccession(accession)).map((c) => c.extractor_id),
+    ];
+    expect(ids.length).toBeGreaterThan(0);
+    expect([...new Set(ids)]).toEqual(["144-second"]);
   });
 
   it("stores a nothing-to-report amendment with acquisitions but no sales", async () => {
@@ -156,6 +189,7 @@ describe("Form 144 storage", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "144/A",
+      extractor_id: "144",
       doc,
     });
 
@@ -181,6 +215,7 @@ describe("Form 144 storage", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "144",
+      extractor_id: "144",
       doc,
     });
 
@@ -208,6 +243,7 @@ describe("Form 144 storage", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "144",
+      extractor_id: "144",
       doc,
     });
 
@@ -231,6 +267,7 @@ describe("Form 144 storage", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "144",
+      extractor_id: "144",
       doc,
     });
 
@@ -254,6 +291,7 @@ describe("Form 144 storage", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "144",
+      extractor_id: "144",
       doc,
     });
 
@@ -277,6 +315,7 @@ describe("Form 144 storage", () => {
       filing_date: "2026-05-27",
       primary_doc: "x.xml",
       form: "144" as const,
+      extractor_id: "144",
     };
 
     await processForm144({ ...args, doc });
@@ -330,6 +369,7 @@ describe("Form 144 issuer phone", () => {
       // whole reason the junction must not use it.
       cik: 999_999_999,
       file_number: "",
+      extractor_id: "144",
       accession_number: "test-accession-144-phone",
       filing_date: "2026-05-27",
       primary_doc: file,

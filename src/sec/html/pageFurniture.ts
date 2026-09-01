@@ -19,23 +19,30 @@ const SHORT_LEN = 100;
  *
  * A bare single letter is admitted only as `i` or `v`. Alone, `x` is a checkbox
  * mark and a multiplication sign long before it is ten, and dropping one costs
- * the reader the box that was ticked; `l` alone is 50, past the range this rule
- * claims anyway. Neither is a loss: across the fixture corpus the single-letter
+ * the reader the box that was ticked; `l` is excluded entirely, which is what
+ * bounds the rule at `xlix` — with `l` allowed as a tens digit the pattern ran
+ * to `lxxxix`, well past the range the argument above covers. Neither is a loss: across the fixture corpus the single-letter
  * matches are 36 `i` and 8 `v`, front matter never reaches `x` (it stops at
  * `ix`), and no filing carries a lone `x` or `l` at all.
  */
-const ROMAN_NUMERAL = /^(?=[ivxl]{2,}$|[iv]$)(xl|l?x{0,3})(ix|iv|v?i{0,3})$/i;
+const ROMAN_NUMERAL = /^(?=[ivxl]{2,}$|[iv]$)(xl|x{0,3})(ix|iv|v?i{0,3})$/i;
 
 /**
  * A section-prefixed page number: `F-22`, `II-1`, `A-3`, `Alt-8`.
  *
  * Prospectuses number their front matter, financial statements and Part II
  * separately from the body — `F-` for the financial statements, `II-` for Part
- * II, `Alt-` for the alternate pages a dual-tranche offering carries. Bounded
- * to a short alphabetic prefix and at most three digits, which is what these
- * conventions produce and what keeps a hyphenated word out.
+ * II, `Alt-` for the alternate pages a dual-tranche offering carries.
+ *
+ * The prefixes are ENUMERATED, not `[a-z]{1,3}`. That shape also spells every
+ * short form type and exhibit code — `S-1`, `S-4`, `N-2`, `T-3`, `EX-99` — and
+ * a one-cell layout table is unwrapped to a paragraph before this runs, which
+ * is exactly where an exhibit index or a cover page puts a block whose whole
+ * text is one of those. Dropping it counts the block as depaginated rather
+ * than lost, so the coverage measure reports nothing wrong. These four are the
+ * conventions the corpus actually numbers with.
  */
-const PREFIXED_PAGE_NUMBER = /^[a-z]{1,3}-\d{1,3}$/i;
+const PREFIXED_PAGE_NUMBER = /^(?:f|ii|a|alt)-\d{1,3}$/i;
 
 /**
  * A centered page-number footer: `41`, `- 12 -`, `Page 7`, `iv`, `F-22`, `II-1`.

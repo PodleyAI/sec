@@ -1,52 +1,82 @@
-# Observations, resolvers, and identity
+# Observations and identity
 
-Reference for `src/storage/observation/`, `src/storage/canonical/`,
-`src/storage/versioning/`, and `src/resolver/`. Design spec:
-`prd/docs/superpowers/specs/2026-05-22-sec-versioning-pr4-observation-design.md`.
+Reference for `src/storage/observation/`, `src/storage/versioning/`, and `src/resolver/`.
+
+**This package records observations; it does not resolve them.** An observation is one
+entity mention, in one filing, as an extractor read it. Deciding which mentions are the same
+person or the same company is judgement about human text, and the canonical tier that holds
+those decisions is a downstream package's — see its own `docs/identity.md`. What is here is
+the tier every such decision is derived from, plus the normalizers, the roster-completeness
+verdict, and the version slots, all of which both packages share.
 
 ---
 
-## 1. Four tiers, in order
+## 1. The observation tier
 
-1. **Observation** (`src/storage/observation/`) — raw entity mentions extracted from
-   filings. One row per `(extractor_id, accession_number, observation_index)`.
-   `PersonObservationRepo`, `CompanyObservationRepo`. (Legacy `person/`, `company/` and
-   `phone/` tables were replaced by this tier.)
-2. **Canonical** (`src/storage/canonical/`) — deduplicated entities with stable UUIDs
-   (`CanonicalPersonRepo`, `CanonicalCompanyRepo`), created once per resolver version, plus
-   alias tables (`CanonicalPersonAliasRepo`, `CanonicalCompanyAliasRepo`) redirecting merged
-   IDs.
-3. **Identity link** (`PersonIdentityLinkRepo` / `CompanyIdentityLinkRepo`) — join from `observation_id` +
-   `resolver_version` → `canonical_*_id`. Written inline during extraction.
-4. **Junction** (`Canonical*AddressRepo`, `Canonical*PhoneRepo`) — co-occurrence of
-   canonical entities with addresses/phones at a given resolver version. Two writers keep
-   these rows: `EntityObserver`'s incremental +1/-1 during extraction, and
-   `rebuildPersonJunctions` / `rebuildCompanyJunctions`
-   (`src/resolver/rebuildJunctions.ts`), which recompute one resolver version's rows
-   wholesale from the observations and their identity links. **A rebuild expects
-   ingestion to be quiesced**: it purges the version's rows before writing the recomputed
-   ones, so an observation recorded after it read its input but before that purge has its
-   contribution deleted and not written back — self-healing on the next rebuild, wrong in
-   between. The per-row lock the junction repos take does not close that window; only not
-   ingesting during a rebuild does.
+**Observation** (`src/storage/observation/`) — raw entity mentions extracted from filings.
+One row per `(extractor_id, accession_number, observation_index)`. `PersonObservationRepo`,
+`CompanyObservationRepo`. (Legacy `person/`, `company/` and `phone/` tables were replaced by
+this tier.)
+
+Built on it, downstream: the **canonical** rows with their stable UUIDs and aliases, the
+**identity link** joining `observation_id` + `resolver_version` → `canonical_*_id`, and the
+**junction** tables counting canonical entities against addresses and phones. All three are
+derived from the rows here by a later pass, which is what makes a replay land the same
+result whatever order the filings arrived in.
+
+The seam between the two is `observation_id`. Nothing here reads a canonical id, and the
+rows keyed to one are reached only through the hooks and registries below.
 
 **`EntityObserver`** (`src/resolver/EntityObserver.ts`) is the single entry point: form
 storage modules call `observePerson()` / `observeCompany()` rather than writing rows
-directly. It normalizes the claim, upserts the observation, calls the resolver, writes the
-identity link, and records junctions in one step.
+directly. It normalizes the claim and upserts the observation and its titles — and that is
+all it does. Everything keyed to a canonical id (the link, the junction counts, the dated
+tenures) is derived from those stored rows by a later pass, so a replay lands the same rows
+whatever order the filings arrived in. Build one with `buildObserveOnlyEntityObserver()`.
 
-**`PersonResolver` / `CompanyResolver`** (`src/resolver/`) — persons: CIK fast-path, then
-normalized-name + issuer-CIK fallback. Companies: CIK → CRD → normalized-name cascade. Both
-create a fresh canonical row on first sight and delegate alias resolution to the alias repo.
+The one judgement on that path a later pass cannot reconstruct is roster completeness, which
+is why `closeUnassertedPersonRoles` exists and why it records its verdict either way: a
+person the extractor declined leaves no observation, so nothing else remembers the filing
+named them.
+
+### Reaping
+
+A re-extraction that yields fewer entities than the last one leaves orphan observations
+behind. `reapStaleObservations` deletes them, and hands each one to every hook registered
+through **`registerObservationReapHook`** (`src/resolver/observationReapHooks.ts`) — the
+seam a package holding observation-keyed rows of its own joins through. Nothing in this
+package registers one.
+
+A hook that fails **takes the reap with it**, deliberately. The reap is the last moment
+anything can name the observation, so a row the hook failed to remove is keyed to something
+nothing can find again. Raising leaves the filing to a dead letter and a re-run, which is
+recoverable in a way a silent orphan is not.
+
+### Person names: filed and normalized
+
+The two representations stored here have deliberately different contracts:
+
+- `person_observations.first_name/middle_name/last_name/suffix` record the extractor's
+  structured reading of what was filed. Form C additionally keeps every original signature
+  string in `source_context.filed_names` because its XML supplies an unstructured signature.
+- `person_observations.normalized_*` are identity-key fields. They remove signature markers,
+  identity-neutral punctuation and credentials; they are not presentation text.
+
+The third — `canonical_person.display_*`, the cleaned human-readable form — is the canonical
+tier's, and so are the rules by which a resolver decides two of these rows are one person.
 
 ### Extension seam
 
 **`registerResolverExtension`** (`src/resolver/resolverExtensions.ts`) is the registry every
-resolver kind registers through — sec's own person / company / sponsor-family /
-underwriter-family via `registerSecResolvers` (`src/config/registerResolvers.ts`), plus downstream kinds like embarc-data's
-`portal-attributor`. It backs the unified `version resolver <kind>` ceremonies,
-`componentRegistry`, and `resolverIds`. `ResolverId` is a runtime-validated string, not a
-compile-time union.
+resolver kind registers through. This package registers **none** — person, company,
+sponsor-family and underwriter-family all arrive from the package that owns those tiers,
+alongside its own kinds like `portal-attributor`. The registry backs the unified
+`version resolver <kind>` ceremonies, `componentRegistry`, and `resolverIds`; `ResolverId`
+is a runtime-validated string, not a compile-time union.
+
+The consequence worth stating: a binary that registers no kinds has no kinds for those
+ceremonies to name. `version coverage resolver person` works in a binary that brings the
+tier with it, and finds nothing in one that does not.
 
 ---
 
@@ -57,11 +87,12 @@ compile-time union.
 identity; source order is not stored), diffed per title on re-observation and reaped with
 the observation.
 
-The canonical tier stores one row per **tenure** in `person_role` (`PersonRoleRepo`): a
-canonical person holding one canonical title (via `normalizeManagementTitles`; compound
-titles split into separate rows) at one company (`company_cik`), with a required
-`start_date` (earliest asserting filing date), an optional `end_date` (null = current), and
-`last_seen_date` as the order-safety guard.
+The canonical tier — a downstream package's — stores one row per **tenure** in
+`person_role`: a canonical person holding one canonical title at one company
+(`company_cik`), with a required `start_date` (earliest asserting filing date), an optional
+`end_date` (null = current), and `last_seen_date` as the order-safety guard. The rules below
+are here because they are what an extractor in THIS package has to get right for that
+derivation to be sound; the table and the pass that fills it are described downstream.
 
 A tenure's `end_date` is set only by inference: a later filing that no longer mentions the
 person reads as evidence they left. That inference is sound for a list that names everyone
@@ -86,23 +117,11 @@ There are two kinds:
 A claim participates in role-tenure tracking at all only when it carries `filing_date`,
 `source_filing_issuer_cik`, and a `role_scope`.
 
-Closure is guarded by `filing_date > last_seen_date` (re-checked under a per-tenure lock), so
-out-of-order replays never close a role a newer filing asserts. The full set of behaviours:
-
-- a re-extraction that now finds a person re-opens the tenure its own accession closed,
-  absorbing any interposed return tenure;
-- one that no longer finds a person it alone supported deletes the phantom row;
-- an earlier out-of-order roster tightens a closed tenure's end back to the first
-  non-asserting filing;
-- a departure-and-return yields two tenure rows.
+Closure is guarded by `filing_date > last_seen_date`, so out-of-order replays never close a
+role a newer filing asserts, and a departure-and-return yields two tenure rows.
 
 Placeholder titles ("Signer", "Authorized Representative", "Sales Compensation Recipient",
-"Connection") stay on the observation title rows but never mint tenures. Closure is
-alias-aware: a roster asserting a merged person under the alias target does not close the
-retired id's open tenure.
-
-`person_role` rows are resolver-versioned like the junctions: purged by `dropPrevious`
-(person), rebuilt by re-extraction replays (batch `resolve` rebuilds identity links only).
+"Connection") stay on the observation title rows but never mint tenures.
 
 ### Roster completeness
 
@@ -113,7 +132,7 @@ a `complete` verdict — S-1 management `meta.complete && dropped === 0`, Form D
 verdict is written down whichever way it went. A `false` verdict closes nothing.
 
 The verdict lands in **`role_roster_completeness`** (`RoleRosterCompletenessRepo`,
-`src/storage/canonical/`), keyed
+`src/storage/roster/`), keyed
 `(accession_number, extractor_id, role_scope, company_cik)` — the same tuple the closure
 runs over — and carrying the filing date it ran with plus the boolean. It is **not**
 resolver-versioned: it is a property of the filing's extraction, so a re-key ceremony
@@ -125,20 +144,45 @@ declines — junk name field, overlong name, under a confidence floor — never 
 pass reading the stored observations sees a roster that looks whole, and closing from it
 would end the roles of everyone the dropped row still asserted.
 
-That later pass is `rebuildPersonRoles` (`src/resolver/rebuildPersonRoles.ts`), which
-recomputes a resolver version's tenures wholesale from the observations, reading these
-rows rather than re-deriving them. **Existing data carries no such rows, and a rebuild
-over an un-backfilled corpus does not merely decline to close: the purge runs
-unconditionally before the re-insert, so it DELETES every `end_date` the incremental path
-recorded and re-opens every departure the corpus knew about.** Backfill by re-extracting
-the filings before running it. Like the junction rebuilds, it also expects ingestion to be
-quiesced.
+That later pass is the downstream `rebuildPersonRoles`, which recomputes a resolver
+version's tenures wholesale from the observations, reading these rows rather than
+re-deriving them. **Existing data carries neither these rows nor
+`person_observations.role_scope`, and a rebuild over such a corpus does not merely decline
+to close.** Both columns were added with no backfill, so every older observation carries a
+null scope, the rebuild's three-part gate skips every one of them, and the purge has
+already run: the version's `person_role` ends up **empty**, for every CIK. (Missing
+completeness rows alone are the milder half: those re-open every departure the corpus knew
+about, and heal as filings are re-extracted.)
 
-```bash
-sec query person-roles <cik> [--current]
-```
+### Recovering a corpus that predates the two columns
 
-Design spec: `prd/docs/superpowers/specs/2026-07-28-sec-dated-person-roles-design.md`.
+The two halves recover differently, and only one costs a model call.
+
+**Completeness is free, and must be recovered FIRST.** `closeUnasserted` stamps
+`end_accession` alongside every `end_date`, and it only ever ran for a roster the
+extraction declared complete — so an end-dated tenure _is_ the record that the filing it
+names enumerated the whole roster. `extractor reconstruct-roster-completeness` reads them
+back into `role_roster_completeness`: one read of each table, one write per missing
+decision, no re-extraction. It is idempotent, never overwrites a decision already recorded,
+and must be run **before** the rebuild, which replaces the very tenures it reads.
+
+It reads `person_role`, so it ships with the package that owns that table and runs from
+that binary — on the `extractor` group defined here, beside `backfill`, because `backfill`
+is the alternative an operator is choosing between.
+
+It cannot recover a `complete: false` verdict, nor a `complete: true` one for a filing
+whose roster nobody had left — both closed nothing, so both left no trace. Absence is
+already how a rebuild reads "not known to be complete", so each omission declines to close
+a tenure rather than inventing a departure.
+
+**Scope is not free: re-extract.** `sec extractor backfill <id>` for the person-observing
+extractors. **Do not derive `role_scope` from `person_role` instead.** It looks equally
+free and is not: an observation whose titles all filtered away minted no tenure, so it
+would keep a null scope, drop out of the rebuild, and its roster would stop being marked
+incomplete — inventing departures, which is the error direction none of this tolerates.
+
+**The rebuild snapshots before it purges**, to a file under `.sec-snapshots/`. Keep it
+until the result checks out; the downstream doc describes it.
 
 ---
 
@@ -156,94 +200,21 @@ has three: `previous`, `current`, `next`.
 | `dropPrevious` | Clears `previous` and purges its data (extractor runs, or resolver links/canonical rows) |
 
 ```bash
-sec resolve --kind person  --resolver-version 1.0.0 --all
-sec resolve --kind company --resolver-version 1.0.0 --all
-sec resolve --kind company --resolver-version 1.0.0 --all --renormalize
-# person only — the company line refuses it
-sec resolve --kind person  --resolver-version 1.0.0 --all --rebuild-roles
-
-sec version coverage resolver person|company|sponsor-family|underwriter-family
-sec version drop-previous resolver person|company
+sec version coverage resolver <kind>
+sec version drop-previous resolver <kind>
 sec version drop-previous extractor <extractor-id>
 ```
 
-`--renormalize` recomputes the derived identity columns from the name as filed **before**
-resolving, so a normalizer change takes effect without re-extraction. It calls the same
-helpers the extraction path writes with (`normalizePersonNameParts`, `normalizeCompanyName`)
-precisely so a second implementation cannot drift and re-key half the tier to a generation
-nothing else produces.
+The slots and these ceremonies are this package's; the **kinds** they name are not. Nothing
+here calls `registerResolverExtension`, so `<kind>` resolves only in a binary that brings a
+resolver tier with it (see [Extension seam](#extension-seam)). `dropPrevious` for a resolver
+kind purges that kind's links and canonical rows through the extension, which is why the
+package owning them decides whether a purge is even recoverable — for the family kinds it
+is not, and the ceremony is deliberately left unregistered there.
 
-`sec resolve` then recomputes the tables derived from the links it just wrote — **the
-resolved kind's tables and no others**. A person run rebuilds the person junctions (and,
-on request, `person_role`); a company run rebuilds the company junctions. The junctions are
-grouped afresh from `(observation → identity_link → canonical_id)` at that version, because
-a re-resolve otherwise leaves them counted against the previous pass's canonical ids. Each
-projection is isolated the way a single row is: one that raises — a link whose observation
-is gone, an observation whose `filings` row is gone — is reported on its own line and the
-others still run. Both of those raises land before the projection purges anything, so a
-failure of that kind leaves its table exactly as it was rather than emptied.
-
-The per-kind scoping is load-bearing, not tidiness. A resolver version is a per-kind
-number that carries no per-kind name, and `db setup` seeds **every** resolver id at
-`1.0.0`, so on a default install the person and company versions are the same string:
-an off-kind rebuild does not find an empty table at that version, it finds the other
-tier's live rows and recomputes them from links the run never wrote.
-
-`--rebuild-roles` adds `person_role` to that set, on `--kind person` only — asking for it
-on a company run is **refused**, because `person_role` is the person tier's and a company
-pass writes no link that feeds it. It is off by default even on a person run because it is
-not symmetric with the junctions: it **deletes** every tenure at the version before
-re-deriving them, and it can only re-close a tenure whose filing recorded a complete roster
-in `role_roster_completeness`. Over a corpus ingested before those rows were written it
-finds no complete roster, closes nothing, and so re-opens every departure the incremental
-path had recorded. Re-extract the roster filings first.
-
-### The family tiers
-
-| kind                 | canonical                      | membership                      | per-filing link     |
-| -------------------- | ------------------------------ | ------------------------------- | ------------------- |
-| `sponsor-family`     | `canonical_sponsor_family`     | `sponsor_family_membership`     | `spac_sponsor_link` |
-| `underwriter-family` | `canonical_underwriter_family` | `underwriter_family_membership` | `underwriter_link`  |
-
-There is **no observation → identity-link table here: the per-filing link row IS the
-family-tier fact**, keyed `(accession_number, extractor_id, observation_index)` with
-`resolver_version` as a plain column. Exactly one row exists per fact, carrying whichever
-version last wrote it, and **coverage** is the share of link rows already attributed at the
-target version (`1.0` = every recorded family fact re-resolved).
-
-> **`drop-previous` is deliberately NOT supported for the family kinds** and errors.
-> On the person/company tier a purge is safe because identity links are _derived_: the
-> observation rows survive it, so `sec resolve` rebuilds every link it removed. The family
-> tier has no such backstop — the link row **is** the attribution — and batch `sec resolve`
-> refuses family kinds, so nothing can rebuild what a purge deletes. Recovery would mean
-> re-extracting every affected S-1/424 and re-paying the AI cost. The ceremony is symmetric
-> in shape across the four kinds but not in consequence, and the asymmetry is invisible at
-> the call site, so the destructive half stays unregistered until a family `resolve` exists.
-
-Batch `sec resolve` still refuses any kind outside its `person|company` allow-list, but the
-reason it **had** to has been removed: the family key used to come from the **common** name
-the AI extractor emitted, which never reached the observation row, so a batch pass had
-nothing faithful to re-partition from. `normalizeFamilyName` now derives it from the
-**legal** name via `companyFamilyName` — a value every observation already carries — so a
-re-partition is a re-computation. Wiring the family-tier `resolve` (and the `drop-previous`
-it gates) is what remains.
-
-### Alias management
-
-```bash
-sec canonical suggest-aliases --kind company [--format tsv]
-
-sec canonical <kind> alias "<from-name>" "<into-name>" --reason "merged duplicate"
-sec canonical <kind> alias-remove "<name>"
-sec canonical <kind> alias-list [--orphans] [--format tsv]
-sec canonical <kind> alias-import <file.tsv>
-```
-
-Kinds: `person`, `company`, `sponsor-family`, `underwriter-family`. Exports are **TSV, not
-CSV**, because canonical names routinely contain commas (`Keefe, Bruyette & Woods, Inc.`).
-`alias-import` resolves each pair by NAME and reports each pair it cannot place without
-abandoning the rest — a name whose canonical row has not been re-extracted yet is an expected
-partial failure, not a reason to lose the other forty.
+The passes that write those rows — `resolve --kind person|company [--renormalize]`, the
+junction and `person_role` rebuilds, the alias ceremonies, and the family tiers — are all
+described in the downstream `docs/identity.md`.
 
 ---
 
@@ -349,12 +320,13 @@ fold. So `Søren Skou Holdings LLC` and `Soren Skou Holdings LLC` still mint two
 companies. The remedy is an explicit alias:
 
 ```sh
-sec canonical company alias "Soren Skou Holdings LLC" "Søren Skou Holdings LLC"
+# from the package that owns the canonical tier
+canonical company alias "Soren Skou Holdings LLC" "Søren Skou Holdings LLC"
 ```
 
 Closing the gap means folding inside `normalizeCompanyName`, which is a re-key of every
 company observation ever written — now affordable via
-`sec resolve --kind company --all --renormalize`. The fold is still not applied;
+the downstream `resolve --kind company --all --renormalize`. The fold is still not applied;
 `CompanyNormalization.test.ts` pins the gap so it cannot land as a one-line change with no
 migration.
 
@@ -382,8 +354,9 @@ The rule now: a **street** is what makes an address usable, a city is still requ
 sec db setup                       # relaxes the NOT NULL
 sec sync submissions submissions
 for id in D C 1-A 1-K 1-Z CFPORTAL 3 4 5 144; do sec extractor backfill "$id"; done
-sec resolve --kind person  --all
-sec resolve --kind company --all
+# ...then, from the package that owns the canonical tier:
+#   resolve --kind person  --all
+#   resolve --kind company --all
 ```
 
 **Do not delete the old rows.** `addresses_entity_history_junction` is temporal and pins the
@@ -404,57 +377,58 @@ can be compared and rolled between. When the old rows are disposable, wiping is 
 more honest — `version coverage` would otherwise report against a generation nobody intends
 to keep.
 
-**What is actually stale** is the PERSON identity generation and the FAMILY keys:
-`person_observations.normalized_*` and every `person_hash_id` derived from one (the fold went
-into the identity parts, and no SQL can recompute it), plus every
-`canonical_*_family.normalized_name`. The scripts clear those, the person canonical tier keyed
-on them, and everything carrying a person `observation_id`.
+**This package's script is one half of that ceremony.**
+`scripts/sql/truncate-identity-tier.sql` wipes the person OBSERVATIONS and everything keyed
+to one. The person canonical tier keyed to THEM is a downstream package's, wiped by its
+paired script; the sponsor/underwriter family tier is a third script, re-keyed by a
+different normalizer change and deliberately not part of the pair. Run the pair together —
+no foreign key enforces it, so a half-run leaves rows citing rows that are gone.
 
-**The COMPANY canonical tier is spared from the wipe — but it is not untouched.**
-`normalizeCompanyName` changed in the same release, so `company_observations.normalized_name`
-is stale wherever the new rules key a name differently. Those are the merged canonical
-identities the release exists to split. It is spared anyway because those rows are
-**rebuildable, not disposable**: `--renormalize` recomputes them in place with no
-re-extraction and no AI cost. Wiping instead would destroy `canonical_company`,
-`company_identity_link` and the company junctions and leave a full re-extraction as the only
-rebuild.
+**What is stale, and therefore what is here:** `person_observations.normalized_*` and every
+`person_hash_id` derived from one. `normalizePerson` folds accents into the identity parts,
+so each of those values is computed differently, and no SQL can recompute them — the fold is
+TypeScript on the extraction path.
 
-> ⚠️ **The renormalize pass is required, and nothing errors if it is skipped.** The stale keys
-> keep resolving, `version coverage` keeps reporting full coverage, and the merged identities
-> survive silently. Expect residue: canonical rows minted under previous normalized names
-> survive with zero identity links pointing at them. They are inert, not corruption; the
-> visible fallout is aliases whose target became one of them, listed by
-> `sec canonical company alias-list --orphans`.
+**The COMPANY observations are spared.** `normalizeCompanyName` changed in the same release,
+so `company_observations.normalized_name` is stale wherever the new rules key a name
+differently — those are the merged canonical identities the release exists to split. They
+are spared anyway because they are **rebuildable, not disposable**: `normalized_name` derives
+from the `name` each observation already carries, so `resolve --kind company --all
+--renormalize` recomputes it in place with no re-extraction and no AI cost.
+
+> ⚠️ **That pass is required, and nothing errors if it is skipped.** The stale keys keep
+> resolving, `version coverage` keeps reporting full coverage, and the merged identities
+> survive silently. It belongs to the package that owns the canonical tier, and its script
+> prescribes it — but the reason it is needed is the normalizer change recorded here.
 
 `observation_provenance` is scoped `WHERE kind = 'person'` because its company-kind rows cite
 observations that survive and are keyed by observation id rather than by any normalized value.
 
 `extractor_runs` / `extraction_dead_letter` are cleared only for the extractors whose output
-the scripts actually delete (`REKEY_REEXTRACT_EXTRACTOR_IDS` in
+this script actually deletes (`REKEY_REEXTRACT_EXTRACTOR_IDS` in
 `src/storage/versioning/extractorIds.ts`), so the forms sweep's anti-join re-selects exactly
 those filings at the **same** version. Clearing every row would re-run `8-K` redemption/LOI
 detection and `merger-proxy` extraction — AI passes whose output the script never deleted.
 
-That set is the person-observing extractors **plus `424`**, and the `424` is not an oversight:
-`runOfferingSections` writes `underwriter_link` / `underwriter_family_membership` from the
-priced path under extractor id `424`, and a family link row **is** the attribution.
-`truncateIdentityTier.test.ts` fails if the SQL and the constant drift, and separately asserts
-that a script wiping `underwriter_link` re-extracts `424`.
+That set is the person-observing extractors **exactly**. `424` is not among them: it observes
+no person, and the family tier its priced path writes for is re-keyed by its own script with
+its own gate list. Gating it from here would re-extract every priced prospectus for nothing.
+`truncateIdentityTier.test.ts` fails if the SQL and the constant drift, and separately
+asserts that neither the family tables nor the person canonical tables are named here.
 
 Raw EDGAR ingest is left alone — nothing in `entities`, `filings`, `cik_names`,
 `company_facts` or `xbrl_fact` is keyed by a normalizer, and re-downloading it costs hours
-against the rate limit. `family_description` is spared too: it is hand-curated and its
-`(family_kind, normalized_name)` key changed, so re-import it rather than lose it.
+against the rate limit.
 
 ### Two files, one per backend, and they are not interchangeable
 
 `truncate-identity-tier.sql` is portable DELETE-based SQL for **sqlite3 only**; its table
 names are unqualified, so running it through `psql` on a deployment whose `search_path` lists
-a staging schema first would delete that schema's identity tier irreversibly.
+a staging schema first would delete that schema's observations irreversibly.
 `truncate-identity-tier.postgres.sql` pins the schema with
-`SELECT set_config('search_path', current_schema(), true)` (which sqlite3 rejects, hence the
-split) and adds `TRUNCATE ... RESTART IDENTITY`. The two name the same table set, enforced by
-test.
+`SELECT set_config('search_path', quote_ident(current_schema()), true)` (which sqlite3
+rejects, hence the split) and adds `TRUNCATE ... RESTART IDENTITY`. The two name the same
+table set, enforced by test.
 
 The pin is `set_config`, **not** `SET LOCAL search_path TO current_schema()`: `SET` takes
 identifiers and string constants, never a function call, so that spelling is a syntax error
@@ -463,35 +437,18 @@ and wipes nothing. A test pins the accepted spelling directly.
 
 ### The ceremony
 
-> ⚠️ **Export your aliases first — they are wiped and cannot be reconstructed.** Alias rows are
-> hand-curated claims keyed by the canonical UUIDs the wipe destroys, so they cannot be spared
-> the way `family_description` is.
+> ⚠️ **Export your aliases first — before running either half.** No alias table is in this
+> script any more, but the paired one destroys them all: they are hand-curated claims keyed
+> by canonical UUIDs that script wipes. Its header carries the export commands.
 
 ```bash
-# 1. Export the hand-curated aliases (names, which survive the wipe)
-sec canonical person             alias-list --format tsv > aliases-person.tsv
-sec canonical company            alias-list --format tsv > aliases-company.tsv
-sec canonical sponsor-family     alias-list --format tsv > aliases-sponsor.tsv
-sec canonical underwriter-family alias-list --format tsv > aliases-underwriter.tsv
-
-# 2. Wipe (SQLite; on Postgres use the .postgres.sql variant)
+# 1. Wipe both halves (SQLite; on Postgres use the .postgres.sql variants)
 sqlite3 "$SEC_DB_FOLDER/$SEC_DB_NAME.sqlite" < scripts/sql/truncate-identity-tier.sql
+#    ...then the downstream truncate-canonical-tier.sql against the same file.
 
-# 3a. Re-extract EVERY extractor whose output the wipe deleted, not just S-1.
-#     424 is in the list for the FAMILY tier (underwriter links), not persons.
-for id in S-1 D C CFPORTAL 1-A 1-Z 3 4 5 144 424; do sec extractor backfill "$id"; done
-
-# 3b. Re-key the COMPANY tier the wipe spared but the normalizer made stale.
-#     Required; cheap; silent if skipped. Must precede the alias imports.
-sec resolve --kind company --all --renormalize
-
-# 4. Restore the curated data
-sec editorial import data/editorial/family-descriptions.csv
-sec canonical person             alias-import aliases-person.tsv
-sec canonical company            alias-import aliases-company.tsv
-sec canonical sponsor-family     alias-import aliases-sponsor.tsv
-sec canonical underwriter-family alias-import aliases-underwriter.tsv
+# 2. Re-extract EVERY extractor whose output the wipe deleted, not just S-1.
+for id in S-1 D C CFPORTAL 1-A 1-Z 3 4 5 144; do sec extractor backfill "$id"; done
 ```
 
-Step 3b takes no `--resolver-version`: it defaults to the **active slot** ("next if a dev
-cycle exists, else current"), the same rule `version coverage` reads.
+Re-resolving, the mandatory company renormalize, and the alias imports follow, from the
+package that owns the canonical tier. Its `docs/identity.md` carries the full ordered list.

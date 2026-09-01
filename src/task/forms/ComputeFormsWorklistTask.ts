@@ -9,10 +9,11 @@ import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import {
+  allRegisteredForms,
+  extractorIdsForForm,
   extractorsForForm,
-  getFormExtractor,
-  listFormExtractorKeys,
 } from "../../sec/forms/formExtractors";
+import { noExtractorReason } from "../../sec/forms/parserOnlyForms";
 import { isDryRun } from "../../cli/isDryRun";
 import {
   FILING_REPOSITORY_TOKEN,
@@ -20,9 +21,9 @@ import {
   type FilingRepositoryStorage,
 } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
-import { sortFormsForSweep } from "../../storage/versioning/extractorIds";
 import { ExtractorRunRepo, filingRunKey } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { sortFormsForSweep } from "../../storage/versioning/formsSweepOrder";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { SecFetchMaxPerSec } from "../../config/Constants";
@@ -184,11 +185,15 @@ export class ComputeFormsWorklistTask extends Task<
       globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
     );
 
-    const allForms = [
-      ...new Set(listFormExtractorKeys().flatMap((k) => getFormExtractor(k)!.forms)),
-    ];
+    // Absent (or empty) `form` means every form with a registered extractor —
+    // the deliberate default of a full sweep. The two cannot be told apart
+    // here: an omitted optional array port arrives as `[]`, so "nobody asked"
+    // and "asked for nothing" are the same value by the time this runs. A
+    // request that RESOLVED to nothing is a third thing and never reaches
+    // here — `runFormsSweep` refuses it, upstream, where the request itself
+    // is still visible.
     const requestedForms =
-      input.form !== undefined && input.form.length > 0 ? input.form : allForms;
+      input.form !== undefined && input.form.length > 0 ? input.form : allRegisteredForms();
     const formSet = new Set(requestedForms);
 
     const shardCount = input.shardCount ?? 1;
@@ -234,19 +239,30 @@ export class ComputeFormsWorklistTask extends Task<
       return active.semver;
     };
 
+    // Every form in the DEFAULT set carries an extractor by construction —
+    // `allRegisteredForms()` reads the registry — so a form with none here is
+    // one the caller NAMED. That is refused rather than skipped: silently
+    // narrowing a request to the part of it this deployment can do is how a
+    // sweep reports success over work it never attempted, and the operator who
+    // asked for that form is the one person who can act on the answer. A form
+    // a sweep merely ENCOUNTERS, reached by accession rather than named, is
+    // skipped with a warning instead — see `ProcessAccessionDocFormTask`.
+    const unreadable = [...formSet].filter((form) => extractorsForForm(form).length === 0);
+    if (unreadable.length > 0) {
+      throw new Error(
+        `update-forms: ${unreadable.map(noExtractorReason).join("; ")}. ` +
+          `Name only forms this deployment can read, or run under the package that ` +
+          `supplies the extractor.`
+      );
+    }
+
     // The order is the SWEEP order, not the caller's: registration statements
     // mint the `spac` row that the 8-K / proxy / 25-15 handlers are gated on,
     // and each of those records a successful run when the row is missing, so
     // reaching them first drops their events with nothing to re-select them.
     // Applied to an explicit `--form` list too, so a multi-form request is
     // ordered correctly without the operator knowing to do it.
-    const forms = sortFormsForSweep(
-      [...formSet].filter((form) => {
-        if (extractorsForForm(form).length > 0) return true;
-        console.warn(`update-forms: form '${form}' has no registered extractor; skipping`);
-        return false;
-      })
-    );
+    const forms = sortFormsForSweep([...formSet]);
 
     let total = 0;
     for (const form of forms) {
@@ -258,12 +274,28 @@ export class ComputeFormsWorklistTask extends Task<
       // twice. A filing is selected when ANY of the form's extractors has no
       // successful run at its own active version, which is the same union the
       // dispatch then acts on.
-      const gates = await Promise.all(
-        extractorsForForm(form).map(async (extractor) => ({
-          extractorId: extractor.id,
-          extractorVersion: await resolveVersion(extractor.id),
-        }))
-      );
+      //
+      // An extractor with no version slot fails ITS form, not the sweep. The
+      // registry is open, so a form can be registered after the `db setup`
+      // that seeded slots; losing every other form's work to that is a far
+      // worse outcome than losing the one form that cannot be versioned.
+      //
+      // One gate per extractor ID, not per registry entry: an extractor split
+      // into sections holds several keys under ONE id, and the run ledger keys
+      // on the id — so an entry-keyed list would ask `extractor_runs` the same
+      // question once per section, on every page of every form.
+      let gates: readonly { readonly extractorId: string; readonly extractorVersion: string }[];
+      try {
+        gates = await Promise.all(
+          extractorIdsForForm(form).map(async (extractorId) => ({
+            extractorId,
+            extractorVersion: await resolveVersion(extractorId),
+          }))
+        );
+      } catch (e) {
+        console.error(`update-forms: skipping form '${form}': ${(e as Error).message}`);
+        continue;
+      }
       let from: number | undefined;
       let seen: string | undefined;
       for (;;) {

@@ -53,15 +53,22 @@ vi.mock("../util/pg", () => ({
 }));
 
 const { addMissingColumnsPostgres } = await import("./addMissingColumns");
-const { SpacCandidateSchema } = await import("../storage/spac/SpacCandidateSchema");
+const { FilingSchema } = await import("../storage/filing/FilingSchema");
 
-const MISSING_COLUMN = "signal_filed_sic_6770";
+/**
+ * The fixture is CONSTRUCTED, exactly as in the SQLite file beside this one: a
+ * catalog that reports every `filings` column but this one, so the planner has
+ * one thing to plan. It states what the executor emits for a nullable column
+ * the live database lacks. It is not a reproduction of the bug the pass exists
+ * for — that one needs the column it actually happened to, and belongs with it.
+ */
+const MISSING_COLUMN = "is_inline_xbrl";
 
-/** Every `spac_candidate` column a pre-existing database has: all but the new one. */
-function legacySpacCandidateRows(): { table_name: string; column_name: string }[] {
-  return Object.keys(SpacCandidateSchema.properties)
+/** The `filings` catalog rows a database missing that one column reports. */
+function filingsRowsWithoutIt(): { table_name: string; column_name: string }[] {
+  return Object.keys(FilingSchema.properties)
     .filter((c) => c !== MISSING_COLUMN)
-    .map((column_name) => ({ table_name: "spac_candidate", column_name }));
+    .map((column_name) => ({ table_name: "filings", column_name }));
 }
 
 /** Every emitted `ALTER TABLE`, in order. */
@@ -87,15 +94,15 @@ describe("addMissingColumnsPostgres", () => {
   });
 
   it("emits one schema-qualified, quoted ALTER for the missing column", async () => {
-    catalogRows = legacySpacCandidateRows();
+    catalogRows = filingsRowsWithoutIt();
 
     await addMissingColumnsPostgres();
 
-    // Exactly one statement: only `spac_candidate` was reported live, and only
-    // one of its columns is missing. Every other registered table is absent
-    // from the catalog, so `setupDatabase()` owns it.
+    // Exactly one statement: only `filings` was reported live, and only one of
+    // its columns is missing. Every other registered table is absent from the
+    // catalog, so `setupDatabase()` owns it.
     expect(alterStatements()).toEqual([
-      `ALTER TABLE "Staging"."spac_candidate" ADD COLUMN IF NOT EXISTS "signal_filed_sic_6770" BOOLEAN`,
+      `ALTER TABLE "Staging"."filings" ADD COLUMN IF NOT EXISTS "is_inline_xbrl" BOOLEAN`,
     ]);
   });
 
@@ -103,7 +110,7 @@ describe("addMissingColumnsPostgres", () => {
     // The two halves have to agree. Reading `WHERE table_schema =
     // current_schema()` and then altering an unqualified name asks a different
     // question than the one that decided the column is missing.
-    catalogRows = legacySpacCandidateRows();
+    catalogRows = filingsRowsWithoutIt();
 
     await addMissingColumnsPostgres();
 
@@ -115,8 +122,8 @@ describe("addMissingColumnsPostgres", () => {
 
   it("emits nothing for a table whose columns are all present", async () => {
     catalogRows = [
-      ...legacySpacCandidateRows(),
-      { table_name: "spac_candidate", column_name: MISSING_COLUMN },
+      ...filingsRowsWithoutIt(),
+      { table_name: "filings", column_name: MISSING_COLUMN },
     ];
 
     await addMissingColumnsPostgres();
@@ -136,24 +143,24 @@ describe("addMissingColumnsPostgres", () => {
   });
 
   it("warns instead of altering when the missing column is NOT NULL", async () => {
-    // `spac_candidate.confidence` has no null branch and is `required`, so it
-    // is declared NOT NULL. Postgres would reject the ALTER on any non-empty
+    // `filings.filing_date` has no null branch and is `required`, so it is
+    // declared NOT NULL. Postgres would reject the ALTER on any non-empty
     // table, and there is no honest default to supply — the operator needs a
     // migration that decides what the backfill means, which is what the warning
     // says.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    catalogRows = legacySpacCandidateRows().filter((r) => r.column_name !== "confidence");
+    catalogRows = filingsRowsWithoutIt().filter((r) => r.column_name !== "filing_date");
 
     await addMissingColumnsPostgres();
 
     // The nullable column is still added — one unsupported column must not
     // suppress the rest of the plan.
     expect(alterStatements()).toEqual([
-      `ALTER TABLE "Staging"."spac_candidate" ADD COLUMN IF NOT EXISTS "signal_filed_sic_6770" BOOLEAN`,
+      `ALTER TABLE "Staging"."filings" ADD COLUMN IF NOT EXISTS "is_inline_xbrl" BOOLEAN`,
     ]);
     expect(warn).toHaveBeenCalledTimes(1);
     const message = String(warn.mock.calls[0]![0]);
-    expect(message).toContain("spac_candidate.confidence");
+    expect(message).toContain("filings.filing_date");
     expect(message).toContain("NOT NULL");
     // Names the two ways out, so the warning is actionable rather than just a
     // report that something was skipped.
@@ -167,8 +174,8 @@ describe("addMissingColumnsPostgres", () => {
     // after it (the alignment pass, the resolver seeding, the rate-limiter
     // tables) over one column.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    catalogRows = legacySpacCandidateRows();
-    alterFailure = "permission denied for table spac_candidate";
+    catalogRows = filingsRowsWithoutIt();
+    alterFailure = "permission denied for table filings";
 
     await expect(addMissingColumnsPostgres()).resolves.toBeUndefined();
 

@@ -3,13 +3,12 @@ import { parseShardOption } from "../../task/forms/formsSweep";
 import { parseIntOption } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
 import { registerSecSyncLeaves } from "../sync/registerSecSyncLeaves";
-import { DEFAULT_SPAC_ISSUER_CONCURRENCY } from "../sync/runSpacTimelineIssuers";
-import { parseSpacProcessOnly } from "../sync/spacSyncCiks";
 import {
   EMPTY_SYNC_CONTEXT,
   listSyncLeaves,
   runSyncLeaves,
   type SyncLeaf,
+  type SyncLeafOptionValues,
   type SyncRunContext,
 } from "../sync/syncLeaves";
 
@@ -37,185 +36,71 @@ function contextFromAllOpts(opts: AllSyncOpts): SyncRunContext {
   };
 }
 
-/** Options any leaf command may carry; each leaf uses the subset it declares. */
-interface LeafOpts {
+/**
+ * The options this file reads by name off any leaf command, because their
+ * values are fields of the shared {@link SyncRunContext}. Whatever else a leaf
+ * declared arrives in the same object and is handed back to that leaf
+ * untouched, which is why the index signature is here.
+ */
+interface LeafOpts extends SyncLeafOptionValues {
   readonly force?: boolean;
   readonly retryFailed?: boolean;
   readonly from?: string;
   readonly lookback?: number;
-  readonly full?: boolean;
   readonly shard?: string;
-  readonly only?: ReturnType<typeof parseSpacProcessOnly>;
-  readonly concurrency?: number;
   readonly simple?: boolean;
-  readonly types?: string;
-  readonly since?: string;
-  readonly limit?: number;
-  readonly cik?: number;
-  readonly all8k?: boolean;
-  readonly downloadOnly?: boolean;
 }
 
 /**
- * Declares a leaf's options on one command.
+ * Declares a leaf's own options on one command.
  *
  * Applied per subcommand rather than once on the group: commander does not
  * hand a parent's options to a subcommand's action, so a `--shard` declared on
  * the group would parse and then be dropped on the floor.
+ *
+ * `stepId` is the step this command runs, or undefined for the leaf itself and
+ * for its `all` — an option naming steps appears only on those it named.
  */
-function applyLeafOptions(cmd: Command, leafId: string): Command {
-  if (leafId === "submissions") {
-    cmd
-      .option("--force", "Reprocess submissions, ignoring processed state", false)
-      .option(
-        "--from <date>",
-        "Exclusive catch-up start (YYYY-MM-DD); fetch begins the day after this date"
-      )
-      .option("--lookback <n>", "Completed days to re-fetch (default 3)", parseIntOption, 3);
+function applyLeafOptions(cmd: Command, leaf: SyncLeaf, stepId: string | undefined): Command {
+  for (const option of leaf.options?.declare ?? []) {
+    if (option.steps !== undefined && (stepId === undefined || !option.steps.includes(stepId))) {
+      continue;
+    }
+    if (option.parse !== undefined) {
+      cmd.option(option.flags, option.description, option.parse, option.defaultValue);
+      continue;
+    }
+    if (typeof option.defaultValue === "number") {
+      // Commander stores this default as-is and hands back the flag's raw
+      // string once it IS given, so the option would answer with two types.
+      throw new Error(`sync option '${option.flags}' needs a parser to carry a numeric default`);
+    }
+    cmd.option(option.flags, option.description, option.defaultValue);
   }
-
-  if (leafId === "facts") {
-    cmd
-      .option("--force", "Reprocess all items, ignoring processed state", false)
-      .option("--retry-failed", "Also re-fetch CIKs whose last facts processing failed", false);
-  }
-
-  if (leafId === "spacs") {
-    cmd
-      .option(
-        "--full",
-        "Rescan every entity instead of only those whose submissions changed since the last run",
-        false
-      )
-      .option(
-        "--shard <i/N>",
-        "Process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"
-      )
-      .option(
-        "--only <kind>",
-        "never-processed = SPACs with no successful run yet; updates = already-processed SPACs, filings since the last SPAC process run (default: both, including historical leftover)",
-        parseSpacProcessOnly
-      )
-      .option(
-        "-c, --concurrency <n>",
-        "How many ISSUERS to process at once (default 3). Filings within an issuer are always serial.",
-        parseIntOption,
-        DEFAULT_SPAC_ISSUER_CONCURRENCY
-      );
-  }
-
-  if (leafId === "documents") {
-    cmd
-      .option(
-        "--types <list>",
-        "Comma-separated forms to convert (default: the narrative set in CONVERTIBLE_FORMS)"
-      )
-      .option("--since <date>", "Only filings filed on or after this date (YYYY-MM-DD)")
-      .option(
-        "--cik <cik>",
-        "Convert only this issuer's filings — what you want after `spac process <cik>`, " +
-          "since the unfiltered sweep works newest-first across every filer",
-        parseIntOption
-      )
-      .option(
-        "--limit <n>",
-        "How many filings to convert in this run (default 500) — a backfill is many runs",
-        parseIntOption
-      )
-      .option(
-        "--all-8k",
-        "Convert 8-Ks from every filer, not just CIKs in the spac table — the default " +
-          "skips them because every reporting company files them",
-        false
-      )
-      .option(
-        "--download-only",
-        "Fetch each selected filing into the accession-doc cache and stop — no parsing, " +
-          "no rows written; re-running converts them with no further requests",
-        false
-      )
-      .option(
-        "--force",
-        "Re-convert filings already stored at the current converter version",
-        false
-      );
-  }
-
-  if (leafId === "portals" || leafId === "crowdfunding" || leafId === "reg-a") {
-    cmd.option(
-      "--shard <i/N>",
-      "Process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"
-    );
-  }
-
   return cmd;
-}
-
-/** Options for `sync adv form-d` (standalone Form D sweep; replaces removed `sync form-d`). */
-function applyAdvFormDStepOptions(cmd: Command): Command {
-  return cmd
-    .option(
-      "--simple",
-      "Standalone Form D sweep only (formerly sync form-d); required when running this step alone",
-      false
-    )
-    .option(
-      "--shard <i/N>",
-      "Process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"
-    );
 }
 
 /** Runs a leaf, or one step of it, under the options that command declared. */
 async function runLeaf(leaf: SyncLeaf, opts: LeafOpts, stepId: string | undefined): Promise<void> {
   await runCommand(
     async () => {
-      const shard = parseShardOption(opts.shard);
-      let ctx: SyncRunContext = {
+      // The shared fields are read the same way whichever leaf is running: a
+      // leaf that declared none of these flags leaves them undefined, which
+      // lands on the defaults `EMPTY_SYNC_CONTEXT` already carries. Only the
+      // leaf's own declarations can say anything more, and they say it last.
+      const ctx: SyncRunContext = {
         ...EMPTY_SYNC_CONTEXT,
-        shard,
+        force: opts.force ?? false,
+        retryFailed: opts.retryFailed ?? false,
+        from: opts.from,
+        lookback: validateLookback(opts.lookback ?? EMPTY_SYNC_CONTEXT.lookback),
+        shard: parseShardOption(opts.shard),
         isolatedStep: stepId !== undefined,
         simple: opts.simple ?? false,
+        ...leaf.options?.readContext?.(opts),
       };
 
-      if (leaf.id === "submissions") {
-        ctx = {
-          ...ctx,
-          force: opts.force ?? false,
-          from: opts.from,
-          lookback: validateLookback(opts.lookback ?? EMPTY_SYNC_CONTEXT.lookback),
-        };
-      }
-
-      if (leaf.id === "facts") {
-        ctx = { ...ctx, force: opts.force ?? false, retryFailed: opts.retryFailed ?? false };
-      }
-
-      if (leaf.id === "documents") {
-        ctx = {
-          ...ctx,
-          force: opts.force ?? false,
-          from: opts.since,
-          formTypes: opts.types === undefined ? undefined : opts.types.split(","),
-          limit: opts.limit,
-          all8k: opts.all8k ?? false,
-          downloadOnly: opts.downloadOnly ?? false,
-          // Rejected by `parseIntOption` at parse time rather than here: a
-          // mistyped CIK that fell through would convert the newest 500 filings
-          // of every filer, which looks like success and is not what was asked.
-          cik: opts.cik,
-        };
-      }
-
-      if (leaf.id === "spacs") {
-        ctx = {
-          ...ctx,
-          full: opts.full ?? false,
-          only: opts.only,
-          concurrency: Math.max(1, opts.concurrency ?? DEFAULT_SPAC_ISSUER_CONCURRENCY),
-        };
-      }
-
-      await runSyncLeaves([leaf.id], ctx, stepId);
+      await runSyncLeaves([leaf.id], ctx, stepId, opts);
     },
     leaf.id === "submissions" || leaf.id === "facts" ? { force: opts.force } : undefined
   );
@@ -223,29 +108,28 @@ async function runLeaf(leaf: SyncLeaf, opts: LeafOpts, stepId: string | undefine
 
 function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
   if (leaf.id === "forms") {
-    sync
-      .command("forms <types>")
-      .description(leaf.description)
-      .option(
-        "--shard <i/N>",
-        "Process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"
-      )
-      .action(async (types: string, opts: { shard?: string }) => {
-        await runCommand(async () => {
-          const formTypes = types.split(",");
-          const shard = parseShardOption(opts.shard);
-          await runSyncLeaves(["forms"], { ...EMPTY_SYNC_CONTEXT, shard, formTypes }, undefined);
-        });
+    const forms = sync.command("forms <types>").description(leaf.description);
+    applyLeafOptions(forms, leaf, undefined);
+    forms.action(async (types: string, opts: { shard?: string }) => {
+      await runCommand(async () => {
+        const formTypes = types.split(",");
+        const shard = parseShardOption(opts.shard);
+        await runSyncLeaves(["forms"], { ...EMPTY_SYNC_CONTEXT, shard, formTypes }, undefined);
       });
+    });
     return;
   }
 
   const cmd = sync.command(leaf.id).description(leaf.description);
 
   // A single-step leaf is its own command: there is nothing to choose between,
-  // so `sync quotes all` would only be a longer way to say `sync quotes`.
+  // so `sync quotes all` would only be a longer way to say `sync quotes`. That
+  // command IS the step, so a step-scoped option is declared against it —
+  // passing `undefined` here would silently drop every option the leaf scoped
+  // to its only step, leaving a flag declared nowhere and rejected by
+  // commander.
   if (leaf.steps.length <= 1) {
-    applyLeafOptions(cmd, leaf.id);
+    applyLeafOptions(cmd, leaf, leaf.steps[0]?.id);
     cmd.action(async (opts: LeafOpts) => runLeaf(leaf, opts, undefined));
     return;
   }
@@ -254,7 +138,7 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
   // alone. That replaces `--step <name>`, which hid the choices behind
   // `--help` and could not be completed by a shell.
   const all = cmd.command("all").description(`Run every ${leaf.id} step in order`);
-  applyLeafOptions(all, leaf.id);
+  applyLeafOptions(all, leaf, undefined);
   all.action(async (opts: LeafOpts) => runLeaf(leaf, opts, undefined));
 
   for (const step of leaf.steps) {
@@ -262,14 +146,11 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
     // Every step takes the leaf's options: they configure the leaf's work, and
     // which part of it is running does not change what `--shard` or `--force`
     // mean.
-    applyLeafOptions(stepCmd, leaf.id);
-    if (leaf.id === "adv" && step.id === "form-d") {
-      applyAdvFormDStepOptions(stepCmd);
-    }
+    applyLeafOptions(stepCmd, leaf, step.id);
     stepCmd.action(async (opts: LeafOpts) => runLeaf(leaf, opts, step.id));
   }
 
-  // Deliberately no action on the group. Bare `sync spacs` names a group
+  // Deliberately no action on the group. Bare `sync <leaf>` names a group
   // rather than a job, and commander answers a missing subcommand with the
   // command's help — which is the listing we want, and which an action would
   // instead route through the CLI's preAction hook, demanding configuration to

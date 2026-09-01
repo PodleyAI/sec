@@ -11,7 +11,6 @@ import { QueryFactsTask } from "../../task/query/QueryFactsTask";
 import { QueryFilingsTask } from "../../task/query/QueryFilingsTask";
 import { QueryOfferingsTask } from "../../task/query/QueryOfferingsTask";
 import { QueryPersonsTask } from "../../task/query/QueryPersonsTask";
-import { QueryPersonRolesTask } from "../../task/query/QueryPersonRolesTask";
 import {
   QueryRegASummaryTask,
   type QueryRegASummaryTaskOutput,
@@ -502,40 +501,6 @@ export function addQueryCommands(program: Command): void {
           { key: "last_name", header: "Last", width: 20 },
           { key: "titles", header: "Title", width: 20 },
           { key: "source_filing_issuer_cik", header: "CIK", width: 10 },
-        ];
-        renderQueryResult(result, columns, format, offset, limit);
-      })
-    );
-
-  query
-    .command("person-roles <cik>")
-    .description("Dated person↔title tenures at a company (open roles first)")
-    .option("--current", "Only open tenures (no end date)")
-    .option("--limit <n>", "Limit results", parseIntOption, 25)
-    .option("--offset <n>", "Offset results", parseIntOption, 0)
-    .option("--format <format>", "Output format (table, json, csv)", "table")
-    .action(
-      wrapAction(async (cikArg: string, options: Record<string, unknown>) => {
-        const limit = options.limit as number;
-        const offset = options.offset as number;
-        const format = validateFormat(options.format as string);
-        const result = await runWorkflowCli<QueryResult<unknown>>([
-          new QueryPersonRolesTask({
-            defaults: {
-              cik: parseCikArgStrict(cikArg),
-              current: Boolean(options.current),
-              limit,
-              offset,
-            },
-          }),
-        ]);
-
-        const columns = [
-          { key: "person_name", header: "Person", width: 22 },
-          { key: "title", header: "Title", width: 30 },
-          { key: "start_date", header: "Start", width: 10 },
-          { key: "end_date", header: "End", width: 10 },
-          { key: "role_scope", header: "Source", width: 22 },
         ];
         renderQueryResult(result, columns, format, offset, limit);
       })

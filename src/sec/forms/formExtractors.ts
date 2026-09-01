@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { IExecuteContext } from "workglow";
+import type { ExtractorGateVerdict } from "../../storage/versioning/ExtractorRunSchema";
 
 /** What every extractor's `store` receives about the filing it is storing. */
 export interface FormExtractorStoreArgs {
@@ -44,6 +45,28 @@ export interface FormExtractorStoreArgs {
    * prefetch a resource. Undefined when a caller has none (tests, backfills).
    */
   readonly context: IExecuteContext | undefined;
+}
+
+/**
+ * What a `store` reports back about its OWN admission gate.
+ *
+ * Several handlers are gated on a row they did not write — a known-SPAC check
+ * against `spac` — and return early having written nothing, while the dispatcher
+ * still records a SUCCESSFUL run for them, because a recorded successful run is
+ * what stops a filing being re-selected. That the gate declined survived
+ * nowhere, so nothing could tell "ran and had nothing to write" from "declined
+ * before looking".
+ *
+ * A `store` with a gate returns this to say which it was; the dispatcher stamps
+ * it on the `extractor_runs` row it writes for that extractor. Returning
+ * nothing is the honest answer for a handler with no gate: the column stays
+ * null, meaning NOT RECORDED, and never `admitted`.
+ *
+ * An object rather than the bare string so a `store` cannot report a verdict by
+ * accident — the value has to be built on purpose.
+ */
+export interface FormExtractorStoreReport {
+  readonly gate: ExtractorGateVerdict;
 }
 
 /** What a per-filing full-submission escalation gets to decide on. */
@@ -104,6 +127,10 @@ interface FormExtractorCommon<TParsed> {
    * parse runs once and every extractor's `store` sees it. Once a form carries
    * two, each with its own `parse`, they read the same document
    * independently instead of being stuck sharing one parser's output.
+   *
+   * A form whose every document-reading extractor declares one needs no
+   * registered parser class at all — the shared parse is computed only where
+   * some extractor would actually read it.
    */
   readonly parse?: (form: string, text: string) => Promise<TParsed>;
   /**
@@ -119,7 +146,7 @@ export interface FormExtractorWithDocument<TParsed = unknown> extends FormExtrac
   readonly needsDocument?: true;
   readonly store: (
     args: FormExtractorStoreArgs & { readonly form: string; readonly parsed: TParsed }
-  ) => Promise<void>;
+  ) => Promise<FormExtractorStoreReport | void>;
 }
 
 /**
@@ -136,7 +163,9 @@ export interface FormExtractorWithDocument<TParsed = unknown> extends FormExtrac
  */
 export interface FormExtractorMetadataOnly<TParsed = unknown> extends FormExtractorCommon<TParsed> {
   readonly needsDocument: false;
-  readonly store: (args: FormExtractorStoreArgs & { readonly form: string }) => Promise<void>;
+  readonly store: (
+    args: FormExtractorStoreArgs & { readonly form: string }
+  ) => Promise<FormExtractorStoreReport | void>;
 }
 
 /**
@@ -252,11 +281,97 @@ export function extractorsForForm(form: string): readonly FormExtractor<any>[] {
   return sorted;
 }
 
+/**
+ * Every distinct extractor id registered for `form`, in the order
+ * {@link extractorsForForm} runs them. Empty for a form nothing handles, so a
+ * caller reads a length rather than distinguishing an absent answer from an
+ * empty one.
+ *
+ * IDS, NOT REGISTRY KEYS. The registry is keyed `(id, section)`, so one
+ * extractor split into sections holds several keys — and a key carries a
+ * section the caller never asked about. Every id here appears once however many
+ * sections it registered under; a caller that wants the sections asks
+ * {@link extractorsForForm}.
+ */
+export function extractorIdsForForm(form: string): readonly string[] {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const ext of extractorsForForm(form)) {
+    if (seen.has(ext.id)) continue;
+    seen.add(ext.id);
+    ids.push(ext.id);
+  }
+  return ids;
+}
+
+/** Whether any extractor is registered for `form`. */
+export function formHasExtractor(form: string): boolean {
+  return extractorsForForm(form).length > 0;
+}
+
+/**
+ * Whether the extractor `id` handles `form` — membership, not equality with
+ * whichever extractor happens to be first. A form may carry several, and the
+ * one asked about is rarely the one at the front.
+ */
+export function formHandledByExtractor(form: string, id: string): boolean {
+  return extractorsForForm(form).some((ext) => ext.id === id);
+}
+
+/**
+ * Every distinct extractor id in the registry, deduped across sections — the
+ * ids {@link extractorIdsForForm} answers with, not the keys
+ * {@link listFormExtractorKeys} answers with.
+ */
+export function allRegisteredExtractorIds(): readonly string[] {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const ext of REGISTRY.values()) {
+    if (seen.has(ext.id)) continue;
+    seen.add(ext.id);
+    ids.push(ext.id);
+  }
+  return ids;
+}
+
+/** Every distinct form symbol any registered extractor handles. */
+export function allRegisteredForms(): readonly string[] {
+  const seen = new Set<string>();
+  const forms: string[] = [];
+  for (const ext of REGISTRY.values()) {
+    for (const form of ext.forms) {
+      if (seen.has(form)) continue;
+      seen.add(form);
+      forms.push(form);
+    }
+  }
+  return forms;
+}
+
 /** The de-duplicated union of every form the given extractor keys handle. */
 export function formsForExtractorKeys(keys: readonly string[]): string[] {
   const out = new Set<string>();
   for (const key of keys) {
     for (const form of REGISTRY.get(key)?.forms ?? []) out.add(form);
+  }
+  return [...out];
+}
+
+/**
+ * The de-duplicated union of every form the given extractor IDS handle.
+ *
+ * The id-keyed twin of {@link formsForExtractorKeys}. The registry is keyed
+ * `(id, section)`, so an extractor split into sections holds several keys and
+ * a caller naming the extractor cannot know which of them to ask for. Matching
+ * on the id answers for all of them, and a form handled by two extractors is
+ * named once whichever of them was asked about.
+ */
+export function formsForExtractorIds(ids: readonly string[]): string[] {
+  const want = new Set(ids);
+  const out = new Set<string>();
+  for (const ext of REGISTRY.values()) {
+    if (!want.has(ext.id)) continue;
+    for (const form of ext.forms) out.add(form);
   }
   return [...out];
 }

@@ -7,12 +7,11 @@ import { NodeKind, renderMarkdown, traverseDepthFirst } from "workglow";
 import type { DocumentNode, DocumentRootNode, SectionNode } from "workglow";
 import { subtreeSourceSpan, type SourceSpanIndex } from "../../../html/sourceSpanIndex";
 import {
-  type DocumentSegmenter,
   S1_SECTIONS,
   type S1SectionName,
-  type Section,
   SECTION_HEADING_PATTERNS,
-} from "./DocumentSegmenter";
+} from "../../../html/sectionVocabulary";
+import type { DocumentSegmenter, Section } from "./DocumentSegmenter";
 
 function matchPatterns(line: string): S1SectionName | null {
   for (const name of Object.keys(SECTION_HEADING_PATTERNS) as S1SectionName[]) {

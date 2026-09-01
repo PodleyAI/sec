@@ -6,12 +6,12 @@
 
 import { Static, Type } from "typebox";
 import { globalServiceRegistry, IExecuteContext, Task, TaskError, Workflow } from "workglow";
+import { extractorIdsForForm } from "../../sec/forms/formExtractors";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { formToExtractorId } from "../../storage/versioning/extractorIds";
 import { resolvePrimaryDocName } from "../../util/accessionDocPath";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
@@ -139,12 +139,15 @@ export class FetchAndStoreFormsTask extends Task<
     // dead-lettered is indistinguishable from a clean run.
     const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
     const deadLetterRepo = globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN);
-    // The outcome being counted is this form's own extractor. A filing writes a
-    // run row per extractor that touched it — a known-SPAC 8-K writes `8-K`,
-    // `loi` and `redemption` — so an unfiltered read mixes sub-extractor
-    // outcomes into the count for the form the operator asked for.
-    const extractorId = formToExtractorId(form);
-    if (extractorId === undefined) {
+    // The outcomes being counted are the form's OWN extractors, which is a set
+    // and not a single id: a de-SPAC registration statement is both a
+    // registration and the merger proxy for the same vote, and each half runs
+    // and is ledgered under its own id. Reading every run row on the accession
+    // instead would mix in the sub-extractors a filing gates — a known-SPAC
+    // 8-K writes `8-K`, `loi` and `redemption` — and report the filing failed
+    // whenever a sub-extractor's row happened to come back last.
+    const extractorIds = extractorIdsForForm(form);
+    if (extractorIds.length === 0) {
       throw new TaskError(`No extractor is wired for form '${form}'`);
     }
     let succeeded = 0;
@@ -156,14 +159,28 @@ export class FetchAndStoreFormsTask extends Task<
       // re-processes and the PK includes extractor_version, so an older
       // attempt's row can still be here, and no backend guarantees the order a
       // query returns rows in.
-      const latest = await runRepo.findLatestRun(cik, filing.accession_number, extractorId);
-      if (latest?.outcome === "success") succeeded++;
-      else if (latest?.outcome === "partial") partial++;
-      else failed++;
+      //
+      // Rolled up across the form's extractors, worst outcome wins: the filing
+      // is done only when every extractor that owes it a run has one, so any
+      // failing extractor makes the filing failed and any partial one makes it
+      // partial. Identical to the single lookup it replaces on every form that
+      // carries one extractor.
+      let anyFailed = false;
+      let anyPartial = false;
+      for (const extractorId of extractorIds) {
+        const latest = await runRepo.findLatestRun(cik, filing.accession_number, extractorId);
+        if (latest?.outcome === "success") continue;
+        if (latest?.outcome === "partial") anyPartial = true;
+        else anyFailed = true;
+      }
+      if (anyFailed) failed++;
+      else if (anyPartial) partial++;
+      else succeeded++;
 
-      // Deliberately NOT filtered to `extractorId`: every pending entry on this
-      // accession is genuine triage produced by this fetch, including the ones
-      // the sub-extractors (`loi`, `redemption`) wrote while processing it.
+      // Deliberately NOT filtered to those extractor ids: every pending entry
+      // on this accession is genuine triage produced by this fetch, including
+      // the ones the sub-extractors (`loi`, `redemption`) wrote while
+      // processing it.
       const pending =
         (await deadLetterRepo.query({
           accession_number: filing.accession_number,

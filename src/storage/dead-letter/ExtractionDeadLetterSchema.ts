@@ -140,7 +140,16 @@ export type DeadLetterStatus = (typeof DEAD_LETTER_STATUSES)[number];
 
 /** `section_name = ""` denotes a filing-level (non-section) failure. */
 export const ExtractionDeadLetterSchema = Type.Object({
-  extractor_id: Type.String({ maxLength: 16 }),
+  /**
+   * Matches `extractor_runs.extractor_id`, which is what a dead letter is the
+   * failure counterpart of. Held to the same width for that reason: the two
+   * disagreed at 16 against 64, and an id longer than 16 — which a downstream
+   * package naming its extractor descriptively will have — failed validation
+   * here while succeeding there. `recordDeadLetterSafe` swallows that error to
+   * keep the sweep alive, so the failure reached the run ledger and the console
+   * but never this table, where `retry-dead-letters` would have found it.
+   */
+  extractor_id: Type.String({ maxLength: 64 }),
   accession_number: Type.String({ maxLength: 25 }),
   section_name: Type.String({ maxLength: 128, description: "'' for filing-level failures" }),
   reason_code: Type.String({ maxLength: 32 }),

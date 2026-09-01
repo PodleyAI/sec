@@ -22,12 +22,27 @@ import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDe
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { registerFormExtractor } from "../../sec/forms/formExtractors";
+import { PARSER_ONLY_FORMS_BY_EXTRACTOR } from "../../sec/forms/parserOnlyForms";
 import { ComputeFormsWorklistTask } from "./ComputeFormsWorklistTask";
 import { formsSweepLoop, parseShardOption } from "./formsSweep";
 import {
   ProcessAccessionDocFormTask,
   type ProcessAccessionDocFormTaskInput,
 } from "./ProcessAccessionDocFormTask";
+
+// This package parses the listing-removal family and does not read it — the
+// `25-15` extractor is supplied by a consumer — so a Form 25 reaches no sweep
+// here at all. Its PLACE in the sweep order still has to be right in a
+// deployment that has that consumer, which is what `SWEEP_PRIORITY` keeps a
+// slot for, so the order below is exercised against a stand-in registered over
+// exactly the forms this package pins as parser-only.
+registerFormExtractor({
+  id: "25-15",
+  forms: PARSER_ONLY_FORMS_BY_EXTRACTOR["25-15"],
+  needsDocument: false,
+  store: async () => {},
+});
 
 interface SeedFiling {
   cik: number;
@@ -110,9 +125,10 @@ describe("forms sweep wiring", () => {
   });
 
   it("drains forms in sweep order, not object-key order", async () => {
-    // JS orders integer-like keys first, so `Object.keys(FORM_TO_EXTRACTOR_ID)`
-    // puts the bare "25" fourth — long before the S-1 that mints the spac row
-    // `processDeregistration` is gated on. A first-pass sweep therefore dropped
+    // The worklist's default form list comes back in registration order, an
+    // accident of import order rather than a dependency order, and it can put
+    // the bare "25" long before the S-1 that mints the spac row the
+    // listing-removal handler is gated on. A first-pass sweep therefore dropped
     // every deregistration as a successful no-op.
     await seed({
       cik: 111,

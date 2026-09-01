@@ -113,6 +113,17 @@ export const FilingSchema = Type.Object({
       description: "Whether the filing contains inline XBRL data",
     })
   ),
+  // Optional, unlike its two siblings: EDGAR added `isXBRLNumeric` to the
+  // submissions payload after `isXBRL`, so a row ingested from an archived
+  // payload has no answer to give — distinct from a null meaning "asked, no".
+  is_xbrl_numeric: Type.Optional(
+    TypeNullable(
+      Type.Boolean({
+        description:
+          "Whether the filing contains numeric XBRL facts. Cover-page-only inline XBRL sets is_inline_xbrl without this, and yields a dei-only companyfacts document.",
+      })
+    )
+  ),
   items: TypeNullable(
     Type.String({
       description: "Items covered in the filing (for certain form types)",

@@ -4,14 +4,75 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { withSqliteDb } from "../../config/testing/withSqliteDb";
 import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../../storage/document/FilingDocumentSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import { minimalSpac } from "../../config/testing/minimalSpac";
-import { SPAC_REPOSITORY_TOKEN } from "../../storage/spac/SpacSchema";
+import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
+import {
+  clearFilingConversionGateForTesting,
+  registerFilingConversionGate,
+  type GateSqlFragment,
+  type GateSqlRequest,
+} from "./filingConversionGate";
 import { selectFilingsToConvert } from "./selectFilingsToConvert";
+
+/**
+ * A gate that pushes down, over a table this package owns.
+ *
+ * The filer set is a lifecycle model's, and that model ships elsewhere — so
+ * what belongs here is the sweep's half of the pushdown contract: a fragment
+ * spliced into the statement, correlated against the filing row, over a storage
+ * `resolveSqlBackend` finds durable. `entities` is the stand-in because it is
+ * CIK-keyed and this package creates it; which CIKs a real gate puts in such a
+ * table is that package's rule and that package's test.
+ */
+function entityExistsFragment({ backend, filingAlias }: GateSqlRequest): GateSqlFragment {
+  const q = backend === "sqlite" ? (id: string) => `\`${id}\`` : (id: string) => `"${id}"`;
+  return {
+    sql:
+      `EXISTS (SELECT 1 FROM ${q("entities")} e ` +
+      `WHERE e.${q("cik")} = ${filingAlias}.${q("cik")})`,
+    params: [],
+  };
+}
+
+/** Registers that gate against the live `entities` binding. */
+function registerEntityGate(): void {
+  const entities = globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN);
+  registerFilingConversionGate({
+    admittedCiks: async () => {
+      const ciks = new Set<number>();
+      for await (const row of entities.records(1000)) ciks.add(Number(row.cik));
+      return ciks;
+    },
+    pushdown: () => ({ storage: entities, fragment: entityExistsFragment }),
+  });
+}
+
+/**
+ * An `entities` row, which is what the gate above admits a filer by.
+ *
+ * Every nullable column is named: `TypeNullable` means "may hold null", not
+ * "may be absent", and the storage rejects a missing key on one.
+ */
+async function admitCik(cik: number): Promise<void> {
+  await globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN).put({
+    cik,
+    name: null,
+    type: null,
+    sic: null,
+    ein: null,
+    description: null,
+    website: null,
+    investor_website: null,
+    category: null,
+    fiscal_year: null,
+    state_incorporation: null,
+    state_incorporation_desc: null,
+  });
+}
 
 const VERSION = "3";
 
@@ -53,17 +114,23 @@ const documentRow = (accession: string, docFile: string, isPrimary: boolean) => 
  * before an interruption.
  */
 describe("selectFilingsToConvert primary gate (sqlite)", () => {
-  // `spac` is in the wiring because the 8-K fixtures below are gated on it:
-  // `DefaultDI` binds every token whether or not the table was created, so a
-  // sweep that reaches the gate needs the real table, not just the binding.
+  // `entities` is in the wiring because the 8-K fixtures below are gated on the
+  // gate registered against it: `DefaultDI` binds every token whether or not
+  // the table was created, so a sweep that reaches the gate needs the real
+  // table, not just the binding.
   withSqliteDb("select_filings_to_convert_sqlite_test", [
     FILING_REPOSITORY_TOKEN,
     FILING_DOCUMENT_REPOSITORY_TOKEN,
-    SPAC_REPOSITORY_TOKEN,
+    ENTITY_REPOSITORY_TOKEN,
   ]);
 
   beforeEach(async () => {
-    await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).put(minimalSpac(CIK));
+    registerEntityGate();
+    await admitCik(CIK);
+  });
+
+  afterEach(() => {
+    clearFilingConversionGateForTesting();
   });
 
   it("skips a filing whose primary document is stored, and keeps one with only exhibits", async () => {
@@ -122,23 +189,28 @@ describe("selectFilingsToConvert primary gate (sqlite)", () => {
  * silently returns the wrong set, which reads as "nothing to convert".
  */
 describe("selectFilingsToConvert 8-K gate (sqlite)", () => {
-  const SPAC_CIK = 1811882;
+  const ADMITTED_CIK = 1811882;
   const OTHER_CIK = 320193;
 
   withSqliteDb("select_filings_to_convert_gate_sqlite_test", [
     FILING_REPOSITORY_TOKEN,
     FILING_DOCUMENT_REPOSITORY_TOKEN,
-    SPAC_REPOSITORY_TOKEN,
+    ENTITY_REPOSITORY_TOKEN,
   ]);
 
   beforeEach(async () => {
+    registerEntityGate();
     const filings = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
-    await filings.put({ ...filing("0001493152-26-000010"), cik: SPAC_CIK } as never);
+    await filings.put({ ...filing("0001493152-26-000010"), cik: ADMITTED_CIK } as never);
     await filings.put({ ...filing("0001493152-26-000011"), cik: OTHER_CIK } as never);
   });
 
-  it("keeps a SPAC's 8-K and drops a non-SPAC's", async () => {
-    await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).put(minimalSpac(SPAC_CIK));
+  afterEach(() => {
+    clearFilingConversionGateForTesting();
+  });
+
+  it("keeps an admitted filer's 8-K and drops the rest", async () => {
+    await admitCik(ADMITTED_CIK);
     const selected = await selectFilingsToConvert({
       forms: ["8-K"],
       limit: 10,
@@ -147,10 +219,9 @@ describe("selectFilingsToConvert 8-K gate (sqlite)", () => {
     expect(selected.map((f) => f.accession_number)).toEqual(["0001493152-26-000010"]);
   });
 
-  it("matches a de-SPAC on its surviving CIK", async () => {
-    await globalServiceRegistry
-      .get(SPAC_REPOSITORY_TOKEN)
-      .put(minimalSpac(SPAC_CIK, { current_cik: OTHER_CIK }));
+  it("keeps both once the gate admits both filers", async () => {
+    await admitCik(ADMITTED_CIK);
+    await admitCik(OTHER_CIK);
     const selected = await selectFilingsToConvert({
       forms: ["8-K"],
       limit: 10,
@@ -182,5 +253,85 @@ describe("selectFilingsToConvert 8-K gate (sqlite)", () => {
         converterVersion: VERSION,
       })
     ).toHaveLength(0);
+  });
+});
+
+/**
+ * The gate seam on the raw-SQL path.
+ *
+ * The pushed-down half is where an unregistered gate would fall open most
+ * quietly: dropping the clause from the query leaves a statement that still
+ * runs, still binds, and returns every 8-K in the table. So the clause has to
+ * survive the gate's absence as a plain form exclusion — and the placeholder
+ * numbering has to survive it too, which is what the date floor here checks.
+ */
+describe("selectFilingsToConvert 8-K gate seam (sqlite)", () => {
+  const ADMITTED_CIK = 1811882;
+  const OTHER_CIK = 320193;
+
+  withSqliteDb("select_filings_to_convert_gate_seam_sqlite_test", [
+    FILING_REPOSITORY_TOKEN,
+    FILING_DOCUMENT_REPOSITORY_TOKEN,
+    ENTITY_REPOSITORY_TOKEN,
+  ]);
+
+  beforeEach(async () => {
+    const filings = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+    await filings.put({ ...filing("0001493152-26-000010"), cik: ADMITTED_CIK } as never);
+    await filings.put({ ...filing("0001493152-26-000011"), cik: OTHER_CIK } as never);
+    await filings.put({
+      ...filing("0001493152-26-000012"),
+      cik: OTHER_CIK,
+      form: "S-1",
+    } as never);
+    // The filer the gate WOULD admit is present: what changes the answer below
+    // is the missing registration, not a missing filer.
+    await admitCik(ADMITTED_CIK);
+    clearFilingConversionGateForTesting();
+  });
+
+  afterEach(() => {
+    clearFilingConversionGateForTesting();
+  });
+
+  it("selects no 8-K with no gate registered, and still selects the ungated forms", async () => {
+    expect(
+      await selectFilingsToConvert({
+        forms: ["8-K", "8-K/A"],
+        limit: 10,
+        converterVersion: VERSION,
+      })
+    ).toEqual([]);
+    const mixed = await selectFilingsToConvert({
+      forms: ["8-K", "S-1"],
+      since: "2026-01-01",
+      limit: 10,
+      converterVersion: VERSION,
+    });
+    expect(mixed.map((f) => f.accession_number)).toEqual(["0001493152-26-000012"]);
+  });
+
+  it("selects the admitted filer's 8-K again once a gate is registered", async () => {
+    registerEntityGate();
+    const selected = await selectFilingsToConvert({
+      forms: ["8-K"],
+      limit: 10,
+      converterVersion: VERSION,
+    });
+    expect(selected.map((f) => f.accession_number)).toEqual(["0001493152-26-000010"]);
+  });
+
+  it("still selects every filer's 8-K under all8k with no gate registered", async () => {
+    const selected = await selectFilingsToConvert({
+      forms: ["8-K"],
+      since: "2026-01-01",
+      limit: 10,
+      all8k: true,
+      converterVersion: VERSION,
+    });
+    expect(selected.map((f) => f.accession_number).sort()).toEqual([
+      "0001493152-26-000010",
+      "0001493152-26-000011",
+    ]);
   });
 });

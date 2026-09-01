@@ -49,7 +49,7 @@ const REPORT_DOCUMENT_TYPE: Readonly<Record<string, string>> = {
 export interface RegAReportDocument {
   /** The filer's own filename, for provenance. */
   readonly fileName: string;
-  /** The document body — HTML, ready for {@link parseRegAFinancialStatements}. */
+  /** The document body — HTML, ready for whatever reads the statements out. */
   readonly body: string;
 }
 

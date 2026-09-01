@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { InvestmentOfferingRepo } from "../../../storage/investment-offering/InvestmentOfferingRepo";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
@@ -25,34 +24,16 @@ import type {
 import type { InvestmentOffering } from "../../../storage/investment-offering/InvestmentOfferingSchema";
 import type { InvestmentOfferingHistory } from "../../../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { parseCikSafely } from "../../../util/parseCik";
-import { EntityObserver } from "../../../resolver/EntityObserver";
+import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
+import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
 import { COMPLETE_ROSTER_ROLE_SCOPES } from "../../../resolver/roleScopes";
-import { PersonResolver } from "../../../resolver/PersonResolver";
-import { CompanyResolver } from "../../../resolver/CompanyResolver";
-import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
-import { PersonObservationTitleRepo } from "../../../storage/observation/PersonObservationTitleRepo";
-import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
-import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
-import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
-import { CanonicalPersonRepo } from "../../../storage/canonical/CanonicalPersonRepo";
-import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
-import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
-import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
-import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
-import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
-import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
-import { PersonRoleRepo } from "../../../storage/canonical/PersonRoleRepo";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
-import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
-import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 
 interface FormDStorageContext {
   readonly accession_number: string;
   readonly extractor_id: "D";
   readonly extractor_version: string;
   readonly filing_date: string;
-  readonly observer: EntityObserver;
+  readonly observer: ObserveOnlyEntityObserver;
 }
 
 /**
@@ -471,63 +452,9 @@ export async function processFormD({
   primary_doc: string;
   formD: FormD;
 }): Promise<void> {
-  const versionRegistry = new VersionRegistry(
-    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-  );
-
-  const [personSlot, companySlot] = await Promise.all([
-    getActiveSlot(versionRegistry, "resolver", "person"),
-    getActiveSlot(versionRegistry, "resolver", "company"),
-  ]);
-
-  const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
-  const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
-
   const extractor_version = "1.0.0";
 
-  const personObservationRepo = new PersonObservationRepo();
-  const personObservationTitleRepo = new PersonObservationTitleRepo();
-  const companyObservationRepo = new CompanyObservationRepo();
-  const personIdentityLinkRepo = new PersonIdentityLinkRepo();
-  const companyIdentityLinkRepo = new CompanyIdentityLinkRepo();
-  const canonicalPersonRepo = new CanonicalPersonRepo();
-  const canonicalCompanyRepo = new CanonicalCompanyRepo();
-  const canonicalPersonAliasRepo = new CanonicalPersonAliasRepo();
-  const canonicalCompanyAliasRepo = new CanonicalCompanyAliasRepo();
-  const canonicalPersonAddressRepo = new CanonicalPersonAddressRepo();
-  const canonicalPersonPhoneRepo = new CanonicalPersonPhoneRepo();
-  const canonicalCompanyAddressRepo = new CanonicalCompanyAddressRepo();
-  const canonicalCompanyPhoneRepo = new CanonicalCompanyPhoneRepo();
-  const personRoleRepo = new PersonRoleRepo();
-
-  const personResolver = new PersonResolver({
-    canonicalPersonRepo,
-    canonicalPersonAliasRepo,
-    activeResolverVersion: activeResolverPersonVersion,
-  });
-
-  const companyResolver = new CompanyResolver({
-    canonicalCompanyRepo,
-    canonicalCompanyAliasRepo,
-    activeResolverVersion: activeResolverCompanyVersion,
-  });
-
-  const observer = new EntityObserver({
-    personObservationRepo,
-    personObservationTitleRepo,
-    companyObservationRepo,
-    personIdentityLinkRepo,
-    companyIdentityLinkRepo,
-    personResolver,
-    companyResolver,
-    canonicalPersonAddressRepo,
-    canonicalPersonPhoneRepo,
-    canonicalCompanyAddressRepo,
-    canonicalCompanyPhoneRepo,
-    personRoleRepo,
-    activeResolverPersonVersion,
-    activeResolverCompanyVersion,
-  });
+  const observer = buildObserveOnlyEntityObserver();
 
   const ctx: FormDStorageContext = {
     accession_number,
@@ -564,13 +491,17 @@ export async function processFormD({
   }
   // Form D's related-persons list is the COMPLETE roster of the issuer's
   // executive officers, directors, and promoters, so an open role this filing
-  // no longer asserts has ended. Closure requires the roster to be complete:
-  // at least one PERSON observed (an empty or all-entity list is not evidence
-  // everyone left) and no listed person dropped as junk — a person named in
-  // the filing but filtered out must not have their role closed. The verdict
-  // is handed to the closure rather than gating the call, so it is recorded
-  // either way: a dropped row leaves no observation, so nothing else would
-  // remember that this roster was partial.
+  // no longer asserts has ended. Whether it may end one turns on the roster
+  // being complete: at least one PERSON observed (an empty or all-entity list
+  // is not evidence everyone left) and no listed person dropped as junk — a
+  // person named in the filing but filtered out must not have their role
+  // closed. The verdict is handed over rather than gating the call, so it is
+  // recorded either way: a dropped row leaves no observation, so nothing else
+  // would remember that this roster was partial.
+  //
+  // Recording it is all this call does here. The observer records observations
+  // only, so it holds no tenure to close and returns 0; the verdict is what a
+  // later pass over the stored observations closes from.
   await observer.closeUnassertedPersonRoles({
     accession_number,
     extractor_id: "D",

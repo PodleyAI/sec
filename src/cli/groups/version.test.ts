@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { rmSync } from "node:fs";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { BootstrappedDbTemplate } from "../testing/bootstrappedDbTemplate";
+import { bootstrapDbTemplate } from "../testing/bootstrappedDbTemplate";
+import { readComponentEvents, readComponentSlots } from "../testing/readVersionDb";
 import { cliEnv, runCliProcess } from "../testing/runCliProcess";
 
 interface RunResult {
@@ -28,12 +29,31 @@ async function runCli(args: string[], dbFolder: string): Promise<RunResult> {
 }
 
 describe("sec version CLI", () => {
-  it("status shows the bootstrapped extractors after a fresh db setup", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
-    try {
-      const setup = await runCli(["db", "setup"], dir);
-      expect(setup.exitCode).toBe(0);
+  /** Straight out of `db setup`. */
+  let bootstrapped: BootstrappedDbTemplate;
+  /**
+   * `db setup` plus a major start-dev on D, so D has a next slot at 2.0.0.
+   * Tests whose subject is promote/rollback/drop-next start here instead of
+   * spending a process re-running the ceremony that gets them there — what
+   * start-dev itself does is asserted below, and in `ceremonies.test.ts`.
+   */
+  let withNextSlot: BootstrappedDbTemplate;
 
+  beforeAll(async () => {
+    bootstrapped = await bootstrapDbTemplate("sec-version-test-");
+    withNextSlot = await bootstrapped.derive("sec-version-next-", [
+      ["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"],
+    ]);
+  }, 60000);
+
+  afterAll(() => {
+    withNextSlot?.dispose();
+    bootstrapped?.dispose();
+  });
+
+  it("status shows the bootstrapped extractors after a fresh db setup", async () => {
+    const dir = bootstrapped.materialize();
+    try {
       const status = await runCli(["version", "status", "--format", "json"], dir);
       expect(status.exitCode).toBe(0);
       const parsed = JSON.parse(status.stdout);
@@ -47,7 +67,6 @@ describe("sec version CLI", () => {
         "1-A",
         "1-A-W",
         "1-K",
-        "1-SA",
         "1-U",
         "1-Z",
         "144",
@@ -56,17 +75,21 @@ describe("sec version CLI", () => {
         "3",
         "4",
         "424",
+        "424-xbrl",
         "5",
         "8-K",
+        "8-K-items",
         "C",
         "CFPORTAL",
         "D",
         "QUALIF",
         "RW",
         "S-1",
+        "S-1-xbrl",
         "loi",
         "merger-proxy",
         "redemption",
+        "rega-financials-1sa",
       ]);
       const extractorRows = parsed.filter(
         (r: { component_kind: string }) => r.component_kind === "extractor"
@@ -74,23 +97,20 @@ describe("sec version CLI", () => {
       for (const row of extractorRows) {
         expect(row.current).toBe("1.0.0");
       }
+      // An empty slot renders as an em dash rather than as null or "": the
+      // other tests read the slots out of the database, so this is the one
+      // place that pins how a missing one is printed.
+      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
+      expect(dRow?.next).toBe("—");
+      expect(dRow?.previous).toBe("—");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
   it("status --format json returns raw semver in next, with separate coverage flag", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = withNextSlot.materialize();
     try {
-      const setup = await runCli(["db", "setup"], dir);
-      expect(setup.exitCode).toBe(0);
-
-      const startDev = await runCli(
-        ["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"],
-        dir
-      );
-      expect(startDev.exitCode).toBe(0);
-
       const status = await runCli(["version", "status", "--format", "json"], dir);
       expect(status.exitCode).toBe(0);
       const parsed = JSON.parse(status.stdout);
@@ -106,11 +126,8 @@ describe("sec version CLI", () => {
   }, 15000);
 
   it("status rejects an unsupported --format value", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = bootstrapped.materialize();
     try {
-      const setup = await runCli(["db", "setup"], dir);
-      expect(setup.exitCode).toBe(0);
-
       const status = await runCli(["version", "status", "--format", "yaml"], dir);
       expect(status.exitCode).not.toBe(0);
       expect(status.stderr + status.stdout).toMatch(/Invalid --format/);
@@ -120,11 +137,8 @@ describe("sec version CLI", () => {
   });
 
   it("start-dev creates a next slot and history records it", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = bootstrapped.materialize();
     try {
-      const setup = await runCli(["db", "setup"], dir);
-      expect(setup.exitCode).toBe(0);
-
       const result = await runCli(
         [
           "version",
@@ -140,13 +154,7 @@ describe("sec version CLI", () => {
         dir
       );
       expect(result.exitCode).toBe(0);
-
-      const status = await runCli(["version", "status", "--format", "json"], dir);
-      expect(status.exitCode).toBe(0);
-      const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
-      expect(dRow?.next).toBe("2.0.0");
-      expect(dRow?.next_coverage_complete).toBe(false);
+      expect((await readComponentSlots(dir, "extractor", "D")).next).toBe("2.0.0");
 
       const history = await runCli(
         ["version", "history", "extractor", "D", "--format", "json"],
@@ -163,10 +171,8 @@ describe("sec version CLI", () => {
   }, 15000);
 
   it("coverage reports in-progress with a known denominator", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = withNextSlot.materialize();
     try {
-      await runCli(["db", "setup"], dir);
-      await runCli(["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"], dir);
       const result = await runCli(
         ["version", "coverage", "extractor", "D", "--format", "json"],
         dir
@@ -182,128 +188,77 @@ describe("sec version CLI", () => {
   }, 15000);
 
   it("promote with --force rotates slots and history records both events", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = withNextSlot.materialize();
     try {
-      await runCli(["db", "setup"], dir);
-      await runCli(["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"], dir);
       const promote = await runCli(["version", "promote", "extractor", "D", "--force"], dir);
       expect(promote.exitCode).toBe(0);
 
-      const status = await runCli(["version", "status", "--format", "json"], dir);
-      const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
-      expect(dRow?.current).toBe("2.0.0");
-      expect(dRow?.previous).toBe("1.0.0");
-      expect(dRow?.next).toBe("—");
-
-      const history = await runCli(
-        ["version", "history", "extractor", "D", "--format", "json"],
-        dir
-      );
-      const events = JSON.parse(history.stdout);
-      expect(events).toHaveLength(2);
-      expect(events[0].event_type).toBe("promote");
-      expect(events[1].event_type).toBe("start-dev");
+      expect(await readComponentSlots(dir, "extractor", "D")).toEqual({
+        current: "2.0.0",
+        previous: "1.0.0",
+        next: undefined,
+      });
+      const events = await readComponentEvents(dir, "extractor", "D");
+      expect(events.map((e) => e.event_type)).toEqual(["promote", "start-dev"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   }, 15000);
 
   it("rollback swaps current and previous", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = withNextSlot.materialize();
     try {
-      await runCli(["db", "setup"], dir);
-      await runCli(["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"], dir);
       await runCli(["version", "promote", "extractor", "D", "--force"], dir);
 
       const result = await runCli(["version", "rollback", "extractor", "D"], dir);
       expect(result.exitCode).toBe(0);
 
-      const status = await runCli(["version", "status", "--format", "json"], dir);
-      const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
-      expect(dRow?.current).toBe("1.0.0");
-      expect(dRow?.previous).toBe("2.0.0");
+      const slots = await readComponentSlots(dir, "extractor", "D");
+      expect(slots.current).toBe("1.0.0");
+      expect(slots.previous).toBe("2.0.0");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   }, 15000);
 
   it("drop-next clears the next slot", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = withNextSlot.materialize();
     try {
-      await runCli(["db", "setup"], dir);
-      await runCli(["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"], dir);
       const result = await runCli(["version", "drop-next", "extractor", "D"], dir);
       expect(result.exitCode).toBe(0);
-
-      const status = await runCli(["version", "status", "--format", "json"], dir);
-      const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
-      expect(dRow?.next).toBe("—");
+      // `current` is stated alongside the cleared slot: on its own, "next is
+      // absent" is equally true of a read that found nothing at all.
+      expect(await readComponentSlots(dir, "extractor", "D")).toEqual({
+        current: "1.0.0",
+        previous: undefined,
+        next: undefined,
+      });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   }, 15000);
 
   it("start-dev --bump patch updates current in place without a next slot", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = bootstrapped.materialize();
     try {
-      await runCli(["db", "setup"], dir);
       const result = await runCli(
         ["version", "start-dev", "extractor", "D", "1.0.1", "--bump", "patch"],
         dir
       );
       expect(result.exitCode).toBe(0);
-
-      const status = await runCli(["version", "status", "--format", "json"], dir);
-      const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
-      expect(dRow?.current).toBe("1.0.1");
-      expect(dRow?.next).toBe("—");
-      expect(dRow?.previous).toBe("—");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  }, 15000);
-
-  it("coverage resolver person shows coverage fraction", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
-    try {
-      const setup = await runCli(["db", "setup"], dir);
-      expect(setup.exitCode).toBe(0);
-
-      const result = await runCli(["version", "coverage", "resolver", "person"], dir);
-      expect(result.exitCode).toBe(0);
-      // Output: "resolver:person@1.0.0: 0/0 (0.0%)" — no observations seeded
-      expect(result.stdout).toContain("resolver:person@");
-      expect(result.stdout).toContain("0/0");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("coverage resolver sponsor-family / underwriter-family report instead of erroring", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
-    try {
-      const setup = await runCli(["db", "setup"], dir);
-      expect(setup.exitCode).toBe(0);
-
-      for (const kind of ["sponsor-family", "underwriter-family"]) {
-        const result = await runCli(["version", "coverage", "resolver", kind], dir);
-        expect(result.exitCode).toBe(0);
-        expect(result.stdout).toContain(`resolver:${kind}@`);
-        expect(result.stdout).toContain("0/0");
-      }
+      expect(await readComponentSlots(dir, "extractor", "D")).toEqual({
+        current: "1.0.1",
+        previous: undefined,
+        next: undefined,
+      });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   }, 15000);
 
   it("rejects start-dev for an unknown extractor id", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = bootstrapped.materialize();
     try {
-      await runCli(["db", "setup"], dir);
       const result = await runCli(
         ["version", "start-dev", "extractor", "no-such-form", "1.0.0", "--bump", "major"],
         dir

@@ -4,32 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { reportSpacProcessRows, spacProcessFailureCount } from "../../commands/spac";
 import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
 import { CatchUpDailyIndexTask } from "../../task/index/CatchUpDailyIndexTask";
 import {
   ConvertFilingDocumentsTask,
   DEFAULT_CONVERT_LIMIT,
 } from "../../task/document/ConvertFilingDocumentsTask";
-import { IdentifySpacsTask } from "../../task/spac/IdentifySpacsTask";
-import { ProcessSpacTimelineTask } from "../../task/spac/ProcessSpacTimelineTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
-import { isDryRun } from "../isDryRun";
+import { parseIntOption } from "../GlobalOptions";
 import { runWorkflowCli } from "../runWorkflow";
 import { runFormsSweep } from "./runFormsSweep";
-import {
-  runSpacTimelineIssuers,
-  spacProcessRows,
-  type SpacProcessColumns,
-} from "./runSpacTimelineIssuers";
-import {
-  filterSpacCiksByHistory,
-  listSpacProcessCiks,
-  shardCiks,
-  spacUpdatesFiledOnOrAfter,
-} from "./spacSyncCiks";
 import { SYNC_FORM_DOMAINS, expandFormTypes, formsForExtractorIds } from "./syncFormDomains";
-import { getSyncLeaf, registerSyncLeaf, type SyncRunContext } from "./syncLeaves";
+import {
+  getSyncLeaf,
+  registerSyncLeaf,
+  SHARD_LEAF_OPTION,
+  type SyncRunContext,
+} from "./syncLeaves";
 
 export function registerSecSyncLeaves(): void {
   if (getSyncLeaf("submissions") !== undefined) {
@@ -41,6 +32,26 @@ export function registerSecSyncLeaves(): void {
     description: "Catch up daily indexes and refresh submissions",
     order: 10,
     inAll: true,
+    options: {
+      declare: [
+        {
+          flags: "--force",
+          description: "Reprocess submissions, ignoring processed state",
+          defaultValue: false,
+        },
+        {
+          flags: "--from <date>",
+          description:
+            "Exclusive catch-up start (YYYY-MM-DD); fetch begins the day after this date",
+        },
+        {
+          flags: "--lookback <n>",
+          description: "Completed days to re-fetch (default 3)",
+          parse: parseIntOption,
+          defaultValue: 3,
+        },
+      ],
+    },
     steps: [
       {
         id: "index",
@@ -74,6 +85,29 @@ export function registerSecSyncLeaves(): void {
     description: "Refresh company facts for all CIKs",
     order: 20,
     inAll: true,
+    options: {
+      declare: [
+        {
+          flags: "--force",
+          description: "Reprocess all items, ignoring processed state",
+          defaultValue: false,
+        },
+        {
+          flags: "--retry-failed",
+          description: "Also re-fetch CIKs whose last facts processing failed",
+          defaultValue: false,
+        },
+        {
+          flags: "--all-ciks",
+          description:
+            "Fetch never-processed CIKs with no XBRL filing and no SIC too (~14x the work, almost all 404s)",
+          defaultValue: false,
+        },
+      ],
+      readContext: (values) => ({
+        allCiks: values.allCiks === true,
+      }),
+    },
     steps: [
       {
         id: "facts",
@@ -81,7 +115,11 @@ export function registerSecSyncLeaves(): void {
         run: async (ctx: SyncRunContext) => {
           await runWorkflowCli([
             new UpdateAllCompanyFactsTask({
-              defaults: { force: ctx.force, retryFailed: ctx.retryFailed },
+              defaults: {
+                force: ctx.force,
+                retryFailed: ctx.retryFailed,
+                allCiks: ctx.allCiks,
+              },
             }),
           ]);
         },
@@ -94,6 +132,7 @@ export function registerSecSyncLeaves(): void {
     description: "Process CFPORTAL registration forms",
     order: 30,
     inAll: true,
+    options: { declare: [SHARD_LEAF_OPTION] },
     steps: [
       {
         id: "portals",
@@ -114,6 +153,7 @@ export function registerSecSyncLeaves(): void {
     description: "Process Form C family filings",
     order: 40,
     inAll: true,
+    options: { declare: [SHARD_LEAF_OPTION] },
     steps: [
       {
         id: "crowdfunding",
@@ -134,6 +174,7 @@ export function registerSecSyncLeaves(): void {
     description: "Process Reg A family filings",
     order: 50,
     inAll: true,
+    options: { declare: [SHARD_LEAF_OPTION] },
     steps: [
       {
         id: "reg-a",
@@ -154,6 +195,7 @@ export function registerSecSyncLeaves(): void {
     description: "Process specific form types (comma-separated)",
     order: 55,
     inAll: false,
+    options: { declare: [SHARD_LEAF_OPTION] },
     steps: [
       {
         id: "forms",
@@ -173,114 +215,70 @@ export function registerSecSyncLeaves(): void {
   });
 
   registerSyncLeaf({
-    id: "spacs",
-    description: "Identify SPAC candidates and process SPAC filings",
-    order: 60,
-    inAll: true,
-    steps: [
-      {
-        id: "identify",
-        title: "Identify SPAC candidates",
-        run: async (ctx: SyncRunContext) => {
-          await runWorkflowCli([new IdentifySpacsTask({ defaults: { full: ctx.full } })]);
-        },
-      },
-      {
-        id: "process",
-        title: "Process SPAC filings",
-        run: async (ctx: SyncRunContext) => {
-          const processCiks = shardCiks(
-            await filterSpacCiksByHistory(await listSpacProcessCiks(), ctx.only),
-            ctx.shard
-          );
-          if (processCiks.length === 0) {
-            if (ctx.only === "never-processed") {
-              console.log("No never-processed SPACs");
-            } else if (ctx.only === "updates") {
-              console.log("No previously processed SPACs");
-            } else {
-              console.log("No known SPACs or high/medium candidates");
-            }
-            return;
-          }
-          const filedOnOrAfter =
-            ctx.only === "updates" ? await spacUpdatesFiledOnOrAfter() : undefined;
-          const rows = await runSpacTimelineIssuers({
-            ciks: processCiks,
-            concurrency: ctx.concurrency,
-            filedOnOrAfter,
-          });
-          reportSpacProcessRows(rows, { dryRun: isDryRun() });
-          const failed = spacProcessFailureCount(rows);
-          if (failed > 0) {
-            throw new Error(`${failed} of ${processCiks.length} issuer(s) had failed filings`);
-          }
-        },
-      },
-    ],
-    runAll: async (ctx: SyncRunContext) => {
-      const filedOnOrAfter = ctx.only === "updates" ? await spacUpdatesFiledOnOrAfter() : undefined;
-      const { failed, total } = await runWorkflowCli<{ failed: number; total: number }>(
-        [new IdentifySpacsTask({ defaults: { full: ctx.full } })],
-        undefined,
-        (wf) => {
-          wf.pipe(async () => ({
-            cik: shardCiks(
-              await filterSpacCiksByHistory(await listSpacProcessCiks(), ctx.only),
-              ctx.shard
-            ),
-          }));
-          // The map's dynamic loop-body schema only auto-connects by name/type
-          // (not the blanket wildcard a plain `pipe()` edge uses), and a
-          // pipe-function task only ever declares a literal `"*"` output
-          // property — so it can never match the loop's `cik` input by name.
-          // `.rename("*", "*")` queues the same wildcard dataflow `pipe()`
-          // would have used, bypassing that name match entirely.
-          wf.rename("*", "*");
-          const loop = wf.map({
-            concurrencyLimit: Math.max(1, ctx.concurrency),
-            maxIterations: "unbounded",
-            preserveOrder: true,
-          });
-          loop.pipe(
-            new ProcessSpacTimelineTask({
-              defaults: filedOnOrAfter !== undefined ? { filedOnOrAfter } : {},
-            })
-          );
-          loop.endMap();
-          wf.pipe((columns: SpacProcessColumns) => {
-            const rows = spacProcessRows(columns);
-            if (rows.length === 0) {
-              if (ctx.only === "never-processed") {
-                console.log("No never-processed SPACs");
-              } else if (ctx.only === "updates") {
-                console.log("No previously processed SPACs");
-              } else {
-                console.log("No known SPACs or high/medium candidates");
-              }
-              return { failed: 0, total: 0 };
-            }
-            reportSpacProcessRows(rows, { dryRun: isDryRun() });
-            return { failed: spacProcessFailureCount(rows), total: rows.length };
-          });
-        }
-      );
-      // Kept outside the graph: `runWorkflowCli`'s contract is that only
-      // unexpected failures should throw from inside it, since a TTY run
-      // intercepts a thrown error with `process.exit(1)`, bypassing normal
-      // command error handling. A nonzero failure count is an expected,
-      // reportable outcome, not a crash.
-      if (failed > 0) {
-        throw new Error(`${failed} of ${total} issuer(s) had failed filings`);
-      }
-    },
-  });
-
-  registerSyncLeaf({
     id: "documents",
     description: "Convert filing documents to markdown sections",
     order: 70,
     inAll: true,
+    options: {
+      declare: [
+        {
+          flags: "--types <list>",
+          description:
+            "Comma-separated forms to convert (default: the narrative set in CONVERTIBLE_FORMS)",
+        },
+        {
+          flags: "--since <date>",
+          description: "Only filings filed on or after this date (YYYY-MM-DD)",
+        },
+        {
+          flags: "--cik <cik>",
+          description:
+            "Convert only this issuer's filings — what you want after processing one " +
+            "issuer, since the unfiltered sweep works newest-first across every filer",
+          // Rejected by `parseIntOption` at parse time rather than by the leaf:
+          // a mistyped CIK that fell through would convert the newest 500
+          // filings of every filer, which looks like success and is not what
+          // was asked.
+          parse: parseIntOption,
+        },
+        {
+          flags: "--limit <n>",
+          description:
+            "How many filings to convert in this run (default 500) — a backfill is many runs",
+          parse: parseIntOption,
+        },
+        {
+          flags: "--all-8k",
+          description:
+            "Convert 8-Ks from every filer, not just the ones the registered gate admits — " +
+            "the default skips them because every reporting company files them",
+          defaultValue: false,
+        },
+        {
+          flags: "--download-only",
+          description:
+            "Fetch each selected filing into the accession-doc cache and stop — no parsing, " +
+            "no rows written; re-running converts them with no further requests",
+          defaultValue: false,
+        },
+        {
+          flags: "--force",
+          description: "Re-convert filings already stored at the current converter version",
+          defaultValue: false,
+        },
+      ],
+      readContext: (values) => ({
+        // `sync forms --types` already means "narrow to these forms"; reusing
+        // it here keeps one vocabulary rather than inventing a second spelling
+        // of the same idea.
+        formTypes: typeof values.types === "string" ? values.types.split(",") : undefined,
+        from: typeof values.since === "string" ? values.since : undefined,
+        cik: typeof values.cik === "number" ? values.cik : undefined,
+        limit: typeof values.limit === "number" ? values.limit : undefined,
+        all8k: values.all8k === true,
+        downloadOnly: values.downloadOnly === true,
+      }),
+    },
     steps: [
       {
         id: "convert",
@@ -289,9 +287,6 @@ export function registerSecSyncLeaves(): void {
           await runWorkflowCli([
             new ConvertFilingDocumentsTask({
               defaults: {
-                // `sync forms --types` already means "narrow to these forms";
-                // reusing it here keeps one vocabulary rather than inventing a
-                // second spelling of the same idea.
                 forms: ctx.formTypes?.length ? expandFormTypes(ctx.formTypes) : undefined,
                 since: ctx.from,
                 cik: ctx.cik,

@@ -15,14 +15,9 @@ import { addInitCommand } from "../cli/groups/init";
 import { addQueryCommands } from "../cli/groups/query";
 import { addSyncCommand } from "../cli/groups/sync";
 import { addVersionCommands } from "../cli/groups/version";
-import { addResolveCommands } from "../cli/groups/resolve";
-import { addCanonicalCommands } from "../cli/groups/canonical";
 import { addExtractorCommands } from "../cli/groups/extractor";
 import { addVerifyCommands } from "../cli/groups/verify";
-import { addEvalCommands } from "../cli/groups/eval";
-import { registerSponsorFamilyCommands } from "./sponsorFamily";
-import { registerUnderwriterFamilyCommands } from "./underwriterFamily";
-import { registerSpacCommands } from "./spac";
+import { registerIssuerCommands } from "./issuerTickers";
 import { registerEditorialCommands } from "./editorial";
 import { bootstrapSecRuntime } from "../config/bootstrapSecRuntime";
 import { registerSecWebUi } from "../web/registerSecWebUi";
@@ -91,14 +86,14 @@ function commandPath(command: Command): string {
  * Whether a command runs without a database, so DI bring-up must be skipped.
  *
  * **This predicate is the contract, and the sets behind it are deliberately not
- * exported.** A superset CLI (embarc-data) installs its OWN preAction hook to
+ * exported.** A superset CLI installs its OWN preAction hook to
  * register private-data repos, and that registration calls `createStorage()`,
  * which reads `sec.db.type` — a token only sec's bootstrap registers. So a
  * superset testing a different condition crashes on exactly the commands sec
  * runs deliberately without a database.
  *
  * That has now happened twice. First when `golden-fixtures` was added to a set
- * embarc-data restated locally. Then again when `verify` needed path matching
+ * a superset restated locally. Then again when `verify` needed path matching
  * and gained a second set the superset did not know to consult — a superset
  * reading only the first set is not restating anything, and still breaks.
  * Exporting one function instead of the data leaves nothing to keep in sync:
@@ -136,15 +131,10 @@ export const AddCommands = (program: Command): void => {
   addDbCommands(program);
   addInitCommand(program);
   addVersionCommands(program);
-  addResolveCommands(program);
-  addCanonicalCommands(program);
-  registerSponsorFamilyCommands(program);
-  registerUnderwriterFamilyCommands(program);
-  registerSpacCommands(program);
+  registerIssuerCommands(program);
   registerEditorialCommands(program);
   addExtractorCommands(program);
   addVerifyCommands(program);
-  addEvalCommands(program);
   // What the console shows for those commands: pickers for the identifiers
   // (CIK, accession, extractor id), panels over their output, the operator
   // rail, and the cost/safety badges. Registration is inert — it reads nothing
@@ -154,9 +144,9 @@ export const AddCommands = (program: Command): void => {
   // registered above off the live program, so nothing here has to be restated.
   //
   // The binary name is deliberately NOT pinned to "sec". A superset calls this
-  // to inherit the whole SEC surface — embarc-data does — and a pinned name
-  // made its console render every command line as `sec …` for a binary that is
-  // not sec. `registerWebCommand` falls back to `program.name()`, which each
-  // entrypoint sets for itself.
+  // to inherit the whole SEC surface, and a pinned name made its console render
+  // every command line as `sec …` for a binary that is not sec.
+  // `registerWebCommand` falls back to `program.name()`, which each entrypoint
+  // sets for itself.
   registerWebCommand(program);
 };

@@ -5,15 +5,7 @@
  */
 
 import { parse } from "csv-parse/sync";
-import { FamilyDescriptionRepo } from "../storage/canonical/FamilyDescriptionRepo";
-import {
-  FAMILY_DESCRIPTION_KINDS,
-  type FamilyDescriptionKind,
-} from "../storage/canonical/FamilyDescriptionSchema";
-import { SpacRepo } from "../storage/spac/SpacRepo";
-import { SpacReportWriter } from "../storage/spac/SpacReportWriter";
-import { normalizeSponsorFamilyName } from "../resolver/SponsorFamilyResolver";
-import { normalizeUnderwriterFamilyName } from "../resolver/UnderwriterFamilyResolver";
+import { normalizeFamilyName } from "../storage/company/CompanyFamilyName";
 
 /**
  * CSV import for editorial data with no SEC-filing source. Two formats,
@@ -65,11 +57,23 @@ function isJsonObject(value: string): boolean {
   }
 }
 
+/**
+ * The `family_kind` column's vocabulary. It lives with the CSV rather than with
+ * the table, because the format is this package's and the table it feeds is not:
+ * a deployment with no family tier still parses and rejects these files by the
+ * same rules.
+ */
+export const FAMILY_DESCRIPTION_KINDS = ["sponsor-family", "underwriter-family"] as const;
+export type FamilyDescriptionKind = (typeof FAMILY_DESCRIPTION_KINDS)[number];
+
 /** Normalizes a family name with the SAME normalizer the resolver/alias CLI uses. */
-export function normalizeFamilyNameForKind(kind: FamilyDescriptionKind, name: string): string {
-  return kind === "sponsor-family"
-    ? normalizeSponsorFamilyName(name)
-    : normalizeUnderwriterFamilyName(name);
+export function normalizeFamilyNameForKind(_kind: FamilyDescriptionKind, name: string): string {
+  // Both kinds normalize identically today — the sponsor and underwriter
+  // resolvers each call `normalizeFamilyName` and nothing else. The kind stays
+  // in the signature because callers have one and the two could diverge; what
+  // it must not do is make this function need the family tier, which is a
+  // different package's.
+  return normalizeFamilyName(name);
 }
 
 /** Parse and validate an editorial CSV; format is detected from the header row. */
@@ -165,56 +169,74 @@ export interface ImportSpacEditorialResult {
 }
 
 /**
- * Apply spac editorial rows via {@link SpacReportWriter.recordEditorial}. A CIK
- * with no spac row is skipped (and reported) unless `createMissing` — creating
- * a row marks the CIK a known SPAC, which gates 8-K/proxy processing, so
- * minting rows is opt-in.
+ * Writes parsed spac editorial rows onto the lifecycle rows they name.
+ *
+ * `createMissing` is what a caller passes through from `--create-missing`: a
+ * CIK with no lifecycle row is skipped and reported rather than minted, because
+ * minting one marks the CIK a known SPAC and that gates a whole tier of
+ * extraction.
  */
-export async function importSpacEditorial(
+export type SpacEditorialImporter = (
   rows: readonly SpacEditorialRow[],
   opts: { readonly createMissing: boolean; readonly dryRun: boolean }
-): Promise<ImportSpacEditorialResult> {
-  const spacRepo = new SpacRepo();
-  const writer = new SpacReportWriter();
-  let written = 0;
-  let created = 0;
-  const skippedMissing: number[] = [];
-  for (const row of rows) {
-    const exists = (await spacRepo.getSpac(row.cik)) !== undefined;
-    if (!exists && !opts.createMissing) {
-      skippedMissing.push(row.cik);
-      continue;
-    }
-    if (!opts.dryRun) {
-      await writer.recordEditorial({
-        cik: row.cik,
-        url_spac: row.url_spac,
-        url_sponsor: row.url_sponsor,
-        details: row.details,
-      });
-    }
-    written++;
-    if (!exists) created++;
-  }
-  return { written, created, skippedMissing };
+) => Promise<ImportSpacEditorialResult>;
+
+/**
+ * The contributed importer, or undefined when nothing registered one.
+ *
+ * The CSV is this package's — its shape, its validation, its line-numbered
+ * errors — but the rows it names live in a lifecycle model that need not ship
+ * here. So the parse stays and the WRITE is contributed. With nothing
+ * registered, an editorial CSV of that shape is refused by name rather than
+ * reported as imported: a caller that hands this a file and is told it wrote
+ * rows nobody stored has been told something false.
+ */
+let registeredSpacImporter: SpacEditorialImporter | undefined;
+
+/** Contribute the writer for the spac half of an editorial CSV. Idempotent. */
+export function registerSpacEditorialImporter(importer: SpacEditorialImporter): void {
+  registeredSpacImporter = importer;
 }
 
-/** Apply family-description rows to the version-independent `family_description` table. */
-export async function importFamilyDescriptions(
+/** Test hook: forget the contributed importer. */
+export function clearSpacEditorialImporterForTesting(): void {
+  registeredSpacImporter = undefined;
+}
+
+/** The contributed importer, or undefined when none was contributed. */
+export function spacEditorialImporter(): SpacEditorialImporter | undefined {
+  return registeredSpacImporter;
+}
+
+/** Writes parsed family-description rows onto the families they name. */
+export type FamilyEditorialImporter = (
   rows: readonly FamilyDescriptionRow[],
   opts: { readonly dryRun: boolean }
-): Promise<{ readonly written: number }> {
-  const repo = new FamilyDescriptionRepo();
-  let written = 0;
-  for (const row of rows) {
-    if (!opts.dryRun) {
-      await repo.setDescription(
-        row.family_kind,
-        normalizeFamilyNameForKind(row.family_kind, row.name),
-        row.description
-      );
-    }
-    written++;
-  }
-  return { written };
+) => Promise<{ readonly written: number }>;
+
+/**
+ * The contributed writer for the family half, or undefined when nothing
+ * registered one.
+ *
+ * Same division as the spac half above, for the same reason: the CSV is this
+ * package's — its shape, its validation, its line-numbered errors — but the
+ * families it names are a tier that need not ship here. With nothing
+ * registered, a family CSV is refused by name rather than reported as
+ * imported.
+ */
+let registeredFamilyImporter: FamilyEditorialImporter | undefined;
+
+/** Contribute the writer for the family half of an editorial CSV. Idempotent. */
+export function registerFamilyEditorialImporter(importer: FamilyEditorialImporter): void {
+  registeredFamilyImporter = importer;
+}
+
+/** Test hook: forget the contributed importer. */
+export function clearFamilyEditorialImporterForTesting(): void {
+  registeredFamilyImporter = undefined;
+}
+
+/** The contributed importer, or undefined when none was contributed. */
+export function familyEditorialImporter(): FamilyEditorialImporter | undefined {
+  return registeredFamilyImporter;
 }

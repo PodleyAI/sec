@@ -11,10 +11,13 @@ import { secFetchRateLimiterTableNames } from "../task/fetch/secFetchRateLimiter
 import { getDb } from "../util/db";
 import { getPgPool } from "../util/pg";
 import { currentSchemaName, quote } from "../util/pgIdentifiers";
-import { listDatabaseExtensionTokens, runDatabaseSetupHooks } from "./databaseExtensions";
+import {
+  listDatabaseExtensionTokens,
+  listDatabaseViewNames,
+  runDatabaseSetupHooks,
+} from "./databaseExtensions";
 import { listRegisteredTables } from "./tableRegistry";
 import { SEC_DB_TYPE } from "./tokens";
-import { CURRENT_CANONICAL_VIEW_NAMES } from "../storage/canonical/views";
 import { ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN } from "../storage/address/AddressHistorySchema";
 import {
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
@@ -29,7 +32,6 @@ import { SIC_CODE_REPOSITORY_TOKEN } from "../storage/entity/SicCodeSchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../storage/facts/CompanyFactsSchema";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../storage/document/FilingDocumentSchema";
-import { EXTRACTION_CACHE_REPOSITORY_TOKEN } from "../storage/extraction/ExtractionCacheSchema";
 import { FILING_SECTION_REPOSITORY_TOKEN } from "../storage/document/FilingSectionSchema";
 import { INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingSchema";
@@ -51,49 +53,22 @@ import { DAILY_INDEX_CURSOR_REPOSITORY_TOKEN } from "../storage/processing/Daily
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFactsSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedSubmissionsSchema";
 import { REGA_CURRENT_REPORT_REPOSITORY_TOKEN } from "../storage/reg-a/RegACurrentReportSchema";
-import { REGA_FINANCIAL_LINE_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinancialLineSchema";
 import { REGA_OFFERING_EVENT_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingEventSchema";
 import { REGA_EQUITY_CLASS_REPOSITORY_TOKEN } from "../storage/reg-a/RegAEquityClassSchema";
 import { REGA_FINANCIAL_DATA_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinancialDataSchema";
 import { REGA_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingHistorySchema";
 import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
 import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegAServiceProviderSchema";
-import {
-  CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
-} from "../storage/canonical/CanonicalAliasSchemas";
-import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalCompanySchema";
 import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
-import {
-  CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
-  CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
-  CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
-} from "../storage/canonical/CanonicalJunctionSchemas";
-import { CANONICAL_PERSON_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalPersonSchema";
-import { COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/CompanyIdentityLinkSchema";
-import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/PersonIdentityLinkSchema";
 import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
 import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
-import { PERSON_ROLE_REPOSITORY_TOKEN } from "../storage/canonical/PersonRoleSchema";
-import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/canonical/RoleRosterCompletenessSchema";
+import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/roster/RoleRosterCompletenessSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
 import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
 import { EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN } from "../storage/executive-compensation/ExecutiveCompensationSchema";
-import {
-  CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
-  CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
-} from "../storage/canonical/CanonicalAliasSchemas";
-import { CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalSponsorFamilySchema";
-import { FAMILY_DESCRIPTION_REPOSITORY_TOKEN } from "../storage/canonical/FamilyDescriptionSchema";
-import { CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalUnderwriterFamilySchema";
-import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSponsorLinkSchema";
-import { SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN } from "../storage/canonical/SponsorFamilyMembershipSchema";
-import { UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterFamilyMembershipSchema";
-import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
 import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1ClassificationSchema";
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/ExtractionDeadLetterSchema";
 import {
@@ -105,8 +80,6 @@ import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTicker
 import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
 import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
 import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
-import { SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacLockupTermsSchema";
-import { FIELD_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/FieldProvenanceSchema";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
 import {
@@ -114,16 +87,6 @@ import {
   SECTION16_HOLDING_REPOSITORY_TOKEN,
   SECTION16_TRANSACTION_REPOSITORY_TOKEN,
 } from "../storage/section16/Section16Schema";
-import { SPAC_DEAL_REPOSITORY_TOKEN } from "../storage/spac/SpacDealSchema";
-import { SPAC_EVENT_REPOSITORY_TOKEN } from "../storage/spac/SpacEventSchema";
-import { SPAC_HISTORY_REPOSITORY_TOKEN } from "../storage/spac/SpacHistorySchema";
-import { SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacMergerExtractionSchema";
-import { SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacRedemptionExtractionSchema";
-import { SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacLoiExtractionSchema";
-import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../storage/spac/SpacCandidateSchema";
-import { SPAC_REPOSITORY_TOKEN } from "../storage/spac/SpacSchema";
-import { RISK_FACTOR_REPOSITORY_TOKEN } from "../storage/risk-factor/RiskFactorSchema";
-import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 
 /** Options for {@link resetAllDatabases}. */
@@ -258,8 +221,9 @@ async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {
     await client.query("BEGIN");
     try {
       // Views first: they depend on the tables, so dropping them up front keeps
-      // the table drops from needing CASCADE for sec's own objects.
-      for (const view of CURRENT_CANONICAL_VIEW_NAMES) {
+      // the table drops from needing CASCADE. Every view is contributed now —
+      // the tier that owns the tables under them registers its own.
+      for (const view of listDatabaseViewNames()) {
         await client.query(
           `DROP VIEW IF EXISTS ${qualify(view)}${options.cascade ? " CASCADE" : ""}`
         );
@@ -343,7 +307,7 @@ function resetSqlite(options: ResetAllDatabasesOptions): void {
   // table still referenced by one not yet dropped.
   db.exec("PRAGMA foreign_keys = OFF");
   try {
-    for (const view of CURRENT_CANONICAL_VIEW_NAMES) {
+    for (const view of listDatabaseViewNames()) {
       db.exec(`DROP VIEW IF EXISTS "${quote(view)}"`);
     }
     // SQLite has a single schema per attached database, so an unqualified name
@@ -419,7 +383,6 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(EXTRACTION_CACHE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(FILING_SECTION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CROWDFUNDING_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN).deleteAll();
@@ -434,7 +397,6 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(REGA_FINANCIAL_DATA_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_EQUITY_CLASS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_CURRENT_REPORT_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_FINANCIAL_LINE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_OFFERING_EVENT_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN).deleteAll();
@@ -446,23 +408,11 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PERSON_ROLE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CANONICAL_PERSON_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CANONICAL_COMPANY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PERSON_IDENTITY_LINK_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(FORM_8K_EVENT_REPOSITORY_TOKEN).deleteAll();
   // Observation provenance + AI-extracted offering / ownership / related-party tiers.
   await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FIELD_PROVENANCE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN).deleteAll();
@@ -472,19 +422,7 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(OFFERING_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(RISK_FACTOR_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(USE_OF_PROCEEDS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).deleteAll();
-  // SPAC lifecycle: derived `spac` row + append-only deal/event/extraction tables.
-  await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_DEAL_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_EVENT_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_HISTORY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN).deleteAll();
   // Section 16 (Forms 3/4/5) and Form 144 detail tables.
   await globalServiceRegistry.get(SECTION16_FILING_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SECTION16_TRANSACTION_REPOSITORY_TOKEN).deleteAll();
@@ -493,15 +431,6 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(FORM144_ACQUISITION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(FORM144_RECENT_SALE_REPOSITORY_TOKEN).deleteAll();
   // Family-tier canonical / alias / membership / link tables (sponsor + underwriter).
-  await globalServiceRegistry.get(CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FAMILY_DESCRIPTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(UNDERWRITER_LINK_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_SPONSOR_LINK_REPOSITORY_TOKEN).deleteAll();
   // Truncate any downstream-registered extension repos after the built-in ones.
   for (const token of listDatabaseExtensionTokens()) {
     await globalServiceRegistry.get(token).deleteAll();

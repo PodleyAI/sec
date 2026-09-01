@@ -5,28 +5,11 @@
  */
 
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { cliEnv, runCliProcess } from "../testing/runCliProcess";
-
-interface RunResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-}
-
-async function runCli(args: string[], dbFolder: string): Promise<RunResult> {
-  return runCliProcess(
-    ["bun", "src/sec.ts", ...args],
-    cliEnv({
-      SEC_DB_TYPE: "sqlite",
-      SEC_DB_FOLDER: dbFolder,
-      SEC_DB_NAME: "edgar",
-    })
-  );
-}
+import { rmSync } from "node:fs";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { BootstrappedDbTemplate } from "../testing/bootstrappedDbTemplate";
+import { bootstrapDbTemplate } from "../testing/bootstrappedDbTemplate";
+import { cliEnv } from "../testing/runCliProcess";
 
 /**
  * Spawn the CLI and wait until the version-gate warning is observed on
@@ -88,12 +71,19 @@ function spawnUntilWarning(
 }
 
 describe("--force warning on commands that no longer reprocess forms", () => {
-  it("sync all --force prints the version-gate warning", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-force-warn-"));
-    try {
-      const setup = await runCli(["db", "setup"], dir);
-      expect(setup.exitCode).toBe(0);
+  let template: BootstrappedDbTemplate;
 
+  beforeAll(async () => {
+    template = await bootstrapDbTemplate("sec-force-warn-");
+  }, 30000);
+
+  afterAll(() => {
+    template?.dispose();
+  });
+
+  it("sync all --force prints the version-gate warning", async () => {
+    const dir = template.materialize();
+    try {
       // Bare `sync` is a command group (help only). `--force` on `all` still
       // reprocesses submissions/facts watermarks, not forms.
       const { output, sawWarning } = await spawnUntilWarning(["sync", "all", "--force"], dir);
@@ -105,11 +95,8 @@ describe("--force warning on commands that no longer reprocess forms", () => {
   }, 60_000);
 
   it("bootstrap --force prints the version-gate warning", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-force-warn-"));
+    const dir = template.materialize();
     try {
-      const setup = await runCli(["db", "setup"], dir);
-      expect(setup.exitCode).toBe(0);
-
       // Skip every real workload — only the synchronous warning needs to fire.
       const { output, sawWarning } = await spawnUntilWarning(
         ["bootstrap", "--force", "--skip-download", "--skip-ingest", "--skip-forms"],

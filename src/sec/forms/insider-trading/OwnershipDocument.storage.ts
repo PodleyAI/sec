@@ -4,36 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
-import { CompanyResolver } from "../../../resolver/CompanyResolver";
-import { EntityObserver } from "../../../resolver/EntityObserver";
-import { PersonResolver } from "../../../resolver/PersonResolver";
+import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
+import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
 import type { AddressImport } from "../../../storage/address/AddressNormalization";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
-import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
-import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
-import { PersonRoleRepo } from "../../../storage/canonical/PersonRoleRepo";
-import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
-import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
-import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
-import { CanonicalPersonRepo } from "../../../storage/canonical/CanonicalPersonRepo";
-import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
-import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
 import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
-import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
-import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
-import { PersonObservationTitleRepo } from "../../../storage/observation/PersonObservationTitleRepo";
 import { Section16Repo } from "../../../storage/section16/Section16Repo";
 import type {
   Section16Holding,
   Section16Transaction,
 } from "../../../storage/section16/Section16Schema";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
-import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
-import { formToExtractorId } from "../../../storage/versioning/extractorIds";
-import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
 import { parseCikSafely } from "../../../util/parseCik";
 import type { OwnershipDocument } from "./OwnershipDocument.schema";
@@ -58,7 +38,7 @@ interface OwnershipStorageContext {
   // across unrelated filers into one canonical person. Form_144 already
   // guards this at `Form_144.storage.ts` with `issuer_cik || null`.
   readonly issuer_cik: number | null;
-  readonly observer: EntityObserver;
+  readonly observer: ObserveOnlyEntityObserver;
 }
 
 /**
@@ -193,6 +173,7 @@ export async function processOwnershipForm({
   accession_number,
   filing_date,
   form,
+  extractor_id,
   doc,
 }: {
   cik: number;
@@ -201,29 +182,22 @@ export async function processOwnershipForm({
   filing_date: string;
   primary_doc: string;
   form: string;
+  /**
+   * The extractor running this store, carried from the registry entry that
+   * dispatched it. Forms 3, 4 and 5 register three separate extractors over
+   * this one handler precisely so each keeps its own version slot, so the id
+   * has to arrive with the dispatch: re-deriving it from the form symbol
+   * cannot answer which extractor is running, and observation rows and
+   * `extractor_runs` would disagree the moment one form carries two.
+   */
+  extractor_id: string;
   doc: OwnershipDocument;
 }): Promise<void> {
-  const versionRegistry = new VersionRegistry(
-    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-  );
-
-  const [personSlot, companySlot] = await Promise.all([
-    getActiveSlot(versionRegistry, "resolver", "person"),
-    getActiveSlot(versionRegistry, "resolver", "company"),
-  ]);
-
-  const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
-  const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
   // 1.0.1 (S-MAIN-01): preserve null issuer_cik on observation path so
   // PersonResolver does not collapse same-named reporting owners across
   // unrelated filers via the 0 sentinel. Patch bump — same dev cycle.
   const extractor_version = "1.0.1";
 
-  // Use the same canonical extractor id the dispatch task records against
-  // (amendments share the base extractor), so observation rows and
-  // extractor_runs/version slots never disagree. Fall back to the bare
-  // document type only for forms not in the mapping.
-  const extractor_id = formToExtractorId(form) ?? (str(doc.documentType) ?? form).replace("/A", "");
   // The XML issuerCik is authoritative. We must NOT fall back to the filing's
   // own CIK: ownership filings are ingested from a submission feed that may be
   // the reporting owner's, not the issuer's, so that fallback could stamp the
@@ -233,33 +207,7 @@ export async function processOwnershipForm({
   // the SQL column is non-null (TypeSecCik is `Type.Number`).
   const issuer_cik = parseCikSafely(doc.issuer?.issuerCik) || null;
 
-  const personResolver = new PersonResolver({
-    canonicalPersonRepo: new CanonicalPersonRepo(),
-    canonicalPersonAliasRepo: new CanonicalPersonAliasRepo(),
-    activeResolverVersion: activeResolverPersonVersion,
-  });
-  const companyResolver = new CompanyResolver({
-    canonicalCompanyRepo: new CanonicalCompanyRepo(),
-    canonicalCompanyAliasRepo: new CanonicalCompanyAliasRepo(),
-    activeResolverVersion: activeResolverCompanyVersion,
-  });
-
-  const observer = new EntityObserver({
-    personObservationRepo: new PersonObservationRepo(),
-    personObservationTitleRepo: new PersonObservationTitleRepo(),
-    companyObservationRepo: new CompanyObservationRepo(),
-    personIdentityLinkRepo: new PersonIdentityLinkRepo(),
-    companyIdentityLinkRepo: new CompanyIdentityLinkRepo(),
-    personResolver,
-    companyResolver,
-    canonicalPersonAddressRepo: new CanonicalPersonAddressRepo(),
-    canonicalPersonPhoneRepo: new CanonicalPersonPhoneRepo(),
-    canonicalCompanyAddressRepo: new CanonicalCompanyAddressRepo(),
-    canonicalCompanyPhoneRepo: new CanonicalCompanyPhoneRepo(),
-    personRoleRepo: new PersonRoleRepo(),
-    activeResolverPersonVersion,
-    activeResolverCompanyVersion,
-  });
+  const observer = buildObserveOnlyEntityObserver();
 
   const ctx: OwnershipStorageContext = {
     accession_number,

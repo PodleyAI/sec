@@ -6,10 +6,9 @@
 
 /**
  * Registry of resolver kinds for the unified `version resolver <kind>` command.
- * sec's own resolvers (person/company/families) register through this, as does
- * every downstream extension (e.g. one registered by embarc-data). The
- * operations that vary by kind — coverage and version-scoped drop-previous —
- * are supplied per registration.
+ * This package registers none — every kind arrives from a downstream package
+ * that owns a resolver tier. The operations that vary by kind (coverage and
+ * version-scoped drop-previous) are supplied per registration.
  */
 export interface ResolverExtension {
   readonly id: string;

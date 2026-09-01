@@ -13,12 +13,6 @@ import { AddressPrimaryKeyNames, AddressSchema } from "../storage/address/Addres
 import { FilingPrimaryKeyNames, FilingSchema } from "../storage/filing/FilingSchema";
 import { PhonePrimaryKeyNames, PhoneSchema } from "../storage/phone/PhoneSchema";
 import {
-  CanonicalCompanyPhonePrimaryKeyNames,
-  CanonicalCompanyPhoneSchema,
-  CanonicalPersonPhonePrimaryKeyNames,
-  CanonicalPersonPhoneSchema,
-} from "../storage/canonical/CanonicalJunctionSchemas";
-import {
   CompanyFactsPrimaryKeyNames,
   CompanyFactsSchema,
 } from "../storage/facts/CompanyFactsSchema";
@@ -199,16 +193,6 @@ describe("planColumnAlignment", () => {
         CompanyFactsSchema,
         CompanyFactsPrimaryKeyNames as ReadonlyArray<string>
       ),
-      table(
-        "canonical_person_phone",
-        CanonicalPersonPhoneSchema,
-        CanonicalPersonPhonePrimaryKeyNames as ReadonlyArray<string>
-      ),
-      table(
-        "canonical_company_phone",
-        CanonicalCompanyPhoneSchema,
-        CanonicalCompanyPhonePrimaryKeyNames as ReadonlyArray<string>
-      ),
       table("xbrl_fact", XbrlFactRowSchema, XbrlFactPrimaryKeyNames as ReadonlyArray<string>),
     ];
 
@@ -224,8 +208,6 @@ describe("planColumnAlignment", () => {
       varchar("filings", "act", 2, true),
       varchar("company_facts", "grouping", 10),
       varchar("company_facts", "val_unit", 20),
-      varchar("canonical_person_phone", "international_number", 20),
-      varchar("canonical_company_phone", "international_number", 20),
       // Already nullable live — only the width ever changed on this column.
       varchar("xbrl_fact", "context_ref", 255, true),
     ];
@@ -247,8 +229,6 @@ describe("planColumnAlignment", () => {
       'ALTER TABLE "public"."filings" ALTER COLUMN "act" TYPE varchar(16);',
       'ALTER TABLE "public"."company_facts" ALTER COLUMN "grouping" TYPE varchar(20);',
       'ALTER TABLE "public"."company_facts" ALTER COLUMN "val_unit" TYPE varchar(32);',
-      'ALTER TABLE "public"."canonical_person_phone" ALTER COLUMN "international_number" TYPE varchar(64);',
-      'ALTER TABLE "public"."canonical_company_phone" ALTER COLUMN "international_number" TYPE varchar(64);',
       'ALTER TABLE "public"."xbrl_fact" ALTER COLUMN "context_ref" TYPE varchar(512);',
     ]);
   });

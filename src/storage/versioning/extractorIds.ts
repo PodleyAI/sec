@@ -10,19 +10,22 @@ export const EXTRACTOR_IDS = [
   "CFPORTAL",
   "1-A",
   "1-K",
-  "1-SA",
   "253G",
   "1-A-W",
   "1-Z",
   "1-U",
   "QUALIF",
+  "rega-financials-1sa",
   "3",
   "4",
   "5",
   "144",
   "S-1",
+  "S-1-xbrl",
   "424",
+  "424-xbrl",
   "8-K",
+  "8-K-items",
   "merger-proxy",
   "redemption",
   "loi",
@@ -33,9 +36,13 @@ export const EXTRACTOR_IDS = [
  * An extractor's id. Deliberately a plain string, not a union over
  * {@link EXTRACTOR_IDS}: a downstream package registers its own extractors
  * through the form-extractor registry, and a closed union would make that
- * impossible without editing this file. {@link EXTRACTOR_IDS} remains the list
- * sec itself ships — what `db setup` seeds `component_versions` from, and what
- * the CLI offers for completion.
+ * impossible without editing this file. {@link EXTRACTOR_IDS} is the vocabulary
+ * the CLI offers for completion, which is NOT the same as the readings this
+ * package ships: an id whose whole reading is a consumer's still belongs here
+ * once one of this package's own sweeps has to name it. `db setup` no longer
+ * seeds `component_versions` from it: a closed list cannot name an extractor
+ * registered through the open seam, so the ids seeded there are enumerated
+ * from that registry instead.
  */
 export type ExtractorId = string;
 
@@ -79,177 +86,23 @@ export const PERSON_OBSERVING_EXTRACTOR_IDS: readonly ExtractorId[] = [
 ] as const;
 
 /**
- * The extractors a `truncate-identity-tier` run must re-extract: every one whose
- * output those scripts delete.
+ * The extractors whose output the re-key ceremony deletes, and which therefore
+ * have to run again after it.
  *
- * Wider than {@link PERSON_OBSERVING_EXTRACTOR_IDS} by exactly `424`, because
- * the scripts wipe the FAMILY tier as well as the person one — and the family
- * tier is not person-scoped. `runOfferingSections` writes `underwriter_link` /
- * `underwriter_family_membership` from the priced 424B1/424B4 path under
- * extractor id `424`, and those link rows ARE the attribution: there is no
- * observation → link projection to rebuild them from, and batch `sec resolve`
- * refuses the family kinds. Scoping the re-extraction gates to the person set
- * alone therefore destroys every 424-sourced underwriter attribution and leaves
- * nothing able to restore it short of `sec extractor backfill 424`.
+ * The person-observing set exactly: the scripts here wipe `person_observations`
+ * and everything keyed to one, and nothing else an extractor wrote.
  *
- * `8-K` / `merger-proxy` / `redemption` / `loi` stay out: the scripts delete no
- * output of theirs, so clearing their runs would re-pay AI cost for nothing.
+ * The FAMILY tier is a different package's, and so is its ceremony. Its link
+ * rows ARE the attribution — no observation → link projection rebuilds them —
+ * so the script that wipes them carries its own gate list, including the `424`
+ * that writes `underwriter_link` from the priced-prospectus path. Naming `424`
+ * here as well would clear its runs on a deployment whose family tier this
+ * ceremony never touched, re-paying model cost for nothing.
+ *
+ * `8-K` / `merger-proxy` / `redemption` / `loi` stay out for that same reason:
+ * the scripts delete no output of theirs.
  */
-export const REKEY_REEXTRACT_EXTRACTOR_IDS: readonly ExtractorId[] = [
-  ...PERSON_OBSERVING_EXTRACTOR_IDS,
-  "424",
-] as const;
-
-/**
- * Maps every supported SEC form symbol (including amendment / withdrawal
- * variants) to the canonical extractor id that handles it. The right-hand
- * values match component_versions.component_id rows seeded by
- * bootstrapExtractorVersions().
- */
-export const FORM_TO_EXTRACTOR_ID: Readonly<Record<string, ExtractorId>> = {
-  D: "D",
-  "D/A": "D",
-  C: "C",
-  "C/A": "C",
-  "C-W": "C",
-  "C-U": "C",
-  "C-U-W": "C",
-  "C/A-W": "C",
-  "C-AR": "C",
-  "C-AR-W": "C",
-  "C-AR/A": "C",
-  "C-AR/A-W": "C",
-  "C-TR": "C",
-  "C-TR-W": "C",
-  CFPORTAL: "CFPORTAL",
-  "CFPORTAL/A": "CFPORTAL",
-  "CFPORTAL-W": "CFPORTAL",
-  "1-A": "1-A",
-  "1-A/A": "1-A",
-  "1-A POS": "1-A",
-  "1-K": "1-K",
-  "1-K/A": "1-K",
-  // Reg A semiannual report. Its financial statements are the whole extractor —
-  // a 1-SA has no XSD cover page, so there is no issuer or offering data behind
-  // it to observe.
-  "1-SA": "1-SA",
-  "1-SA/A": "1-SA",
-  // Offering-circular supplements and withdrawals. Metadata-only: the `024-`
-  // link and the rule subsection both arrive in the submissions payload, so no
-  // document is fetched for any of the 5,874 filings.
-  "253G1": "253G",
-  "253G2": "253G",
-  "253G3": "253G",
-  "253G4": "253G",
-  "1-A-W": "1-A-W",
-  "1-A-W/A": "1-A-W",
-  "1-Z-W": "1-A-W",
-  "1-Z-W/A": "1-A-W",
-  "1-Z": "1-Z",
-  "1-Z/A": "1-Z",
-  // Reg A current report — the 8-K analogue. Metadata-only: its item codes
-  // arrive in the submissions payload, so the event is known without reading the
-  // document.
-  "1-U": "1-U",
-  "1-U/A": "1-U",
-  // The SEC's own qualification notice. Metadata-shaped like 25-15 rather than
-  // a filer disclosure, but it carries the authoritative qualification date the
-  // issuer-reported field only supplies for ~9% of offerings.
-  QUALIF: "QUALIF",
-  "3": "3",
-  "3/A": "3",
-  "4": "4",
-  "4/A": "4",
-  "5": "5",
-  "5/A": "5",
-  "144": "144",
-  "144/A": "144",
-  "S-1": "S-1",
-  "S-1/A": "S-1",
-  "S-1MEF": "S-1",
-  DRS: "S-1",
-  "DRS/A": "S-1",
-  "F-1": "S-1",
-  "F-1/A": "S-1",
-  "F-1MEF": "S-1",
-  "424A": "424",
-  "424B1": "424",
-  "424B2": "424",
-  "424B3": "424",
-  "424B4": "424",
-  "424B5": "424",
-  "424B7": "424",
-  "8-K": "8-K",
-  "8-K/A": "8-K",
-  DEFM14A: "merger-proxy",
-  PREM14A: "merger-proxy",
-  DEFM14C: "merger-proxy",
-  PREM14C: "merger-proxy",
-  DEFR14A: "merger-proxy",
-  PRER14A: "merger-proxy",
-  // The GENERAL proxy forms. A SPAC's business-combination vote is routinely
-  // filed on these rather than on the "M" (merger) variants — 26 Capital's is a
-  // plain `DEF 14A` — and skipping them silently drops the proxy stage for the
-  // majority of SPACs: across SIC 6770 filers, `DEF 14A` reaches 575 distinct
-  // SPACs against `DEFM14A`'s 234, `PRE 14A` 525 and `DEFA14A` 387.
-  //
-  // Most filings on these forms are NOT merger proxies (annual meetings,
-  // director elections, extension votes), which is exactly why routing them
-  // here is safe: the merger section is located by the segmenter, so a proxy
-  // without one yields no deal rather than an invented one. See
-  // `MERGER_PROXY_OPTIONAL_FORMS` — for these forms a missing merger section is
-  // the expected case and is skipped quietly instead of dead-lettered.
-  "DEF 14A": "merger-proxy",
-  "PRE 14A": "merger-proxy",
-  // Amendment variants the parser classes also declare; a form the parser
-  // supports but the map omits is caught by form-wiring.test.ts.
-  "PRE 14A/A": "merger-proxy",
-  PRE14A: "merger-proxy",
-  PREN14A: "merger-proxy",
-  "PREN14A/A": "merger-proxy",
-  "PREM14A/A": "merger-proxy",
-  // PREC14A/A but NOT PREC14A: the bare code is also declared by
-  // Form_PREC14A, which has no parse override and wins resolution, so mapping
-  // it would claim a form nothing can parse. The /A amendment is declared only
-  // by Form_PRE_14A, which does parse. form-wiring.test.ts checks both
-  // directions and is what caught this.
-  "PREC14A/A": "merger-proxy",
-  DEFA14A: "merger-proxy",
-  "DEF 14C": "merger-proxy",
-  "PRE 14C": "merger-proxy",
-  PREA14C: "merger-proxy",
-  // Exchange listing withdrawal (Form 25 / 25-NSE) and Exchange Act
-  // deregistration (Form 15 / 15F family). Metadata-only: the filings table
-  // already carries cik / form / filing_date, and 25-NSE documents live under
-  // the exchange CIK so an issuer-CIK fetch 404s.
-  "25": "25-15",
-  "25/A": "25-15",
-  "25-NSE": "25-15",
-  "25-NSE/A": "25-15",
-  "15-12B": "25-15",
-  "15-12B/A": "25-15",
-  "15-12G": "25-15",
-  "15-12G/A": "25-15",
-  "15-15D": "25-15",
-  "15-15D/A": "25-15",
-  "15F-12B": "25-15",
-  "15F-12B/A": "25-15",
-  "15F-12G": "25-15",
-  "15F-12G/A": "25-15",
-  "15F-15D": "25-15",
-  "15F-15D/A": "25-15",
-  // Form RW (registration withdrawal). Metadata-only: the filings table already
-  // carries cik / form / filing_date. RW WD (undo of a withdrawal) is catalogued
-  // but not extracted — reversing a withdrawal is not the same event.
-  RW: "RW",
-  "SEC STAFF ACTION": "RW",
-  // FPI close filing (the 8-K 2.01 equivalent). Metadata-only: classified
-  // alongside Form 25/15 so a 20-F after a pending vote / nearby 25-NSE / F-4
-  // records `completed` rather than being skipped. An annual 20-F with no
-  // close signal is `ignore` and writes nothing.
-  "20-F": "25-15",
-  "20-F/A": "25-15",
-};
+export const REKEY_REEXTRACT_EXTRACTOR_IDS: readonly ExtractorId[] = PERSON_OBSERVING_EXTRACTOR_IDS;
 
 /**
  * Forms routed to the merger-proxy extractor on which a MISSING merger section
@@ -316,47 +169,6 @@ export const MERGER_PROXY_SECTION = "merger";
  */
 export const SECTIONLESS_REGISTRATION_FORMS: ReadonlySet<string> = new Set(["S-1MEF", "F-1MEF"]);
 
-export function formToExtractorId(form: string): ExtractorId | undefined {
-  return FORM_TO_EXTRACTOR_ID[form];
-}
-
-export function formsForExtractorIds(ids: readonly ExtractorId[]): string[] {
-  const want = new Set<string>(ids);
-  return Object.entries(FORM_TO_EXTRACTOR_ID)
-    .filter(([, extractorId]) => want.has(extractorId))
-    .map(([form]) => form);
-}
-
-/**
- * The extractors whose storage handlers are gated on an existing `spac` row and
- * record a SUCCESSFUL run when they find none — writing nothing while looking
- * processed to every anti-join.
- *
- * A sweep that reaches these before the registration statement that mints the
- * row therefore drops their events permanently. {@link sortFormsForSweep} keeps
- * a single sweep in dependency order; this set is what lets `spac process`
- * re-select a filing that was gated in an EARLIER sweep, once the row exists.
- */
-export const SPAC_ROW_GATED_EXTRACTORS: ReadonlySet<string> = new Set([
-  "8-K",
-  "merger-proxy",
-  "25-15",
-]);
-
-export function isSpacRowGatedExtractor(extractorId: string): boolean {
-  return SPAC_ROW_GATED_EXTRACTORS.has(extractorId);
-}
-
-/**
- * Ownership forms are off the SPAC timeline's critical path (S-1 → 424 → 8-K →
- * proxy → 25/15). A fetch miss on Form 3/4/5/144 must not fail `spac process`.
- */
-export const NONFATAL_TIMELINE_EXTRACTOR_IDS: ReadonlySet<string> = new Set(["3", "4", "5", "144"]);
-
-export function isNonfatalTimelineExtractor(extractorId: string): boolean {
-  return NONFATAL_TIMELINE_EXTRACTOR_IDS.has(extractorId);
-}
-
 /**
  * Order the forms sweep must drain its extractors in.
  *
@@ -367,38 +179,24 @@ export function isNonfatalTimelineExtractor(extractorId: string): boolean {
  * anti-join never revisits it. A sweep that reaches them first therefore drops
  * their events permanently rather than deferring them.
  *
- * Forms not listed here have no such dependency and run afterwards.
+ * Forms not listed here have no such dependency and run afterwards. Applied by
+ * `sortFormsForSweep` in `formsSweepOrder.ts`, which ranks a form through the
+ * form-extractor registry and so cannot live in this import-free module.
+ *
+ * The registration, prospectus and current-report families carry two
+ * extractors each — the structured reading this package ships and the reading
+ * of the same filing a consumer may add — and the rank is read off whichever
+ * leads. Both spellings are listed and adjacent, so the family sorts to the
+ * same place whichever is registered first.
  */
 export const SWEEP_PRIORITY: readonly ExtractorId[] = [
+  "S-1-xbrl",
   "S-1",
   "RW",
+  "424-xbrl",
   "424",
+  "8-K-items",
   "8-K",
   "merger-proxy",
   "25-15",
 ];
-
-/**
- * Sort forms into {@link SWEEP_PRIORITY} order, stably.
- *
- * Not merely cosmetic: the default form list comes from the form-extractor
- * registry (`ComputeFormsWorklistTask`'s `allForms`, built from
- * `listFormExtractorKeys()`) in whatever order `registerFormExtractors.ts`
- * happened to register each extractor — an accident of import order, not a
- * dependency order. Without this sort, a SPAC-gated form (8-K, merger-proxy,
- * 25-15) can land ahead of the registration statement that mints the `spac`
- * row it depends on. Ranks are assigned by extractor id, and unranked forms
- * (including any with no registered extractor, which the caller filters and
- * warns about separately) keep their declaration order at the end.
- */
-export function sortFormsForSweep(forms: readonly string[]): string[] {
-  const rank = (form: string): number => {
-    const extractorId = FORM_TO_EXTRACTOR_ID[form];
-    const i = extractorId === undefined ? -1 : SWEEP_PRIORITY.indexOf(extractorId);
-    return i === -1 ? SWEEP_PRIORITY.length : i;
-  };
-  return [...forms]
-    .map((form, i) => ({ form, i, rank: rank(form) }))
-    .sort((a, b) => a.rank - b.rank || a.i - b.i)
-    .map((e) => e.form);
-}

@@ -26,3 +26,6 @@ src/sec/html/mock_data/s1/.cache/
 /*.tmp.ts
 /*_probe_tmp.ts
 /scratch/
+
+# person_role snapshots written before a --rebuild-roles purge (relative to $SEC_DB_FOLDER ?? $SEC_RAW_DATA_FOLDER ?? cwd)
+.sec-snapshots/

@@ -217,6 +217,19 @@ describe("Form_C storage test", () => {
       const allPersonObs = await new PersonObservationRepo().listAll();
       const signatureObs = allPersonObs.filter((o) => o.relationship === "form-c:signature");
       expect(signatureObs.length).toBeGreaterThan(0);
+      expect(signatureObs.some((o) => o.first_name && o.last_name)).toBe(true);
+      expect(signatureObs.every((o) => !/^\s*\/\s*s\s*\//i.test(o.last_name ?? ""))).toBe(true);
+      expect(
+        signatureObs.every((o) => {
+          const context = JSON.parse(o.source_context ?? "{}");
+          return Array.isArray(context.filed_names) && context.filed_names.length > 0;
+        })
+      ).toBe(true);
+
+      const identityKeys = signatureObs.map((o) =>
+        [o.normalized_first, o.normalized_middle, o.normalized_last, o.normalized_suffix].join("|")
+      );
+      expect(new Set(identityKeys).size).toBe(identityKeys.length);
     });
 
     it("should set amended status for C/A submissions", async () => {

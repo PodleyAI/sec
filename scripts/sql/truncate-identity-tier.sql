@@ -1,4 +1,12 @@
--- Truncate the derived identity tier after a normalizer change.
+-- Truncate the person OBSERVATIONS after a normalizer change.
+--
+-- ⚠️ THIS IS ONE HALF OF THE CEREMONY. The canonical tier keyed to these
+-- observations — `canonical_person`, the identity links, the junctions, the
+-- tenures — and the sponsor/underwriter families are a downstream package's,
+-- each with its own script. Run them together, or the survivors of one point at
+-- rows the other deleted: a canonical row whose observations are gone resolves
+-- nothing, and an observation whose link survives makes every later rebuild
+-- raise.
 --
 -- Why this exists instead of a resolver version bump: a version bump is the
 -- ceremony for changing a normalizer while KEEPING the rows minted under the
@@ -13,13 +21,11 @@
 --     from one. `normalizePerson` folds accents into the IDENTITY parts, so
 --     each of those values is computed differently — and no SQL can recompute
 --     them, because the fold is TypeScript on the extraction path. The person
---     canonical tier keyed on them goes with the observations.
---   * `canonical_*_family.normalized_name`. `normalizeFamilyName` derives the
---     key from the legal name via `companyFamilyName`, so every family key is
---     different and every family id minted under the old one is orphaned.
+--     canonical tier keyed on them is a downstream package's, wiped by its
+--     paired script — see the ⚠️ above.
 --
--- The COMPANY canonical tier is NOT wiped here — but it is NOT untouched
--- either, and that difference is why step 3b below is mandatory.
+-- The COMPANY canonical tier is NOT wiped by either half — but it is NOT
+-- untouched either, and that difference is why step 3b below is mandatory.
 --
 -- `normalizeCompanyName` DID change in this same release, so
 -- `company_observations.normalized_name` — the column `canonical_company` is
@@ -41,24 +47,27 @@
 -- Those rows are stale but they are also REBUILDABLE, which is exactly why
 -- wiping is the wrong tool here: `normalized_name` is derived from the `name`
 -- every company observation already carries, so one command recomputes it in
--- place — no re-extraction, no AI cost:
+-- place — no re-extraction, no AI cost. The command belongs to the package that
+-- owns the canonical tier, and its paired script prescribes it as step 3 — but
+-- it is written out here too, because an operator reading this file is the one
+-- about to skip it:
 --
---   sec resolve --kind company --all --renormalize
+--   resolve --kind company --all --renormalize
 --
 -- ⚠️ THAT PASS IS REQUIRED, not optional, and nothing errors if you skip it.
 -- The stale keys keep resolving, `version coverage` keeps reporting full
 -- coverage, and the merged canonical identities this release exists to SPLIT
--- survive silently. It is step 3b in the list further down: after the
--- backfills, and before the alias imports — aliases are matched by canonical
--- DISPLAY NAME, so they must be imported against the re-resolved tier.
+-- survive silently. It runs after the backfills below and before the alias
+-- imports — aliases are matched by canonical DISPLAY NAME, so they must be
+-- imported against the re-resolved tier.
 --
 -- Expected residue afterwards: `canonical_company` rows minted under the
 -- PREVIOUS normalized names survive the re-partition with zero identity links
 -- pointing at them. They are inert, not corruption — nothing reads a canonical
 -- row no link cites — and they are left in place because removing them needs a
 -- reachability sweep this ceremony does not do. The visible fallout is
--- aliases: one whose target was such a row now points at an orphan, which
--- `sec canonical company alias-list --orphans` lists.
+-- aliases: one whose target was such a row now points at an orphan, which the
+-- downstream `canonical company alias-list --orphans` lists.
 --
 -- (`generateCompanyHash` does fold diacritics where `normalizeCompanyName`
 -- does not, but no table stores `company_hash_id`; it is a derived slug, not
@@ -73,16 +82,10 @@
 -- `spac`/`spac_deal`/`spac_event` lifecycle. None of it is keyed by a
 -- normalizer, and re-downloading it costs hours against a rate limit.
 --
--- ⚠️ EXPORT YOUR ALIASES FIRST. The alias tables below are hand-curated claims
--- that two canonical rows are one entity, and they are keyed by canonical UUIDs
--- that this script destroys — so they cannot be spared the way
--- `family_description` is. Export them by NAME, which survives the wipe, and
--- re-import after re-extracting:
---
---   sec canonical person            alias-list --format tsv > aliases-person.tsv
---   sec canonical company           alias-list --format tsv > aliases-company.tsv
---   sec canonical sponsor-family    alias-list --format tsv > aliases-sponsor.tsv
---   sec canonical underwriter-family alias-list --format tsv > aliases-underwriter.tsv
+-- ⚠️ EXPORT YOUR ALIASES FIRST — before running either half. No alias table is
+-- in this script any more, but the paired one destroys them: they are
+-- hand-curated claims that two canonical rows are one entity, keyed by
+-- canonical UUIDs that script wipes. Its header carries the export commands.
 --
 -- Usage (SQLite):
 --   sqlite3 "$SEC_DB_FOLDER/$SEC_DB_NAME.sqlite" < scripts/sql/truncate-identity-tier.sql
@@ -98,10 +101,9 @@
 -- Then, in this order:
 --
 -- 3a. Re-extract every extractor whose output this script deleted (see
---     REKEY_REEXTRACT_EXTRACTOR_IDS). `424` is in the list for the FAMILY
---     tier, not the person one: the priced-prospectus path writes
---     `underwriter_link` rows that the family section below wipes, and nothing
---     but a re-extraction can restore them.
+--     REKEY_REEXTRACT_EXTRACTOR_IDS) — the person-observing ones exactly.
+--     `424` is not among them: it observes no person, and the tier it does
+--     write for is re-keyed by its own script with its own gate list.
 --   sec extractor backfill S-1
 --   sec extractor backfill D
 --   sec extractor backfill C
@@ -112,53 +114,18 @@
 --   sec extractor backfill 4
 --   sec extractor backfill 5
 --   sec extractor backfill 144
---   sec extractor backfill 424
 --
--- 3b. Re-key the COMPANY canonical tier, which this script deliberately does
---     NOT wipe but which `normalizeCompanyName` made stale. Required, cheap
---     (recomputes from stored names — no fetches, no model calls), and silent
---     if skipped. See the COMPANY paragraph above.
---   sec resolve --kind company --all --renormalize
---
--- 3c. Restore the curated data. The alias imports come LAST because they match
---     on canonical display names and must land against the re-resolved tier.
---   sec editorial import data/editorial/family-descriptions.csv
---   sec canonical person alias-import aliases-person.tsv
---   sec canonical company alias-import aliases-company.tsv
---   sec canonical sponsor-family alias-import aliases-sponsor.tsv
---   sec canonical underwriter-family alias-import aliases-underwriter.tsv
+-- 3b. Re-resolve, re-key the COMPANY tier, and re-import the aliases — all of
+--     it from the paired script's header, because all of it is that package's
+--     surface now. Its step 3 is the mandatory company recompute this file's
+--     COMPANY paragraph above explains; skipping it is silent, and the merged
+--     canonical identities the ceremony exists to split survive.
 --
 -- DELETE rather than TRUNCATE: SQLite has no TRUNCATE, and `DELETE FROM` with
 -- no WHERE is its optimized whole-table delete. On Postgres this is slower than
 -- TRUNCATE but avoids the ACCESS EXCLUSIVE lock, and these tables are small.
 
 BEGIN;
-
--- ── Family tier ─────────────────────────────────────────────────────────────
--- The link row IS the attribution here (there is no observation → link
--- projection), so these go together or the survivors point at nothing.
-DELETE FROM spac_sponsor_link;
-DELETE FROM underwriter_link;
-DELETE FROM sponsor_family_membership;
-DELETE FROM underwriter_family_membership;
-DELETE FROM canonical_sponsor_family_alias;
-DELETE FROM canonical_underwriter_family_alias;
-DELETE FROM canonical_sponsor_family;
-DELETE FROM canonical_underwriter_family;
-
--- `family_description` is intentionally spared: it is hand-curated editorial
--- text keyed by (family_kind, normalized_name), not by a canonical id. The key
--- shape changed, so existing rows will not match until re-imported — but they
--- are the only copy, and deleting them destroys work no pipeline can rebuild.
---   sec editorial import data/editorial/family-descriptions.csv
-
--- ── Person canonical + link tier ─────────────────────────────────────────────
-DELETE FROM person_role;
-DELETE FROM person_identity_link;
-DELETE FROM canonical_person_address;
-DELETE FROM canonical_person_phone;
-DELETE FROM canonical_person_alias;
-DELETE FROM canonical_person;
 
 -- ── Person observations, and everything keyed to one ─────────────────────────
 -- These carry `observation_id` FKs, so they cannot outlive the observations.
@@ -178,17 +145,17 @@ DELETE FROM person_observations;
 -- with it — they are keyed to runs that no longer exist.
 --
 -- Scoped to the extractors whose output this script actually deletes: the
--- person-observing ones, plus `424` for the family tier it wipes above (the
--- priced-prospectus path writes `underwriter_link` / `underwriter_family_
--- membership`, and a family link row IS the attribution — no observation
--- projection rebuilds it). `8-K`, `merger-proxy`, `redemption` and `loi` stay
--- untouched: nothing of theirs is deleted here, and clearing their runs would
--- re-pay AI cost for nothing. Keep in step with REKEY_REEXTRACT_EXTRACTOR_IDS
+-- person-observing ones exactly. `424` is NOT here — it writes family link rows
+-- and no person observation, and the package owning that tier gates it from its
+-- own script. Clearing its runs from here would re-extract every priced
+-- prospectus on a deployment whose family tier this script never touched.
+-- `8-K`, `merger-proxy`, `redemption` and `loi` stay out for the same reason:
+-- nothing of theirs is deleted here. Keep in step with REKEY_REEXTRACT_EXTRACTOR_IDS
 -- in `src/storage/versioning/extractorIds.ts` — `truncateIdentityTier.test.ts`
 -- fails if they diverge.
 DELETE FROM extraction_dead_letter
-WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1', '424');
+WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1');
 DELETE FROM extractor_runs
-WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1', '424');
+WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1');
 
 COMMIT;

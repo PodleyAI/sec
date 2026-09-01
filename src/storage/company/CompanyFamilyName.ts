@@ -292,3 +292,37 @@ export function isCompanyFamilyPrefixEcho(name: string, among: readonly string[]
     return o !== "" && o !== n && isCompanyFamilyPrefix(n, o);
   });
 }
+
+/**
+ * The single source of truth for a family natural key (sponsor or underwriter).
+ *
+ * Derives the key from {@link companyFamilyName}, which drops the legal form
+ * and the series marker that separate one vehicle from the next, then
+ * UPPER-cases so matching is case-insensitive. Every caller that looks up a
+ * family by name (resolver, CLI query, alias commands) MUST use this so keys
+ * line up. Returns "" when the name yields nothing.
+ *
+ * Deriving it from the LEGAL name (not `normalizeCompanyName`, which keeps
+ * the legal form) is what makes a family rebuildable and lets share-classes
+ * of the same sponsor collapse into one family: `Churchill Sponsor XIII LLC`
+ * and `Churchill Sponsor XIV LLC` fold to the same key without needing the
+ * model's own "common name" to join them. With the key computed from a name
+ * every observation already carries, a re-partition is a re-computation.
+ *
+ * What it deliberately does NOT do is fold business-line words: `Acme Capital`
+ * and `Acme Ventures` stay two families, because they can be two firms. The
+ * rare genuine join (`Chardan Capital Markets` → `Chardan`) is an alias, a
+ * stated claim someone checked:
+ *
+ * ```sh
+ * sec canonical underwriter-family alias "Chardan Capital Markets" "Chardan"
+ * ```
+ *
+ * Case convention is UPPER and is locked in. Changing the fold re-partitions
+ * existing `canonical_*_family.normalized_name` rows and orphans
+ * operator-installed aliases, so it needs a resolver version bump and a
+ * re-resolve, not a quiet edit.
+ */
+export function normalizeFamilyName(name: string): string {
+  return companyFamilyName(name).toUpperCase();
+}

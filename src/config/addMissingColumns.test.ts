@@ -12,29 +12,37 @@ import type { RegisteredTable } from "./tableRegistry";
 import { withSqliteDb } from "./testing/withSqliteDb";
 import { getDb } from "../util/db";
 import {
-  SPAC_CANDIDATE_REPOSITORY_TOKEN,
-  SpacCandidateSchema,
-  SpacCandidatePrimaryKeyNames,
-  type SpacCandidate,
-} from "../storage/spac/SpacCandidateSchema";
+  FILING_REPOSITORY_TOKEN,
+  FilingPrimaryKeyNames,
+  FilingSchema,
+  type Filing,
+} from "../storage/filing/FilingSchema";
 import { TypeNullable } from "../util/TypeBoxUtil";
 
 /**
- * The live bug this pass exists for.
+ * What this fixture is, and what it is not.
  *
- * `spac_candidate.signal_filed_sic_6770` was added to the schema after most
- * databases had already been created. `CREATE TABLE IF NOT EXISTS` is a no-op
- * on an existing table, `createStorage` passes no `tabularMigrations`, and
- * `planColumnAlignment` explicitly skips a column the live schema lacks — so
- * nothing added it, and `IdentifySpacsTask` writes full rows through `putBulk`.
- * `sec sync spacs` therefore failed on every pre-existing database.
+ * It is CONSTRUCTED. `filings.is_inline_xbrl` is dropped from a database `db
+ * setup` has just created, and the pass is asked to put it back; no deployment
+ * was ever missing that column. What it covers is the mechanism end to end, on
+ * a table this package owns: a nullable column the live schema lacks is
+ * planned, typed, and added by the SQLite executor, and the `putBulk` that
+ * failed without it succeeds.
+ *
+ * What it does NOT cover is provenance. This pass exists because a column added
+ * to a schema long after most databases had been created was added by nothing —
+ * `CREATE TABLE IF NOT EXISTS` is a no-op on an existing table, `createStorage`
+ * passes no `tabularMigrations`, and `planColumnAlignment` explicitly skips a
+ * column the live schema lacks — so the first write of a full row through
+ * `putBulk` failed on every pre-existing database. `planMissingColumns`'s own
+ * docstring names the column that happened to. Reproducing it takes that column
+ * and the task that actually broke, and it belongs with them. Nothing below is
+ * that reproduction; do not read it as one.
  */
-const MISSING_COLUMN = "signal_filed_sic_6770";
+const MISSING_COLUMN = "is_inline_xbrl";
 
-/** The `spac_candidate` column list as it stood before that column was added. */
-const LEGACY_COLUMNS = Object.keys(SpacCandidateSchema.properties).filter(
-  (c) => c !== MISSING_COLUMN
-);
+/** The `filings` column list as it stands once that column is dropped. */
+const COLUMNS_WITHOUT_IT = Object.keys(FilingSchema.properties).filter((c) => c !== MISSING_COLUMN);
 
 function liveColumnNames(table: string): string[] {
   return getDb()
@@ -44,36 +52,36 @@ function liveColumnNames(table: string): string[] {
 }
 
 /**
- * Rebuilds `spac_candidate` without the new column, i.e. the shape a database
- * created before it has.
+ * Puts `filings` into the shape a database created before the column would
+ * have.
  *
- * DROP + re-CREATE rather than `ALTER TABLE ... DROP COLUMN`: it is the more
- * faithful simulation (this is literally the DDL the old emitter produced) and
- * it does not depend on the bundled SQLite being ≥ 3.35.
+ * `ALTER TABLE ... DROP COLUMN` rather than DROP + re-CREATE: the column is in
+ * no index and no primary key, so SQLite accepts the drop, and every other
+ * column keeps the type `db setup` gave it — which is what makes the round-trip
+ * below a statement about the type the pass ADDED, rather than about a table
+ * this test rebuilt by hand.
  */
-function recreateWithoutNewColumn(): void {
-  const db = getDb();
-  const columns = LEGACY_COLUMNS.map((c) =>
-    c === "cik" ? `\`${c}\` INTEGER NOT NULL` : `\`${c}\` TEXT NULL`
-  ).join(", ");
-  db.exec(`DROP TABLE \`spac_candidate\``);
-  db.exec(`CREATE TABLE \`spac_candidate\` (${columns}, PRIMARY KEY (\`cik\`))`);
+function dropTheColumn(): void {
+  getDb().exec(`ALTER TABLE \`filings\` DROP COLUMN \`${MISSING_COLUMN}\``);
 }
 
-function candidateRow(): SpacCandidate {
+function filingRow(): Filing {
   return {
-    cik: 1234567,
-    name: "Example Acquisition Corp",
-    current_sic: 6770,
-    signal_sic_6770: true,
-    signal_filed_sic_6770: null,
-    signal_name_match: true,
-    signal_renamed_from: null,
-    first_reg_form: "S-1",
-    first_reg_date: "2024-01-15",
-    reg_while_spac_named: true,
-    confidence: "high",
-    identified_at: "2026-08-15T00:00:00.000Z",
+    cik: 320193,
+    accession_number: "0001193125-24-000001",
+    filing_date: "2024-01-15",
+    report_date: null,
+    acceptance_date: "2024-01-15T16:30:00.000Z",
+    form: "8-K",
+    file_number: null,
+    film_number: null,
+    primary_doc: "d123456d8k.htm",
+    primary_doc_description: null,
+    size: 1024,
+    is_xbrl: false,
+    is_inline_xbrl: null,
+    items: null,
+    act: "34",
   };
 }
 
@@ -84,20 +92,20 @@ describe("addMissingColumnsSqlite (real SQLite)", () => {
   withSqliteDb("add_missing_columns_test", "all");
 
   it("adds a column an existing database lacks, and unbreaks the write", async () => {
-    const repo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
-    recreateWithoutNewColumn();
+    const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+    dropTheColumn();
 
     // Two assertions, and the second is the one that matters: the DDL being
     // absent is a symptom, `putBulk` throwing is the user-visible bug. A test
     // that only checked PRAGMA would still pass if the pass added the column
     // under a name or type the repository cannot write through.
-    expect(liveColumnNames("spac_candidate")).not.toContain(MISSING_COLUMN);
-    await expect(repo.putBulk([candidateRow()])).rejects.toThrow();
+    expect(liveColumnNames("filings")).not.toContain(MISSING_COLUMN);
+    await expect(repo.putBulk([filingRow()])).rejects.toThrow();
 
     addMissingColumnsSqlite(getDb());
 
-    expect(liveColumnNames("spac_candidate")).toContain(MISSING_COLUMN);
-    await expect(repo.putBulk([candidateRow()])).resolves.not.toThrow();
+    expect(liveColumnNames("filings")).toContain(MISSING_COLUMN);
+    await expect(repo.putBulk([filingRow()])).resolves.not.toThrow();
   });
 
   it("round-trips null, true and false through the added boolean column", async () => {
@@ -105,21 +113,22 @@ describe("addMissingColumnsSqlite (real SQLite)", () => {
     // column — so this is exactly where a wrong type mapping shows up: a column
     // created as TEXT would store "true"/"false" strings and read back
     // something the repository's `sqlToJsValue` does not turn into a boolean.
-    // The tri-state matters too: `signal_filed_sic_6770` is nullable on
-    // purpose, since "no registration parsed yet" is not the same as "false".
-    const repo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
-    recreateWithoutNewColumn();
+    // The tri-state matters too: `is_inline_xbrl` is nullable on purpose, since
+    // EDGAR omitting the flag is not the same as reporting it false.
+    const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+    dropTheColumn();
     addMissingColumnsSqlite(getDb());
 
     await repo.putBulk([
-      { ...candidateRow(), cik: 1, signal_filed_sic_6770: null },
-      { ...candidateRow(), cik: 2, signal_filed_sic_6770: true },
-      { ...candidateRow(), cik: 3, signal_filed_sic_6770: false },
+      { ...filingRow(), accession_number: "0000000000-24-000001", is_inline_xbrl: null },
+      { ...filingRow(), accession_number: "0000000000-24-000002", is_inline_xbrl: true },
+      { ...filingRow(), accession_number: "0000000000-24-000003", is_inline_xbrl: false },
     ]);
 
-    expect((await repo.get({ cik: 1 }))?.signal_filed_sic_6770).toBeNull();
-    expect((await repo.get({ cik: 2 }))?.signal_filed_sic_6770).toBe(true);
-    expect((await repo.get({ cik: 3 }))?.signal_filed_sic_6770).toBe(false);
+    const key = (accession_number: string) => ({ cik: 320193, accession_number });
+    expect((await repo.get(key("0000000000-24-000001")))?.is_inline_xbrl).toBeNull();
+    expect((await repo.get(key("0000000000-24-000002")))?.is_inline_xbrl).toBe(true);
+    expect((await repo.get(key("0000000000-24-000003")))?.is_inline_xbrl).toBe(false);
   });
 
   it("is idempotent — a second run adds nothing and throws nothing", () => {
@@ -128,13 +137,13 @@ describe("addMissingColumnsSqlite (real SQLite)", () => {
     // in SQLite, so a planner that did not re-read the live columns would warn
     // on every subsequent setup.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    recreateWithoutNewColumn();
+    dropTheColumn();
 
     addMissingColumnsSqlite(getDb());
-    const after = liveColumnNames("spac_candidate");
+    const after = liveColumnNames("filings");
     addMissingColumnsSqlite(getDb());
 
-    expect(liveColumnNames("spac_candidate")).toEqual(after);
+    expect(liveColumnNames("filings")).toEqual(after);
     expect(warn).not.toHaveBeenCalled();
   });
 
@@ -144,34 +153,12 @@ describe("addMissingColumnsSqlite (real SQLite)", () => {
     // safe to run unconditionally on every `db setup` — including the very
     // first one.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const before = liveColumnNames("spac_candidate");
+    const before = liveColumnNames("filings");
 
     addMissingColumnsSqlite(getDb());
 
-    expect(liveColumnNames("spac_candidate")).toEqual(before);
+    expect(liveColumnNames("filings")).toEqual(before);
     expect(warn).not.toHaveBeenCalled();
-  });
-
-  it("subsumes the hand-written spac.current_trust_* pass it replaced", async () => {
-    // Those three columns had a bespoke `ensureSpacCurrentTrustColumns*` pair,
-    // deleted in favour of this pass. They are all nullable, so the generic
-    // planner reaches them — asserted here rather than assumed, because the
-    // deletion is only safe if it does.
-    const db = getDb();
-    for (const table of ["spac", "spac_history"]) {
-      for (const column of ["current_trust_amount", "current_trust_as_of", "current_trust_filed"]) {
-        db.exec(`ALTER TABLE \`${table}\` DROP COLUMN \`${column}\``);
-      }
-    }
-
-    addMissingColumnsSqlite(db);
-
-    for (const table of ["spac", "spac_history"]) {
-      const live = liveColumnNames(table);
-      expect(live).toContain("current_trust_amount");
-      expect(live).toContain("current_trust_as_of");
-      expect(live).toContain("current_trust_filed");
-    }
   });
 });
 
@@ -249,15 +236,13 @@ describe("planMissingColumns", () => {
     expect(plan[0]!.unsupported).toContain("not mapped");
   });
 
-  it("types the live spac_candidate column as BOOLEAN / INTEGER", () => {
-    const declared = [
-      table("spac_candidate", SpacCandidateSchema, [...SpacCandidatePrimaryKeyNames]),
-    ];
-    const live = new Map([["spac_candidate", new Set(LEGACY_COLUMNS)]]);
+  it("types the live filings column as BOOLEAN / INTEGER", () => {
+    const declared = [table("filings", FilingSchema, [...FilingPrimaryKeyNames])];
+    const live = new Map([["filings", new Set(COLUMNS_WITHOUT_IT)]]);
     const plan = planMissingColumns(declared, live);
     expect(plan).toEqual([
       {
-        table: "spac_candidate",
+        table: "filings",
         column: MISSING_COLUMN,
         sqlite: "INTEGER",
         postgres: "BOOLEAN",

@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it } from "vitest";
-import { spacDocFetchKind } from "../spac/spacCandidateDownload";
 import {
   conversionCandidates,
   conversionFetchFileName,
@@ -31,15 +30,6 @@ describe("submissionFetchKind", () => {
   it("leaves every other form on its primary document", () => {
     for (const form of ["10-K", "10-Q", "4", "DEF 14A", "DEFM14A", "1-SA", "D"]) {
       expect(submissionFetchKind(form), form).toBe("primary-doc");
-    }
-  });
-
-  it("is the ONE definition — the download sweep asks it, it does not answer alone", () => {
-    // Four sites used to answer this and they disagreed, so what was on disk for
-    // an 8-K depended on which path fetched it. Pinning the delegation is what
-    // stops them drifting apart again.
-    for (const form of ["8-K", "8-K/A", "S-1", "424B4", "1-K", "10-K", "4", "DEFM14A"]) {
-      expect(spacDocFetchKind(form), form).toBe(submissionFetchKind(form));
     }
   });
 });

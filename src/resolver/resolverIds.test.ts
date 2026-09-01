@@ -7,27 +7,27 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolverIds, isFamilyResolverId } from "./resolverIds";
 import { clearResolverExtensionsForTesting } from "./resolverExtensions";
-import { registerSecResolvers } from "../config/registerResolvers";
 
 describe("resolverIds", () => {
   beforeEach(() => {
     clearResolverExtensionsForTesting();
-    registerSecResolvers();
   });
   afterEach(() => {
     clearResolverExtensionsForTesting();
   });
 
   it("contains the registered resolver ids", () => {
-    const ids = resolverIds();
-    for (const id of ["person", "company", "sponsor-family", "underwriter-family"]) {
-      expect(ids).toContain(id);
-    }
+    // Empty here, and that is the assertion: this package registers no resolver
+    // kind of its own. Every id comes from a package that contributes one, and
+    // asserts its own registration there.
+    expect(resolverIds()).toEqual([]);
   });
 
   it("classifies family-tier resolver kinds", () => {
-    expect(isFamilyResolverId("sponsor-family")).toBe(true);
-    expect(isFamilyResolverId("underwriter-family")).toBe(true);
+    // A kind is a family only because its registration said so, and this
+    // package registers no family kinds — the tier that does is a downstream
+    // package's, and asserts the true case there.
+    expect(isFamilyResolverId("sponsor-family")).toBe(false);
     expect(isFamilyResolverId("person")).toBe(false);
     expect(isFamilyResolverId("company")).toBe(false);
     expect(isFamilyResolverId("nope")).toBe(false);

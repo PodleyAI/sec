@@ -54,11 +54,11 @@ describe("sync leaf subcommands", () => {
     const program = new Command();
     addSyncCommand(program);
     const sync = program.commands.find((cmd) => cmd.name() === "sync");
-    const spacs = sync!.commands.find((c) => c.name() === "spacs");
-    const help = spacs!.helpInformation();
+    const submissions = sync!.commands.find((c) => c.name() === "submissions");
+    const help = submissions!.helpInformation();
 
-    expect(help).toContain("identify");
-    expect(help).toContain("process");
+    expect(help).toContain("index");
+    expect(help).toContain("submissions");
     // The option it replaced: a step list only `--help` could show, and no
     // shell could complete.
     expect(help).not.toContain("--step <name>");
@@ -66,28 +66,29 @@ describe("sync leaf subcommands", () => {
 
   it("carries the leaf's options onto every subcommand, not just the group", () => {
     // Commander does not hand a parent's options to a subcommand's action, so
-    // a `--shard` declared once on the group would parse and then be dropped.
+    // an option declared once on the group would parse and then be dropped.
     const program = new Command();
     addSyncCommand(program);
     const sync = program.commands.find((cmd) => cmd.name() === "sync");
-    const spacs = sync!.commands.find((c) => c.name() === "spacs");
+    const submissions = sync!.commands.find((c) => c.name() === "submissions");
 
-    for (const name of ["all", "identify", "process"]) {
-      const sub = spacs!.commands.find((c) => c.name() === name);
+    for (const name of ["all", "index", "submissions"]) {
+      const sub = submissions!.commands.find((c) => c.name() === name);
       const flags = sub!.options.map((option) => option.long);
-      expect(flags, `sync spacs ${name}`).toContain("--shard");
-      expect(flags, `sync spacs ${name}`).toContain("--concurrency");
+      expect(flags, `sync submissions ${name}`).toContain("--force");
+      expect(flags, `sync submissions ${name}`).toContain("--from");
+      expect(flags, `sync submissions ${name}`).toContain("--lookback");
     }
   });
 
-  it("leaves a group with no action, so bare `sync spacs` needs no configuration", () => {
+  it("leaves a group with no action, so bare `sync submissions` needs no configuration", () => {
     // An action would route a help listing through the CLI's preAction hook,
     // which refuses to run until `init` has been done — so asking what a group
     // contains would demand a configured database.
     const program = new Command();
     addSyncCommand(program);
     const sync = program.commands.find((cmd) => cmd.name() === "sync");
-    const spacs = sync!.commands.find((c) => c.name() === "spacs");
-    expect((spacs as unknown as { _actionHandler?: unknown })._actionHandler).toBeFalsy();
+    const submissions = sync!.commands.find((c) => c.name() === "submissions");
+    expect((submissions as unknown as { _actionHandler?: unknown })._actionHandler).toBeFalsy();
   });
 });

@@ -77,8 +77,10 @@ export const REGA_FULL_SUBMISSION_FORMS = new Set(["1-K", "1-K/A"]);
  * Deciding to fetch the whole submission is NOT deciding to feed all of it to
  * an extractor. Those were one flag once, which is why widening the fetch used
  * to mean widening a model's input. They are separate now — see
- * `ProcessAccessionDocFormTask`, where the known-SPAC trigger-item predicate
- * survives unchanged as the gate on what `processForm8K` receives.
+ * `ProcessAccessionDocFormTask`, which asks each of the form's extractors its
+ * own `readsFullSubmission`. The item-code reading declares none and never sees
+ * the body; the known-SPAC trigger-item predicate survives unchanged as the
+ * gate on what the readings of the filing's exhibits and narrative are handed.
  */
 export const CURRENT_REPORT_FORMS = new Set(["8-K", "8-K/A"]);
 

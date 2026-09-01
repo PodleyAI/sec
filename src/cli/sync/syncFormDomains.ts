@@ -6,7 +6,7 @@
 
 import type { ExtractorId } from "../../storage/versioning/extractorIds";
 import { registerSecFormExtractors } from "../../config/registerFormExtractors";
-import { formsForExtractorKeys, listFormExtractorKeys } from "../../sec/forms/formExtractors";
+import { allRegisteredExtractorIds, formsForExtractorIds } from "../../sec/forms/formExtractors";
 
 /**
  * `expandFormTypes` reads the form-extractor registry during CLI argument
@@ -21,10 +21,16 @@ import { formsForExtractorKeys, listFormExtractorKeys } from "../../sec/forms/fo
  */
 registerSecFormExtractors();
 
-/** Kept under its historical name: callers pass extractor ids, not registry keys. */
-export function formsForExtractorIds(ids: readonly string[]): string[] {
-  return formsForExtractorKeys(ids);
-}
+/**
+ * Re-exported rather than reimplemented. Callers here pass extractor ids, and
+ * the registry is keyed `(id, section)` — matching an id against a key returns
+ * nothing the moment an extractor registers under a section, so the two
+ * lookups are not interchangeable and only one of them belongs to this name.
+ *
+ * It stays exported from this module because importing it from here is what
+ * guarantees the registration above has already run.
+ */
+export { formsForExtractorIds };
 
 /**
  * Turns CLI form tokens into the form codes a sweep should process.
@@ -34,7 +40,7 @@ export function formsForExtractorIds(ids: readonly string[]): string[] {
  * stay as written so the worklist can warn on them.
  */
 export function expandFormTypes(tokens: readonly string[]): string[] {
-  const registered = new Set(listFormExtractorKeys());
+  const registered = new Set(allRegisteredExtractorIds());
   const seen = new Set<string>();
   const out: string[] = [];
   for (const token of tokens) {
@@ -51,7 +57,21 @@ export function expandFormTypes(tokens: readonly string[]): string[] {
 export const SYNC_FORM_DOMAINS = {
   portals: ["CFPORTAL"],
   crowdfunding: ["C"],
-  "reg-a": ["1-A", "1-K", "1-Z", "1-SA", "1-U", "QUALIF", "253G", "1-A-W"],
+  // `rega-financials-1sa` is named for the same reason `spacs` names
+  // `merger-proxy` and `25-15`: this package ships no reading for 1-SA — a
+  // semiannual report is nothing but its financial statements, and reading
+  // those is a scan of human-authored tables a consumer owns — but no OTHER id
+  // here expands to the 1-SA forms, so leaving it out sweeps zero of them and
+  // reports success. An id nothing registered contributes no forms, so naming
+  // it costs a package running alone nothing.
+  "reg-a": ["1-A", "1-K", "1-Z", "1-U", "QUALIF", "253G", "1-A-W", "rega-financials-1sa"],
   "form-d": ["D"],
-  spacs: ["S-1", "424", "8-K", "merger-proxy", "25-15"],
+  // Both readings of a registration statement, a prospectus and a current
+  // report: the structured one this package ships and the one a consumer may
+  // add. An id nothing registered contributes no forms, so the same list serves
+  // a package running alone and one running under a consumer that adds the
+  // other half — and the ids whose whole reading is a consumer's
+  // (`merger-proxy`, `25-15`) still have to be NAMED here, or a deployment that
+  // supplies them would sweep those forms outside the timeline they belong to.
+  spacs: ["S-1-xbrl", "S-1", "424-xbrl", "424", "8-K-items", "8-K", "merger-proxy", "25-15"],
 } as const satisfies Record<string, readonly ExtractorId[]>;

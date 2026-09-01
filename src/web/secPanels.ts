@@ -37,121 +37,6 @@ function pathStartsWith(invocation: WebInvocation, ...prefix: readonly string[])
   return prefix.every((segment, index) => invocation.path[index] === segment);
 }
 
-/** Lifecycle status, coloured by whether the vehicle is still live. */
-function spacStatusTone(status: unknown): WebTone {
-  if (status === "completed") return "ok";
-  if (status === "liquidated" || status === "withdrawn") return "fail";
-  if (status === "deal_announced" || status === "proxy" || status === "loi") return "info";
-  return "idle";
-}
-
-const DEAL_OUTCOME_TONE: Readonly<Record<string, WebTone>> = {
-  completed: "ok",
-  terminated: "fail",
-  pending: "warn",
-};
-
-/** A de-SPAC milestone reads as progress; a wind-up does not. */
-const EVENT_TONE: Readonly<Record<string, WebTone>> = {
-  ipo: "info",
-  unit_split: "idle",
-  loi: "info",
-  definitive_agreement: "info",
-  proxy: "info",
-  vote: "info",
-  completed: "ok",
-  terminated: "fail",
-  deregistration: "fail",
-  liquidation: "fail",
-};
-
-function spacHeadline(output: unknown): PanelData {
-  const spac = field(output, "spac");
-  if (!spac) {
-    return {
-      kind: "empty",
-      message: "No spac row for this CIK — its registration statement has not been processed yet.",
-    };
-  }
-  const status = field(spac, "status");
-  const trust = field(spac, "current_trust_amount") ?? field(spac, "trust_amount");
-  return {
-    kind: "stats",
-    items: [
-      { label: "status", value: text(status), tone: spacStatusTone(status) },
-      { label: "SPAC name", value: text(field(spac, "spac_name")) },
-      { label: "current name", value: text(field(spac, "current_name")) },
-      { label: "target", value: text(field(spac, "target_name")) },
-      { label: "IPO proceeds", value: money(field(spac, "ipo_proceeds")) },
-      {
-        label: "trust",
-        value: money(trust),
-        detail:
-          field(spac, "current_trust_as_of") !== null &&
-          field(spac, "current_trust_as_of") !== undefined
-            ? `as of ${text(field(spac, "current_trust_as_of"))}`
-            : "at IPO",
-      },
-      { label: "PIPE", value: money(field(spac, "pipe_amount")) },
-      { label: "redemptions", value: money(field(spac, "total_redemption_amount")) },
-      { label: "tickers", value: jsonList(field(spac, "current_tickers")) },
-      { label: "sponsors", value: count(field(output, "sponsorCount")) },
-      { label: "underwriters", value: count(field(output, "underwriterCount")) },
-    ],
-  };
-}
-
-/**
- * The event stream as what it is.
- *
- * A SPAC's whole story is dated events in order, and reading it out of a
- * two-column table means reconstructing the order in your head — which is
- * exactly the step that goes wrong when a deregistration sorts ahead of the
- * completion it follows.
- */
-function spacTimeline(output: unknown): PanelData {
-  const events = [...recordArray(field(output, "events"))].sort((a, b) =>
-    String(a.event_date ?? "").localeCompare(String(b.event_date ?? ""))
-  );
-  if (events.length === 0) return { kind: "empty", message: "No recorded events." };
-  return {
-    kind: "timeline",
-    events: events.map((event) => ({
-      date: text(event.event_date),
-      label: text(event.event_type),
-      detail: [
-        event.form ? String(event.form) : undefined,
-        event.amount ? money(event.amount) : undefined,
-        event.detail ? String(event.detail) : undefined,
-      ]
-        .filter(Boolean)
-        .join(" · "),
-      tone: EVENT_TONE[String(event.event_type)],
-    })),
-  };
-}
-
-function spacDeals(output: unknown): PanelData {
-  const deals = recordArray(field(output, "deals"));
-  if (deals.length === 0) return { kind: "empty", message: "No combination attempts recorded." };
-  return {
-    kind: "table",
-    columns: ["#", "target", "outcome", "announced", "proxy", "vote", "PIPE", "equity", "redeemed"],
-    rows: deals.map((deal) => [
-      text(deal.deal_index),
-      text(deal.target_name),
-      text(deal.outcome),
-      text(deal.announced_date),
-      text(deal.proxy_date),
-      text(deal.vote_date),
-      money(deal.pipe_amount),
-      money(deal.equity_value),
-      money(deal.redemption_amount),
-    ]),
-    rowTones: deals.map((deal) => DEAL_OUTCOME_TONE[String(deal.outcome)]),
-  };
-}
-
 /**
  * The dead-letter worklist, coloured by the CLASS of failure each row records.
  *
@@ -236,37 +121,6 @@ function versionStatusPanel(output: unknown): PanelData {
   };
 }
 
-const CONFIDENCE_TONE: Readonly<Record<string, WebTone>> = {
-  high: "ok",
-  medium: "warn",
-  low: "idle",
-};
-
-function spacCandidatesPanel(output: unknown): PanelData {
-  const rows = recordArray(field(output, "candidates")).concat(recordArray(field(output, "rows")));
-  if (rows.length === 0) return { kind: "empty", message: "No candidates matched." };
-  return {
-    kind: "table",
-    columns: ["cik", "name", "confidence", "SIC", "first registration", "signals"],
-    rows: rows.map((row) => [
-      text(row.cik),
-      text(row.name),
-      text(row.confidence),
-      text(row.current_sic),
-      [text(row.first_reg_form), text(row.first_reg_date)].filter((v) => v !== "—").join(" "),
-      [
-        row.signal_sic_6770 ? "sic" : undefined,
-        row.signal_name_match ? "name" : undefined,
-        row.signal_renamed_from ? "former-name" : undefined,
-        row.signal_filed_sic_6770 ? "as-filed" : undefined,
-      ]
-        .filter(Boolean)
-        .join(" "),
-    ]),
-    rowTones: rows.map((row) => CONFIDENCE_TONE[String(row.confidence)]),
-  };
-}
-
 /**
  * Any query command's rows, as a table.
  *
@@ -289,35 +143,6 @@ function queryRowsPanel(output: unknown): PanelData {
       ? `${approx ? "at least " : ""}${total.toLocaleString("en-US")} matching`
       : undefined;
   return tableFromRecords(rows, { note: totalText });
-}
-
-/**
- * An eval sweep's ranking, which is the whole point of running one.
- *
- * The per-model summaries, not the per-fixture results: a sweep of four models
- * over eleven extractors produces hundreds of rows, and the question being
- * asked is which model to adopt.
- */
-function evalPanel(output: unknown): PanelData {
-  const summaries = recordArray(field(output, "summaries"));
-  const rows = summaries.length > 0 ? summaries : recordArray(field(output, "results"));
-  if (rows.length === 0) return { kind: "empty", message: "The sweep scored nothing." };
-  const skipped = field(output, "skipped");
-  return tableFromRecords(rows, {
-    note: [
-      Array.isArray(skipped) && skipped.length > 0
-        ? `${skipped.length} sections skipped`
-        : typeof skipped === "number" && skipped > 0
-          ? `${count(skipped)} sections skipped`
-          : undefined,
-      summaries.length === 0
-        ? "Per-fixture results — this sweep reported no summaries."
-        : undefined,
-      "Cost is estimated from character counts, not billed usage; the ranking is what matters.",
-    ]
-      .filter(Boolean)
-      .join(" · "),
-  });
 }
 
 function dbStatsPanel(output: unknown): PanelData {
@@ -353,35 +178,6 @@ function dbStatsPanel(output: unknown): PanelData {
 
 export function registerSecPanels(): void {
   registerWebPanel({
-    id: "sec.spac.headline",
-    title: "SPAC",
-    source,
-    appliesTo: (invocation) => pathIs(invocation, "spac", "report"),
-    load: async ({ output }) => spacHeadline(output),
-  });
-  registerWebPanel({
-    id: "sec.spac.deals",
-    title: "Combination attempts",
-    source,
-    appliesTo: (invocation) => pathIs(invocation, "spac", "report"),
-    load: async ({ output }) => spacDeals(output),
-  });
-  registerWebPanel({
-    id: "sec.spac.timeline",
-    title: "Lifecycle",
-    source,
-    appliesTo: (invocation) => pathIs(invocation, "spac", "report"),
-    load: async ({ output }) => spacTimeline(output),
-  });
-  registerWebPanel({
-    id: "sec.spac.candidates",
-    title: "Candidates",
-    source,
-    appliesTo: (invocation) => pathIs(invocation, "spac", "candidates"),
-    load: async ({ output }) => spacCandidatesPanel(output),
-  });
-
-  registerWebPanel({
     id: "sec.extractor.deadLetters",
     title: "Dead letters",
     source,
@@ -403,14 +199,6 @@ export function registerSecPanels(): void {
     source,
     appliesTo: (invocation) => pathStartsWith(invocation, "query") && invocation.path.length === 2,
     load: async ({ output }) => queryRowsPanel(output),
-  });
-
-  registerWebPanel({
-    id: "sec.eval.results",
-    title: "Ranking",
-    source,
-    appliesTo: (invocation) => pathStartsWith(invocation, "eval") && invocation.path.length === 2,
-    load: async ({ output }) => evalPanel(output),
   });
 
   registerWebPanel({
