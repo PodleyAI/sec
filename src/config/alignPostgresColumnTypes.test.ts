@@ -4,19 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "vitest";
 import { Type } from "typebox";
-import { planColumnAlignment, type LiveColumn } from "./alignPostgresColumnTypes";
-import type { RegisteredTable } from "./tableRegistry";
-import { TypeNullable } from "../util/TypeBoxUtil";
+import { describe, expect, it } from "vitest";
 import { AddressPrimaryKeyNames, AddressSchema } from "../storage/address/AddressSchema";
-import { FilingPrimaryKeyNames, FilingSchema } from "../storage/filing/FilingSchema";
-import { PhonePrimaryKeyNames, PhoneSchema } from "../storage/phone/PhoneSchema";
 import {
   CompanyFactsPrimaryKeyNames,
   CompanyFactsSchema,
 } from "../storage/facts/CompanyFactsSchema";
+import { FilingPrimaryKeyNames, FilingSchema } from "../storage/filing/FilingSchema";
+import { PhonePrimaryKeyNames, PhoneSchema } from "../storage/phone/PhoneSchema";
 import { XbrlFactPrimaryKeyNames, XbrlFactRowSchema } from "../storage/xbrl/XbrlFactSchema";
+import { TypeNullable } from "../util/TypeBoxUtil";
+import { planColumnAlignment, type LiveColumn } from "./alignPostgresColumnTypes";
+import type { RegisteredTable } from "./tableRegistry";
 
 /**
  * The schema every planned statement is qualified with. Ordinary lower-case,
@@ -28,7 +28,7 @@ const SCHEMA = "public";
 
 function table(
   name: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test fixtures pass raw TypeBox schemas
+  // `any` here: test fixtures pass raw TypeBox schemas.
   schema: any,
   primaryKeyNames: ReadonlyArray<string>
 ): RegisteredTable {

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
 import { Value } from "typebox/value";
+import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { parseInlineXbrl } from "../../sec/xbrl/parseInlineXbrl";

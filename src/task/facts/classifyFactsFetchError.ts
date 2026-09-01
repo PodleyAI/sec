@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { FactsReasonCode } from "../../storage/processing/ProcessedFactsSchema";
 import {
   getHttpErrorStatus,
   isRetryableJobErrorShape,
   NETWORK_ERRNO_PATTERN,
   NETWORK_MESSAGE_PATTERN,
 } from "../fetch/SecFetchJob";
-import type { FactsReasonCode } from "../../storage/processing/ProcessedFactsSchema";
 import { isNoXbrlFactsError } from "./NoXbrlFactsError";
 
 export type FactsFetchReasonCode = Extract<

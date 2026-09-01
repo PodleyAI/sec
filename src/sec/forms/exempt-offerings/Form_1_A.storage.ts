@@ -4,28 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
+import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import {
-  COUNTRY_STATE_CODE_ARRAY,
-  US_STATE_CODE_ARRAY,
-} from "../../../storage/address/AddressSchemaCodes";
+import { resolveCountryCode } from "../../../storage/address/resolveCountryCode";
 import {
   hasCompanyEnding,
   normalizeCompanyName,
 } from "../../../storage/company/CompanyNormalization";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
-import { resolveCountryCode } from "../../../storage/address/resolveCountryCode";
-
-import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
-import type { RegAOffering } from "../../../storage/reg-a/RegAOfferingSchema";
-import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
-import type { RegAFinancialData } from "../../../storage/reg-a/RegAFinancialDataSchema";
 import type { RegAEquityClass } from "../../../storage/reg-a/RegAEquityClassSchema";
-import { extractServiceProviders, RELATION_TYPE_REGA_SERVICE_PROVIDER } from "./RegA_shared";
-import type { Form1A } from "./Form_1_A.schema";
+import type { RegAFinancialData } from "../../../storage/reg-a/RegAFinancialDataSchema";
+import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
+import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import { numScalar } from "../_valueHelpers";
-import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
-import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
+import type { Form1A } from "./Form_1_A.schema";
+import { extractServiceProviders, RELATION_TYPE_REGA_SERVICE_PROVIDER } from "./RegA_shared";
 
 interface Form1AStorageContext {
   readonly accession_number: string;

@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { normalizePerson, personDisplayParts } from "../storage/person/PersonNormalization";
-import { normalizeCompanyName } from "../storage/company/CompanyNormalization";
 import { normalizeManagementTitles } from "../sec/forms/registration-statements/s1/normalizeTitle";
+import { normalizeCompanyName } from "../storage/company/CompanyNormalization";
+import type { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import type { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import type { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
-import type { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
+import { normalizePerson, personDisplayParts } from "../storage/person/PersonNormalization";
 import { RoleRosterCompletenessRepo } from "../storage/roster/RoleRosterCompletenessRepo";
 
 export interface PersonClaim {

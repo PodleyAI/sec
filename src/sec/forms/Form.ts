@@ -100,7 +100,7 @@ export abstract class Form {
   // Keyed by the subclass constructor itself rather than `this.name`, since
   // multiple Form subclasses set `name` to a human-readable description and
   // collisions there would silently return another form's array paths.
-  private static _arrayPaths = new WeakMap<Function, string[]>();
+  private static _arrayPaths = new WeakMap<object, string[]>();
   protected static getParser(schema: TObject): FormXmlParser {
     let paths = this._arrayPaths.get(this);
     if (!paths) {

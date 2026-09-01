@@ -5,8 +5,8 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import { KeyedMutex } from "../../util/KeyedMutex";
 import { isStaleByAsOf } from "../../util/asOfGuard";
+import { KeyedMutex } from "../../util/KeyedMutex";
 import {
   REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
   RegAEquityClass,

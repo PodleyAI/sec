@@ -7,12 +7,12 @@
 import { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
 import { runWorkflowCli } from "../cli/runWorkflow";
-import { IssuerDealTask, type IssuerDealTaskOutput } from "../task/offering/IssuerDealTask";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
-import type { OfferingTerms } from "../storage/offering/OfferingTermsSchema";
 import { OfferingTermsRepo } from "../storage/offering/OfferingTermsRepo";
-import type { SpacUnitTerms } from "../storage/offering/SpacUnitTermsSchema";
+import type { OfferingTerms } from "../storage/offering/OfferingTermsSchema";
 import { SpacUnitTermsRepo } from "../storage/offering/SpacUnitTermsRepo";
+import type { SpacUnitTerms } from "../storage/offering/SpacUnitTermsSchema";
+import { IssuerDealTask, type IssuerDealTaskOutput } from "../task/offering/IssuerDealTask";
 
 export interface DealField {
   readonly field: string;

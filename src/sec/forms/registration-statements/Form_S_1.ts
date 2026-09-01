@@ -7,7 +7,7 @@
 import { Form } from "../Form";
 import { parseRegistrationSubmission, type FormS1Parsed } from "./s1/parseSubmission";
 
-export type { FormS1Parsed, FormS1Header } from "./s1/parseSubmission";
+export type { FormS1Header, FormS1Parsed } from "./s1/parseSubmission";
 
 export class Form_S_1 extends Form {
   static readonly name = "Registration Statement (S-1)";

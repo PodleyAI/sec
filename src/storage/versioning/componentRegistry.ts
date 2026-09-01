@@ -3,9 +3,9 @@
  * Copyright 2025 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
+import { listResolverIds } from "../../resolver/resolverExtensions";
 import type { ComponentKind } from "./ComponentVersionSchema";
 import { EXTRACTOR_IDS } from "./extractorIds";
-import { listResolverIds } from "../../resolver/resolverExtensions";
 
 export function listRegisteredComponents(): ReadonlyArray<{ kind: ComponentKind; id: string }> {
   return [

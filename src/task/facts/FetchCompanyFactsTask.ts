@@ -6,11 +6,11 @@
 
 import { Static, Type } from "typebox";
 import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError } from "workglow";
-import { SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
-import { NoXbrlFactsError } from "./NoXbrlFactsError";
 import { CompanyFacts, Factoid, FactoidSchema, normalizeFp } from "../../sec/facts/CompanyFacts";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { secDate, TypeOptionalSecDate } from "../../util/parseDate";
+import { SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
+import { NoXbrlFactsError } from "./NoXbrlFactsError";
 
 // NOTE: company facts are mutable, so we need to pass in a date to break the cache
 

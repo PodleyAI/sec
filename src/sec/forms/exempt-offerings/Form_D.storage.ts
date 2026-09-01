@@ -4,15 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
+import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
+import { COMPLETE_ROSTER_ROLE_SCOPES } from "../../../resolver/roleScopes";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { InvestmentOfferingRepo } from "../../../storage/investment-offering/InvestmentOfferingRepo";
-import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
-
 import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
+import type { InvestmentOfferingHistory } from "../../../storage/investment-offering/InvestmentOfferingHistorySchema";
+import { InvestmentOfferingRepo } from "../../../storage/investment-offering/InvestmentOfferingRepo";
+import type { InvestmentOffering } from "../../../storage/investment-offering/InvestmentOfferingSchema";
 import { IssuerRepo } from "../../../storage/investment-offering/IssuerRepo";
+import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
+import { parseCikSafely } from "../../../util/parseCik";
 import { isOverlongPersonName, joinedPersonName } from "../../../util/personNameBounds";
-import { INDEFINITE } from "./Form_D.schema";
 import type {
   FormD,
   Issuer,
@@ -21,12 +25,7 @@ import type {
   Signature,
   SignatureBlock,
 } from "./Form_D.schema";
-import type { InvestmentOffering } from "../../../storage/investment-offering/InvestmentOfferingSchema";
-import type { InvestmentOfferingHistory } from "../../../storage/investment-offering/InvestmentOfferingHistorySchema";
-import { parseCikSafely } from "../../../util/parseCik";
-import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
-import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
-import { COMPLETE_ROSTER_ROLE_SCOPES } from "../../../resolver/roleScopes";
+import { INDEFINITE } from "./Form_D.schema";
 
 interface FormDStorageContext {
   readonly accession_number: string;

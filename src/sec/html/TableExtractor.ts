@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { CheerioAPI } from "cheerio";
-import { NodeKind, renderMarkdown, uuid4 } from "workglow";
 import type { TableCell, TableNode } from "workglow";
+import { NodeKind, renderMarkdown, uuid4 } from "workglow";
 import { parseNumeric } from "./parseNumeric";
 
 const LAYOUT_CHILD_TAGS = new Set([

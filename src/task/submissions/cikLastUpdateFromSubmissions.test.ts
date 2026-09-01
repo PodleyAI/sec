@@ -6,8 +6,8 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry, type IExecuteContext } from "workglow";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import type { CompanySubmission, Filings } from "../../sec/submissions/EnititySubmissionSchema";
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../../storage/processing/CikLastUpdateSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";

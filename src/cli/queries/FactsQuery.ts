@@ -1,9 +1,9 @@
-import { globalServiceRegistry } from "workglow";
 import type { SearchCriteria } from "workglow";
+import { globalServiceRegistry } from "workglow";
 import type { CompanyFact } from "../../storage/facts/CompanyFactsSchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
-import type { QueryResult } from "./EntityQuery";
 import { collectPage, streamMatchingRows } from "./_streamMatches";
+import type { QueryResult } from "./EntityQuery";
 
 export interface FactsQueryParams {
   readonly cik: number;

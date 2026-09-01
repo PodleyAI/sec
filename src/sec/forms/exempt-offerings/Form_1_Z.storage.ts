@@ -4,22 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
+import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { resolveCountryCode } from "../../../storage/address/resolveCountryCode";
-import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import {
   hasCompanyEnding,
   normalizeCompanyName,
 } from "../../../storage/company/CompanyNormalization";
-import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
-import type { RegAOffering } from "../../../storage/reg-a/RegAOfferingSchema";
-import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
+import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import type { RegAFinancialData } from "../../../storage/reg-a/RegAFinancialDataSchema";
-import { extractServiceProviders } from "./RegA_shared";
-import type { Form1Z } from "./Form_1_Z.schema";
+import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
+import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import { numScalar } from "../_valueHelpers";
-import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
-import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
+import type { Form1Z } from "./Form_1_Z.schema";
+import { extractServiceProviders } from "./RegA_shared";
 
 interface Form1ZStorageContext {
   readonly accession_number: string;

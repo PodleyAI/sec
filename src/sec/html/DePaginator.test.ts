@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it } from "vitest";
+import type { ParagraphNode, TableCell, TableNode } from "workglow";
+import { NodeKind, uuid4 } from "workglow";
 import { depaginate, depaginateWithTrace } from "./DePaginator";
 import type { EdgarBlock, ResolvedStyle } from "./types";
-import { NodeKind, uuid4 } from "workglow";
-import type { ParagraphNode, TableCell, TableNode } from "workglow";
 
 const style: ResolvedStyle = {
   fontSizePt: 14,

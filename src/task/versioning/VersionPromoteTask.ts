@@ -6,9 +6,9 @@
 
 import { Type } from "typebox";
 import { Task } from "workglow";
-import { countEligibleDeadLetters } from "../forms/ListDeadLettersTask";
 import { promote } from "../../storage/versioning/ceremonies";
 import type { ComponentKind } from "../../storage/versioning/ComponentVersionSchema";
+import { countEligibleDeadLetters } from "../forms/ListDeadLettersTask";
 import { ceremonyExtractorRuns, ceremonyRepos } from "./ceremonyRepos";
 
 export type VersionPromoteTaskInput = {

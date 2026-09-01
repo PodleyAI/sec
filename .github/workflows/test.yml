@@ -30,6 +30,10 @@ jobs:
           bun-version: latest
       - run: bun i
       - run: bun run format-check
+      # oxlint + tsgolint. Needs no build of its own: the type-aware rules
+      # resolve `@workglow/*` through the published `dist/*.d.ts` that `bun i`
+      # already put in node_modules.
+      - run: bun run lint
       - run: bun run build
       - run: bun run typecheck-tests
       - run: bun run test

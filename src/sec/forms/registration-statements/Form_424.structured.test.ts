@@ -6,10 +6,10 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
-import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
-import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { FILING_REPOSITORY_TOKEN } from "../../../storage/filing/FilingSchema";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { XbrlFactRepo } from "../../../storage/xbrl/XbrlFactRepo";
 import { processForm424Structured } from "./Form_424.storage";
 import { processFormS1Structured } from "./Form_S_1.storage";

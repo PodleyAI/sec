@@ -5,15 +5,15 @@
  */
 
 import { Form_CORRESP } from "./Form_CORRESP";
+import { Form_CT_ORDER } from "./Form_CT_ORDER";
+import { Form_EFFECT } from "./Form_EFFECT";
 import { Form_IRANNOTICE } from "./Form_IRANNOTICE";
 import { Form_NO_ACT } from "./Form_NO_ACT";
+import { Form_SEC_ACTION } from "./Form_SEC_ACTION";
 import { Form_SEC_STAFF_ACTION } from "./Form_SEC_STAFF_ACTION";
 import { Form_SEC_STAFF_LETTER } from "./Form_SEC_STAFF_LETTER";
-import { Form_EFFECT } from "./Form_EFFECT";
-import { Form_UPLOAD } from "./Form_UPLOAD";
-import { Form_CT_ORDER } from "./Form_CT_ORDER";
 import { Form_STOP_ORDER } from "./Form_STOP_ORDER";
-import { Form_SEC_ACTION } from "./Form_SEC_ACTION";
+import { Form_UPLOAD } from "./Form_UPLOAD";
 
 export const CORRESPONDENCE_SUBMISSION_TYPE_FORM_NAMES_MAP = [
   ...Form_CORRESP.forms.map((form) => [form, Form_CORRESP] as const),

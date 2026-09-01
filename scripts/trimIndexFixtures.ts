@@ -34,9 +34,7 @@
  * `--check` reports what would change without writing. With no file arguments,
  * every `YYYY-QTRn.master.idx` under the fixture directory is processed.
  */
-
-import { readFileSync, writeFileSync } from "node:fs";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 
 const FIXTURE_DIR = resolve(import.meta.dir, "../src/sec/indexes/mock_data");

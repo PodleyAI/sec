@@ -6,11 +6,11 @@
 
 import { Type } from "typebox";
 import { globalServiceRegistry, Task } from "workglow";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
+import { allRegisteredForms, formHandledByExtractor } from "../../sec/forms/formExtractors";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { startDev } from "../../storage/versioning/ceremonies";
 import type { BumpType, ComponentKind } from "../../storage/versioning/ComponentVersionSchema";
-import { allRegisteredForms, formHandledByExtractor } from "../../sec/forms/formExtractors";
-import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import { ceremonyRepos } from "./ceremonyRepos";
 
 /**

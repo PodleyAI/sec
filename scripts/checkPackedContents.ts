@@ -27,7 +27,6 @@
  *   3. Last-resort fall back to `bun pm pack --dry-run` and grep the plain text
  *      for forbidden patterns so the safeguard still fires without npm.
  */
-
 import { spawnSync } from "node:child_process";
 import { findSourceStubs } from "./sourceStubs";
 

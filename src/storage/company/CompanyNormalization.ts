@@ -153,7 +153,7 @@ export function hasCompanyAnywhere(name: string) {
 export function stripCompanyAllEndings(name: string): string {
   // Remove punctuation and extra whitespace for normalization
   let normalized = name
-    .replace(/[\.,;:!\?]/g, "")
+    .replace(/[.,;:!?]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -229,7 +229,7 @@ export function normalizeCompanyName(name: string): string | null {
   // not match `Blue Acquisition Corp/Cayman`, so the name kept its `Corp` and
   // minted a second canonical company beside `Blue Acquisition Corp`.
   let normalized = foldTypographicPunctuation(stripEdgarJurisdictionSuffix(name))
-    .replace(/[\.,;:!\?]/g, "")
+    .replace(/[.,;:!?]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 

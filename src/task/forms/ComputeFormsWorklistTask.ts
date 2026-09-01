@@ -6,7 +6,9 @@
 
 import { Type } from "typebox";
 import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
-import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { isDryRun } from "../../cli/isDryRun";
+import { SecFetchMaxPerSec } from "../../config/Constants";
+import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import {
   allRegisteredForms,
@@ -14,7 +16,7 @@ import {
   extractorsForForm,
 } from "../../sec/forms/formExtractors";
 import { noExtractorReason } from "../../sec/forms/parserOnlyForms";
-import { isDryRun } from "../../cli/isDryRun";
+import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import {
   FILING_REPOSITORY_TOKEN,
   type Filing,
@@ -26,8 +28,6 @@ import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/Extract
 import { sortFormsForSweep } from "../../storage/versioning/formsSweepOrder";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
-import { SecFetchMaxPerSec } from "../../config/Constants";
-import { registerSecFormExtractors } from "../../config/registerFormExtractors";
 import { resolvePrimaryDocName } from "../../util/accessionDocPath";
 
 /**

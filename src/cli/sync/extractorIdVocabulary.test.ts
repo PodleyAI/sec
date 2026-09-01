@@ -5,13 +5,13 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { allRegisteredExtractorIds } from "../../sec/forms/formExtractors";
 import {
   DEAD_LETTER_REASON_CODES,
   EXPECTED_NEGATIVE_REASON_CODES,
   MODEL_ERROR_REASON_CODES,
   NONDETERMINISTIC_REASON_CODES,
 } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
-import { allRegisteredExtractorIds } from "../../sec/forms/formExtractors";
 import {
   EXTRACTOR_IDS,
   PERSON_OBSERVING_EXTRACTOR_IDS,

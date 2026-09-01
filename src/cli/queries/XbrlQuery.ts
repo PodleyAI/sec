@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
 import type { SearchCriteria } from "workglow";
+import { globalServiceRegistry } from "workglow";
 import type { XbrlFactRow } from "../../storage/xbrl/XbrlFactSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../../storage/xbrl/XbrlFactSchema";
-import type { QueryResult } from "./EntityQuery";
 import { collectPage, streamMatchingRows } from "./_streamMatches";
+import type { QueryResult } from "./EntityQuery";
 
 export interface XbrlQueryParams {
   /** Filing accession number; either this or `cik` must be provided. */

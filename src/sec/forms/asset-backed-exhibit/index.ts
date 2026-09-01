@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Form_ABS_EE } from "./Form_ABS_EE";
-import { Form_ABS_15G } from "./Form_ABS_15G";
 import { Form_10D } from "./Form_10D";
-import { Form_SF3 } from "./Form_SF3";
+import { Form_ABS_15G } from "./Form_ABS_15G";
+import { Form_ABS_EE } from "./Form_ABS_EE";
 import { Form_SF1 } from "./Form_SF1";
+import { Form_SF3 } from "./Form_SF3";
 
 export const ASSET_BACKED_EXHIBIT_FORM_NAMES_MAP = [
   ...Form_ABS_EE.forms.map((form) => [form, Form_ABS_EE] as const),

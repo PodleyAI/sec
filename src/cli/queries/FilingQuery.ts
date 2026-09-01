@@ -1,9 +1,9 @@
-import { globalServiceRegistry } from "workglow";
 import type { SearchCriteria } from "workglow";
+import { globalServiceRegistry } from "workglow";
 import type { Filing } from "../../storage/filing/FilingSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import type { QueryResult } from "./EntityQuery";
 import { collectPage, streamMatchingRows } from "./_streamMatches";
+import type { QueryResult } from "./EntityQuery";
 
 export interface FilingQueryParams {
   readonly search?: string;

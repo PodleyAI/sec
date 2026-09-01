@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it } from "vitest";
-import { NodeKind, renderMarkdown } from "workglow";
 import type { DocumentNode, DocumentRootNode, ParagraphNode, SectionNode } from "workglow";
+import { NodeKind, renderMarkdown } from "workglow";
 import { joinDocumentSections, splitDocumentSections } from "./documentSections";
 
 let nextId = 0;

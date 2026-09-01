@@ -9,8 +9,8 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable, TypeStringEnum } from "../../util/TypeBoxUtil";
-import { ISO_COUNTRY_CODE_ARRAY, SEC_STATE_CODE_ARRAY } from "./AddressSchemaCodes";
 import { TypeSecCik } from "../../util/TypeSecCik";
+import { ISO_COUNTRY_CODE_ARRAY, SEC_STATE_CODE_ARRAY } from "./AddressSchemaCodes";
 
 export type StateOrCountryCode = (typeof SEC_STATE_CODE_ARRAY)[number];
 export type CountryCode = (typeof ISO_COUNTRY_CODE_ARRAY)[number];

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
 import type { SearchCriteria } from "workglow";
+import { globalServiceRegistry } from "workglow";
 import { isUniqueConstraintError } from "../../util/isUniqueConstraintError";
 import {
   COMPANY_OBSERVATION_REPOSITORY_TOKEN,

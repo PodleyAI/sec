@@ -5,8 +5,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { XbrlFactRepo } from "../../../storage/xbrl/XbrlFactRepo";

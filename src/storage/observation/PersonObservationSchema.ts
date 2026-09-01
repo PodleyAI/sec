@@ -7,8 +7,8 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeSecCik } from "../../util/TypeSecCik";
 import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
  * One row per person claim made by an extractor for a filing. The natural

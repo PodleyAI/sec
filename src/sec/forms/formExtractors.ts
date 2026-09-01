@@ -190,7 +190,6 @@ export type FormExtractor<TParsed = unknown> =
  * entries at all. Each registration keeps its own type at its call site; the
  * erasure is what lets differently-typed extractors share one map.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const REGISTRY = new Map<string, FormExtractor<any>>();
 
 /**
@@ -211,7 +210,6 @@ export function extractorKey(id: string, section?: string): string {
   return section === undefined || section === "" ? id : `${id}:${section}`;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function keyOf(ext: FormExtractor<any>): string {
   return extractorKey(ext.id, ext.section);
 }
@@ -226,7 +224,6 @@ function keyOf(ext: FormExtractor<any>): string {
  * worklist. Nothing else changes it between those calls, so recomputing it is
  * pure repeated work on every filing of every sweep.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const formCache = new Map<string, readonly FormExtractor<any>[]>();
 
 export function registerFormExtractor<TParsed>(ext: FormExtractor<TParsed>): void {
@@ -234,7 +231,6 @@ export function registerFormExtractor<TParsed>(ext: FormExtractor<TParsed>): voi
   formCache.clear();
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getFormExtractor(key: string): FormExtractor<any> | undefined {
   return REGISTRY.get(key);
 }
@@ -248,17 +244,14 @@ export function listFormExtractorKeys(): readonly string[] {
  * declarations. Registration order breaks ties, so a form whose extractors
  * declare nothing keeps the order they were registered in.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function extractorsForForm(form: string): readonly FormExtractor<any>[] {
   const cached = formCache.get(form);
   if (cached !== undefined) return cached;
   const members = [...REGISTRY.values()].filter((e) => e.forms.includes(form));
   const byKey = new Map(members.map((e) => [keyOf(e), e]));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sorted: FormExtractor<any>[] = [];
   const state = new Map<string, "visiting" | "done">();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const visit = (ext: FormExtractor<any>): void => {
     const key = keyOf(ext);
     const seen = state.get(key);
@@ -406,7 +399,6 @@ export async function formNeedsFullSubmission(probe: FullSubmissionProbe): Promi
  * settles one extractor's input.
  */
 export async function extractorReadsFullSubmission(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   extractor: FormExtractor<any>,
   probe: FullSubmissionProbe
 ): Promise<boolean> {

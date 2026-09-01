@@ -3,16 +3,16 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   clearSpacEditorialImporterForTesting,
   registerSpacEditorialImporter,
 } from "../../commands/editorialImport";
+import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { EditorialImportTask } from "./EditorialImportTask";
 
 const tempDirectories: string[] = [];

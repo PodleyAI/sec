@@ -6,9 +6,9 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
 import {
   clearFormExtractorsForTesting,
+  extractorReadsFullSubmission,
   extractorsForForm,
   formNeedsDocument,
-  extractorReadsFullSubmission,
   formNeedsFullSubmission,
   getFormExtractor,
   listFormExtractorKeys,

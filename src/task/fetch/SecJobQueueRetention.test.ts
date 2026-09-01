@@ -8,7 +8,6 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import "workglow";
-
 import { getSecJobQueue } from "./SecJobQueue";
 
 /**

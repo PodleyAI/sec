@@ -10,8 +10,8 @@ import {
   IssuerTickersTask,
   type IssuerTickersTaskOutput,
 } from "../task/offering/IssuerTickersTask";
-import { issuerCommandGroup } from "./issuerGroup";
 import { registerIssuerDealCommand } from "./issuerDeal";
+import { issuerCommandGroup } from "./issuerGroup";
 
 /**
  * Registers the `sec issuer` subcommands this package owns.

@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { CheerioAPI } from "cheerio";
-import { NodeKind, renderMarkdown, uuid4 } from "workglow";
 import type { TableCell, TableNode } from "workglow";
-import { extractTable } from "./TableExtractor";
+import { NodeKind, renderMarkdown, uuid4 } from "workglow";
 import { parseNumeric } from "./parseNumeric";
+import { extractTable } from "./TableExtractor";
 
 const SUM1_CLASS = /(?:^|\s)[\w-]*sum1(?:\s|$)/i;
 const SUM2_CLASS = /(?:^|\s)[\w-]*sum2(?:\s|$)/i;

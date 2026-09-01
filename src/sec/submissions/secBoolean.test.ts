@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "vitest";
 import { Value } from "typebox/value";
+import { describe, expect, it } from "vitest";
 import { objectOfArraysAsArrayOfObjects } from "workglow";
 import { secBooleanFromWire, TypeFilings } from "./EnititySubmissionSchema";
 

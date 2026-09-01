@@ -6,15 +6,15 @@
 
 import { globalServiceRegistry } from "workglow";
 import {
+  FORM144_ACQUISITION_REPOSITORY_TOKEN,
+  FORM144_FILING_REPOSITORY_TOKEN,
+  FORM144_RECENT_SALE_REPOSITORY_TOKEN,
   Form144Acquisition,
   Form144AcquisitionRepositoryStorage,
   Form144Filing,
   Form144FilingRepositoryStorage,
   Form144RecentSale,
   Form144RecentSaleRepositoryStorage,
-  FORM144_ACQUISITION_REPOSITORY_TOKEN,
-  FORM144_FILING_REPOSITORY_TOKEN,
-  FORM144_RECENT_SALE_REPOSITORY_TOKEN,
 } from "./Form144Schema";
 
 interface Form144RepoOptions {

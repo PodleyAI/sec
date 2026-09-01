@@ -5,14 +5,13 @@
  */
 
 import { registerWebFieldWidget, type WebFieldWidgetItem } from "@workglow/cli";
-import { globalServiceRegistry } from "workglow";
 import { queryCiks } from "../cli/queries/CikQuery";
 import { queryEntities } from "../cli/queries/EntityQuery";
 import { queryFilings } from "../cli/queries/FilingQuery";
 import { getVersionStatus } from "../cli/queries/VersionStatus";
 import { listResolverIds } from "../resolver/resolverExtensions";
-import { listBackfillableExtractorIds } from "../task/forms/backfillDescriptors";
 import { allRegisteredForms } from "../sec/forms/formExtractors";
+import { listBackfillableExtractorIds } from "../task/forms/backfillDescriptors";
 import { readPendingDeadLetterCounts } from "./secWebReads";
 
 /**

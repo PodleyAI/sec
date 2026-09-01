@@ -8,12 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry, TaskAbortedError, type IExecuteContext } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
-import type { FetchCompanyFactsTaskOutput } from "./FetchCompanyFactsTask";
 import {
   clearCurrentTrustRefreshForTesting,
   registerCurrentTrustRefresh,
 } from "./currentTrustRefresh";
 import { fetchAndStoreCompanyFactsWithDeps } from "./fetchAndStoreCompanyFacts";
+import type { FetchCompanyFactsTaskOutput } from "./FetchCompanyFactsTask";
 import { NoXbrlFactsError } from "./NoXbrlFactsError";
 
 const ctx = {} as IExecuteContext;

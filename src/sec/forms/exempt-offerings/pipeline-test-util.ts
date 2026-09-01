@@ -12,13 +12,12 @@
  * accession derivation, all-or-fail iteration).
  */
 
-import { readFileSync, readdirSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { accessionFromFixtureName } from "../../../util/accession";
 import { parseCikSafely } from "../../../util/parseCik";
 
-export { accessionFromFixtureName };
-export { parseCikSafely as safeCikToInt };
+export { accessionFromFixtureName, parseCikSafely as safeCikToInt };
 
 export function fixtureDir(slug: string): string {
   return join(__dirname, "mock_data", slug);

@@ -26,8 +26,8 @@ import { join, resolve } from "path";
 import {
   EXEMPT_OFFERING_FORM_CODES,
   EXEMPT_OFFERING_FORM_SLUGS,
-  type ExemptOfferingFormCode,
   isExemptOfferingFormCode,
+  type ExemptOfferingFormCode,
 } from "../../sec/forms/exempt-offerings/form-slugs";
 import { accessionFromFileName, accessionWithoutDashes } from "../../util/accession";
 import { SecFetchAccessionDocTask } from "../forms/SecFetchAccessionDocTask";

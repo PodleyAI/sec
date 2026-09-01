@@ -19,7 +19,6 @@
  * Adapted from the libs monorepo's scripts/bunsrc-workspace.ts, scoped to this
  * single package instead of iterating workspaces.
  */
-
 import { $ } from "bun";
 import {
   readPackageManifest,

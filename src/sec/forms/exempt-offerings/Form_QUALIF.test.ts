@@ -5,8 +5,8 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import { Form_QUALIF } from "./Form_QUALIF";
 import { processFormQualif } from "./Form_QUALIF.storage";

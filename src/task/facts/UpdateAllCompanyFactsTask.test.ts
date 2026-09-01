@@ -6,9 +6,9 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry, type IExecuteContext } from "workglow";
-import { SEC_DRY_RUN } from "../../config/tokens";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
+import { SEC_DRY_RUN } from "../../config/tokens";
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../../storage/processing/CikLastUpdateSchema";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
 import { UpdateAllCompanyFactsTask } from "./UpdateAllCompanyFactsTask";

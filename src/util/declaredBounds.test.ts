@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "vitest";
 import { Type } from "typebox";
-import { TypeNullable } from "./TypeBoxUtil";
-import { DeclaredBoundsError, assertWithinDeclaredBounds } from "./declaredBounds";
+import { describe, expect, it } from "vitest";
 import { RelatedPartyTransactionSchema } from "../storage/related-party/RelatedPartyTransactionSchema";
+import { assertWithinDeclaredBounds, DeclaredBoundsError } from "./declaredBounds";
+import { TypeNullable } from "./TypeBoxUtil";
 
 const Schema = Type.Object({
   id: Type.String({ maxLength: 8 }),

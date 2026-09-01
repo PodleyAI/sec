@@ -1,12 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Value } from "typebox/value";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createServiceToken, globalServiceRegistry } from "workglow";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import {
   registerDbStatsTables,
   resetDbStatsTablesForTesting,
   type CountableRepository,
 } from "../../cli/queries/DbStatus";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { DbStatsTask } from "./DbStatsTask";
 
 describe("DbStatsTask", () => {

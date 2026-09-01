@@ -3,8 +3,8 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { buildDocumentTree } from "workglow";
 import type { DocumentRootNode, FlatBlock } from "workglow";
+import { buildDocumentTree } from "workglow";
 import type { EdgarBlock } from "./types";
 
 /** Map de-paginated EdgarBlock[] to libs FlatBlock[] and nest into a Document. */

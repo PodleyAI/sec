@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { DocumentRootNode } from "workglow";
-import { parseToBlocks } from "./parseToBlocks";
-import { joinSplitHeadings } from "./joinSplitHeadings";
-import { depaginateWithTrace, type DroppedBlock } from "./DePaginator";
 import { buildDocument } from "./buildDocument";
 import { demoteCoverPageHeadings } from "./coverPage";
+import { depaginateWithTrace, type DroppedBlock } from "./DePaginator";
+import { joinSplitHeadings } from "./joinSplitHeadings";
 import { demoteParentheticalHeadings } from "./parentheticalHeadings";
+import { parseToBlocks } from "./parseToBlocks";
 import { buildSourceSpanIndex, type SourceSpanIndex } from "./sourceSpanIndex";
 import type { EdgarBlock } from "./types";
 

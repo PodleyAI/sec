@@ -5,7 +5,7 @@ import { resolve } from "path";
 import { createInterface } from "readline";
 import { globalServiceRegistry } from "workglow";
 import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../../config/tokens";
-import { InitApplyTask, buildEnvConfig, type InitConfig } from "../../task/init/InitApplyTask";
+import { buildEnvConfig, InitApplyTask, type InitConfig } from "../../task/init/InitApplyTask";
 import { parseGlobalOptions } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";

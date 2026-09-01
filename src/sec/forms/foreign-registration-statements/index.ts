@@ -4,7 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Form_20FR12B } from "./Form_20FR12B";
+import { Form_20FR12G } from "./Form_20FR12G";
+import { Form_CB } from "./Form_CB";
 import { Form_F_1 } from "./Form_F_1";
+import { Form_F_10 } from "./Form_F_10";
+import { Form_F_10EF } from "./Form_F_10EF";
+import { Form_F_10POS } from "./Form_F_10POS";
 import { Form_F_1MEF } from "./Form_F_1MEF";
 import { Form_F_2 } from "./Form_F_2";
 import { Form_F_2D } from "./Form_F_2D";
@@ -15,23 +21,17 @@ import { Form_F_3ASR } from "./Form_F_3ASR";
 import { Form_F_3D } from "./Form_F_3D";
 import { Form_F_3DPOS } from "./Form_F_3DPOS";
 import { Form_F_4 } from "./Form_F_4";
+import { Form_F_4EF } from "./Form_F_4EF";
 import { Form_F_6 } from "./Form_F_6";
 import { Form_F_6_POS } from "./Form_F_6_POS";
 import { Form_F_6EF } from "./Form_F_6EF";
-import { Form_F_10 } from "./Form_F_10";
-import { Form_F_10EF } from "./Form_F_10EF";
-import { Form_F_10POS } from "./Form_F_10POS";
-import { Form_F_N } from "./Form_F_N";
-import { Form_CB } from "./Form_CB";
-import { Form_F_X } from "./Form_F_X";
-import { Form_20FR12B } from "./Form_20FR12B";
-import { Form_20FR12G } from "./Form_20FR12G";
 import { Form_F_7 } from "./Form_F_7";
 import { Form_F_8 } from "./Form_F_8";
-import { Form_F_9 } from "./Form_F_9";
 import { Form_F_80 } from "./Form_F_80";
+import { Form_F_9 } from "./Form_F_9";
 import { Form_F_9EF } from "./Form_F_9EF";
-import { Form_F_4EF } from "./Form_F_4EF";
+import { Form_F_N } from "./Form_F_N";
+import { Form_F_X } from "./Form_F_X";
 
 export const FOREIGN_REGISTRATION_FORM_NAMES_MAP = [
   ...Form_CB.forms.map((form) => [form, Form_CB] as const),

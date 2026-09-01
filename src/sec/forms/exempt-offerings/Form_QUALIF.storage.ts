@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
-import type { FormQualif } from "./Form_QUALIF.schema";
+import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import { parseCikSafely } from "../../../util/parseCik";
+import type { FormQualif } from "./Form_QUALIF.schema";
 
 export interface ProcessFormQualifArgs {
   readonly cik: number;

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, TaskAbortedError, pipe } from "workglow";
+import { IExecuteContext, pipe, TaskAbortedError } from "workglow";
 import { FetchSubmissionsTask } from "./FetchSubmissionsTask";
 import { processUpdateProcessing, StoreSubmissionsTask } from "./StoreSubmissionsTask";
 

@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { readFileSync, readdirSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { Form144Repo } from "../../../storage/form144/Form144Repo";
-import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { accessionFromFixtureName } from "../../../util/accession";
 import { parseCikSafely } from "../../../util/parseCik";
 import { Form_144 } from "./Form_144";

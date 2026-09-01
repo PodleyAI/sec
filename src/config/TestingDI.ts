@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InMemoryTabularStorage, globalServiceRegistry } from "workglow";
+import { globalServiceRegistry, InMemoryTabularStorage } from "workglow";
 import { clearDatabaseExtensionsForTesting } from "./databaseExtensions";
 import { registerStorages, SEC_STORAGE_REGISTRY } from "./storageRegistry";
 import { clearRegisteredTablesForTesting } from "./tableRegistry";

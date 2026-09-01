@@ -3,8 +3,8 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { ResolvedStyle } from "./types";
 import { emphasisTraitCount } from "./StyleResolver";
+import type { ResolvedStyle } from "./types";
 
 const MAX_HEADING_LEN = 200;
 

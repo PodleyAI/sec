@@ -171,6 +171,7 @@ function lettersOf(canonical: string): string {
 }
 
 function flexibleDotted(letters: string): string {
+  // oxlint-disable-next-line typescript/no-misused-spread
   return [...letters].map((ch) => `${ch}[\\., ]{0,2}`).join("");
 }
 

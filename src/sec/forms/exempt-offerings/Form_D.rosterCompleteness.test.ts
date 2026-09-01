@@ -15,12 +15,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { COMPLETE_ROSTER_ROLE_SCOPES } from "../../../resolver/roleScopes";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
 import { RoleRosterCompletenessRepo } from "../../../storage/roster/RoleRosterCompletenessRepo";
 import type { RoleRosterCompleteness } from "../../../storage/roster/RoleRosterCompletenessSchema";
-import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
 import { MAX_PERSON_NAME_CHARS } from "../../../util/personNameBounds";
 import { Form_D } from "./Form_D";
 import type { FormD } from "./Form_D.schema";

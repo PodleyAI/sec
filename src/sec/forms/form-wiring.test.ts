@@ -6,16 +6,16 @@
 
 import { describe, expect, it } from "vitest";
 import { registerSecFormExtractors } from "../../config/registerFormExtractors";
-import { allRegisteredForms, formHasExtractor } from "./formExtractors";
+import { EXTRACTOR_IDS } from "../../storage/versioning/extractorIds";
 import {
   ALL_FORM_NAMES,
   ALL_FORMS_MAP,
   ALL_FORMS_MAP_ARRAY,
   isFormParsingSupported,
 } from "./all-forms";
-import { PARSER_ONLY_FORMS, parserOnlyExtractorIdForForm } from "./parserOnlyForms";
-import { EXTRACTOR_IDS } from "../../storage/versioning/extractorIds";
 import { Form_1_A } from "./exempt-offerings/Form_1_A";
+import { allRegisteredForms, formHasExtractor } from "./formExtractors";
+import { PARSER_ONLY_FORMS, parserOnlyExtractorIdForForm } from "./parserOnlyForms";
 
 // Both directions below read the form-extractor registry, which is empty until
 // something registers into it.

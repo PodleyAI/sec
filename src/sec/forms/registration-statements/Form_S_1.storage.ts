@@ -8,8 +8,8 @@ import { globalServiceRegistry, type IExecuteContext } from "workglow";
 import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
 import { S1ClassificationRepo } from "../../../storage/classification/S1ClassificationRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
-import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
+import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import type { FormS1Parsed } from "./Form_S_1";
 import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
 

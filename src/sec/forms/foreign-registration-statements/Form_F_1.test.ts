@@ -6,10 +6,11 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { Form_F_1 } from "./Form_F_1";
 import { Form_F_1MEF } from "./Form_F_1MEF";
-import { fileURLToPath } from "node:url";
+
 const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
 const FIXTURE = path.join(

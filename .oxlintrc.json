@@ -1,0 +1,73 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+
+  // The plugin set the old ESLint config named, minus the ones oxlint has no
+  // counterpart for. `plugins` REPLACES oxlint's defaults, so `unicorn` and
+  // `oxc` are off: they are rule families this package has never linted
+  // against, and adopting them is worth doing on its own rather than as a side
+  // effect of wiring up a linter.
+  //
+  // `eslint-plugin-regexp` has no oxlint equivalent and is gone. `correctness`
+  // still covers `no-control-regex`, `no-invalid-regexp`,
+  // `no-misleading-character-class` and `no-useless-backreference`; the
+  // optimisation and catastrophic-backtracking rules have no replacement.
+  //
+  // `react` and `jsx-a11y` are here because the old config listed them. Nothing
+  // in this package renders JSX today; they cost nothing and hold the line if
+  // the web console ever grows components here.
+  "plugins": ["typescript", "react", "jsx-a11y"],
+
+  "categories": { "correctness": "error" },
+
+  "env": {
+    "browser": true,
+    "es2024": true,
+    "node": true
+  },
+
+  // `.claude/skills/**` is vendored skill tooling, not this package's source.
+  "ignorePatterns": ["dist", "node_modules", ".claude"],
+
+  "rules": {
+    // Enabled by the old config's `typescript-eslint/recommended` but not by
+    // oxlint's `correctness`.
+    "typescript/ban-ts-comment": "error",
+    "typescript/no-array-constructor": "error",
+    "typescript/no-empty-object-type": "error",
+    "typescript/no-namespace": "error",
+    "typescript/no-require-imports": "error",
+    "typescript/no-unnecessary-type-constraint": "error",
+    "typescript/no-unsafe-function-type": "error",
+
+    // Off in the old config, for the reasons the code style gives:
+    // `noUnusedLocals` already covers the first, and `as any` inside generic
+    // function bodies is sanctioned.
+    "no-unused-vars": "off",
+    "typescript/no-explicit-any": "off",
+
+    // `TableRenderer`'s invisible-whitespace class is written entirely in
+    // `\uXXXX` escapes, and two adjacent escapes there read as one combining
+    // sequence. Spelling those code points literally to satisfy the default is
+    // exactly the unreadable form the escapes exist to avoid.
+    "no-misleading-character-class": ["error", { "allowEscape": true }],
+
+    // ---------------------------------------------------------------------
+    // Type-aware rules run only under `oxlint --type-aware`, which shells out
+    // to tsgolint. Everything type-aware in `correctness` is on except these,
+    // which the tree does not pass yet; the counts are what they report today.
+    // They are real findings rather than false positives, and each is a
+    // cleanup of its own rather than part of getting a linter running.
+    // ---------------------------------------------------------------------
+    "typescript/no-floating-promises": "off", // 22
+    "typescript/no-base-to-string": "off", // 10
+    "typescript/no-useless-default-assignment": "off", // 6
+    "typescript/require-array-sort-compare": "off", // 5
+    "typescript/no-redundant-type-constituents": "off", // 3
+    "typescript/restrict-template-expressions": "off", // 3
+    "typescript/unbound-method": "off", // 3
+    // Reports "explicit undefined is unnecessary on an optional parameter",
+    // which is the house style (`string | undefined` over `?: string`) rather
+    // than a defect. Off for good, not pending a cleanup.
+    "typescript/no-duplicate-type-constituents": "off"
+  }
+}

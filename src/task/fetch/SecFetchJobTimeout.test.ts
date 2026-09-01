@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import "workglow";
 import type { FetchUrlTaskInput, SafeFetchFn } from "workglow";
 import { registerSafeFetch, RetryableJobError } from "workglow";
+import { SecFetchJob } from "./SecFetchJob";
 
 // The retry/timeout knobs are read once at module load, so they are set before
 // SecFetchJob is imported — which is why these tests live in their own file:
@@ -15,8 +16,6 @@ import { registerSafeFetch, RetryableJobError } from "workglow";
 vi.hoisted(() => {
   process.env.SEC_FETCH_TIMEOUT_MS = "80";
 });
-
-import { SecFetchJob } from "./SecFetchJob";
 
 /**
  * A 200 that delivers a byte and then goes silent forever — a stalled body.

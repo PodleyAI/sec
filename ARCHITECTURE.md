@@ -202,8 +202,8 @@ Define the TypeBox schema that mirrors the XML structure of the SEC filing.
 ```typescript
 // src/sec/forms/<category>/Form_X.schema.ts
 
-import { Type, Static } from "typebox";
-import {} from /* reusable types */ "../FormSchemaUtil";
+import { Static, Type } from "typebox";
+import /* reusable types */ "../FormSchemaUtil";
 
 // Define sub-types for nested XML elements
 const SOME_NESTED_TYPE = Type.Object({
@@ -277,9 +277,9 @@ This file transforms the parsed form data into normalized records and saves them
 ```typescript
 // src/sec/forms/<category>/Form_X.storage.ts
 
+import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { CompanyRepo } from "../../../storage/company/CompanyRepo";
 import { PersonRepo } from "../../../storage/person/PersonRepo";
-import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 // ... import other repos as needed
 import { FormX } from "./Form_X.schema";
@@ -368,13 +368,14 @@ If the form contains data that doesn't fit into the existing `person/company/add
 ```typescript
 // src/sec/forms/<category>/Form_X.test.ts
 
-import { beforeEach, describe, expect, it } from "vitest";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { Form_X } from "./Form_X";
-import { processFormX } from "./Form_X.storage";
+import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { PersonRepo } from "../../../storage/person/PersonRepo";
+import { Form_X } from "./Form_X";
+import { processFormX } from "./Form_X.storage";
+
 // ... import other repos
 
 describe("Form_X", () => {

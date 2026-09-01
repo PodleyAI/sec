@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it } from "vitest";
-import { parseInlineXbrl } from "./parseInlineXbrl";
 import { applyIxtTransform } from "./ixtTransforms";
+import { parseInlineXbrl } from "./parseInlineXbrl";
 
 const WRAP_OPEN =
   `<html xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"` +

@@ -3,8 +3,8 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { NodeKind, uuid4 } from "workglow";
 import type { ParagraphNode } from "workglow";
+import { NodeKind, uuid4 } from "workglow";
 import { SECTION_HEADING_PATTERNS } from "./sectionVocabulary";
 import type { EdgarBlock, ResolvedStyle } from "./types";
 

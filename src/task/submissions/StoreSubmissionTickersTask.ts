@@ -7,8 +7,9 @@
 import { Type } from "typebox";
 import { IExecuteContext, Task, TaskAbortedError, TaskError } from "workglow";
 import { EntityRepo } from "../../storage/entity/EntityRepo";
-import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
 import { normalizeListedTicker } from "../../util/listedTicker";
+import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
+
 export type StoreSubmissionTickersTaskInput = FetchSubmissionsOutput;
 
 export type StoreSubmissionTickersTaskOutput = {
@@ -50,8 +51,8 @@ export class StoreSubmissionTickersTask extends Task<
 
     const { tickers, exchanges } = submission;
     if (tickers && exchanges) {
-      for (const i in tickers) {
-        const ticker = normalizeListedTicker(tickers[i]);
+      for (const [i, rawTicker] of tickers.entries()) {
+        const ticker = normalizeListedTicker(rawTicker);
         const exchange = exchanges[i];
         if (!ticker || !exchange) continue;
         const submissionRepo = new EntityRepo();

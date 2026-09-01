@@ -8,16 +8,16 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry } from "workglow";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { resetNoExtractorWarningsForTesting } from "../../sec/forms/parserOnlyForms";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { runExtractorBackfill } from "./BackfillExtractorTask";
 import { ComputeFormsWorklistTask } from "./ComputeFormsWorklistTask";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
-import { runExtractorBackfill } from "./BackfillExtractorTask";
 
 /**
  * A form NAMED and a form ENCOUNTERED are different things, and both

@@ -5,13 +5,13 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry, TaskAbortedError } from "workglow";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
+import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
+import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
-import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import {
   defaultFilterTodo,
   registerBackfillDescriptor,

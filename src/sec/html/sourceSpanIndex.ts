@@ -3,8 +3,8 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { NodeKind, traverseDepthFirst } from "workglow";
 import type { DocumentNode } from "workglow";
+import { NodeKind, traverseDepthFirst } from "workglow";
 import type { EdgarBlock, SourceSpan } from "./types";
 
 /**

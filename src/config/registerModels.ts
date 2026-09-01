@@ -8,11 +8,11 @@ import { isAbsolute, join } from "node:path";
 import type { ModelRecord, ServiceRegistry } from "workglow";
 import { getGlobalModelRepository, globalServiceRegistry } from "workglow";
 import {
+  DEFAULT_SEC_MODEL,
   defaultModelIds,
+  DETERMINISTIC_MODEL_ID,
   parseModelIdList,
   SecHftModelDefault,
-  DEFAULT_SEC_MODEL,
-  DETERMINISTIC_MODEL_ID,
 } from "./Constants";
 import { SecCliConfigurationError } from "./EnvToDI";
 import { listPricingForModelId } from "./listPricing";

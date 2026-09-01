@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it } from "vitest";
-import { isHeadingCandidate, assignHeadingLevels } from "./HeadingDetector";
+import { assignHeadingLevels, isHeadingCandidate } from "./HeadingDetector";
 import type { ResolvedStyle } from "./types";
 
 const style = (o: Partial<ResolvedStyle>): ResolvedStyle => ({

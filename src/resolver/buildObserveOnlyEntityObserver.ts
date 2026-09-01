@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
-import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
-import { EntityObserver } from "./EntityObserver";
 import type { ObserveOnlyEntityObserver } from "./EntityObserver";
+import { EntityObserver } from "./EntityObserver";
 
 /**
  * Constructs an {@link EntityObserver} that records observations and their

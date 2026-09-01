@@ -13,17 +13,17 @@ import {
   type CompanyObservation,
 } from "../storage/observation/CompanyObservationSchema";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
+import {
+  PersonObservationPrimaryKeyNames,
+  PersonObservationSchema,
+  type PersonObservation,
+} from "../storage/observation/PersonObservationSchema";
 import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
 import {
   PersonObservationTitlePrimaryKeyNames,
   PersonObservationTitleSchema,
   type PersonObservationTitle,
 } from "../storage/observation/PersonObservationTitleSchema";
-import {
-  PersonObservationPrimaryKeyNames,
-  PersonObservationSchema,
-  type PersonObservation,
-} from "../storage/observation/PersonObservationSchema";
 import type { CompanyClaim, PersonClaim } from "./EntityObserver";
 import { canonicalRoleTitles, EntityObserver } from "./EntityObserver";
 

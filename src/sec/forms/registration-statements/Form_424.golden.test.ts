@@ -3,14 +3,15 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { describe, expect, it } from "vitest";
 import { readFileSync } from "fs";
-import { join } from "path";
-import { parseInlineXbrl } from "../../xbrl/parseInlineXbrl";
-import { parseEdgarHtml } from "../../html/parseEdgarHtml";
-import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
-import type { S1SectionName } from "../../html/sectionVocabulary";
 import { fileURLToPath } from "node:url";
+import { join } from "path";
+import { describe, expect, it } from "vitest";
+import { parseEdgarHtml } from "../../html/parseEdgarHtml";
+import type { S1SectionName } from "../../html/sectionVocabulary";
+import { parseInlineXbrl } from "../../xbrl/parseInlineXbrl";
+import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
+
 const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
 const FIXTURES = join(importMetaDir, "../../html/mock_data/424");

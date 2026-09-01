@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Form_17AD_27 } from "./Form_17AD_27";
 import { Form_TA_1 } from "./Form_TA_1";
 import { Form_TA_2 } from "./Form_TA_2";
 import { Form_TA_W } from "./Form_TA_W";
 import { Form_TACO } from "./Form_TACO";
-import { Form_17AD_27 } from "./Form_17AD_27";
 
 export const TRANSFER_AGENT_FORM_NAMES_MAP = [
   ...Form_TA_1.forms.map((form) => [form, Form_TA_1] as const),

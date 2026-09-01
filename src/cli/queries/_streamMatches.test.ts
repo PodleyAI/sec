@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { ITabularStorage } from "workglow";
-import { MAX_FUZZY_MATCHES, collectPage, streamMatchingRows } from "./_streamMatches";
+import { collectPage, MAX_FUZZY_MATCHES, streamMatchingRows } from "./_streamMatches";
 
 async function* gen(count: number): AsyncGenerator<number, void, undefined> {
   for (let i = 0; i < count; i++) yield i;

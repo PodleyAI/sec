@@ -6,14 +6,14 @@
 import { afterEach, expect, test } from "vitest";
 import { createServiceToken, type ITabularStorage } from "workglow";
 import {
-  registerDatabaseExtension,
+  clearDatabaseExtensionsForTesting,
   listDatabaseExtensionTokens,
-  registerDatabaseSetupHook,
-  runDatabaseSetupHooks,
-  registerDatabaseViews,
   listDatabaseViewDdl,
   listDatabaseViewNames,
-  clearDatabaseExtensionsForTesting,
+  registerDatabaseExtension,
+  registerDatabaseSetupHook,
+  registerDatabaseViews,
+  runDatabaseSetupHooks,
 } from "./databaseExtensions";
 
 afterEach(() => clearDatabaseExtensionsForTesting());

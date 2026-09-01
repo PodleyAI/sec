@@ -13,13 +13,13 @@
  * the database was enforcing, and nothing downstream would report it.
  */
 import { describe, expect, it } from "vitest";
-import type { RegisteredTable } from "./tableRegistry";
 import {
   declaredUnsigned,
   isEmittedUnsignedCheck,
   planStaleCheckDrops,
   type LiveCheckConstraint,
 } from "./dropStaleCheckConstraints";
+import type { RegisteredTable } from "./tableRegistry";
 
 const table = (name: string, properties: Record<string, unknown>): RegisteredTable =>
   ({

@@ -6,8 +6,8 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry, type IExecuteContext } from "workglow";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import type { Factoid } from "../../sec/facts/CompanyFacts";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
 import { coalesceFy, StoreCompanyFactsTask } from "./StoreCompanyFactsTask";

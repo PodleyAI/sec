@@ -5,8 +5,8 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import { KeyedMutex } from "../../util/KeyedMutex";
 import { isStaleByAsOf } from "../../util/asOfGuard";
+import { KeyedMutex } from "../../util/KeyedMutex";
 import {
   CHANGE_LOG_REPOSITORY_TOKEN,
   ChangeLog,

@@ -6,10 +6,10 @@
 
 import { Static, Type } from "typebox";
 import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError } from "workglow";
-import { SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
-import { SecFetchTask } from "../fetch/SecFetchTask";
 import { createCikNameBulkWriter } from "../../storage/entity/cikNameBulkWriter";
 import { TypeSecDate } from "../../util/parseDate";
+import { SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
+import { SecFetchTask } from "../fetch/SecFetchTask";
 
 // NOTE: cik names are mutable, so we use date to break the cache
 

@@ -7,8 +7,8 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeSecCik } from "../../util/TypeSecCik";
 import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
  * Point-in-time ticker mention read from an immutable filing. Distinct from the

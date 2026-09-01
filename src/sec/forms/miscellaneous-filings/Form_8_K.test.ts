@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { readFileSync, readdirSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";

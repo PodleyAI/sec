@@ -8,8 +8,8 @@ import { Static, Type } from "typebox";
 import { Format } from "typebox/format";
 import { ArrayToObject } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
-import { ALL_FORM_NAMES } from "../forms/all-forms";
 import { TypeSecCik } from "../../util/TypeSecCik";
+import { ALL_FORM_NAMES } from "../forms/all-forms";
 
 export { TypeSecCik } from "../../util/TypeSecCik";
 

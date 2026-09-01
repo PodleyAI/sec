@@ -61,7 +61,7 @@ export class StoreSubmissionFilingsTask extends Task<
         const filing = input.filings[i];
         // for each property, if it's an array, merge the arrays
         for (const key of Object.keys(filing)) {
-          // @ts-ignore
+          // @ts-expect-error - Object.keys() widens to string, which does not index the filings record
           filings_array[key] = filings_array[key].concat(filing[key]);
         }
       }

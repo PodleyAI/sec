@@ -7,8 +7,8 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeSecCik } from "../../util/TypeSecCik";
 import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
  * One XBRL fact extracted from a filing (inline iXBRL or instance XML), with

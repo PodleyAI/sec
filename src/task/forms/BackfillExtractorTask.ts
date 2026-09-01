@@ -6,13 +6,13 @@
 import { Static, Type } from "typebox";
 import { IExecuteContext, Task, TaskAbortedError } from "workglow";
 import { extractorIsSuppliedElsewhere } from "../../sec/forms/parserOnlyForms";
-import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 import {
   defaultFilterTodo,
   getBackfillDescriptor,
   listBackfillableExtractorIds,
   type BackfillCandidate,
 } from "./backfillDescriptors";
+import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 export interface RunExtractorBackfillOptions {
   readonly extractorId: string;

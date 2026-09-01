@@ -5,9 +5,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { Form_8_K } from "./miscellaneous-filings/Form_8_K";
 import { Form_D } from "./exempt-offerings/Form_D";
 import { decodePredefinedEntities, stripDoctype } from "./Form";
+import { Form_8_K } from "./miscellaneous-filings/Form_8_K";
 
 describe("Form XML parser entity expansion hardening", () => {
   /**

@@ -27,10 +27,35 @@ import {
   AddressSchema,
 } from "../storage/address/AddressSchema";
 import {
+  BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN,
+  BeneficialOwnershipPrimaryKeyNames,
+  BeneficialOwnershipSchema,
+} from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
+import {
   CHANGE_LOG_REPOSITORY_TOKEN,
   ChangeLogPrimaryKeyNames,
   ChangeLogSchema,
 } from "../storage/change-tracking/ChangeLogSchema";
+import {
+  S1_CLASSIFICATION_REPOSITORY_TOKEN,
+  S1ClassificationPrimaryKeyNames,
+  S1ClassificationSchema,
+} from "../storage/classification/S1ClassificationSchema";
+import {
+  EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN,
+  ExtractionDeadLetterPrimaryKeyNames,
+  ExtractionDeadLetterSchema,
+} from "../storage/dead-letter/ExtractionDeadLetterSchema";
+import {
+  FILING_DOCUMENT_REPOSITORY_TOKEN,
+  FilingDocumentPrimaryKeyNames,
+  FilingDocumentSchema,
+} from "../storage/document/FilingDocumentSchema";
+import {
+  FILING_SECTION_REPOSITORY_TOKEN,
+  FilingSectionPrimaryKeyNames,
+  FilingSectionSchema,
+} from "../storage/document/FilingSectionSchema";
 import {
   CIK_NAME_REPOSITORY_TOKEN,
   CikNamePrimaryKeyNames,
@@ -57,6 +82,11 @@ import {
   SicCodeSchema,
 } from "../storage/entity/SicCodeSchema";
 import {
+  EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN,
+  ExecutiveCompensationPrimaryKeyNames,
+  ExecutiveCompensationSchema,
+} from "../storage/executive-compensation/ExecutiveCompensationSchema";
+import {
   COMPANY_FACTS_REPOSITORY_TOKEN,
   CompanyFactsPrimaryKeyNames,
   CompanyFactsSchema,
@@ -67,15 +97,22 @@ import {
   FilingSchema,
 } from "../storage/filing/FilingSchema";
 import {
-  FILING_DOCUMENT_REPOSITORY_TOKEN,
-  FilingDocumentPrimaryKeyNames,
-  FilingDocumentSchema,
-} from "../storage/document/FilingDocumentSchema";
+  Form8KEventPrimaryKeyNames,
+  Form8KEventSchema,
+  Form8KEventUniqueIndexes,
+  FORM_8K_EVENT_REPOSITORY_TOKEN,
+} from "../storage/form-8k-event/Form8KEventSchema";
 import {
-  FILING_SECTION_REPOSITORY_TOKEN,
-  FilingSectionPrimaryKeyNames,
-  FilingSectionSchema,
-} from "../storage/document/FilingSectionSchema";
+  FORM144_ACQUISITION_REPOSITORY_TOKEN,
+  FORM144_FILING_REPOSITORY_TOKEN,
+  FORM144_RECENT_SALE_REPOSITORY_TOKEN,
+  Form144AcquisitionPrimaryKeyNames,
+  Form144AcquisitionSchema,
+  Form144FilingPrimaryKeyNames,
+  Form144FilingSchema,
+  Form144RecentSalePrimaryKeyNames,
+  Form144RecentSaleSchema,
+} from "../storage/form144/Form144Schema";
 import {
   INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN,
   InvestmentOfferingHistoryPrimaryKeyNames,
@@ -91,6 +128,42 @@ import {
   IssuerPrimaryKeyNames,
   IssuerSchema,
 } from "../storage/investment-offering/IssuerSchema";
+import {
+  COMPANY_OBSERVATION_REPOSITORY_TOKEN,
+  CompanyObservationPrimaryKeyNames,
+  CompanyObservationSchema,
+} from "../storage/observation/CompanyObservationSchema";
+import {
+  PERSON_OBSERVATION_REPOSITORY_TOKEN,
+  PersonObservationPrimaryKeyNames,
+  PersonObservationSchema,
+} from "../storage/observation/PersonObservationSchema";
+import {
+  PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
+  PersonObservationTitlePrimaryKeyNames,
+  PersonObservationTitleSchema,
+  PersonObservationTitleTable,
+} from "../storage/observation/PersonObservationTitleSchema";
+import {
+  ISSUER_TICKER_REPOSITORY_TOKEN,
+  IssuerTickerPrimaryKeyNames,
+  IssuerTickerSchema,
+} from "../storage/offering/IssuerTickerSchema";
+import {
+  OFFERING_TERMS_REPOSITORY_TOKEN,
+  OfferingTermsPrimaryKeyNames,
+  OfferingTermsSchema,
+} from "../storage/offering/OfferingTermsSchema";
+import {
+  SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN,
+  SpacPromoteTermsPrimaryKeyNames,
+  SpacPromoteTermsSchema,
+} from "../storage/offering/SpacPromoteTermsSchema";
+import {
+  SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
+  SpacUnitTermsPrimaryKeyNames,
+  SpacUnitTermsSchema,
+} from "../storage/offering/SpacUnitTermsSchema";
 import {
   PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN,
   PHONE_REPOSITORY_TOKEN,
@@ -126,28 +199,6 @@ import {
   PortalSuccessionSchema,
 } from "../storage/portal/PortalSuccessionSchema";
 import {
-  SECTION16_FILING_REPOSITORY_TOKEN,
-  SECTION16_HOLDING_REPOSITORY_TOKEN,
-  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
-  Section16FilingPrimaryKeyNames,
-  Section16FilingSchema,
-  Section16HoldingPrimaryKeyNames,
-  Section16HoldingSchema,
-  Section16TransactionPrimaryKeyNames,
-  Section16TransactionSchema,
-} from "../storage/section16/Section16Schema";
-import {
-  FORM144_ACQUISITION_REPOSITORY_TOKEN,
-  FORM144_FILING_REPOSITORY_TOKEN,
-  FORM144_RECENT_SALE_REPOSITORY_TOKEN,
-  Form144AcquisitionPrimaryKeyNames,
-  Form144AcquisitionSchema,
-  Form144FilingPrimaryKeyNames,
-  Form144FilingSchema,
-  Form144RecentSalePrimaryKeyNames,
-  Form144RecentSaleSchema,
-} from "../storage/form144/Form144Schema";
-import {
   CIK_LAST_UPDATE_REPOSITORY_TOKEN,
   CikLastUpdatePrimaryKeyNames,
   CikLastUpdateSchema,
@@ -168,15 +219,15 @@ import {
   ProcessedSubmissionsSchema,
 } from "../storage/processing/ProcessedSubmissionsSchema";
 import {
+  OBSERVATION_PROVENANCE_REPOSITORY_TOKEN,
+  ObservationProvenancePrimaryKeyNames,
+  ObservationProvenanceSchema,
+} from "../storage/provenance/ObservationProvenanceSchema";
+import {
   REGA_CURRENT_REPORT_REPOSITORY_TOKEN,
   RegACurrentReportPrimaryKeyNames,
   RegACurrentReportSchema,
 } from "../storage/reg-a/RegACurrentReportSchema";
-import {
-  REGA_OFFERING_EVENT_REPOSITORY_TOKEN,
-  RegAOfferingEventPrimaryKeyNames,
-  RegAOfferingEventSchema,
-} from "../storage/reg-a/RegAOfferingEventSchema";
 import {
   REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
   RegAEquityClassPrimaryKeyNames,
@@ -187,6 +238,11 @@ import {
   RegAFinancialDataPrimaryKeyNames,
   RegAFinancialDataSchema,
 } from "../storage/reg-a/RegAFinancialDataSchema";
+import {
+  REGA_OFFERING_EVENT_REPOSITORY_TOKEN,
+  RegAOfferingEventPrimaryKeyNames,
+  RegAOfferingEventSchema,
+} from "../storage/reg-a/RegAOfferingEventSchema";
 import {
   REGA_OFFERING_HISTORY_REPOSITORY_TOKEN,
   RegAOfferingHistoryPrimaryKeyNames,
@@ -203,81 +259,26 @@ import {
   RegAServiceProviderSchema,
 } from "../storage/reg-a/RegAServiceProviderSchema";
 import {
-  OFFERING_TERMS_REPOSITORY_TOKEN,
-  OfferingTermsPrimaryKeyNames,
-  OfferingTermsSchema,
-} from "../storage/offering/OfferingTermsSchema";
-import {
-  SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
-  SpacUnitTermsPrimaryKeyNames,
-  SpacUnitTermsSchema,
-} from "../storage/offering/SpacUnitTermsSchema";
-import {
-  SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN,
-  SpacPromoteTermsPrimaryKeyNames,
-  SpacPromoteTermsSchema,
-} from "../storage/offering/SpacPromoteTermsSchema";
-import {
-  ISSUER_TICKER_REPOSITORY_TOKEN,
-  IssuerTickerPrimaryKeyNames,
-  IssuerTickerSchema,
-} from "../storage/offering/IssuerTickerSchema";
-import {
-  XBRL_FACT_REPOSITORY_TOKEN,
-  XbrlFactPrimaryKeyNames,
-  XbrlFactRowSchema,
-} from "../storage/xbrl/XbrlFactSchema";
+  RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN,
+  RelatedPartyTransactionPrimaryKeyNames,
+  RelatedPartyTransactionSchema,
+} from "../storage/related-party/RelatedPartyTransactionSchema";
 import {
   ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN,
   RoleRosterCompletenessPrimaryKeyNames,
   RoleRosterCompletenessSchema,
 } from "../storage/roster/RoleRosterCompletenessSchema";
 import {
-  COMPANY_OBSERVATION_REPOSITORY_TOKEN,
-  CompanyObservationPrimaryKeyNames,
-  CompanyObservationSchema,
-} from "../storage/observation/CompanyObservationSchema";
-import {
-  PERSON_OBSERVATION_REPOSITORY_TOKEN,
-  PersonObservationPrimaryKeyNames,
-  PersonObservationSchema,
-} from "../storage/observation/PersonObservationSchema";
-import {
-  PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
-  PersonObservationTitlePrimaryKeyNames,
-  PersonObservationTitleSchema,
-  PersonObservationTitleTable,
-} from "../storage/observation/PersonObservationTitleSchema";
-import {
-  OBSERVATION_PROVENANCE_REPOSITORY_TOKEN,
-  ObservationProvenancePrimaryKeyNames,
-  ObservationProvenanceSchema,
-} from "../storage/provenance/ObservationProvenanceSchema";
-import {
-  BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN,
-  BeneficialOwnershipPrimaryKeyNames,
-  BeneficialOwnershipSchema,
-} from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
-import {
-  EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN,
-  ExecutiveCompensationPrimaryKeyNames,
-  ExecutiveCompensationSchema,
-} from "../storage/executive-compensation/ExecutiveCompensationSchema";
-import {
-  RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN,
-  RelatedPartyTransactionPrimaryKeyNames,
-  RelatedPartyTransactionSchema,
-} from "../storage/related-party/RelatedPartyTransactionSchema";
-import {
-  EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN,
-  ExtractionDeadLetterPrimaryKeyNames,
-  ExtractionDeadLetterSchema,
-} from "../storage/dead-letter/ExtractionDeadLetterSchema";
-import {
-  S1_CLASSIFICATION_REPOSITORY_TOKEN,
-  S1ClassificationPrimaryKeyNames,
-  S1ClassificationSchema,
-} from "../storage/classification/S1ClassificationSchema";
+  SECTION16_FILING_REPOSITORY_TOKEN,
+  SECTION16_HOLDING_REPOSITORY_TOKEN,
+  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
+  Section16FilingPrimaryKeyNames,
+  Section16FilingSchema,
+  Section16HoldingPrimaryKeyNames,
+  Section16HoldingSchema,
+  Section16TransactionPrimaryKeyNames,
+  Section16TransactionSchema,
+} from "../storage/section16/Section16Schema";
 import {
   COMPONENT_VERSION_REPOSITORY_TOKEN,
   ComponentVersionPrimaryKeyNames,
@@ -294,11 +295,10 @@ import {
   VersionEventSchema,
 } from "../storage/versioning/VersionEventSchema";
 import {
-  FORM_8K_EVENT_REPOSITORY_TOKEN,
-  Form8KEventPrimaryKeyNames,
-  Form8KEventSchema,
-  Form8KEventUniqueIndexes,
-} from "../storage/form-8k-event/Form8KEventSchema";
+  XBRL_FACT_REPOSITORY_TOKEN,
+  XbrlFactPrimaryKeyNames,
+  XbrlFactRowSchema,
+} from "../storage/xbrl/XbrlFactSchema";
 
 /**
  * One tabular storage: the DI token it is registered under, the table it maps

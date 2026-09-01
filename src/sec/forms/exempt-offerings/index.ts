@@ -10,22 +10,22 @@ import { Form_1_K } from "./Form_1_K";
 import { Form_1_U } from "./Form_1_U";
 import { Form_1_Z } from "./Form_1_Z";
 import { Form_1_Z_W } from "./Form_1_Z_W";
-import { Form_2_A } from "./Form_2_A";
-import { Form_2_AF } from "./Form_2_AF";
-import { Form_WDL_REQ } from "./Form_WDL_REQ";
-import { Form_DOS } from "./Form_DOS";
-import { Form_DOSLTR } from "./Form_DOSLTR";
-import { Form_C } from "./Form_C";
-import { Form_D } from "./Form_D";
-import { Form_REGDEX } from "./Form_REGDEX";
 import { Form_253G1 } from "./Form_253G1";
 import { Form_253G2 } from "./Form_253G2";
 import { Form_253G3 } from "./Form_253G3";
 import { Form_253G4 } from "./Form_253G4";
-import { Form_QUALIF } from "./Form_QUALIF";
-import { Form_TTW } from "./Form_TTW";
+import { Form_2_A } from "./Form_2_A";
+import { Form_2_AF } from "./Form_2_AF";
+import { Form_C } from "./Form_C";
+import { Form_D } from "./Form_D";
 import { Form_DEF_OC } from "./Form_DEF_OC";
+import { Form_DOS } from "./Form_DOS";
+import { Form_DOSLTR } from "./Form_DOSLTR";
+import { Form_QUALIF } from "./Form_QUALIF";
+import { Form_REGDEX } from "./Form_REGDEX";
 import { Form_SL } from "./Form_SL";
+import { Form_TTW } from "./Form_TTW";
+import { Form_WDL_REQ } from "./Form_WDL_REQ";
 
 export const EXEMPT_OFFERING_FORM_NAMES_MAP = [
   ...Form_1_A.forms.map((form) => [form, Form_1_A] as const),

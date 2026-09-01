@@ -28,7 +28,6 @@
  * Usage:
  *   bun scripts/backfillFilingXbrlFlags.ts [--dry-run] [--all-rows] [--limit N]
  */
-
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { globalServiceRegistry } from "workglow";

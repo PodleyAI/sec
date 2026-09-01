@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EntityHistory } from "./EntityHistorySchema";
 import { Entity } from "./EntitySchema";
 import { EntityTemporalRepo } from "./EntityTemporalRepo";
+
 // import { ChangeLog } from "../change-tracking/ChangeLogSchema";
 
 describe("EntityTemporalRepo", () => {

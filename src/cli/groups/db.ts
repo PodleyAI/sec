@@ -1,10 +1,10 @@
 import type { Command } from "commander";
-import type { DbStatusResult } from "../queries/DbStatus";
 import { DbResetTask } from "../../task/db/DbResetTask";
 import { DbSetupTask } from "../../task/db/DbSetupTask";
 import { DbStatsTask, type DbStatsTaskOutput } from "../../task/db/DbStatsTask";
 import { DbStatusTask } from "../../task/db/DbStatusTask";
 import { renderTable } from "../output/TableRenderer";
+import type { DbStatusResult } from "../queries/DbStatus";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
 

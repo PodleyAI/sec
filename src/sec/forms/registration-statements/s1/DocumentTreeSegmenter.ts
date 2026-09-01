@@ -3,14 +3,14 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { NodeKind, renderMarkdown, traverseDepthFirst } from "workglow";
 import type { DocumentNode, DocumentRootNode, SectionNode } from "workglow";
-import { subtreeSourceSpan, type SourceSpanIndex } from "../../../html/sourceSpanIndex";
+import { NodeKind, renderMarkdown, traverseDepthFirst } from "workglow";
 import {
   S1_SECTIONS,
-  type S1SectionName,
   SECTION_HEADING_PATTERNS,
+  type S1SectionName,
 } from "../../../html/sectionVocabulary";
+import { subtreeSourceSpan, type SourceSpanIndex } from "../../../html/sourceSpanIndex";
 import type { DocumentSegmenter, Section } from "./DocumentSegmenter";
 
 function matchPatterns(line: string): S1SectionName | null {

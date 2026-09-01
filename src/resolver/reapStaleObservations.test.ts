@@ -9,12 +9,12 @@ import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { buildObserveOnlyEntityObserver } from "./buildObserveOnlyEntityObserver";
-import { reapStaleObservations } from "./reapStaleObservations";
 import {
   clearObservationReapHooksForTesting,
   registerObservationReapHook,
   type ReapedObservation,
 } from "./observationReapHooks";
+import { reapStaleObservations } from "./reapStaleObservations";
 
 const V = "1.0.0";
 const ACC = "0001-25-000001";

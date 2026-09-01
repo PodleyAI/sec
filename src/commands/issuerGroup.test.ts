@@ -12,8 +12,8 @@
  * whether a subcommand exists.
  */
 
-import { describe, expect, it } from "vitest";
 import { Command } from "commander";
+import { describe, expect, it } from "vitest";
 import { issuerCommandGroup } from "./issuerGroup";
 
 function names(program: Command): string[] {

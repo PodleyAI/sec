@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { EMPTY_SYNC_CONTEXT, getSyncLeaf, clearSyncLeavesForTesting } from "./syncLeaves";
+import { clearSyncLeavesForTesting, EMPTY_SYNC_CONTEXT, getSyncLeaf } from "./syncLeaves";
 
 /**
  * `withCli` decides what a run does with itself (draw Ink, report to a

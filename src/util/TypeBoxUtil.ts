@@ -1,4 +1,4 @@
-import { type TSchema, type TUnsafe, Type } from "typebox";
+import { Type, type TSchema, type TUnsafe } from "typebox";
 
 /**
  * Creates a nullable type by wrapping the given type in a union with null.

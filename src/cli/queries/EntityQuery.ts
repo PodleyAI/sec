@@ -1,8 +1,8 @@
-import { globalServiceRegistry } from "workglow";
 import type { SearchCriteria } from "workglow";
+import { globalServiceRegistry } from "workglow";
+import { EntityRepo } from "../../storage/entity/EntityRepo";
 import type { Entity } from "../../storage/entity/EntitySchema";
 import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
-import { EntityRepo } from "../../storage/entity/EntityRepo";
 import { collectPage, streamMatchingRows } from "./_streamMatches";
 
 export interface EntityQueryParams {

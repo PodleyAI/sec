@@ -4,24 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { access } from "node:fs/promises";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry, type IExecuteContext } from "workglow";
-import { SEC_DRY_RUN, SEC_RAW_DATA_FOLDER } from "../../config/tokens";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
+import { SEC_DRY_RUN, SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../../storage/processing/CikLastUpdateSchema";
 import {
   DAILY_INDEX_CURSOR_ID,
   DAILY_INDEX_CURSOR_REPOSITORY_TOKEN,
 } from "../../storage/processing/DailyIndexCursorSchema";
-import * as dailyIndexDates from "./dailyIndexDates";
-import * as dailyIndexPublication from "./dailyIndexPublication";
-import { dailyIndexCacheRelPath, planIndexDays } from "./dailyIndexDates";
 import { CatchUpDailyIndexTask } from "./CatchUpDailyIndexTask";
+import * as dailyIndexDates from "./dailyIndexDates";
+import { dailyIndexCacheRelPath, planIndexDays } from "./dailyIndexDates";
+import * as dailyIndexPublication from "./dailyIndexPublication";
 import { FetchDailyIndexTask } from "./FetchDailyIndexTask";
 
 // A Tuesday. 2026-08-16 is the Sunday before it, 2026-08-15 the Saturday.

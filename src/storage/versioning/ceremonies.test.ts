@@ -6,16 +6,16 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
+import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
 import { dropNext, dropPrevious, promote, rollback, startDev } from "./ceremonies";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "./ComponentVersionSchema";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "./ExtractorRunSchema";
 import { ExtractorRunRepo } from "./ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "./ExtractorRunSchema";
 import { VersionEventRepo } from "./VersionEventRepo";
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "./VersionEventSchema";
 import { VersionRegistry } from "./VersionRegistry";
-import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
 
 function buildDeps() {
   const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));

@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { Static, Type } from "typebox";
 import { TypeSecCik } from "../../util/TypeSecCik";
 
 export const PHONE_TYPE = Type.Union(

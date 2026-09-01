@@ -6,8 +6,8 @@
 
 import { globalServiceRegistry } from "workglow";
 import { CIK_NAME_REPOSITORY_TOKEN, type CikNameType } from "../../storage/entity/CikNameSchema";
-import type { QueryResult } from "./EntityQuery";
 import { MAX_FUZZY_MATCHES } from "./_streamMatches";
+import type { QueryResult } from "./EntityQuery";
 
 export interface CikQueryParams {
   readonly name?: string;

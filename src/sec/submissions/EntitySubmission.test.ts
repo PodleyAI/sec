@@ -6,7 +6,6 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { objectOfArraysAsArrayOfObjects } from "workglow";
-// @ts-ignore
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import submissions1017389 from "./mock_data/submissions_1017389.json" with { type: "json" };
 

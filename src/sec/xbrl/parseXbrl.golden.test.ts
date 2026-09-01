@@ -3,12 +3,13 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { describe, expect, it } from "vitest";
 import { readFileSync } from "fs";
-import { join } from "path";
-import { parseInlineXbrl } from "./parseInlineXbrl";
-import { extractXbrlCoverPage } from "./coverPage";
 import { fileURLToPath } from "node:url";
+import { join } from "path";
+import { describe, expect, it } from "vitest";
+import { extractXbrlCoverPage } from "./coverPage";
+import { parseInlineXbrl } from "./parseInlineXbrl";
+
 const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
 const FIXTURES = join(importMetaDir, "../html/mock_data/s1");

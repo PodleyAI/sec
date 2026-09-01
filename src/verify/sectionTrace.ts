@@ -3,15 +3,14 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { DocumentRootNode } from "workglow";
+import type { DocumentRootNode, SectionNode } from "workglow";
 import { NodeKind, traverseDepthFirst } from "workglow";
-import type { SectionNode } from "workglow";
+import type { SegmentationResult } from "../sec/forms/registration-statements/s1/DocumentTreeSegmenter";
 import {
   S1_SECTIONS,
   SECTION_HEADING_PATTERNS,
   type S1SectionName,
 } from "../sec/html/sectionVocabulary";
-import type { SegmentationResult } from "../sec/forms/registration-statements/s1/DocumentTreeSegmenter";
 import type { SourceSpan } from "../sec/html/types";
 import { alphanumeric } from "./coverage";
 

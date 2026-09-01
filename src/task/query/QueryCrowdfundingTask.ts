@@ -6,10 +6,10 @@
 
 import { Type } from "typebox";
 import { Task } from "workglow";
-import type { TaskPorts } from "../taskPorts";
 import { queryCrowdfunding } from "../../cli/queries/CrowdfundingQuery";
 import type { QueryResult } from "../../cli/queries/EntityQuery";
 import type { Crowdfunding } from "../../storage/portal/CrowdfundingSchema";
+import type { TaskPorts } from "../taskPorts";
 import { queryResultSchema } from "./queryResultSchema";
 
 export type QueryCrowdfundingTaskInput = {

@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { allRegisteredForms, extractorIdsForForm } from "../../sec/forms/formExtractors";
 import { PARSER_ONLY_FORMS_BY_EXTRACTOR } from "../../sec/forms/parserOnlyForms";
-import { SYNC_FORM_DOMAINS, expandFormTypes, formsForExtractorIds } from "./syncFormDomains";
+import { expandFormTypes, formsForExtractorIds, SYNC_FORM_DOMAINS } from "./syncFormDomains";
 
 // Importing `./syncFormDomains` registers sec's form extractors at its module
 // scope, so the registry reads below are already populated.
