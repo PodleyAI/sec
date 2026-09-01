@@ -31,7 +31,7 @@
         "@types/pg": "^8.23.1",
         "@types/xml2js": "^0.4.14",
         "better-sqlite3": "^13.0.3",
-        "bunset": "1.0.13",
+        "bunset": "1.0.14",
         "concurrently": "^10.0.5",
         "oxlint": "^1.81.0",
         "oxlint-tsgolint": "^7.0.2001",
@@ -539,7 +539,7 @@
 
     "bun-types": ["bun-types@1.4.0", "", { "dependencies": { "@types/node": "*" } }, "sha512-iIKw23BspnQQYd3prITOBxeUsxBHnwzX6YJfGMuNOZzeNcMmVqzIIVGRm1l69ogaPQmb4wB6BN8mA5bE9YuC5Q=="],
 
-    "bunset": ["bunset@1.0.13", "", { "peerDependencies": { "typescript": "^6.0.3" }, "bin": { "bunset": "src/index.ts" } }, "sha512-9j/bN+V7Nx164Qj2flqil8Mfcia0QKmP7sjKU9gZMHJ62Ve85aF8g1/2ozMz0o6yW+jT8Jze/bGLEhBJzmRJGA=="],
+    "bunset": ["bunset@1.0.14", "", { "bin": { "bunset": "src/index.ts" } }, "sha512-xGnK7kWDbmrzQsi+JrfzljKOjn5yckCu38+/WIbxUfF2orEfUtXLeypudherPxcfwcTkPfJMZlYigGaCuHHWHw=="],
 
     "bytes": ["bytes@3.1.2", "", {}, "sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg=="],
 
