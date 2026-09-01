@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.1.5
+
+### Features
+
+- migrate from ESLint to oxlint and reorganize imports (#339)
+- add backfill script for XBRL flags repair
+- add CLAUDE.md documentation for project guidance
+- enhance person name handling and resolution logic
+- integrate phone number handling across multiple forms
+- add international phone normalization and enhance phone detection logic
+
+### Bug Fixes
+
+- add index for filing date order in storage registry
+- four defects found reviewing the filing-document work
+- ensure `--force` flag works correctly in `bootstrap ingest` command
+
+### Refactors
+
+- migrate phone number handling to @sroussey/parse-phonenumber
+
+### Chores
+
+- update deps
+- update dependencies
+- update deps to get new person naming normalizer
+- update deps
+
+### Updated Dependencies
+
+- `@sroussey/parse-full-name`: ^3.0.2
+- `@workglow/cli`: 0.4.6
+- `fast-xml-parser`: ^5.11.1
+- `typebox`: 1.3.25
+- `workglow`: 0.4.6
+- `bunset`: 1.0.15
+
 ## 0.1.4
 
 ### Features
