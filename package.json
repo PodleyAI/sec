@@ -82,6 +82,7 @@
     "oxlint-tsgolint": "^7.0.2001",
     "concurrently": "^10.0.5",
     "prettier": "3.9.6",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },
   "trustedDependencies": [
@@ -105,6 +106,6 @@
     "ws": "^8.21.3"
   },
   "peerDependencies": {
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   }
 }
