@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import * as cheerio from "cheerio";
-import { NodeKind, uuid4 } from "workglow";
 import type { ImageNode, ListNode, ParagraphNode } from "workglow";
+import { NodeKind, uuid4 } from "workglow";
 import { consumeCssTwoColumnRun } from "./cssTwoColumnTable";
 import { isHidden, stripNonProse } from "./domPrep";
 import { assignHeadingLevels, isHeadingCandidate } from "./HeadingDetector";

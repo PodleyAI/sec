@@ -4,14 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Form_2_E } from "./Form_2_E";
-import { Form_6_K } from "./Form_6_K";
-import { Form_8_K } from "./Form_8_K";
-import { Form_8_K12B } from "./Form_8_K12B";
-import { Form_8_K12G3 } from "./Form_8_K12G3";
-import { Form_8_K15D5 } from "./Form_8_K15D5";
 import { Form_12G3_2B } from "./Form_12G3_2B";
 import { Form_26 } from "./Form_26";
+import { Form_2_E } from "./Form_2_E";
 import { Form_34_12H } from "./Form_34_12H";
 import { Form_485A24E } from "./Form_485A24E";
 import { Form_485A24F } from "./Form_485A24F";
@@ -21,6 +16,11 @@ import { Form_485B24F } from "./Form_485B24F";
 import { Form_485BPOS } from "./Form_485BPOS";
 import { Form_485BXT } from "./Form_485BXT";
 import { Form_487 } from "./Form_487";
+import { Form_6_K } from "./Form_6_K";
+import { Form_8_K } from "./Form_8_K";
+import { Form_8_K12B } from "./Form_8_K12B";
+import { Form_8_K12G3 } from "./Form_8_K12G3";
+import { Form_8_K15D5 } from "./Form_8_K15D5";
 import { Form_AW_WD } from "./Form_AW_WD";
 import { Form_BULK } from "./Form_BULK";
 import { Form_CERT } from "./Form_CERT";

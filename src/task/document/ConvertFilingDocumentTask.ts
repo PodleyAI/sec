@@ -9,8 +9,8 @@ import { Type } from "typebox";
 import { globalServiceRegistry, IExecuteContext, Task, TaskError } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
-import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../../storage/document/FilingDocumentSchema";
 import type { FilingDocument } from "../../storage/document/FilingDocumentSchema";
+import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../../storage/document/FilingDocumentSchema";
 import {
   FILING_SECTION_REPOSITORY_TOKEN,
   type FilingSection,

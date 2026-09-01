@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { numScalar } from "../_valueHelpers";
 import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
 import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
@@ -17,7 +16,7 @@ import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import type { RegAFinancialData } from "../../../storage/reg-a/RegAFinancialDataSchema";
 import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
-import type { RegAOffering } from "../../../storage/reg-a/RegAOfferingSchema";
+import { numScalar } from "../_valueHelpers";
 import type { Form1Z } from "./Form_1_Z.schema";
 import { extractServiceProviders } from "./RegA_shared";
 

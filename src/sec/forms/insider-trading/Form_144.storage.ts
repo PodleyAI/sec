@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { numScalar as num, strScalar as str } from "../_valueHelpers";
 import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
 import type { AddressImport } from "../../../storage/address/AddressNormalization";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
@@ -14,6 +13,7 @@ import { Form144Repo } from "../../../storage/form144/Form144Repo";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
 import { parseCikSafely } from "../../../util/parseCik";
+import { numScalar as num, strScalar as str } from "../_valueHelpers";
 import type { Form144 } from "./Form_144.schema";
 
 type AddressShape = NonNullable<NonNullable<Form144["formData"]>["issuerInfo"]>["issuerAddress"];

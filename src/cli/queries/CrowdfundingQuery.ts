@@ -1,5 +1,5 @@
-import { globalServiceRegistry } from "workglow";
 import type { SearchCriteria } from "workglow";
+import { globalServiceRegistry } from "workglow";
 import type { Crowdfunding } from "../../storage/portal/CrowdfundingSchema";
 import { CROWDFUNDING_REPOSITORY_TOKEN } from "../../storage/portal/CrowdfundingSchema";
 import { collectPage, streamMatchingRows } from "./_streamMatches";

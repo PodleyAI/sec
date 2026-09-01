@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { NodeKind, renderMarkdown } from "workglow";
 import type { DocumentNode, DocumentRootNode, SectionNode } from "workglow";
+import { NodeKind, renderMarkdown } from "workglow";
 
 /**
  * A filing's markdown, cut into flat, non-overlapping slices — one per heading.

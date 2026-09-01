@@ -1,5 +1,5 @@
-import { globalServiceRegistry } from "workglow";
 import type { SearchCriteria } from "workglow";
+import { globalServiceRegistry } from "workglow";
 import type { Filing } from "../../storage/filing/FilingSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { collectPage, streamMatchingRows } from "./_streamMatches";

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
 import type { SearchCriteria } from "workglow";
+import { globalServiceRegistry } from "workglow";
 import { RegAOfferingRepo } from "../../storage/reg-a/RegAOfferingRepo";
 import type { RegAOffering } from "../../storage/reg-a/RegAOfferingSchema";
 import { REGA_OFFERING_REPOSITORY_TOKEN } from "../../storage/reg-a/RegAOfferingSchema";

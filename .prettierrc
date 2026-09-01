@@ -7,5 +7,5 @@
   "trailingComma": "es5",
   "bracketSpacing": true,
   "arrowParens": "always",
-  "plugins": ["@ianvs/prettier-plugin-sort-imports"]
+  "plugins": ["@sroussey/prettier-plugin-organize-imports"]
 }

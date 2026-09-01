@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Form_SC14D1F } from "./Form_SC14D1F";
+import { Form_SC14D9C } from "./Form_SC14D9C";
+import { Form_SC14D9F } from "./Form_SC14D9F";
 import { Form_SC_13D } from "./Form_SC_13D";
 import { Form_SC_13E1 } from "./Form_SC_13E1";
 import { Form_SC_13E3 } from "./Form_SC_13E3";
@@ -18,9 +21,6 @@ import { Form_SC_14N } from "./Form_SC_14N";
 import { Form_SC_TO_C } from "./Form_SC_TO_C";
 import { Form_SC_TO_I } from "./Form_SC_TO_I";
 import { Form_SC_TO_T } from "./Form_SC_TO_T";
-import { Form_SC14D1F } from "./Form_SC14D1F";
-import { Form_SC14D9C } from "./Form_SC14D9C";
-import { Form_SC14D9F } from "./Form_SC14D9F";
 
 export const STATEMENTS_OF_OWNERSHIP_FORMS_MAP = [
   ...Form_SC_13D.forms.map((form) => [form, Form_SC_13D] as const),

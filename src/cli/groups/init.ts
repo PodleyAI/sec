@@ -1,8 +1,8 @@
+import type { Command } from "commander";
 import { existsSync } from "fs";
 import { homedir } from "os";
 import { resolve } from "path";
 import { createInterface } from "readline";
-import type { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
 import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../../config/tokens";
 import { buildEnvConfig, InitApplyTask, type InitConfig } from "../../task/init/InitApplyTask";

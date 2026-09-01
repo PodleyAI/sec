@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Form_144 } from "./Form_144";
 import { Form_3 } from "./Form_3";
 import { Form_4 } from "./Form_4";
 import { Form_5 } from "./Form_5";
-import { Form_144 } from "./Form_144";
 
 export const INSIDER_TRADING_FORM_NAMES_MAP = [
   ...Form_3.forms.map((form) => [form, Form_3] as const),

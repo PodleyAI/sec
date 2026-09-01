@@ -6,12 +6,12 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RateLimiter } from "workglow";
+import type { ExternalPauseReader } from "./secFetchThrottle";
 import {
   resetSecFetchThrottleForTesting,
   setSecFetchLimiter,
   signalSecFetchThrottle,
 } from "./secFetchThrottle";
-import type { ExternalPauseReader } from "./secFetchThrottle";
 
 // Captures the cluster-cooldown writes without a real limiter/DB.
 function makeFakeLimiter(): { limiter: RateLimiter; writes: Date[] } {

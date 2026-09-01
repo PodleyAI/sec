@@ -17,7 +17,6 @@ import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
 import { parseCikSafely } from "../../../util/parseCik";
 import { isOverlongPersonName, joinedPersonName } from "../../../util/personNameBounds";
-import { INDEFINITE } from "./Form_D.schema";
 import type {
   FormD,
   Issuer,
@@ -26,6 +25,7 @@ import type {
   Signature,
   SignatureBlock,
 } from "./Form_D.schema";
+import { INDEFINITE } from "./Form_D.schema";
 
 interface FormDStorageContext {
   readonly accession_number: string;

@@ -4,7 +4,6 @@ import {
   matchPathSpecificity,
   resolveCommandAnnotation,
   resolveCommandFields,
-  resolveFieldAnnotations,
   type WebCommandNode,
 } from "@workglow/cli";
 import { Command } from "commander";

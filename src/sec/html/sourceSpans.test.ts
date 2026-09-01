@@ -3,9 +3,9 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
+import { decode } from "html-entities";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { decode } from "html-entities";
 import { describe, expect, it } from "vitest";
 import { renderMarkdown } from "workglow";
 import { depaginateWithTrace } from "./DePaginator";

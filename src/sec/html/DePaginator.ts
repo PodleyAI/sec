@@ -3,8 +3,8 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { NodeKind, renderMarkdown, uuid4 } from "workglow";
 import type { TableCell, TableNode } from "workglow";
+import { NodeKind, renderMarkdown, uuid4 } from "workglow";
 import { isTargetSectionLine } from "./joinSplitHeadings";
 import { isPageNumber } from "./pageFurniture";
 import type { EdgarBlock, SourceSpan } from "./types";

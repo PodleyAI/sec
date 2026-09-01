@@ -4,16 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { registerWebPanel, type PanelData, type WebInvocation, type WebTone } from "@workglow/cli";
-import {
-  count,
-  field,
-  jsonList,
-  money,
-  recordArray,
-  tableFromRecords,
-  text,
-} from "./secPanelFormat";
+import { registerWebPanel, type PanelData, type WebInvocation } from "@workglow/cli";
+import { count, field, recordArray, tableFromRecords, text } from "./secPanelFormat";
 
 /**
  * The panels that read a sec command's own output.

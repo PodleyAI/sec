@@ -1,4 +1,3 @@
-export { renderTable, type ColumnDef, type RenderOptions } from "./TableRenderer";
 export {
   createProgress,
   createSpinner,
@@ -8,3 +7,4 @@ export {
   type Spinner,
   type StatusType,
 } from "./Progress";
+export { renderTable, type ColumnDef, type RenderOptions } from "./TableRenderer";

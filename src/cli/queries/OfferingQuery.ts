@@ -1,5 +1,5 @@
-import { globalServiceRegistry } from "workglow";
 import type { SearchCriteria } from "workglow";
+import { globalServiceRegistry } from "workglow";
 import type { InvestmentOffering } from "../../storage/investment-offering/InvestmentOfferingSchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../../storage/investment-offering/InvestmentOfferingSchema";
 import { collectPage, streamMatchingRows } from "./_streamMatches";

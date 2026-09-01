@@ -1,5 +1,5 @@
-import { globalServiceRegistry } from "workglow";
 import type { SearchCriteria } from "workglow";
+import { globalServiceRegistry } from "workglow";
 import type { CompanyFact } from "../../storage/facts/CompanyFactsSchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
 import { collectPage, streamMatchingRows } from "./_streamMatches";

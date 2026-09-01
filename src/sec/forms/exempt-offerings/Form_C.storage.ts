@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { numScalar, strScalar } from "../_valueHelpers";
 import { buildObserveOnlyEntityObserver } from "../../../resolver/buildObserveOnlyEntityObserver";
 import type { ObserveOnlyEntityObserver } from "../../../resolver/EntityObserver";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
@@ -15,13 +14,13 @@ import {
 } from "../../../storage/person/PersonNormalization";
 import { CrowdfundingRepo } from "../../../storage/portal/CrowdfundingRepo";
 import type {
-  Crowdfunding,
   CrowdfundingOfferings,
   CrowdfundingReports,
 } from "../../../storage/portal/CrowdfundingSchema";
 import { CrowdfundingTemporalRepo } from "../../../storage/portal/CrowdfundingTemporalRepo";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
 import { parseCikSafely } from "../../../util/parseCik";
+import { numScalar, strScalar } from "../_valueHelpers";
 import type { FormC } from "./Form_C.schema";
 
 interface FormCStorageContext {

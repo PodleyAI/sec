@@ -3,8 +3,8 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { NodeKind, renderMarkdown, traverseDepthFirst } from "workglow";
 import type { DocumentNode, DocumentRootNode, SectionNode } from "workglow";
+import { NodeKind, renderMarkdown, traverseDepthFirst } from "workglow";
 import {
   S1_SECTIONS,
   SECTION_HEADING_PATTERNS,

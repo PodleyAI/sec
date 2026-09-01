@@ -97,10 +97,10 @@ import {
   FilingSchema,
 } from "../storage/filing/FilingSchema";
 import {
-  FORM_8K_EVENT_REPOSITORY_TOKEN,
   Form8KEventPrimaryKeyNames,
   Form8KEventSchema,
   Form8KEventUniqueIndexes,
+  FORM_8K_EVENT_REPOSITORY_TOKEN,
 } from "../storage/form-8k-event/Form8KEventSchema";
 import {
   FORM144_ACQUISITION_REPOSITORY_TOKEN,

@@ -47,49 +47,49 @@ export { AddCommands, isDiExemptCommand } from "./commands";
 export { addSyncLeafCommands } from "./cli/groups/sync";
 export { runFormsSweep } from "./cli/sync/runFormsSweep";
 export {
+  SYNC_FORM_DOMAINS,
   expandFormTypes,
   formsForExtractorIds,
-  SYNC_FORM_DOMAINS,
 } from "./cli/sync/syncFormDomains";
 export {
-  clearSyncLeavesForTesting,
   EMPTY_SYNC_CONTEXT,
+  SHARD_LEAF_OPTION,
+  clearSyncLeavesForTesting,
   getSyncLeaf,
   listSyncLeaves,
   registerSyncLeaf,
   runSyncLeaves,
-  SHARD_LEAF_OPTION,
   type SyncLeaf,
   type SyncLeafOption,
-  type SyncLeafOptions,
   type SyncLeafOptionValues,
+  type SyncLeafOptions,
   type SyncRunContext,
   type SyncStep,
 } from "./cli/sync/syncLeaves";
 
 // ── Config / dependency injection ───────────────────────────────────────────
+export { bootstrapSecRuntime } from "./config/bootstrapSecRuntime";
 export * from "./config/Constants";
 export { createStorage } from "./config/createStorage";
 export { DefaultDI } from "./config/DefaultDI";
+export { EnvToDI, SecCliConfigurationError } from "./config/EnvToDI";
+export { registerSecModels } from "./config/registerModels";
+export { registerSecProviders } from "./config/registerProviders";
+export { registerSecTasks } from "./config/registerTasks";
+export { setupAllDatabases } from "./config/setupAllDatabases";
 export {
   defineStorage,
   registerStorages,
   type StorageDefinition,
   type StorageFactory,
 } from "./config/storageRegistry";
-export { EnvToDI, SecCliConfigurationError } from "./config/EnvToDI";
-export { bootstrapSecRuntime } from "./config/bootstrapSecRuntime";
-export { registerSecModels } from "./config/registerModels";
-export { registerSecProviders } from "./config/registerProviders";
-export { registerSecTasks } from "./config/registerTasks";
-export { setupAllDatabases } from "./config/setupAllDatabases";
 export * from "./config/tokens";
 
 // ── Fetch job queue + fetch task bases ──────────────────────────────────────
 export {
   SecCachedFetchTask,
-  type response_type,
   type SecCachedFetchTaskInput,
+  type response_type,
 } from "./task/fetch/SecCachedFetchTask";
 export { SecFetchTask } from "./task/fetch/SecFetchTask";
 export { getSecJobQueue, setupSecFetchRateLimiter } from "./task/fetch/SecJobQueue";
@@ -122,14 +122,14 @@ export { Type, type Static } from "typebox";
 export { Value } from "typebox/value";
 export {
   FetchUrlTask,
-  getTaskQueueRegistry,
-  globalServiceRegistry,
-  registerSafeFetch,
   Sqlite,
   Task,
   TaskError,
   TaskRegistry,
   Workflow,
+  getTaskQueueRegistry,
+  globalServiceRegistry,
+  registerSafeFetch,
   uuid4,
 } from "workglow";
 export type {
@@ -154,9 +154,10 @@ export { isStaleByAsOf } from "./util/asOfGuard";
 export {
   listDatabaseExtensionTokens,
   registerDatabaseExtension,
-  registerDatabaseViews,
   registerDatabaseSetupHook,
+  registerDatabaseViews,
 } from "./config/databaseExtensions";
+export { registerSecFormExtractors } from "./config/registerFormExtractors";
 export {
   clearResolverExtensionsForTesting,
   getResolverExtension,
@@ -165,11 +166,12 @@ export {
   registerResolverExtension,
   type ResolverExtension,
 } from "./resolver/resolverExtensions";
+export { selectRegAReportDocument } from "./sec/forms/exempt-offerings/regAReportDocument";
 export {
-  extractorKey,
   allRegisteredExtractorIds,
   allRegisteredForms,
   extractorIdsForForm,
+  extractorKey,
   extractorReadsFullSubmission,
   extractorsForForm,
   formExtractorRegistryGeneration,
@@ -186,8 +188,6 @@ export {
   type FormExtractorStoreReport,
   type FullSubmissionProbe,
 } from "./sec/forms/formExtractors";
-export { registerSecFormExtractors } from "./config/registerFormExtractors";
-export { selectRegAReportDocument } from "./sec/forms/exempt-offerings/regAReportDocument";
 export { parseNumeric } from "./sec/html/parseNumeric";
 // `filingRunKey` travels with the repo because it is the key format
 // `successfulRunKeysForFilings` answers in. A caller asking whether a filing
@@ -198,14 +198,14 @@ export { ExtractorRunRepo, filingRunKey } from "./storage/versioning/ExtractorRu
 // that KNOW a gate declined are registered from outside this package while the
 // table stays here: a downstream `store` reports a verdict from this vocabulary
 // and the dispatcher records it, so both halves read the same one.
+export { ExtractionDeadLetterRepo } from "./storage/dead-letter/ExtractionDeadLetterRepo";
+export { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "./storage/dead-letter/ExtractionDeadLetterSchema";
 export {
   EXTRACTOR_RUN_REPOSITORY_TOKEN,
   GATE_VERDICTS,
   isGateDecline,
   type ExtractorGateVerdict,
 } from "./storage/versioning/ExtractorRunSchema";
-export { ExtractionDeadLetterRepo } from "./storage/dead-letter/ExtractionDeadLetterRepo";
-export { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "./storage/dead-letter/ExtractionDeadLetterSchema";
 // A resolved `SECTION_NOT_FOUND` trace is the only durable mark that a general
 // proxy was looked at and carried no merger section. Every predicate that
 // selects merger proxies has to count that as answered or it re-reads the same
@@ -218,20 +218,20 @@ export { loadAnsweredMergerSections } from "./storage/dead-letter/answeredMerger
 // the filing HTML, the drop report, and the heading vocabulary the parser and
 // the form segmenters share. Pure and synchronous — nothing here reads DI, the
 // database, or a model.
+export type { DroppedBlock } from "./sec/html/DePaginator";
+export { isHidden, stripNonProse } from "./sec/html/domPrep";
 export {
   parseEdgarHtml,
   parseEdgarHtmlWithTrace,
   type EdgarParseTrace,
 } from "./sec/html/parseEdgarHtml";
-export type { EdgarBlock, SourceSpan } from "./sec/html/types";
-export type { DroppedBlock } from "./sec/html/DePaginator";
-export { subtreeSourceSpan, type SourceSpanIndex } from "./sec/html/sourceSpanIndex";
-export { isHidden, stripNonProse } from "./sec/html/domPrep";
 export {
   S1_SECTIONS,
   SECTION_HEADING_PATTERNS,
   type S1SectionName,
 } from "./sec/html/sectionVocabulary";
+export { subtreeSourceSpan, type SourceSpanIndex } from "./sec/html/sourceSpanIndex";
+export type { EdgarBlock, SourceSpan } from "./sec/html/types";
 
 // ── Submission parsing an out-of-package extractor starts from ──────────────
 // The SGML envelope splitters. A full-submission `.txt` is a concatenation of
@@ -256,11 +256,11 @@ export {
 // a slice to re-derive the text from. `DocumentSegmenter` is the interface, so
 // a consumer can substitute its own cutter and still be read by everything
 // that takes sections.
-export { DocumentTreeSegmenter } from "./sec/forms/registration-statements/s1/DocumentTreeSegmenter";
 export type {
   DocumentSegmenter,
   Section,
 } from "./sec/forms/registration-statements/s1/DocumentSegmenter";
+export { DocumentTreeSegmenter } from "./sec/forms/registration-statements/s1/DocumentTreeSegmenter";
 
 // ── Extraction-call configuration ───────────────────────────────────────────
 // The sampling temperature every extraction call must pass — extraction is
@@ -295,9 +295,9 @@ export type { DeadLetterReasonCode } from "./storage/dead-letter/ExtractionDeadL
 // The alias TSV format, the `sec issuer` group, and the unique-constraint
 // predicate a resolver's mint race turns on. All three are this package's and
 // stay here; the family tier that uses them does not.
+export { issuerCommandGroup } from "./commands/issuerGroup";
 export { formatAliasLine, formatAliasTsv, parseAliasTsv } from "./task/canonical/aliasTsv";
 export type { AliasExportRow, AliasTsvParse } from "./task/canonical/aliasTsv";
-export { issuerCommandGroup } from "./commands/issuerGroup";
 export { isUniqueConstraintError } from "./util/isUniqueConstraintError";
 
 // ── What a package owning the identity tier is built on ─────────────────────
@@ -307,15 +307,16 @@ export { isUniqueConstraintError } from "./util/isUniqueConstraintError";
 // is keyed. A second copy of any of these drifting would silently re-partition
 // the tier it feeds.
 export { canonicalRoleTitles, normalizePersonNameParts } from "./resolver/EntityObserver";
+export { resolverIds } from "./resolver/resolverIds";
 export { isCompleteRosterRoleScope } from "./resolver/roleScopes";
 export { personDisplayParts } from "./storage/person/PersonNormalization";
-export { resolverIds } from "./resolver/resolverIds";
 export { isValidSemver } from "./storage/versioning/VersionRegistry";
 // The reaper itself, so a package registering a hook can test what its hook is
 // handed rather than trusting the seam blind.
 export { reapStaleObservations } from "./resolver/reapStaleObservations";
 // The child-process CLI harness, so a package whose commands attach to this
 // one's groups drives them the same way this package drives its own.
+export type { QueryResult } from "./cli/queries/EntityQuery";
 export { cliEnv, runCliProcess } from "./cli/testing/runCliProcess";
 export type { CliRunResult } from "./cli/testing/runCliProcess";
 export {
@@ -331,7 +332,6 @@ export {
   RoleRosterCompletenessSchema,
   type RoleRosterCompleteness,
 } from "./storage/roster/RoleRosterCompletenessSchema";
-export type { QueryResult } from "./cli/queries/EntityQuery";
 export { queryResultSchema } from "./task/query/queryResultSchema";
 
 export { buildObserveOnlyEntityObserver } from "./resolver/buildObserveOnlyEntityObserver";
@@ -363,7 +363,7 @@ export { isUnnamedCompanyName } from "./storage/company/CompanyNormalization";
 export { parentClauseSourceContext, splitParentClause } from "./storage/company/splitParentClause";
 export { assertWithinDeclaredBounds } from "./util/declaredBounds";
 export { legalFormProseSuffixAlternation, legalFormTrailingCanonical } from "./util/legalForms";
-export { isOverlongPersonName, MAX_PERSON_NAME_CHARS } from "./util/personNameBounds";
+export { MAX_PERSON_NAME_CHARS, isOverlongPersonName } from "./util/personNameBounds";
 
 // ── Model-call tracing ──────────────────────────────────────────────────────
 // Off unless `SEC_TRACE_DIR` names a directory, and one memoized environment
@@ -413,19 +413,19 @@ export {
 // only has to confirm. Each row type is named beside its token because seeding
 // or asserting a row means building one, not just holding the storage.
 export {
-  ENTITY_REPOSITORY_TOKEN,
-  type Entity,
-  type EntityRepositoryStorage,
-} from "./storage/entity/EntitySchema";
+  S1_CLASSIFICATION_REPOSITORY_TOKEN,
+  type S1Classification,
+} from "./storage/classification/S1ClassificationSchema";
 export {
   ENTITY_HISTORY_REPOSITORY_TOKEN,
   type EntityHistory,
 } from "./storage/entity/EntityHistorySchema";
-export { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "./storage/processing/ProcessedSubmissionsSchema";
 export {
-  S1_CLASSIFICATION_REPOSITORY_TOKEN,
-  type S1Classification,
-} from "./storage/classification/S1ClassificationSchema";
+  ENTITY_REPOSITORY_TOKEN,
+  type Entity,
+  type EntityRepositoryStorage,
+} from "./storage/entity/EntitySchema";
+export { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "./storage/processing/ProcessedSubmissionsSchema";
 
 // The journal a mutable row's edits are versioned through. A writer outside
 // this package records against the same table `sec` reconstructs point-in-time
@@ -464,8 +464,8 @@ export { normalizePhone } from "./storage/phone/PhoneNormalization";
 export { streamMatchingRows } from "./cli/queries/_streamMatches";
 export { TypeSecCik } from "./sec/submissions/EnititySubmissionSchema";
 export { isBadPersonField } from "./types/edgar/bad-data";
-export { cleanListedTickers, normalizeListedTicker } from "./util/listedTicker";
 export { KeyedMutex } from "./util/KeyedMutex";
+export { cleanListedTickers, normalizeListedTicker } from "./util/listedTicker";
 // The single-lock primitive `KeyedMutex` is built from, for a writer that keeps
 // its own map of locks rather than one keyed mutex — a read-derive-write cycle
 // over a mutable row is only atomic if every writer of that row serialises on
@@ -481,8 +481,8 @@ export { TypeNullable, TypeStringEnum } from "./util/TypeBoxUtil";
 
 // ── Re-exported workglow storage primitives a feature package builds on ──────
 export {
-  createServiceToken,
   InMemoryTabularStorage,
+  createServiceToken,
   type AnyTabularStorage,
   type ITabularStorage,
 } from "workglow";
@@ -550,34 +550,34 @@ export {
 // behind `sec issuer deal`, the observation provenance the stale-observation
 // reaper walks, and the SGML-header half of the S-1 classification — exposed so
 // an extractor writes the row `sec` will read rather than a parallel one.
+export { listPricingForModelId } from "./config/listPricing";
+export { registerModelIds, trySecModelRecord } from "./config/registerModels";
+export { seeksCombinationApproval } from "./sec/forms/proxies-information-statements/seeksCombinationApproval";
+export {
+  MAX_RISK_FACTORS_CHARS,
+  chunkRiskFactorText,
+  isRiskCategoryHeading,
+  stripHeadingMarkers,
+} from "./sec/forms/registration-statements/s1/riskFactorChunks";
+export { S1ClassificationRepo } from "./storage/classification/S1ClassificationRepo";
+export { normalizeCompany } from "./storage/company/CompanyNormalization";
+export type { Filing } from "./storage/filing/FilingSchema";
+export { IssuerTickerRepo } from "./storage/offering/IssuerTickerRepo";
+export { OfferingTermsRepo } from "./storage/offering/OfferingTermsRepo";
+export { SpacPromoteTermsRepo } from "./storage/offering/SpacPromoteTermsRepo";
+export { SpacUnitTermsRepo } from "./storage/offering/SpacUnitTermsRepo";
+export { normalizePerson } from "./storage/person/PersonNormalization";
+export { ObservationProvenanceRepo } from "./storage/provenance/ObservationProvenanceRepo";
 export {
   GENERAL_DEFINITIVE_PROXY_FORMS,
   MERGER_PROXY_OPTIONAL_FORMS,
   MERGER_PROXY_SECTION,
   SECTIONLESS_REGISTRATION_FORMS,
 } from "./storage/versioning/extractorIds";
-export { cachedAccessionDocPath, resolvePrimaryDocName } from "./util/accessionDocPath";
-export { listPricingForModelId } from "./config/listPricing";
-export { registerModelIds, trySecModelRecord } from "./config/registerModels";
-export { resolveAsset } from "./util/resolveAsset";
 export { extractPrimaryDocFromSubmission } from "./task/bootstrap/feedTarball";
-export { seeksCombinationApproval } from "./sec/forms/proxies-information-statements/seeksCombinationApproval";
-export {
-  chunkRiskFactorText,
-  isRiskCategoryHeading,
-  MAX_RISK_FACTORS_CHARS,
-  stripHeadingMarkers,
-} from "./sec/forms/registration-statements/s1/riskFactorChunks";
+export { cachedAccessionDocPath, resolvePrimaryDocName } from "./util/accessionDocPath";
 export { foldTypographicPunctuation } from "./util/dataCleaningUtils";
-export { normalizeCompany } from "./storage/company/CompanyNormalization";
-export { normalizePerson } from "./storage/person/PersonNormalization";
-export type { Filing } from "./storage/filing/FilingSchema";
-export { S1ClassificationRepo } from "./storage/classification/S1ClassificationRepo";
-export { ObservationProvenanceRepo } from "./storage/provenance/ObservationProvenanceRepo";
-export { IssuerTickerRepo } from "./storage/offering/IssuerTickerRepo";
-export { OfferingTermsRepo } from "./storage/offering/OfferingTermsRepo";
-export { SpacPromoteTermsRepo } from "./storage/offering/SpacPromoteTermsRepo";
-export { SpacUnitTermsRepo } from "./storage/offering/SpacUnitTermsRepo";
+export { resolveAsset } from "./util/resolveAsset";
 
 // ── Scaffolding: expected to be withdrawn, do not build on ──────────────────
 // NOT stable API. The extraction work these belong to is being relocated to a
@@ -604,8 +604,8 @@ export { normalizeManagementTitles } from "./sec/forms/registration-statements/s
 // facts, the issuer, the header SIC — under ids of their own (`S-1-xbrl`,
 // `424-xbrl`). A consumer registering the prose half runs beside them, not
 // instead of them, and its own tests drive both to reproduce a real dispatch.
-export { processFormS1Structured } from "./sec/forms/registration-statements/Form_S_1.storage";
 export { processForm424Structured } from "./sec/forms/registration-statements/Form_424.storage";
+export { processFormS1Structured } from "./sec/forms/registration-statements/Form_S_1.storage";
 export { extractAndStoreXbrl } from "./sec/forms/registration-statements/s1/xbrlEnrichment";
 export { XbrlFactRepo } from "./storage/xbrl/XbrlFactRepo";
 
@@ -617,8 +617,8 @@ export { XbrlFactRepo } from "./storage/xbrl/XbrlFactRepo";
 // counterparty behind a merger 1.01, and reads the exhibit manifest to tell a
 // definitive agreement from an ordinary one — so it is registered elsewhere,
 // under `8-K`, and runs beside this over the same filing.
-export { processForm8K } from "./sec/forms/miscellaneous-filings/Form_8_K.storage";
 export { Form_8_K } from "./sec/forms/miscellaneous-filings/Form_8_K";
+export { processForm8K } from "./sec/forms/miscellaneous-filings/Form_8_K.storage";
 export { hasLoiTriggerItem } from "./sec/forms/miscellaneous-filings/spac8kLoiTriggers";
 export { hasRedemptionTriggerItem } from "./sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 export { Form_DEFM14A } from "./sec/forms/proxies-information-statements/Form_DEFM14A";
@@ -631,6 +631,7 @@ export { Form_DEFM14A } from "./sec/forms/proxies-information-statements/Form_DE
 // has ever both combined and listed; `isFirst20FAfterCombination` names the one
 // 20-F that closes an FPI shell's registration when it files no 25-NSE, and
 // answering it needs every 20-F this CIK filed, not just the one in hand.
+export { splitDocumentSections } from "./sec/document/documentSections";
 export {
   looksLikePricedIpoProspectusBody,
   parsePricedProspectusCover,
@@ -640,7 +641,6 @@ export {
   issuerHasCombinationListing,
 } from "./sec/forms/registration-statements/s1/newcoListing";
 export { RISK_FACTOR_CHUNK_CHARS } from "./sec/forms/registration-statements/s1/riskFactorChunks";
-export { splitDocumentSections } from "./sec/document/documentSections";
 export { sectionHash } from "./verify/callTrace";
 
 // The tables a prose extractor writes and this package still reads.
@@ -653,9 +653,9 @@ export { Section16Repo } from "./storage/section16/Section16Repo";
 // Which filings a backfill of a given extractor should re-select, and the CLI
 // option helpers a command group is built from — an option that answers with
 // the values it accepts rather than exiting on a bare "argument missing".
-export { getBackfillDescriptor } from "./task/forms/backfillDescriptors";
 export { csvOptionValue, optionValue } from "./cli/optionValue";
 export { KNOWN_MODEL_ID_SHAPES, modelApiKeyEnvVar } from "./config/registerModels";
+export { getBackfillDescriptor } from "./task/forms/backfillDescriptors";
 
 // Running a backfill and naming what may be backfilled.
 // `listBackfillableExtractorIds` is the LIVE vocabulary — the open form-extractor
@@ -666,17 +666,17 @@ export { KNOWN_MODEL_ID_SHAPES, modelApiKeyEnvVar } from "./config/registerModel
 // with two vocabularies and one of them refuses ids the other accepts.
 // `ExtractorId` is deliberately open for the same reason: a closed union could
 // not name an extractor registered through that seam.
+export { listBackfillableExtractorIds } from "./task/forms/backfillDescriptors";
 export {
   BackfillExtractorTask,
   type ExtractorBackfillResult,
 } from "./task/forms/BackfillExtractorTask";
-export { listBackfillableExtractorIds } from "./task/forms/backfillDescriptors";
 
 // The keyset resume a contributed descriptor selects candidates with. Shared
 // rather than copied: a two-query walk that has to page past one filer holding
 // more filings than the page size is not a thing to reimplement per package.
-export { pageFilingsOfForm, type FilingPageRow } from "./task/forms/backfillDescriptors";
 export type { ExtractorId } from "./storage/versioning/extractorIds";
+export { pageFilingsOfForm, type FilingPageRow } from "./task/forms/backfillDescriptors";
 
 // Putting one filing's document on disk the way the sweeps already do.
 // `submissionFetchKind` is the single rule for WHICH file a form is fetched as —
@@ -690,8 +690,8 @@ export type { ExtractorId } from "./storage/versioning/extractorIds";
 // cache directory, `tmpPathFor` names the sibling temp file an atomic write
 // renames from, and `describeFailureReason` bounds an error into the single
 // line a per-filing failure is recorded as.
-export { SecFetchAccessionDocTask } from "./task/forms/SecFetchAccessionDocTask";
 export { FORMS_SWEEP_CONCURRENCY_LIMIT } from "./task/forms/formsSweep";
+export { SecFetchAccessionDocTask } from "./task/forms/SecFetchAccessionDocTask";
 export { submissionFetchKind, type SubmissionFetchKind } from "./task/forms/submissionFetchPolicy";
 export { assertInsideDir, sanitizePrimaryDoc } from "./util/accessionDocPath";
 export { tmpPathFor } from "./util/atomicFileWrite";
@@ -736,9 +736,9 @@ export {
 // is one query away from the rule.
 export { FILING_DOCUMENT_REPOSITORY_TOKEN } from "./storage/document/FilingDocumentSchema";
 export {
-  selectFilingsToConvert,
   CONVERTIBLE_FORMS,
   SPAC_GATED_FORMS,
+  selectFilingsToConvert,
   type FilingToConvert,
   type SelectFilingsOptions,
 } from "./task/document/selectFilingsToConvert";
@@ -754,15 +754,15 @@ export {
 // question, and the "nothing registered" branch stays reachable and testable
 // from the side that owns the reading.
 export {
+  COMPANY_FACTS_REPOSITORY_TOKEN,
+  type CompanyFact,
+} from "./storage/facts/CompanyFactsSchema";
+export {
   clearCurrentTrustRefreshForTesting,
   currentTrustRefresh,
   registerCurrentTrustRefresh,
   type CurrentTrustRefresh,
 } from "./task/facts/currentTrustRefresh";
-export {
-  COMPANY_FACTS_REPOSITORY_TOKEN,
-  type CompanyFact,
-} from "./storage/facts/CompanyFactsSchema";
 
 // The seam the same package contributes the WRITE half of an editorial CSV
 // through. The CSV's shape, its validation and its line-numbered errors are
@@ -811,12 +811,12 @@ export { EntityRepo } from "./storage/entity/EntityRepo";
 // chunker's own test, which is why it stays; anything scoring an extraction
 // against it reads the same table rather than a copy that can drift.
 export {
+  GOLDEN_S1_LABELS,
   extractorsWithGoldenLabels,
   getGoldenFieldRows,
   getGoldenLabels,
   goldenLabelKey,
   isGoldenManagementRow,
-  GOLDEN_S1_LABELS,
   type GoldenFieldRow,
   type GoldenManagementRow,
   type GoldenOwnerRow,

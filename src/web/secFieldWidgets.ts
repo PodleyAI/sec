@@ -5,7 +5,6 @@
  */
 
 import { registerWebFieldWidget, type WebFieldWidgetItem } from "@workglow/cli";
-import { globalServiceRegistry } from "workglow";
 import { queryCiks } from "../cli/queries/CikQuery";
 import { queryEntities } from "../cli/queries/EntityQuery";
 import { queryFilings } from "../cli/queries/FilingQuery";

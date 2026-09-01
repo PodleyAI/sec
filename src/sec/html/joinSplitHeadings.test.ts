@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it } from "vitest";
-import { NodeKind, uuid4 } from "workglow";
 import type { ParagraphNode } from "workglow";
+import { NodeKind, uuid4 } from "workglow";
 import { isTargetSectionLine, joinSplitHeadings } from "./joinSplitHeadings";
 import type { EdgarBlock, ResolvedStyle } from "./types";
 

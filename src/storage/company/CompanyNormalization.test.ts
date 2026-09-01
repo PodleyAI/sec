@@ -6,7 +6,6 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  CompanyImport,
   hasCompanyAnywhere,
   hasCompanyEnding,
   isCompanyEnding,

@@ -5,8 +5,8 @@
  */
 import { Type } from "typebox";
 import { afterEach, expect, test } from "vitest";
-import { createServiceToken, globalServiceRegistry, InMemoryTabularStorage } from "workglow";
 import type { AnyTabularStorage } from "workglow";
+import { createServiceToken, globalServiceRegistry, InMemoryTabularStorage } from "workglow";
 import { defineStorage, registerStorages, SEC_STORAGE_REGISTRY } from "./storageRegistry";
 import { resetDependencyInjectionsForTesting } from "./TestingDI";
 

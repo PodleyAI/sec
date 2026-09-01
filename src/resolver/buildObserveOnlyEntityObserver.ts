@@ -7,8 +7,8 @@
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
-import { EntityObserver } from "./EntityObserver";
 import type { ObserveOnlyEntityObserver } from "./EntityObserver";
+import { EntityObserver } from "./EntityObserver";
 
 /**
  * Constructs an {@link EntityObserver} that records observations and their
