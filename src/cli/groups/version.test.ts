@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { rmSync } from "node:fs";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { BootstrappedDbTemplate } from "../testing/bootstrappedDbTemplate";
+import { bootstrapDbTemplate } from "../testing/bootstrappedDbTemplate";
 import { cliEnv, runCliProcess } from "../testing/runCliProcess";
 
 interface RunResult {
@@ -28,12 +28,19 @@ async function runCli(args: string[], dbFolder: string): Promise<RunResult> {
 }
 
 describe("sec version CLI", () => {
-  it("status shows the bootstrapped extractors after a fresh db setup", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
-    try {
-      const setup = await runCli(["db", "setup"], dir);
-      expect(setup.exitCode).toBe(0);
+  let template: BootstrappedDbTemplate;
 
+  beforeAll(async () => {
+    template = await bootstrapDbTemplate("sec-version-test-");
+  }, 30000);
+
+  afterAll(() => {
+    template?.dispose();
+  });
+
+  it("status shows the bootstrapped extractors after a fresh db setup", async () => {
+    const dir = template.materialize();
+    try {
       const status = await runCli(["version", "status", "--format", "json"], dir);
       expect(status.exitCode).toBe(0);
       const parsed = JSON.parse(status.stdout);
@@ -83,11 +90,8 @@ describe("sec version CLI", () => {
   });
 
   it("status --format json returns raw semver in next, with separate coverage flag", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = template.materialize();
     try {
-      const setup = await runCli(["db", "setup"], dir);
-      expect(setup.exitCode).toBe(0);
-
       const startDev = await runCli(
         ["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"],
         dir
@@ -109,11 +113,8 @@ describe("sec version CLI", () => {
   }, 15000);
 
   it("status rejects an unsupported --format value", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = template.materialize();
     try {
-      const setup = await runCli(["db", "setup"], dir);
-      expect(setup.exitCode).toBe(0);
-
       const status = await runCli(["version", "status", "--format", "yaml"], dir);
       expect(status.exitCode).not.toBe(0);
       expect(status.stderr + status.stdout).toMatch(/Invalid --format/);
@@ -123,11 +124,8 @@ describe("sec version CLI", () => {
   });
 
   it("start-dev creates a next slot and history records it", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = template.materialize();
     try {
-      const setup = await runCli(["db", "setup"], dir);
-      expect(setup.exitCode).toBe(0);
-
       const result = await runCli(
         [
           "version",
@@ -166,9 +164,8 @@ describe("sec version CLI", () => {
   }, 15000);
 
   it("coverage reports in-progress with a known denominator", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = template.materialize();
     try {
-      await runCli(["db", "setup"], dir);
       await runCli(["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"], dir);
       const result = await runCli(
         ["version", "coverage", "extractor", "D", "--format", "json"],
@@ -185,9 +182,8 @@ describe("sec version CLI", () => {
   }, 15000);
 
   it("promote with --force rotates slots and history records both events", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = template.materialize();
     try {
-      await runCli(["db", "setup"], dir);
       await runCli(["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"], dir);
       const promote = await runCli(["version", "promote", "extractor", "D", "--force"], dir);
       expect(promote.exitCode).toBe(0);
@@ -213,9 +209,8 @@ describe("sec version CLI", () => {
   }, 15000);
 
   it("rollback swaps current and previous", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = template.materialize();
     try {
-      await runCli(["db", "setup"], dir);
       await runCli(["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"], dir);
       await runCli(["version", "promote", "extractor", "D", "--force"], dir);
 
@@ -233,9 +228,8 @@ describe("sec version CLI", () => {
   }, 15000);
 
   it("drop-next clears the next slot", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = template.materialize();
     try {
-      await runCli(["db", "setup"], dir);
       await runCli(["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"], dir);
       const result = await runCli(["version", "drop-next", "extractor", "D"], dir);
       expect(result.exitCode).toBe(0);
@@ -250,9 +244,8 @@ describe("sec version CLI", () => {
   }, 15000);
 
   it("start-dev --bump patch updates current in place without a next slot", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = template.materialize();
     try {
-      await runCli(["db", "setup"], dir);
       const result = await runCli(
         ["version", "start-dev", "extractor", "D", "1.0.1", "--bump", "patch"],
         dir
@@ -271,9 +264,8 @@ describe("sec version CLI", () => {
   }, 15000);
 
   it("rejects start-dev for an unknown extractor id", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    const dir = template.materialize();
     try {
-      await runCli(["db", "setup"], dir);
       const result = await runCli(
         ["version", "start-dev", "extractor", "no-such-form", "1.0.0", "--bump", "major"],
         dir
