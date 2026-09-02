@@ -22,14 +22,11 @@ import { runWorkglowCli } from "@workglow/cli";
 // Through the barrel, like `sec.ts`: it is what pins every consumer to one
 // `workglow` instance, so the DI container this boots is the one the tasks read.
 import {
-  bootstrapSecRuntime,
-  closeDb,
-  closePgPool,
-  getTaskQueueRegistry,
-  registerSecTasks,
-  registerSecWebUi,
-  terminateWorkers,
-} from "./index";
+  installCliSignalTeardown,
+  shouldInstallCliSignalTeardown,
+} from "./cli/installCliSignalTeardown";
+import { shutdownCliResources } from "./cli/shutdownCliResources";
+import { bootstrapSecRuntime, registerSecTasks, registerSecWebUi } from "./index";
 
 // The command's own failure, kept across the shutdown below. `sec.ts` does the
 // same, and for the same two reasons: a `process.exit(0)` in the success path
@@ -53,6 +50,12 @@ try {
       // sec's own commands for the panels to attach to.
       registerSecWebUi();
     },
+    registerCommands: (program) => {
+      program.hook("preAction", (_thisCommand, actionCommand) => {
+        if (!shouldInstallCliSignalTeardown(actionCommand.name())) return;
+        installCliSignalTeardown({ close: shutdownCliResources });
+      });
+    },
     exitOnComplete: false,
   });
 } catch (err) {
@@ -61,15 +64,7 @@ try {
 } finally {
   // Mirror the `sec` CLI's shutdown: allSettled so a crashing step cannot mask
   // another or skip it. runWorkglowCli is told not to exit so this can run.
-  const cleanups = await Promise.allSettled([
-    getTaskQueueRegistry().stopQueues(),
-    Promise.resolve().then(() => closeDb()),
-    closePgPool(),
-    terminateWorkers(),
-  ]);
-  for (const result of cleanups) {
-    if (result.status === "rejected") console.error("Cleanup error:", result.reason);
-  }
+  await shutdownCliResources();
 }
 
 if (primaryError !== undefined) throw primaryError;

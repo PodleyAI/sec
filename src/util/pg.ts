@@ -40,6 +40,41 @@ export function getPgPool(): pg.Pool {
   return pool;
 }
 
+/**
+ * The methods {@link closeIdlePoolClients} needs, which `pg.Pool` satisfies.
+ *
+ * Stats polls check out whatever is idle and `release(true)` so the backend
+ * is closed rather than returned to the pool. A full `Pool` is more than
+ * that, and tests pass a fake with only these two members.
+ */
+export interface IdlePgPool {
+  readonly idleCount: number;
+  connect(): Promise<{ release(destroy?: boolean | Error): void }>;
+}
+
+/**
+ * Disconnects every idle client without ending the pool.
+ *
+ * Repositories capture the singleton `Pool` at bootstrap, so `pool.end()`
+ * after a stats poll would leave them holding a dead object. Removing the
+ * idle clients leaves the pool usable for the next query while freeing the
+ * Postgres backends the rail just used.
+ */
+export async function closeIdlePoolClients(target: IdlePgPool): Promise<void> {
+  const idle = target.idleCount;
+  if (idle <= 0) return;
+  const clients = await Promise.all(Array.from({ length: idle }, () => target.connect()));
+  for (const client of clients) {
+    client.release(true);
+  }
+}
+
+/** Closes idle clients on the process pool, if one has been created. */
+export async function closeIdlePgConnections(): Promise<void> {
+  if (!pool) return;
+  await closeIdlePoolClients(pool);
+}
+
 export async function closePgPool(): Promise<void> {
   if (pool) {
     await pool.end();

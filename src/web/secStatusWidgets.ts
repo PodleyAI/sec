@@ -11,6 +11,7 @@ import { getVersionStatus } from "../cli/queries/VersionStatus";
 import { SecFetchMaxConcurrent, SecFetchMaxPerSec } from "../config/Constants";
 import { SEC_DB_TYPE } from "../config/tokens";
 import { readSecFetchPauseUntil } from "../task/fetch/secFetchThrottle";
+import { closeAfterStats } from "./closeAfterStats";
 import { cachedRead, readPendingDeadLetterCounts } from "./secWebReads";
 
 /**
@@ -145,19 +146,24 @@ export function registerSecStatusWidgets(): void {
     id: "sec.fetch",
     title: "EDGAR fetch",
     source,
-    read: readFetchStatus,
+    read: () => closeAfterStats(readFetchStatus),
   });
-  registerWebStatusWidget({ id: "sec.db", title: "Database", source, read: readDbStatus });
+  registerWebStatusWidget({
+    id: "sec.db",
+    title: "Database",
+    source,
+    read: () => closeAfterStats(readDbStatus),
+  });
   registerWebStatusWidget({
     id: "sec.deadLetters",
     title: "Dead letters",
     source,
-    read: readDeadLetters,
+    read: () => closeAfterStats(readDeadLetters),
   });
   registerWebStatusWidget({
     id: "sec.versions",
     title: "Dev cycles",
     source,
-    read: readVersionSlots,
+    read: () => closeAfterStats(readVersionSlots),
   });
 }

@@ -1,15 +1,11 @@
 #!/usr/bin/env bun
 import { program } from "commander";
 import {
-  AddCommands,
-  applyGlobalOptions,
-  closeDb,
-  closePgPool,
-  getTaskQueueRegistry,
-  SecCliConfigurationError,
-  statusMessage,
-  terminateWorkers,
-} from "./index";
+  installCliSignalTeardown,
+  shouldInstallCliSignalTeardown,
+} from "./cli/installCliSignalTeardown";
+import { shutdownCliResources } from "./cli/shutdownCliResources";
+import { AddCommands, applyGlobalOptions, SecCliConfigurationError, statusMessage } from "./index";
 
 program
   // Set explicitly rather than left to commander's argv[1] inference: the web
@@ -21,6 +17,17 @@ program
 
 applyGlobalOptions(program);
 AddCommands(program);
+
+let signalsInstalled = false;
+program.hook("preAction", (_thisCommand, actionCommand) => {
+  if (signalsInstalled) return;
+  if (!shouldInstallCliSignalTeardown(actionCommand.name())) return;
+  signalsInstalled = true;
+  // Abort in the web console is SIGINT to this process. Close the pool here
+  // rather than waiting for `finally`: a listener replaces the default exit,
+  // and without this the backends stay idle on the server.
+  installCliSignalTeardown({ close: shutdownCliResources });
+});
 
 let primaryError: unknown;
 try {
@@ -35,19 +42,7 @@ try {
   // Run shutdown via allSettled so a crashing cleanup step can't mask the
   // primary command failure or skip later cleanup. process.exit() would
   // bypass this block entirely, so we use exitCode + rethrow instead.
-  const cleanups = await Promise.allSettled([
-    getTaskQueueRegistry().stopQueues(),
-    Promise.resolve().then(() => closeDb()),
-    closePgPool(),
-    // Terminate worker-backed AI providers (local models) so the process exits
-    // instead of hanging on live worker threads until their idle timeout.
-    terminateWorkers(),
-  ]);
-  for (const result of cleanups) {
-    if (result.status === "rejected") {
-      console.error("Cleanup error:", result.reason);
-    }
-  }
+  await shutdownCliResources();
 }
 
 if (primaryError !== undefined && !(primaryError instanceof SecCliConfigurationError)) {
