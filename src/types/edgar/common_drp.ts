@@ -5,7 +5,11 @@ import * as common from "./common";
 export type APPEALED_TO_ENTITY_TYPE = "SEC" | "SRO" | "State Court" | "Federal Court";
 
 export type CRIMINAL_DISPOSITION_OPTION_TYPE =
-  "Convicted" | "Acquitted" | "Dismissed" | "Pretrial" | "Other";
+  | "Convicted"
+  | "Acquitted"
+  | "Dismissed"
+  | "Pretrial"
+  | "Other";
 
 export type BOND_DISPOSITION_OPTION_TYPE = "Denied" | "Payout" | "Revoked";
 
@@ -45,7 +49,10 @@ export type SANCTIONS_ORDERED_OPTION_TYPE =
   | "Suspension";
 
 export type PRINCIPAL_SANCTION_RELIEF_BASE =
-  "Cease and Desist" | "Disgorgement" | "Injunction" | "Restitution";
+  | "Cease and Desist"
+  | "Disgorgement"
+  | "Injunction"
+  | "Restitution";
 
 export type PRINCIPAL_SANCTION_RELIEF_BASE_2 =
   | "Cease and Desist (Private/Civil Complaint)"
@@ -329,7 +336,8 @@ export type MATTER_RESOLVED_OPTION_TYPE_4 = MATTER_RESOLVED_BASE | MATTER_RESOLV
 
 // MATTER_RESOLVED_OPTION_TYPE_5 ...
 export type MATTER_RESOLVED_OPTION_TYPE_5 =
-  MATTER_RESOLVED_OPTION_TYPE_4 | MATTER_RESOLVED_OTHER_TYPE;
+  | MATTER_RESOLVED_OPTION_TYPE_4
+  | MATTER_RESOLVED_OTHER_TYPE;
 
 // REGULATORY_DRP_PART2_TYPE ...
 export interface REGULATORY_DRP_PART2_TYPE {
@@ -391,7 +399,9 @@ export type COURT_INITIATED_BY_OPTION_TYPE =
   | "Firm, private plaintiff";
 
 export type PRINCIPAL_RELIEF_TYPE =
-  "Civl Penalty(ies)/Fines)" | "Money Damages (Private/Civil Complaint)" | "Restraining Order";
+  | "Civl Penalty(ies)/Fines)"
+  | "Money Damages (Private/Civil Complaint)"
+  | "Restraining Order";
 
 // PRINCIPAL_RELIEF_OPTION_TYPE ...
 export interface PRINCIPAL_RELIEF_OPTION_TYPE {
@@ -450,7 +460,11 @@ export interface CIVIL_JUDICIAL_DISCLOSURE_TYPE {
 }
 
 export type BANKRUPTCY_ACTION_OPTION_TYPE =
-  "Bankruptcy" | "Declaration" | "Receivership" | "Compromise" | "Liquidated";
+  | "Bankruptcy"
+  | "Declaration"
+  | "Receivership"
+  | "Compromise"
+  | "Liquidated";
 
 export type BANKRUPTCY_DISPOSITION_OPTION_TYPE =
   | "Direct Payment Procedure"

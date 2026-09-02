@@ -87,7 +87,10 @@ export type PRINCIPAL_PRODUCT_TYPE =
 
 // CRIMINAL_EVENT_COURT_TYPE ...
 export type CRIMINAL_EVENT_COURT_TYPE =
-  "Federal Court" | "Military Court" | "State Court" | "Foreign Court";
+  | "Federal Court"
+  | "Military Court"
+  | "State Court"
+  | "Foreign Court";
 
 // CRIMINAL_DISPOSITION_OPTION_TYPE ...
 export type CRIMINAL_DISPOSITION_OPTION_TYPE =
@@ -115,7 +118,10 @@ export interface CRIMINAL_RESPONDING_TO_TYPES {
 
 // APPEAL_TYPE ...
 export type APPEAL_TYPE =
-  "Affirmed" | "Vacated & Returned For Further Action" | "Vacated / Final" | "Other";
+  | "Affirmed"
+  | "Vacated & Returned For Further Action"
+  | "Vacated / Final"
+  | "Other";
 
 // SENTENCE_DURATION_TYPE ...
 export interface SENTENCE_DURATION_TYPE {
@@ -232,7 +238,11 @@ export type PORTAL_DRP_FILE_FOR_TYPE =
 
 // REGULATOR_INITIATED_OPTION_TYPE ...
 export type REGULATOR_INITIATED_OPTION_TYPE =
-  "SEC" | "Foreign Authority" | "Other Federal Authority" | "State" | "SRO";
+  | "SEC"
+  | "Foreign Authority"
+  | "Other Federal Authority"
+  | "State"
+  | "SRO";
 
 // PRINCIPAL_SANCTION_TYPE ...
 export type PRINCIPAL_SANCTION_TYPE =
@@ -435,11 +445,22 @@ export type CIVIL_ACTION_COURT_TYPE =
 
 // MATTER_RESOLVE_TYPE ...
 export type MATTER_RESOLVE_TYPE =
-  "Consent" | "Judgement Rendered" | "Settled" | "Dismissed" | "Opinion" | "Withdrawn " | "Other";
+  | "Consent"
+  | "Judgement Rendered"
+  | "Settled"
+  | "Dismissed"
+  | "Opinion"
+  | "Withdrawn "
+  | "Other";
 
 // BANKRUPTCY_ACTION_TYPE ...
 export type BANKRUPTCY_ACTION_TYPE =
-  "Bankruptcy" | "Compromise" | "Declaration" | "Liquidated" | "Receivership" | "Other";
+  | "Bankruptcy"
+  | "Compromise"
+  | "Declaration"
+  | "Liquidated"
+  | "Receivership"
+  | "Other";
 
 // BANKRUPTCY_SIPC_RESPONDING_TO_TYPES ...
 export interface BANKRUPTCY_SIPC_RESPONDING_TO_TYPES {

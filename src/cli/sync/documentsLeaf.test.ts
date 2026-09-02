@@ -27,7 +27,8 @@ vi.mock("../runWorkflow", () => ({
 /** The defaults the leaf handed its task on this run. */
 function convertDefaults(): Record<string, unknown> {
   const tasks = runWorkflowCli.mock.calls.at(-1)?.[0] as
-    ReadonlyArray<{ defaults: Record<string, unknown> }> | undefined;
+    | ReadonlyArray<{ defaults: Record<string, unknown> }>
+    | undefined;
   if (tasks === undefined) throw new Error("the leaf ran no workflow");
   return tasks[0].defaults;
 }

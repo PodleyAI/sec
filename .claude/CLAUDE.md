@@ -35,7 +35,7 @@ bun run build                # clean + JS + types
 bun run dev                  # watch (JS + types)
 bun test                     # all tests
 bun test src/path/to/file.test.ts
-bun run format               # Prettier write — run before pushing
+bun run format               # oxfmt write — run before pushing
 bun run format-check         # CI runs this
 bun run lint                 # oxlint + tsgolint type-aware rules; CI runs this
 bun run lint-fix             # oxlint --fix
@@ -353,20 +353,19 @@ oxlint's `correctness` set.
 
 ## Formatting
 
-Prettier: 100 char width, 2-space indent, double quotes, trailing commas (es5), semicolons.
+Oxfmt: 100 char width, 2-space indent, double quotes, trailing commas (es5), semicolons.
 Enforced by `bun run format-check` in CI, so run `bun run format` before pushing. The
 version is **pinned exactly** (not a range): a floating range reformats on a minor release
 and turns CI red on a day nobody touched the code.
 
-Two `.prettierignore` entries are load-bearing — do not tidy them out:
+Two `.oxfmtrc.json` `ignorePatterns` are load-bearing — do not tidy them out:
 
 - **Every `mock_data/` directory.** These are captured EDGAR bytes, not source.
   `goldenFixtures.test.ts` re-hashes the `src/sec/html/mock_data/{s1,424}` corpus against
   SHA-256 digests in `goldenFixtureManifest.ts`, so reformatting a fixture turns that test
-  red and destroys the capture provenance (a bare `prettier --write .` rewrites 28 of them).
+  red and destroys the capture provenance (a bare `oxfmt` over `.` rewrites 28 of them).
   Other `mock_data/` trees back whitespace-sensitive prose segmentation and source-span
   verification, where re-indenting changes what the tests measure. The entry names the
   directories, not the files that fail today.
 - **`src/eval/goldenS1Labels.ts`** — one label per line so each can be checked against the
-  filing it came from. Prettier collapses them; 19,950 of the 21,757 lines a repo-wide
-  reformat would change are in this one file.
+  filing it came from. A formatter that collapses them would rewrite most of this file.

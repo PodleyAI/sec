@@ -271,14 +271,16 @@ describe("Form_C storage test", () => {
 
       // Mutate the parsed object so the leaves we care about are whitespace.
       const offeringInfo = formC.formData.offeringInformation as
-        Record<string, unknown> | undefined;
+        | Record<string, unknown>
+        | undefined;
       if (offeringInfo) {
         offeringInfo.price = "   ";
         offeringInfo.offeringAmount = "   ";
         offeringInfo.maximumOfferingAmount = "   ";
       }
       const disclosures = formC.formData.annualReportDisclosureRequirements as
-        Record<string, unknown> | undefined;
+        | Record<string, unknown>
+        | undefined;
       if (disclosures) {
         disclosures.totalAssetMostRecentFiscalYear = "   ";
       }
@@ -317,7 +319,8 @@ describe("Form_C storage test", () => {
       const formC = await Form_C.parse("C", xmlContent);
 
       const offeringInfo = formC.formData.offeringInformation as
-        Record<string, unknown> | undefined;
+        | Record<string, unknown>
+        | undefined;
       if (offeringInfo) {
         offeringInfo.price = "";
         offeringInfo.offeringAmount = "";
@@ -347,13 +350,15 @@ describe("Form_C storage test", () => {
       const formC = await Form_C.parse("C", xmlContent);
 
       const offeringInfo = formC.formData.offeringInformation as
-        Record<string, unknown> | undefined;
+        | Record<string, unknown>
+        | undefined;
       if (offeringInfo) {
         offeringInfo.price = "0";
         offeringInfo.offeringAmount = "0";
       }
       const disclosures = formC.formData.annualReportDisclosureRequirements as
-        Record<string, unknown> | undefined;
+        | Record<string, unknown>
+        | undefined;
       if (disclosures) {
         disclosures.totalAssetMostRecentFiscalYear = "0";
       }
@@ -543,7 +548,8 @@ describe("Form_C storage test", () => {
       const formC = await Form_C.parse("C", xmlContent);
 
       const disclosures = formC.formData.annualReportDisclosureRequirements as
-        Record<string, unknown> | undefined;
+        | Record<string, unknown>
+        | undefined;
       expect(disclosures).toBeDefined();
       if (!disclosures) return;
       disclosures.currentEmployees = "-1";

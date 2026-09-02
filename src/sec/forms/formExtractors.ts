@@ -181,7 +181,8 @@ export interface FormExtractorMetadataOnly<TParsed = unknown> extends FormExtrac
  * {@link FormExtractorWithDocument} and {@link FormExtractorMetadataOnly}.
  */
 export type FormExtractor<TParsed = unknown> =
-  FormExtractorWithDocument<TParsed> | FormExtractorMetadataOnly<TParsed>;
+  | FormExtractorWithDocument<TParsed>
+  | FormExtractorMetadataOnly<TParsed>;
 
 /**
  * `any` rather than `unknown` for the stored parse type: `store` is

@@ -4,10 +4,11 @@
   "editor.tabSize": 2,
   "editor.detectIndentation": false,
   "editor.stickyTabStops": true,
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.defaultFormatter": "oxc.oxc-vscode",
   "editor.formatOnPaste": false,
   "editor.formatOnType": false,
   "editor.formatOnSave": true,
+  "editor.formatOnSaveMode": "file",
   "eslint.format.enable": false,
   "files.exclude": {
     // "**/dist": true,
@@ -26,7 +27,7 @@
     "data-in/**": true
   },
   "[typescript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "typescript.format.enable": false,
   "typescript.disableAutomaticTypeAcquisition": false,
@@ -35,7 +36,6 @@
   "json.format.enable": true,
   "javascript.format.enable": false,
   "editor.wordWrapColumn": 100,
-  "prettier.printWidth": 100,
   "bun.debugTerminal.enabled": true,
   "markdown.extension.toc.levels": "2..6",
   "js/ts.implicitProjectConfig.target": "ESNext",

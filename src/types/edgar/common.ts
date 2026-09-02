@@ -20,7 +20,10 @@ export type RELATED_FORM_TYPE = (typeof RELATED_FORM_TYPE)[keyof typeof RELATED_
 
 // ACCELERATED_STATUS_TYPE ...
 export type ACCELERATED_STATUS_TYPE =
-  "Non-Accelerated Filer" | "Accelerated Filer" | "Large Accelerated Filer" | "Not Applicable";
+  | "Non-Accelerated Filer"
+  | "Accelerated Filer"
+  | "Large Accelerated Filer"
+  | "Not Applicable";
 
 // SEC supplied CIK for the Filer. Enter up to 10 numeric characters. When fewer than 10 characters are entered, the field will be pre filled with zeroes.
 export type CIK_TYPE = string;
@@ -68,7 +71,16 @@ export type INTERNET_ADDRESS_TYPE = string;
 
 // Identifies the investment company type of the acquiring company. Choose a value from the list displayed when the arrow is selected.
 export type INV_COMPANY_TYPE =
-  "N-1A" | "N-1" | "N-2" | "N-3" | "N-4" | "N-5" | "N-6" | "S-1 or S-3" | "S-6" | "OTHER";
+  | "N-1A"
+  | "N-1"
+  | "N-2"
+  | "N-3"
+  | "N-4"
+  | "N-5"
+  | "N-6"
+  | "S-1 or S-3"
+  | "S-6"
+  | "OTHER";
 
 // Marks submission to be treated as a LIVE filing.Unless the "TEST" button is selected, the filing will be treated by EDGAR as a live filing and, if accepted, be disseminated. Submit live filings in LIVE mode if using EDGARLink Online. A filing with TEST selected cannot be changed into a live filing.
 export type LIVE_TEST_TYPE = "LIVE" | "TEST";
