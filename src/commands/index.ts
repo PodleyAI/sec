@@ -10,6 +10,7 @@ import { globalServiceRegistry } from "workglow";
 import { parseGlobalOptions } from "../cli/GlobalOptions";
 import { setNextStepsQuiet } from "../cli/nextSteps";
 import { addBootstrapCommands as addLoadCommands } from "../cli/groups/bootstrap";
+import { addAskCommands } from "../cli/groups/ask";
 import { addGetCommand } from "../cli/groups/get";
 import { addReadCommand } from "../cli/groups/read";
 import { addStatusCommand } from "../cli/groups/status";
@@ -117,6 +118,7 @@ export const AddCommands = (program: Command): void => {
   addLoadCommands(program);
   addQueryCommands(program);
   addReadCommand(program);
+  addAskCommands(program);
   addFetchCommands(program);
   addDbCommands(program);
   registerSecWebUi(program);

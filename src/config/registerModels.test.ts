@@ -11,12 +11,6 @@ import {
   InMemoryModelRepository,
   setGlobalModelRepository,
 } from "workglow";
-import {
-  DEFAULT_SEC_MODEL,
-  DETERMINISTIC_MODEL_ID,
-  SecHftModelDefault,
-  SecModelDefault,
-} from "./Constants";
 import { SecCliConfigurationError } from "./EnvToDI";
 import {
   anthropicModelRecord,
@@ -36,13 +30,7 @@ import {
 } from "./registerModels";
 
 describe("registerSecModels", () => {
-  const envKeys = [
-    "SEC_MODEL_DEFAULT",
-    "SEC_S1_MODEL",
-    "SEC_MERGER_PROXY_MODEL",
-    "SEC_REDEMPTION_MODEL",
-    "SEC_LOI_MODEL",
-  ] as const;
+  const envKeys = ["SEC_MODEL", "SEC_EMBEDDING_MODEL", "ANTHROPIC_API_KEY"] as const;
   const savedEnv = Object.fromEntries(envKeys.map((k) => [k, process.env[k]]));
 
   // A bare registry shares the global model repository, so swap in a throwaway
@@ -64,41 +52,11 @@ describe("registerSecModels", () => {
     }
   });
 
-  it("mints a stub record for deterministic with no provider and $0 pricing", () => {
-    const record = secModelRecord(DETERMINISTIC_MODEL_ID);
-    expect(record.model_id).toBe("deterministic");
-    expect(record.provider).toBeFalsy();
-    expect(record.pricing?.input).toBe(0);
-    expect(record.pricing?.output).toBe(0);
-  });
-
-  it("lists deterministic among known id shapes", () => {
-    expect(KNOWN_MODEL_ID_SHAPES).toContain("deterministic");
-  });
-
-  it("does not require an API key for deterministic", () => {
-    expect(modelApiKeyEnvVar(DETERMINISTIC_MODEL_ID)).toBeUndefined();
-  });
-
-  it("registerSecModels always registers deterministic", async () => {
-    await registerSecModels();
-    const found = await getGlobalModelRepository().findByName(DETERMINISTIC_MODEL_ID);
-    expect(found?.model_id).toBe(DETERMINISTIC_MODEL_ID);
-  });
-
   it("builds a routable Anthropic record", () => {
     const record = anthropicModelRecord("claude-sonnet-5");
     expect(record.model_id).toBe("claude-sonnet-5");
     expect(record.provider).toBe("ANTHROPIC");
     expect(record.provider_config.model_name).toBe("claude-sonnet-5");
-    expect(record.pricing).toEqual({
-      currency: "USD",
-      input: 2,
-      output: 10,
-      cached: 0.2,
-      cacheWrite: 2.5,
-      cacheStoragePerHour: undefined,
-    });
   });
 
   it("builds a routable HFT record", () => {
@@ -268,44 +226,6 @@ describe("registerSecModels", () => {
     expect(secModelRecord("deepseek-v4-flash").provider).toBe("DEEPSEEK");
   });
 
-  it("registers every id in a CSV model env var, not the comma-joined string", async () => {
-    process.env.SEC_S1_MODEL = "claude-haiku-4-5,gpt-5.4-mini";
-    await registerSecModels();
-    const repo = getGlobalModelRepository();
-    expect((await repo.findByName("claude-haiku-4-5"))?.provider).toBe("ANTHROPIC");
-    expect((await repo.findByName("gpt-5.4-mini"))?.provider).toBe("OPENAI");
-    expect(await repo.findByName("claude-haiku-4-5,gpt-5.4-mini")).toBeUndefined();
-  });
-
-  it("registers the cloud default + local HFT default so findByName resolves them", async () => {
-    await registerSecModels();
-    const repo = getGlobalModelRepository();
-    // Assert against the configured default, not a literal id: what this test
-    // is for is that whatever `SecModelDefault` names gets registered and
-    // resolves — pinning "claude-sonnet-5" here made changing the default fail
-    // a test whose own name says "the cloud default". The provider comes from
-    // `secModelRecord`'s id-shape dispatch, so it is derived for the same reason.
-    expect((await repo.findByName(SecModelDefault))?.provider).toBe(
-      secModelRecord(SecModelDefault).provider
-    );
-    expect((await repo.findByName(SecHftModelDefault))?.provider).toBe("HF_TRANSFORMERS_ONNX");
-  });
-
-  it("pins the built-in default to Anthropic so a key-only deployment resolves", () => {
-    // Deliberately NOT derived from SecModelDefault: the derived test above
-    // asserts the wiring, so nothing failed when the built-in value itself was
-    // changed. A default whose provider a deployment has no key for
-    // dead-letters every AI section with MODEL_RESOLUTION_ERROR. Adopting
-    // another tier is an env-var opt-in (SEC_MODEL_DEFAULT / a per-extractor
-    // variable), not a change here. Schema conformance is not a reason to
-    // change this id — libs enforces the schema for json-mode providers.
-    expect(DEFAULT_SEC_MODEL).toBe("claude-sonnet-5");
-    expect(secModelRecord(DEFAULT_SEC_MODEL).provider).toBe("ANTHROPIC");
-    // `.env.test` sets no SEC_MODEL_DEFAULT, and beforeEach deletes it, so the
-    // exported default is what the extractors actually resolve to here.
-    expect(SecModelDefault).toBe(DEFAULT_SEC_MODEL);
-  });
-
   it("is idempotent — a second run does not duplicate or throw", async () => {
     await registerSecModels();
     const size = await getGlobalModelRepository().size();
@@ -412,13 +332,14 @@ describe("registerSecModels", () => {
     });
   });
 
-  it("registers the SEC_LOI_MODEL override id", async () => {
-    process.env.SEC_LOI_MODEL = "claude-haiku-4-5";
+  it("registers the two roles it has, and only those", async () => {
+    process.env.SEC_MODEL = "claude-haiku-4-5";
     await registerSecModels();
     const repo = getGlobalModelRepository();
     expect((await repo.findByName("claude-haiku-4-5"))?.provider).toBe("ANTHROPIC");
-    // Always-registered: cloud default + local HFT + deterministic, plus the override.
-    expect(await repo.size()).toBe(4);
+    // One generation model and one embedding model. The per-extractor override
+    // matrix that used to register a handful more went with the extractors.
+    expect(await repo.size()).toBe(2);
   });
 });
 

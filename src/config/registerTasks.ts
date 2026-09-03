@@ -9,6 +9,8 @@ import { ListFormTypesTask } from "../task/query/ListFormTypesTask";
 import { QueryCiksTask } from "../task/query/QueryCiksTask";
 import { QueryEntitiesTask } from "../task/query/QueryEntitiesTask";
 import { IngestAdvSnapshotTask } from "../task/adv/IngestAdvSnapshotTask";
+import { AskTask } from "../task/kb/AskTask";
+import { IndexFilingSectionsTask } from "../task/kb/IndexFilingSectionsTask";
 import { QueryAdvisersTask } from "../task/query/QueryAdvisersTask";
 import { QueryFactsTask } from "../task/query/QueryFactsTask";
 import { QueryFilingsTask } from "../task/query/QueryFilingsTask";
@@ -33,6 +35,8 @@ export const SEC_CLI_TASKS = [
   ListFormTypesTask,
   QueryCiksTask,
   QueryEntitiesTask,
+  AskTask,
+  IndexFilingSectionsTask,
   IngestAdvSnapshotTask,
   QueryAdvisersTask,
   QueryFactsTask,

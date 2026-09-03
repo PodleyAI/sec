@@ -42,6 +42,8 @@ describe("CLI command graph", () => {
       "load",
       "show",
       "read",
+      "index",
+      "ask",
       "fetch",
       "db",
       // Inherited from @workglow/cli, and the only evidence it registered.
