@@ -33,13 +33,6 @@ export interface SyncRunContext {
   /** `sync documents --cik`: convert one issuer's filings rather than a sweep. */
   readonly cik: number | undefined;
   /**
-   * `sync documents --all-8k`: convert 8-Ks from every filer rather than only
-   * from the ones the registered conversion gate admits. Off by default,
-   * because every reporting company files them and a lifecycle model built out
-   * of them is the only reason they are convertible at all.
-   */
-  readonly all8k: boolean;
-  /**
    * `sync facts --all-ciks`: fetch facts for every never-processed CIK rather
    * than only those an XBRL filing or a SIC says plausibly have any. Off by
    * default — the unfiltered lane is ~957k CIKs, ~93% of them Section 16
@@ -57,7 +50,7 @@ export interface SyncRunContext {
 
 /**
  * Commander's parsed values for one leaf command, keyed by camel-cased flag
- * (`--all-8k` arrives as `all8k`). Values are whatever that option's parser
+ * Values are whatever that option's parser
  * produced, so a leaf narrows the ones it declared; see {@link SyncLeafOptions}.
  */
 export type SyncLeafOptionValues = Readonly<Record<string, unknown>>;
@@ -157,7 +150,6 @@ export const EMPTY_SYNC_CONTEXT: SyncRunContext = {
   simple: false,
   limit: undefined,
   cik: undefined,
-  all8k: false,
   allCiks: false,
   downloadOnly: false,
 };

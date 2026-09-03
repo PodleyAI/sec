@@ -47,7 +47,6 @@ describe("CLI command graph", () => {
       // here with the tiers that were the whole of those groups; the package
       // owning them registers them now.
       "issuer",
-      "editorial",
       "extractor",
     ]) {
       expect(names).toContain(expected);

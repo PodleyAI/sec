@@ -20,7 +20,6 @@ import { addVersionCommands } from "../cli/groups/version";
 import { bootstrapSecRuntime } from "../config/bootstrapSecRuntime";
 import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../config/tokens";
 import { registerSecWebUi } from "../web/registerSecWebUi";
-import { registerEditorialCommands } from "./editorial";
 import { registerIssuerCommands } from "./issuerTickers";
 
 /**
@@ -29,8 +28,8 @@ import { registerIssuerCommands } from "./issuerTickers";
  * committed files against EDGAR over a plain fetch — needing a SQLite path to
  * run it would block the CI use case it exists for.
  *
- * Matched on the leaf name, which is what these predate; anything added now
- * should go in {@link DI_EXEMPT_COMMAND_PATHS} instead.
+ * Matched on the leaf name; anything added now should go in
+ * {@link DI_EXEMPT_COMMAND_PATHS} instead, since a path cannot collide.
  */
 const DI_EXEMPT_COMMANDS: ReadonlySet<string> = new Set(["init", "golden-fixtures"]);
 
@@ -39,10 +38,9 @@ const DI_EXEMPT_COMMANDS: ReadonlySet<string> = new Set(["init", "golden-fixture
  *
  * A leaf name is not enough for a group whose leaves are named for stages:
  * `verify all` and `sync all` share one, and only the first can run without a
- * database. A path cannot collide, so new entries belong here.
+ * database.
  *
- * These read a committed fixture, a local file, or a trace directory and touch
- * nothing else.
+ * These read a committed fixture or a local file and touch nothing else.
  */
 const DI_EXEMPT_COMMAND_PATHS: ReadonlySet<string> = new Set(["verify fixtures", "verify calls"]);
 
@@ -82,23 +80,7 @@ function commandPath(command: Command): string {
   return parts.join(" ");
 }
 
-/**
- * Whether a command runs without a database, so DI bring-up must be skipped.
- *
- * **This predicate is the contract, and the sets behind it are deliberately not
- * exported.** A superset CLI installs its OWN preAction hook to
- * register private-data repos, and that registration calls `createStorage()`,
- * which reads `sec.db.type` — a token only sec's bootstrap registers. So a
- * superset testing a different condition crashes on exactly the commands sec
- * runs deliberately without a database.
- *
- * That has now happened twice. First when `golden-fixtures` was added to a set
- * a superset restated locally. Then again when `verify` needed path matching
- * and gained a second set the superset did not know to consult — a superset
- * reading only the first set is not restating anything, and still breaks.
- * Exporting one function instead of the data leaves nothing to keep in sync:
- * a new exemption of any shape is picked up by every caller for free.
- */
+/** Whether a command runs without a database, so DI bring-up must be skipped. */
 export function isDiExemptCommand(command: Command): boolean {
   if (DI_EXEMPT_COMMANDS.has(command.name())) return true;
   const path = commandPath(command);
@@ -132,7 +114,6 @@ export const AddCommands = (program: Command): void => {
   addInitCommand(program);
   addVersionCommands(program);
   registerIssuerCommands(program);
-  registerEditorialCommands(program);
   addExtractorCommands(program);
   addVerifyCommands(program);
   // What the console shows for those commands: pickers for the identifiers

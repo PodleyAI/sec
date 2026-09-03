@@ -81,11 +81,6 @@ import { secFetchRateLimiterLedgerComponents } from "../task/fetch/SecJobQueue";
 import { getDb } from "../util/db";
 import { getPgPool } from "../util/pg";
 import { currentSchemaName, quote } from "../util/pgIdentifiers";
-import {
-  listDatabaseExtensionTokens,
-  listDatabaseViewNames,
-  runDatabaseSetupHooks,
-} from "./databaseExtensions";
 import { listRegisteredTables } from "./tableRegistry";
 import { SEC_DB_TYPE } from "./tokens";
 
@@ -111,8 +106,8 @@ export interface ResetAllDatabasesOptions {
  * never alters an existing table.
  *
  * What it drops is scoped to the {@link listRegisteredTables} ownership list
- * (every table built through `createStorage`, sec's and any superset's) plus
- * the few tables and views created outside it. A reset must not be a
+ * (every table built through `createStorage`) plus the few tables and views
+ * created outside it. A reset must not be a
  * whole-database wipe: sec is routinely one schema among several, and
  * destroying an unrelated table or a colleague's reporting view is not
  * something a "reset sec's tables" command may do. Tables that are present but
@@ -131,23 +126,6 @@ export async function resetAllDatabases(options: ResetAllDatabasesOptions = {}):
   const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
     ? globalServiceRegistry.get(SEC_DB_TYPE)
     : null;
-
-  if (dbType === "postgres" || dbType === "sqlite") {
-    // Let downstream packages register their DI repos before we read the
-    // ownership registry: a superset's tables only land in it once its repo
-    // family has been built through `createStorage`, and the documented seam
-    // (`registerDatabaseExtension`) promises those tables are dropped by
-    // `db reset` as well as created by `db setup`. Without this, a superset that
-    // registers only through the setup hook has every one of its tables reported
-    // as unowned and silently left in place. Idempotent — a superset whose CLI
-    // preAction already registered is a no-op.
-    //
-    // Only on a real backend: a hook builds its repos through `createStorage`,
-    // which reads SEC_DB_TYPE unguarded and opens the SQLite/Postgres handle.
-    // The in-memory fallback below has neither, and truncates by DI token
-    // rather than by the registry, so running hooks there would only throw.
-    runDatabaseSetupHooks();
-  }
 
   if (dbType === "postgres") {
     await resetPostgres(options);
@@ -220,14 +198,6 @@ async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {
     // worse than not running it.
     await client.query("BEGIN");
     try {
-      // Views first: they depend on the tables, so dropping them up front keeps
-      // the table drops from needing CASCADE. Every view is contributed now —
-      // the tier that owns the tables under them registers its own.
-      for (const view of listDatabaseViewNames()) {
-        await client.query(
-          `DROP VIEW IF EXISTS ${qualify(view)}${options.cascade ? " CASCADE" : ""}`
-        );
-      }
       for (const table of owned) {
         const sql = `DROP TABLE IF EXISTS ${qualify(table)}${options.cascade ? " CASCADE" : ""}`;
         try {
@@ -307,9 +277,6 @@ function resetSqlite(options: ResetAllDatabasesOptions): void {
   // table still referenced by one not yet dropped.
   db.exec("PRAGMA foreign_keys = OFF");
   try {
-    for (const view of listDatabaseViewNames()) {
-      db.exec(`DROP VIEW IF EXISTS "${quote(view)}"`);
-    }
     // SQLite has a single schema per attached database, so an unqualified name
     // cannot resolve outside it the way Postgres's search_path allows.
     for (const table of owned) {
@@ -431,8 +398,4 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(FORM144_ACQUISITION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(FORM144_RECENT_SALE_REPOSITORY_TOKEN).deleteAll();
   // Family-tier canonical / alias / membership / link tables (sponsor + underwriter).
-  // Truncate any downstream-registered extension repos after the built-in ones.
-  for (const token of listDatabaseExtensionTokens()) {
-    await globalServiceRegistry.get(token).deleteAll();
-  }
 }

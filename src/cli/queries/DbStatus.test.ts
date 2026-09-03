@@ -1,15 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createServiceToken, globalServiceRegistry } from "workglow";
+import { beforeEach, describe, expect, it } from "vitest";
+import { globalServiceRegistry, type ServiceToken } from "workglow";
 import { SEC_STORAGE_REGISTRY } from "../../config/storageRegistry";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
-import {
-  getDbStats,
-  getDbStatus,
-  registerDbStatsTables,
-  resetDbStatsTablesForTesting,
-  type CountableRepository,
-} from "./DbStatus";
+import { PORTAL_REPOSITORY_TOKEN } from "../../storage/portal/PortalSchema";
+import { getDbStats, getDbStatus, type CountableRepository } from "./DbStatus";
 
 describe("getDbStatus", () => {
   beforeEach(() => {
@@ -49,28 +44,21 @@ describe("getDbStatus", () => {
 });
 
 /**
- * Registers a `db stats` extension table whose `size()` always rejects with
- * `error`, the way a storage does when its relation was never created.
+ * Rebinds a counted table's repository so `size()` always rejects with `error`,
+ * the way a storage does when its relation was never created.
  */
-function registerFailingExtensionTable(table: string, error: unknown): void {
-  const token = createServiceToken<CountableRepository>(`test.dbstats.${table}`);
-  globalServiceRegistry.registerInstance(token, {
+function bindFailingTable(token: ServiceToken<CountableRepository>, error: unknown): void {
+  const failing: CountableRepository = {
     size: async (): Promise<number> => {
       throw error;
     },
-  });
-  registerDbStatsTables([{ table, token }]);
+  };
+  globalServiceRegistry.registerInstance(token, failing);
 }
 
 describe("getDbStats", () => {
   beforeEach(() => {
     resetDependencyInjectionsForTesting();
-  });
-
-  // Registration is process-global: an extension table left registered would
-  // change the report every later assertion in this file reads.
-  afterEach(() => {
-    resetDbStatsTablesForTesting();
   });
 
   it("returns array of table stats", async () => {
@@ -100,40 +88,33 @@ describe("getDbStats", () => {
   });
 
   it("reports n/a instead of throwing when a registered extension table is missing", async () => {
-    // A downstream package registers a table, then the report runs against a
-    // database that was set up before that table existed. Losing every other
-    // row count — sec's own included — to one uncreated relation is the bug.
-    registerFailingExtensionTable(
-      "ext_missing",
-      new Error("SQLITE_ERROR: no such table: ext_missing")
-    );
+    // The report runs against a database set up before this table existed.
+    // Losing every other row count to one uncreated relation is the bug.
+    bindFailingTable(PORTAL_REPOSITORY_TOKEN, new Error("SQLITE_ERROR: no such table: portals"));
 
     const stats = await getDbStats();
-    const missing = stats.find((stat) => stat.table === "ext_missing");
+    const missing = stats.find((stat) => stat.table === "portals");
 
-    expect(missing).toEqual({ table: "ext_missing", rows: null, estimated: false });
-    const builtIns = stats.filter((stat) => stat.table !== "ext_missing");
-    expect(builtIns.length).toBeGreaterThan(0);
-    expect(builtIns.every((stat) => typeof stat.rows === "number")).toBe(true);
+    expect(missing).toEqual({ table: "portals", rows: null, estimated: false });
+    const others = stats.filter((stat) => stat.table !== "portals");
+    expect(others.length).toBeGreaterThan(0);
+    expect(others.every((stat) => typeof stat.rows === "number")).toBe(true);
   });
 
   it("reports n/a for the Postgres form of a missing relation", async () => {
-    const error = Object.assign(new Error(`relation "ext_missing_pg" does not exist`), {
+    const error = Object.assign(new Error(`relation "portals" does not exist`), {
       code: "42P01",
     });
-    registerFailingExtensionTable("ext_missing_pg", error);
+    bindFailingTable(PORTAL_REPOSITORY_TOKEN, error);
 
     const stats = await getDbStats();
-    expect(stats.find((stat) => stat.table === "ext_missing_pg")?.rows).toBeNull();
+    expect(stats.find((stat) => stat.table === "portals")?.rows).toBeNull();
   });
 
   it("rethrows a failure that is not a missing relation", async () => {
     // The guard must stay narrow: a database that is down is not a table that
     // has not been created, and reporting it as `n/a` would hide an outage.
-    registerFailingExtensionTable(
-      "ext_unreachable",
-      new Error("connect ECONNREFUSED 127.0.0.1:5432")
-    );
+    bindFailingTable(PORTAL_REPOSITORY_TOKEN, new Error("connect ECONNREFUSED 127.0.0.1:5432"));
 
     await expect(getDbStats()).rejects.toThrow(/ECONNREFUSED/);
   });

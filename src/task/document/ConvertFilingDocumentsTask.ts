@@ -19,11 +19,6 @@ export type ConvertFilingDocumentsTaskInput = {
   /** Re-convert filings already stored at the current converter version. */
   readonly force?: boolean | undefined;
   /**
-   * Convert {@link SPAC_GATED_FORMS} for every filer, not just for CIKs in
-   * `spac`. Off by default — see that constant.
-   */
-  readonly all8k?: boolean | undefined;
-  /**
    * Fill the accession-doc cache and stop: no parse, no rows.
    *
    * Selection is unchanged, so this downloads exactly the filings a normal
@@ -81,7 +76,6 @@ export class ConvertFilingDocumentsTask extends Task<
       cik: Type.Optional(Type.Integer()),
       limit: Type.Optional(Type.Integer({ minimum: 1 })),
       force: Type.Optional(Type.Boolean()),
-      all8k: Type.Optional(Type.Boolean()),
       downloadOnly: Type.Optional(Type.Boolean()),
     });
   }
@@ -109,7 +103,6 @@ export class ConvertFilingDocumentsTask extends Task<
       cik: input.cik,
       limit: input.limit ?? DEFAULT_CONVERT_LIMIT,
       force: input.force === true,
-      all8k: input.all8k === true,
       converterVersion: FILING_CONVERTER_VERSION,
     });
 

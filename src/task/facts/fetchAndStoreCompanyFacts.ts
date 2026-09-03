@@ -9,7 +9,6 @@ import type { FactsReasonCode } from "../../storage/processing/ProcessedFactsSch
 import { recordFactsOutcome } from "../../storage/processing/recordFactsOutcome";
 import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { classifyFactsFetchError } from "./classifyFactsFetchError";
-import { currentTrustRefresh } from "./currentTrustRefresh";
 import { FetchCompanyFactsTask, FetchCompanyFactsTaskOutput } from "./FetchCompanyFactsTask";
 import { StoreCompanyFactsTask } from "./StoreCompanyFactsTask";
 
@@ -104,21 +103,5 @@ export async function fetchAndStoreCompanyFactsWithDeps(
     reason_code: null,
     detail: null,
   });
-  // Only where a package has contributed a reading of these facts. Resolved
-  // per CIK because the registration is a process-wide fact that a sweep must
-  // not cache across a DI reset, and it costs a map read. Where nothing is
-  // registered this is not a call that fails and is swallowed — it is no call,
-  // so a deployment without a lifecycle model pays nothing and says nothing,
-  // rather than one warning per issuer.
-  const trust = currentTrustRefresh();
-  if (trust !== undefined) {
-    try {
-      await trust.refresh(input.cik);
-    } catch (e) {
-      if (e instanceof TaskAbortedError) throw e;
-      const message = e instanceof Error ? e.message : String(e);
-      console.warn(`Failed to refresh current trust for CIK ${input.cik}: ${message}`);
-    }
-  }
   return { success: true };
 }

@@ -129,9 +129,8 @@ const POSTGRES_MISSING_RELATION = /relation\s+"[^"]*"\s+does not exist/i;
 
 /**
  * True only for "this relation has not been created", the one failure `db
- * stats` degrades on — a table registered through {@link registerDbStatsTables}
- * (or a sec built-in) in a database that has not been `db setup` since it was
- * added. Deliberately narrow: a connection failure, a permissions error or a
+ * stats` degrades on — a table in a database that has not been `db setup`
+ * since it was added. Deliberately narrow: a connection failure, a permissions error or a
  * corrupt file must still surface loudly rather than be reported as `n/a`.
  */
 export function isMissingRelationError(err: unknown): boolean {
@@ -273,31 +272,6 @@ const TABLE_TOKENS: readonly DbStatsTable[] = BUILT_IN_TABLE_TOKENS.map((token) 
   token,
 }));
 
-const extensionTableTokens = new Map<string, DbStatsTable>();
-
-/**
- * Adds a downstream package's tables to the standard `db stats` report.
- * Tables are keyed by name so repeated CLI construction remains idempotent.
- */
-export function registerDbStatsTables(tables: readonly DbStatsTable[]): void {
-  for (const table of tables) {
-    if (TABLE_TOKENS.some((builtIn) => builtIn.table === table.table)) {
-      throw new Error(`db stats table is already owned by sec: ${table.table}`);
-    }
-    extensionTableTokens.set(table.table, table);
-  }
-}
-
-/**
- * Clears the extension tables {@link registerDbStatsTables} collected.
- * Registration is process-global, so a test that registers a table would
- * otherwise change what every later `db stats` assertion in the same process
- * sees (the report order, its length, and which table is counted last).
- */
-export function resetDbStatsTablesForTesting(): void {
-  extensionTableTokens.clear();
-}
-
 /**
  * Counts each table in order so the task runner can render useful progress
  * while a database with many extension tables is being inspected. A table the
@@ -308,7 +282,7 @@ export async function getDbStats(
   onProgress?: (progress: number, message: string) => void | Promise<void>,
   options: DbCountOptions = {}
 ): Promise<TableStat[]> {
-  const tables = [...TABLE_TOKENS, ...extensionTableTokens.values()];
+  const tables = TABLE_TOKENS;
   const results: TableStat[] = [];
   for (const [index, { table, token }] of tables.entries()) {
     const current = index + 1;

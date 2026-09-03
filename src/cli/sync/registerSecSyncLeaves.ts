@@ -248,13 +248,6 @@ export function registerSecSyncLeaves(): void {
           parse: parseIntOption,
         },
         {
-          flags: "--all-8k",
-          description:
-            "Convert 8-Ks from every filer, not just the ones the registered gate admits — " +
-            "the default skips them because every reporting company files them",
-          defaultValue: false,
-        },
-        {
           flags: "--download-only",
           description:
             "Fetch each selected filing into the accession-doc cache and stop — no parsing, " +
@@ -275,7 +268,6 @@ export function registerSecSyncLeaves(): void {
         from: typeof values.since === "string" ? values.since : undefined,
         cik: typeof values.cik === "number" ? values.cik : undefined,
         limit: typeof values.limit === "number" ? values.limit : undefined,
-        all8k: values.all8k === true,
         downloadOnly: values.downloadOnly === true,
       }),
     },
@@ -291,7 +283,6 @@ export function registerSecSyncLeaves(): void {
                 since: ctx.from,
                 cik: ctx.cik,
                 force: ctx.force,
-                all8k: ctx.all8k,
                 downloadOnly: ctx.downloadOnly,
                 limit: ctx.limit ?? DEFAULT_CONVERT_LIMIT,
               },

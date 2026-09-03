@@ -88,11 +88,6 @@ import {
   shouldAddMissingColumns,
 } from "./addMissingColumns";
 import { alignPostgresColumnTypes } from "./alignPostgresColumnTypes";
-import {
-  listDatabaseExtensionTokens,
-  listDatabaseViewDdl,
-  runDatabaseSetupHooks,
-} from "./databaseExtensions";
 import { dropStaleCheckConstraints } from "./dropStaleCheckConstraints";
 import { registerSecFormExtractors } from "./registerFormExtractors";
 import { SEC_DB_FOLDER, SEC_DB_TYPE } from "./tokens";
@@ -111,12 +106,6 @@ export async function setupAllDatabases(): Promise<void> {
   if (typeof Sqlite.init === "function") {
     await Sqlite.init();
   }
-  // Let downstream packages register their DI repos + db-extension tokens +
-  // resolver kinds before we create tables and seed component versions. This is
-  // what makes a superset's tables/resolvers materialize on the `init` path,
-  // which reaches setupAllDatabases (via InitApplyTask, after EnvToDI/DefaultDI)
-  // without ever running the CLI preAction hook that otherwise registers them.
-  runDatabaseSetupHooks();
   // Relax `addresses.state_or_country` to nullable on a database created before
   // US-with-unknown-state addresses were kept rather than dropped. Row-preserving
   // (junction tables reference address_hash_id) and a no-op on a fresh DB.
@@ -185,17 +174,9 @@ export async function setupAllDatabases(): Promise<void> {
   // of the legacy table cannot be ALTERed away on either backend.
   await migrateLegacyForm8KEventsTable();
   await globalServiceRegistry.get(FORM_8K_EVENT_REPOSITORY_TOKEN).setupDatabase();
-  // Downstream packages register their repo tokens via registerDatabaseExtension()
-  // so `db setup` creates their tables after the built-in SEC ones.
-  for (const token of listDatabaseExtensionTokens()) {
-    await globalServiceRegistry.get(token).setupDatabase();
-  }
   // Add any column an existing database is missing outright, widen / relax any
   // it still has at a narrower or stricter shape than the schema declares, then
   // drop any CHECK bound the schema has since removed.
-  // Both run after the extension loop, because the table registry is only fully
-  // populated once every superset has built its repos through createStorage.
-  //
   // Order matters: a column added by the first pass is then eligible for the
   // second in the same `db setup`, rather than waiting for the next one. Both
   // are no-ops on a fresh database, whose DDL already uses the current shape.
@@ -218,18 +199,11 @@ export async function setupAllDatabases(): Promise<void> {
   // repositories' ReadOnlyTabularStorage wrapper cannot intercept.
   if (dbType === "sqlite" && globalServiceRegistry.has(SEC_DB_FOLDER) && !isDryRun()) {
     const db = getDb();
-    // Every view is contributed now — the tier that owns the tables under one
-    // registers it — and they are created after the tables above exist.
-    for (const ddl of listDatabaseViewDdl()) {
-      db.exec(ddl);
-    }
     backfillExtractorRunsOutcome(db);
     // Generic over the live table registry, which is why it replaced the
-    // hand-written per-column passes that used to sit here — and why it reaches
-    // a table a downstream package registered, since `createStorage` is what
-    // fills that registry. `backfillExtractorRunsOutcome` stays hand-rolled: it
-    // seeds `outcome` from the existing `success` flag, which no generic
-    // add-column pass can express.
+    // hand-written per-column passes that used to sit here.
+    // `backfillExtractorRunsOutcome` stays hand-rolled: it seeds `outcome` from
+    // the existing `success` flag, which no generic add-column pass can express.
     addMissingColumnsSqlite(db);
   }
   // Ensure the form extractors are registered before we seed component-version

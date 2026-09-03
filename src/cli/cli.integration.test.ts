@@ -36,9 +36,7 @@ describe("CLI v2 integration", () => {
     // whose registrar throws or is dropped is otherwise invisible here: the
     // remaining ones still print, and the assertions still pass. `issuer` in
     // particular went unasserted, and it is the only top-level evidence that
-    // registerIssuerCommands ran at all. `spac` and `underwriter` are not here:
-    // the family tier was the whole of both groups and a deployment of this
-    // package alone offers neither.
+    // registerIssuerCommands ran at all.
     const output = await runCli("--help");
     for (const group of [
       "bootstrap",
@@ -49,7 +47,6 @@ describe("CLI v2 integration", () => {
       "init",
       "version",
       "issuer",
-      "editorial",
       "extractor",
       // Inherited from @workglow/cli, and the only evidence it registered.
       "web",
