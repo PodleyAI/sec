@@ -8,13 +8,16 @@ import { registerWebCommand } from "@workglow/cli";
 import type { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
 import { parseGlobalOptions } from "../cli/GlobalOptions";
-import { addBootstrapCommands } from "../cli/groups/bootstrap";
+import { setNextStepsQuiet } from "../cli/nextSteps";
+import { addBootstrapCommands as addLoadCommands } from "../cli/groups/bootstrap";
+import { addGetCommand } from "../cli/groups/get";
+import { addReadCommand } from "../cli/groups/read";
+import { addStatusCommand } from "../cli/groups/status";
 import { addDbCommands } from "../cli/groups/db";
 import { addFetchCommands } from "../cli/groups/fetch";
 import { addInitCommand } from "../cli/groups/init";
 import { addQueryCommands } from "../cli/groups/query";
 import { addSyncCommand } from "../cli/groups/sync";
-import { addVerifyCommands } from "../cli/groups/verify";
 import { bootstrapSecRuntime } from "../config/bootstrapSecRuntime";
 import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../config/tokens";
 import { registerSecWebUi } from "../web/registerSecWebUi";
@@ -96,6 +99,7 @@ export const AddCommands = (program: Command): void => {
     const globalOpts = parseGlobalOptions(program);
     globalServiceRegistry.registerInstance(SEC_DRY_RUN, globalOpts.dryRun);
     globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, globalOpts.json);
+    setNextStepsQuiet(globalOpts.quiet);
 
     if (isDiExemptCommand(actionCommand)) return;
     diInitialized = true;
@@ -103,17 +107,18 @@ export const AddCommands = (program: Command): void => {
     await bootstrapSecRuntime();
   });
 
-  addBootstrapCommands(program);
-  addSyncCommand(program);
-  addFetchCommands(program);
-  addQueryCommands(program);
-  addDbCommands(program);
+  // Registration order is help order, and help order is the order a first
+  // reader should meet these: set up, see where you are, get one company, keep
+  // it current, then the bulk and the escape hatches.
   addInitCommand(program);
-  addVerifyCommands(program);
-  // What the console shows for those commands: pickers for the identifiers
-  // (CIK, accession, form), panels over their output, the operator
-  // rail, and the cost/safety badges. Registration is inert — it reads nothing
-  // — so it is safe here, ahead of any runtime.
+  addStatusCommand(program);
+  addGetCommand(program);
+  addSyncCommand(program);
+  addLoadCommands(program);
+  addQueryCommands(program);
+  addReadCommand(program);
+  addFetchCommands(program);
+  addDbCommands(program);
   registerSecWebUi(program);
   // The console over sec's own tree: `registerWebCommand` reads the commands
   // registered above off the live program, so nothing here has to be restated.

@@ -67,7 +67,7 @@ function renderQueryResult(
 }
 
 export function addQueryCommands(program: Command): void {
-  const query = program.command("query").description("Query stored SEC data");
+  const query = program.command("show").alias("query").description("Read what is stored");
 
   query
     .command("cik <name>")
@@ -95,7 +95,7 @@ export function addQueryCommands(program: Command): void {
 
         if (result.tableEmpty && format === "table") {
           console.log(
-            "\nThe cik_names table is empty. Run `sec bootstrap ingest cik-names` to populate it."
+            "\nThe cik_names table is empty. Run `sec load download ciks` to populate it."
           );
         }
       })

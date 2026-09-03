@@ -46,7 +46,7 @@ export function advArchiveUrlForPeriod(period: string): string {
   if (period < EARLIEST_ADV_PERIOD) {
     throw new Error(
       `${period} predates the monthly ADV series (from ${EARLIEST_ADV_PERIOD}). ` +
-        `Earlier filings are in the cumulative archive — run \`sec bootstrap download adv\`.`
+        `Earlier filings are in the cumulative archive — run \`sec load download adv\`.`
     );
   }
   const [yearStr, monthStr] = period.split("-") as [string, string];

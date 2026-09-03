@@ -78,7 +78,7 @@ export async function loadFilingHtml(
   // an unregistered-token error from inside the repository.
   if (!globalServiceRegistry.has(FILING_REPOSITORY_TOKEN)) {
     throw new Error(
-      "Looking up an accession needs a configured database — run `sec init`, or verify a --fixture or --file instead"
+      "Looking up an accession needs a configured database — run `sec setup`, or trace a --fixture or --file instead"
     );
   }
   const filing = await new EntityRepo().getFiling(cik, accession);

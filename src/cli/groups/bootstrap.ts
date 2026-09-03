@@ -17,6 +17,7 @@ import { BootstrapSubmissionsTask } from "../../task/submissions/BootstrapSubmis
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
 import { ADV_BOOTSTRAP_ARCHIVE_URLS } from "../../task/adv/advArchive";
+import { confirmLoad, costsFor } from "../loadCosts";
 
 const BULK_DOWNLOADS = {
   submissions: {
@@ -31,8 +32,9 @@ const BULK_DOWNLOADS = {
 
 export function addBootstrapCommands(program: Command): void {
   const bootstrap = program
-    .command("bootstrap")
-    .description("Full bootstrap pipeline — download and ingest bulk SEC data");
+    .command("load")
+    .alias("bootstrap")
+    .description("Bulk backfill from the SEC's published archives — the slow, one-time pull");
 
   bootstrap
     .option("--skip-download", "Skip the bulk download step", false)
@@ -98,8 +100,16 @@ export function addBootstrapCommands(program: Command): void {
       "Re-download and fully overwrite even when the archive is unchanged since the last run",
       false
     )
-    .action(async (type: string, options: { force?: boolean }) => {
+    .option("--yes", "Skip the size-and-time confirmation", false)
+    .action(async (type: string, options: { force?: boolean; yes?: boolean }) => {
       await runCommand(async () => {
+        // The price before it is spent. `submissions` alone is ~14 GB and runs
+        // for hours, and a reader who finds that out from `df` has already
+        // spent it.
+        if (!(await confirmLoad(costsFor(type), { yes: options.yes }))) {
+          console.log("  Nothing downloaded.");
+          return;
+        }
         if (type === "ciks") {
           await runWorkflowCli([new FetchAllCikNamesTask()]);
           return;

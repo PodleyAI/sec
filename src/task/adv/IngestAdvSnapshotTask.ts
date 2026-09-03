@@ -119,7 +119,7 @@ export class IngestAdvSnapshotTask extends Task<
 
     if (members.length === 0) {
       throw new Error(
-        `No CSV members under ${dir}. Download the archive first: \`sec bootstrap download adv\`.`
+        `No CSV members under ${dir}. Download the archive first: \`sec load download adv\`.`
       );
     }
 

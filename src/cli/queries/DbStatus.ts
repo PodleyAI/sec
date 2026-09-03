@@ -122,7 +122,7 @@ async function countRows(token: ServiceToken<CountableRepository>): Promise<numb
  *   `resetAllDatabases` qualifies its drops. `quote_ident` keeps it
  *   parameterized — the table name stays a bind value, never interpolated SQL.
  * - **A zero estimate is almost never a real zero.** `n_live_tup` is 0 until
- *   the first ANALYZE, so right after `sec bootstrap` bulk-loads ~1M
+ *   the first ANALYZE, so right after `sec load` bulk-loads ~1M
  *   `cik_names` and before autovacuum catches up, the estimate reports 0 for a
  *   table with a million rows. Zero therefore means "no statistics yet" and
  *   falls back to the exact count; a genuinely empty table pays one cheap

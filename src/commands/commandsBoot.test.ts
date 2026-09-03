@@ -35,16 +35,17 @@ describe("CLI command graph", () => {
 
     const names = program.commands.map((c) => c.name());
     for (const expected of [
-      "bootstrap",
-      "sync",
+      "setup",
+      "status",
+      "get",
+      "update",
+      "load",
+      "show",
+      "read",
       "fetch",
-      "query",
       "db",
-      "init",
-      // Registered by registerIssuerCommands, and the only top-level evidence
-      // it ran. `spac`, `underwriter`, `resolve` and `canonical` are gone from
-      // here with the tiers that were the whole of those groups; the package
-      // owning them registers them now.
+      // Inherited from @workglow/cli, and the only evidence it registered.
+      "web",
     ]) {
       expect(names).toContain(expected);
     }
@@ -55,9 +56,9 @@ describe("CLI command graph", () => {
     AddCommands(program);
 
     const names = program.commands.map((c) => c.name());
-    expect(names).toContain("sync");
+    expect(names).toContain("update");
 
-    const syncCmd = program.commands.find((c) => c.name() === "sync");
+    const syncCmd = program.commands.find((c) => c.name() === "update");
     expect(syncCmd).toBeDefined();
     const subNames = syncCmd!.commands.map((c) => c.name());
     // The whole registry, in run order — a leaf dropped from

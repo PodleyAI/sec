@@ -78,7 +78,9 @@ async function listAvailableFormTypesForCik(cik: number): Promise<void> {
 }
 
 export function addFetchCommands(program: Command): void {
-  const fetch = program.command("fetch").description("Fetch data for a single entity");
+  const fetch = program
+    .command("fetch")
+    .description("Fetch one part of one company (see `sec get` for all of it)");
 
   fetch
     .command("submissions <cik>")

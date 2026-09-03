@@ -21,6 +21,13 @@ program
 applyGlobalOptions(program);
 AddCommands(program);
 
+// Bare `sec` runs `status` rather than printing commander's help. A first
+// reader's question is "what have I got and what do I do", and a wall of
+// subcommand names answers neither; `sec --help` still prints the wall.
+if (process.argv.length === 2) {
+  process.argv.push("status");
+}
+
 let signalsInstalled = false;
 program.hook("preAction", (_thisCommand, actionCommand) => {
   if (signalsInstalled) return;

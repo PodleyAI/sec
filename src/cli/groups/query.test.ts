@@ -6,7 +6,7 @@ describe("query CIK options", () => {
   it("rejects an explicitly empty --cik instead of dropping the filter", () => {
     const program = new Command("sec");
     addQueryCommands(program);
-    const query = program.commands.find((command) => command.name() === "query");
+    const query = program.commands.find((command) => command.name() === "show");
     expect(query).toBeDefined();
 
     for (const commandName of ["entities", "filings"]) {
@@ -22,7 +22,7 @@ describe("query CIK options", () => {
   it("rejects an explicitly empty --sic on entities", () => {
     const program = new Command("sec");
     addQueryCommands(program);
-    const query = program.commands.find((command) => command.name() === "query");
+    const query = program.commands.find((command) => command.name() === "show");
     const command = query!.commands.find((candidate) => candidate.name() === "entities");
     const option = command?.options.find((o) => o.long === "--sic");
     expect(option?.parseArg).toBeTypeOf("function");

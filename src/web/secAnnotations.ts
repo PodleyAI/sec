@@ -62,17 +62,17 @@ const FIELD_ANNOTATIONS: readonly CommandFieldAnnotations[] = [
   },
 
   {
-    path: ["query", "**"],
+    path: ["show", "**"],
     source,
     fields: { search: { placeholder: "substring match" } },
   },
   {
-    path: ["query", "facts"],
+    path: ["show", "facts"],
     source,
     fields: { cik: CIK_FIELD, year: { placeholder: "e.g. 2025" } },
   },
   {
-    path: ["query", "xbrl"],
+    path: ["show", "xbrl"],
     source,
     fields: {
       // Scoped: the accessions worth offering are this filer's, and the picker
@@ -112,14 +112,14 @@ const COMMAND_ANNOTATIONS: readonly WebCommandAnnotation[] = [
   },
 
   {
-    path: ["bootstrap", "**"],
+    path: ["load", "**"],
     source,
     badges: ["network", "slow", "writes"],
     note: "A full-history pull is tens of TB decompressed and runs for hours. Bound it with --from/--to.",
   },
 
   {
-    path: ["sync", "**"],
+    path: ["update", "**"],
     source,
     badges: ["network", "slow", "writes"],
   },

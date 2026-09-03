@@ -2,7 +2,6 @@ import type { Command } from "commander";
 import { DbResetTask } from "../../task/db/DbResetTask";
 import { DbSetupTask } from "../../task/db/DbSetupTask";
 import { DbStatsTask, type DbStatsTaskOutput } from "../../task/db/DbStatsTask";
-import { DbStatusTask } from "../../task/db/DbStatusTask";
 import { renderTable } from "../output/TableRenderer";
 import type { DbStatusResult } from "../queries/DbStatus";
 import { runCommand } from "../runCommand";
@@ -19,44 +18,15 @@ const ESTIMATE_FOOTER =
   "re-run with --exact for exact counts.";
 
 export function addDbCommands(program: Command): void {
-  const db = program.command("db").description("Database management commands");
+  const db = program
+    .command("db")
+    .description("Create, inspect and destroy the tables — `sec status` is the everyday view");
 
   db.command("setup")
     .description("Create or migrate all database tables")
     .action(async () => {
       await runCommand(async () => {
         await runWorkflowCli([new DbSetupTask()]);
-      });
-    });
-
-  db.command("status")
-    .description("Show database connection status")
-    .option("--format <format>", "Output format (table, json)", "table")
-    .option("--exact", "Use exact counts instead of fast Postgres estimates")
-    .action(async (options: { format?: string; exact?: boolean }) => {
-      await runCommand(async () => {
-        const status = await runWorkflowCli<DbStatusResult>([
-          new DbStatusTask({ defaults: { exact: options.exact === true } }),
-        ]);
-
-        if (options.format === "json") {
-          console.log(JSON.stringify(status, null, 2));
-          return;
-        }
-
-        // An estimate lags recent writes, so every metric it produced says so —
-        // reading a stale statistic as a real count is exactly the trap right
-        // after a bulk load.
-        const suffix = status.estimated ? "  (estimated)" : "";
-        const fmt = (n: number): string => `${n.toLocaleString()}${suffix}`;
-        console.log("Database Status\n");
-        console.log(`  Entities:              ${fmt(status.entityCount)}`);
-        console.log(`  Filings:               ${fmt(status.filingCount)}`);
-        console.log(`  Company Facts:         ${fmt(status.factsCount)}`);
-        console.log(`  Processed Submissions: ${fmt(status.processedSubmissions)}`);
-        console.log(`  Processed Facts:       ${fmt(status.processedFacts)}`);
-        console.log(`  Extractor Runs:        ${fmt(status.documentCount)}`);
-        if (status.estimated) console.log(`\n${ESTIMATE_FOOTER}`);
       });
     });
 

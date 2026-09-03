@@ -76,8 +76,9 @@ export function addSyncCommand(program: Command): void {
   registerSecSyncLeaves();
 
   const sync = program
-    .command("sync", { isDefault: false })
-    .description("Bring local SEC data forward to today")
+    .command("update")
+    .alias("sync")
+    .description("Bring what you already have current")
     .action(async function (this: Command) {
       const values = this.opts() as SyncLeafOptionValues;
       await runCommand(async () => {

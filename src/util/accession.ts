@@ -46,3 +46,22 @@ export function accessionFromFixtureName(file: string): string {
   if (!/^\d{18}$/.test(noDashes)) return noDashes;
   return `${noDashes.slice(0, 10)}-${noDashes.slice(10, 12)}-${noDashes.slice(12, 18)}`;
 }
+
+/**
+ * The canonical 10-2-6 accession, from either spelling.
+ *
+ * A person copying an accession out of an EDGAR URL gets the undashed form,
+ * and the one on a filing's cover page has dashes. Both name the same filing,
+ * and only the dashed form is what storage holds.
+ */
+export function normalizeAccessionNumber(input: string): string {
+  const trimmed = input.trim();
+  if (/^\d{10}-\d{2}-\d{6}$/.test(trimmed)) return trimmed;
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length !== 18) {
+    throw new Error(
+      `"${input}" is not an accession number. Expected 0001234567-25-000001 or 000123456725000001.`
+    );
+  }
+  return `${digits.slice(0, 10)}-${digits.slice(10, 12)}-${digits.slice(12)}`;
+}

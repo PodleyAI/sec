@@ -107,9 +107,9 @@ function renderSections(result: VerifyFilingResult): void {
   }
 }
 
-function addSourceOptions(cmd: Command): Command {
+export function addTraceOptions(cmd: Command): Command {
   return cmd
-    .option("--fixture <name>", "A committed golden fixture (see `sec verify fixtures`)")
+    .option("--fixture <name>", "A committed golden fixture (see `sec read --fixtures`)")
     .option("--file <path>", "A local HTML file")
     .option("--cik <cik>", "CIK, with an accession argument", parseIntOption)
     .option("--fetch", "Download from EDGAR when the accession is not cached", false)
@@ -118,65 +118,35 @@ function addSourceOptions(cmd: Command): Command {
 }
 
 /**
- * `sec verify` — account for what the pipeline did to a filing, stage by stage.
+ * Accounts for what the parser and segmenter did with one filing.
  *
- * Every command here is deterministic and makes no model call: they read the
- * filing, run the same parser, segmenter and chunker the extractors run, and
- * report what survived. That is what makes them safe to run on anything, and
- * what makes their output comparable across runs.
+ * Deterministic and offline: it reads the filing, runs the same parser and
+ * segmenter the conversion runs, and reports what survived — which is what
+ * makes the numbers comparable between runs and safe to produce for anything.
+ *
+ * Reached as `sec read <target> --trace`, because a reader holding a filing and
+ * asking "did this convert properly" already has the command that renders it.
  */
-export function addVerifyCommands(program: Command): void {
-  const verify = program
-    .command("verify")
-    .description("Account for what the parser and segmenter did with a filing");
+export async function runFilingTrace(
+  target: string | undefined,
+  options: SourceOptions
+): Promise<void> {
+  const result = await runWorkflowCli<VerifyFilingResult>([
+    new VerifyFilingTask({
+      defaults: { ...sourceInput(target, options), stages: [...VERIFY_STAGES] },
+    }),
+  ]);
+  if (reportError(result)) return;
+  if (options.format === "json") {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  renderParse(result);
+  renderSections(result);
+  reportArtifacts(result);
+}
 
-  verify
-    .command("fixtures")
-    .description("List the committed golden fixtures `--fixture` accepts")
-    .action(async () => {
-      await runCommand(async () => {
-        for (const name of listFixtures()) console.log(name);
-      });
-    });
-
-  const run = async (
-    stage: (typeof VERIFY_STAGES)[number] | "all",
-    accession: string | undefined,
-    options: SourceOptions
-  ): Promise<void> => {
-    const stages = stage === "all" ? [...VERIFY_STAGES] : [stage];
-    const result = await runWorkflowCli<VerifyFilingResult>([
-      new VerifyFilingTask({ defaults: { ...sourceInput(accession, options), stages } }),
-    ]);
-    if (reportError(result)) return;
-    if (options.format === "json") {
-      console.log(JSON.stringify(result, null, 2));
-      return;
-    }
-    renderParse(result);
-    renderSections(result);
-    reportArtifacts(result);
-  };
-
-  addSourceOptions(
-    verify
-      .command("parse [accession]")
-      .description("How much of the filing's visible text survived the HTML parser")
-  ).action(async (accession, options) => {
-    await runCommand(() => run("parse", accession, options));
-  });
-
-  addSourceOptions(
-    verify
-      .command("sections [accession]")
-      .description("Which S-1 sections the segmenter resolved, how big, and what they swallowed")
-  ).action(async (accession, options) => {
-    await runCommand(() => run("sections", accession, options));
-  });
-
-  addSourceOptions(
-    verify.command("all [accession]").description("Every deterministic stage, in order")
-  ).action(async (accession, options) => {
-    await runCommand(() => run("all", accession, options));
-  });
+/** The committed golden fixtures `--fixture` accepts. */
+export function listTraceFixtures(): readonly string[] {
+  return listFixtures();
 }
