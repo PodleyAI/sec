@@ -115,7 +115,7 @@ describe("the SQLite half of the addMissingColumns type mirror", () => {
     expect(unmapped.filter((c) => !UNMAPPED_COLUMNS.has(c))).toEqual([]);
     // Guard against the whole loop silently covering nothing (an empty
     // registry, or every table missing) and reporting a vacuous pass.
-    expect(checked).toBeGreaterThan(500);
+    expect(checked).toBeGreaterThan(100);
   });
 
   it("emits the bare keyword SQLite stores, not the emitter's annotated form", () => {

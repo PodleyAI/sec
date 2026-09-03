@@ -5,17 +5,11 @@
  */
 
 import { TaskRegistry } from "workglow";
-import { ParseFilingDocumentTask } from "../task/forms/ParseFilingDocumentTask";
 import { ListFormTypesTask } from "../task/query/ListFormTypesTask";
 import { QueryCiksTask } from "../task/query/QueryCiksTask";
-import { QueryCrowdfundingTask } from "../task/query/QueryCrowdfundingTask";
 import { QueryEntitiesTask } from "../task/query/QueryEntitiesTask";
 import { QueryFactsTask } from "../task/query/QueryFactsTask";
 import { QueryFilingsTask } from "../task/query/QueryFilingsTask";
-import { QueryOfferingsTask } from "../task/query/QueryOfferingsTask";
-import { QueryPersonsTask } from "../task/query/QueryPersonsTask";
-import { QueryRegASummaryTask } from "../task/query/QueryRegASummaryTask";
-import { QueryRegATask } from "../task/query/QueryRegATask";
 import { QueryXbrlTask } from "../task/query/QueryXbrlTask";
 
 /**
@@ -35,16 +29,10 @@ import { QueryXbrlTask } from "../task/query/QueryXbrlTask";
  */
 export const SEC_CLI_TASKS = [
   ListFormTypesTask,
-  ParseFilingDocumentTask,
   QueryCiksTask,
-  QueryCrowdfundingTask,
   QueryEntitiesTask,
   QueryFactsTask,
   QueryFilingsTask,
-  QueryOfferingsTask,
-  QueryPersonsTask,
-  QueryRegASummaryTask,
-  QueryRegATask,
   QueryXbrlTask,
 ] as const;
 

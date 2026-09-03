@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import type { CountableRepository } from "../../cli/queries/DbStatus";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import {
-  PORTAL_REPOSITORY_TOKEN,
-  type PortalRepositoryStorage,
-} from "../../storage/portal/PortalSchema";
 import { DbStatsTask } from "./DbStatsTask";
+import {
+  FILING_REPOSITORY_TOKEN,
+  type FilingRepositoryStorage,
+} from "../../storage/filing/FilingSchema";
 
 describe("DbStatsTask", () => {
   beforeEach(() => resetDependencyInjectionsForTesting());
@@ -16,7 +16,7 @@ describe("DbStatsTask", () => {
   // degraded (`rows: null`) count has to be part of the contract, not just a
   // value the execute() happens to return.
   it("declares the null row count and the estimate flag in its output schema", () => {
-    const degraded = { tables: [{ table: "portals", rows: null, estimated: false }] };
+    const degraded = { tables: [{ table: "filings", rows: null, estimated: false }] };
     expect(Value.Check(DbStatsTask.outputSchema(), degraded)).toBe(true);
     expect(
       Value.Check(DbStatsTask.outputSchema(), {
@@ -33,17 +33,17 @@ describe("DbStatsTask", () => {
   it("reports a null row count for a table the database has not created", async () => {
     const failing: CountableRepository = {
       size: async (): Promise<number> => {
-        throw new Error("SQLITE_ERROR: no such table: portals");
+        throw new Error("SQLITE_ERROR: no such table: filings");
       },
     };
     globalServiceRegistry.registerInstance(
-      PORTAL_REPOSITORY_TOKEN,
-      failing as unknown as PortalRepositoryStorage
+      FILING_REPOSITORY_TOKEN,
+      failing as unknown as FilingRepositoryStorage
     );
 
     const output = await new DbStatsTask().run();
 
-    expect(output.tables.find((stat) => stat.table === "portals")?.rows).toBeNull();
+    expect(output.tables.find((stat) => stat.table === "filings")?.rows).toBeNull();
     expect(Value.Check(DbStatsTask.outputSchema(), output)).toBe(true);
   });
 });

@@ -1,86 +1,17 @@
 /**
  * @license
- * Copyright 2026 Steven Roussey <sroussey@gmail.com>
+ * Copyright 2025 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { globalServiceRegistry, MIGRATIONS_TABLE } from "workglow";
 import { isDryRun } from "../cli/isDryRun";
-import { ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN } from "../storage/address/AddressHistorySchema";
-import {
-  ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-  ADDRESS_REPOSITORY_TOKEN,
-} from "../storage/address/AddressSchema";
-import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
-import { CHANGE_LOG_REPOSITORY_TOKEN } from "../storage/change-tracking/ChangeLogSchema";
-import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1ClassificationSchema";
-import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/ExtractionDeadLetterSchema";
-import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../storage/document/FilingDocumentSchema";
-import { FILING_SECTION_REPOSITORY_TOKEN } from "../storage/document/FilingSectionSchema";
-import { CIK_NAME_REPOSITORY_TOKEN } from "../storage/entity/CikNameSchema";
-import { ENTITY_HISTORY_REPOSITORY_TOKEN } from "../storage/entity/EntityHistorySchema";
-import { ENTITY_REPOSITORY_TOKEN } from "../storage/entity/EntitySchema";
-import { ENTITY_TICKER_REPOSITORY_TOKEN } from "../storage/entity/EntityTickerSchema";
-import { SIC_CODE_REPOSITORY_TOKEN } from "../storage/entity/SicCodeSchema";
-import { EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN } from "../storage/executive-compensation/ExecutiveCompensationSchema";
-import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../storage/facts/CompanyFactsSchema";
-import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
-import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
-import {
-  FORM144_ACQUISITION_REPOSITORY_TOKEN,
-  FORM144_FILING_REPOSITORY_TOKEN,
-  FORM144_RECENT_SALE_REPOSITORY_TOKEN,
-} from "../storage/form144/Form144Schema";
-import { INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingHistorySchema";
-import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingSchema";
-import { ISSUER_REPOSITORY_TOKEN } from "../storage/investment-offering/IssuerSchema";
-import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
-import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
-import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
-import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTickerSchema";
-import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
-import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
-import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
-import {
-  PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-  PHONE_REPOSITORY_TOKEN,
-} from "../storage/phone/PhoneSchema";
-import { CROWDFUNDING_HISTORY_REPOSITORY_TOKEN } from "../storage/portal/CrowdfundingHistorySchema";
-import {
-  CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN,
-  CROWDFUNDING_REPORTS_REPOSITORY_TOKEN,
-  CROWDFUNDING_REPOSITORY_TOKEN,
-} from "../storage/portal/CrowdfundingSchema";
-import { PORTAL_REPOSITORY_TOKEN } from "../storage/portal/PortalSchema";
-import { PORTAL_SUCCESSION_REPOSITORY_TOKEN } from "../storage/portal/PortalSuccessionSchema";
-import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../storage/processing/CikLastUpdateSchema";
-import { DAILY_INDEX_CURSOR_REPOSITORY_TOKEN } from "../storage/processing/DailyIndexCursorSchema";
-import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFactsSchema";
-import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedSubmissionsSchema";
-import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
-import { REGA_CURRENT_REPORT_REPOSITORY_TOKEN } from "../storage/reg-a/RegACurrentReportSchema";
-import { REGA_EQUITY_CLASS_REPOSITORY_TOKEN } from "../storage/reg-a/RegAEquityClassSchema";
-import { REGA_FINANCIAL_DATA_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinancialDataSchema";
-import { REGA_OFFERING_EVENT_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingEventSchema";
-import { REGA_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingHistorySchema";
-import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
-import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegAServiceProviderSchema";
-import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
-import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/roster/RoleRosterCompletenessSchema";
-import {
-  SECTION16_FILING_REPOSITORY_TOKEN,
-  SECTION16_HOLDING_REPOSITORY_TOKEN,
-  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
-} from "../storage/section16/Section16Schema";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
-import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
-import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 import { secFetchRateLimiterTableNames } from "../task/fetch/secFetchRateLimiterConfig";
 import { secFetchRateLimiterLedgerComponents } from "../task/fetch/SecJobQueue";
 import { getDb } from "../util/db";
 import { getPgPool } from "../util/pg";
 import { currentSchemaName, quote } from "../util/pgIdentifiers";
+import { SEC_STORAGE_REGISTRY } from "./storageRegistry";
 import { listRegisteredTables } from "./tableRegistry";
 import { SEC_DB_TYPE } from "./tokens";
 
@@ -328,74 +259,11 @@ function dependentObjectError(err: unknown, table: string, sql: string): unknown
 }
 
 /**
- * Row-level fallback for backends without a droppable schema.
- *
- * NOTE: When adding a table to the storage registry, add its deleteAll() call
- * here so reset doesn't leave orphan rows behind — `resetAllDatabases.test.ts`
- * fails on the gap.
+ * In-memory / other backends have no schema to drop, so every registered
+ * repository is truncated instead.
  */
 async function truncateAllRepositories(): Promise<void> {
-  await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ADDRESS_JUNCTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PHONE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(INVESTMENT_OFFERING_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ISSUER_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ENTITY_HISTORY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ENTITY_TICKER_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SIC_CODE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FILING_SECTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CROWDFUNDING_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CROWDFUNDING_REPORTS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CROWDFUNDING_HISTORY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CHANGE_LOG_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PORTAL_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PORTAL_SUCCESSION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_OFFERING_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_OFFERING_HISTORY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_FINANCIAL_DATA_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_EQUITY_CLASS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_CURRENT_REPORT_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_OFFERING_EVENT_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FORM_8K_EVENT_REPOSITORY_TOKEN).deleteAll();
-  // Observation provenance + AI-extracted offering / ownership / related-party tiers.
-  await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(S1_CLASSIFICATION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ISSUER_TICKER_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(OFFERING_TERMS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).deleteAll();
-  // Section 16 (Forms 3/4/5) and Form 144 detail tables.
-  await globalServiceRegistry.get(SECTION16_FILING_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SECTION16_TRANSACTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SECTION16_HOLDING_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FORM144_FILING_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FORM144_ACQUISITION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FORM144_RECENT_SALE_REPOSITORY_TOKEN).deleteAll();
-  // Family-tier canonical / alias / membership / link tables (sponsor + underwriter).
+  for (const definition of SEC_STORAGE_REGISTRY) {
+    await globalServiceRegistry.get(definition.token).deleteAll();
+  }
 }

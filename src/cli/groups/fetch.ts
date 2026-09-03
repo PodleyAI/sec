@@ -27,11 +27,6 @@ import {
   type GoldenFixturesTaskOutput,
 } from "../../task/fixtures/GoldenFixturesTask";
 import {
-  FetchAndStoreFormsTask,
-  type FetchAndStoreFormsTaskOutput,
-} from "../../task/forms/FetchAndStoreFormsTask";
-import { ProcessAccessionDocFormTask } from "../../task/forms/ProcessAccessionDocFormTask";
-import {
   ListFormTypesTask,
   type ListFormTypesTaskOutput,
 } from "../../task/query/ListFormTypesTask";
@@ -115,79 +110,6 @@ export function addFetchCommands(program: Command): void {
               cik: parseCikArg(cik),
               date: options.date ? secDate(options.date) : undefined,
             },
-          }),
-        ]);
-      });
-    });
-
-  fetch
-    .command("form <cik> [form] [accession]")
-    .description(
-      "Fetch and store a specific form for a company; omit <form> to list form types present in local filings"
-    )
-    .action(async (cik: string, form?: string, accession?: string) => {
-      await runCommand(async () => {
-        const cikNum = parseCikArg(cik);
-        if (form === undefined) {
-          await listAvailableFormTypesForCik(cikNum);
-          return;
-        }
-        const out = await runWorkflowCli<FetchAndStoreFormsTaskOutput>([
-          new FetchAndStoreFormsTask({
-            defaults: { cik: cikNum, form, docid: accession },
-          }),
-        ]);
-
-        // This command ran silently before, so a filing whose sections all
-        // dead-lettered, and a selector that matched no filing at all, both
-        // looked exactly like success. That is the wrong default for a bulk
-        // load, where the mistake is only visible much later as missing rows.
-        // Throw rather than set `process.exitCode`: `runCommand` assigns 0 after
-        // the action returns, so an exit code set here would be discarded.
-        if (out.matched === 0) {
-          throw new Error(
-            `No ${form} filing found for CIK ${cikNum}` +
-              (accession ? ` with accession ${accession}` : "") +
-              " — nothing was processed. Check the form string, or ingest the filing first."
-          );
-        }
-
-        const parts = [`${out.matched} filing(s)`, `${out.succeeded} success`];
-        if (out.partial > 0) parts.push(`${out.partial} partial`);
-        if (out.failed > 0) parts.push(`${out.failed} failed`);
-        // Reported even when every filing succeeded: a `<section>-partial` entry
-        // means rows were dropped from a section that still persisted the rest,
-        // which by design does NOT fail the filing — so this is the only place
-        // a clean-looking bulk load reveals that data went missing.
-        if (out.triage > 0) parts.push(`${out.triage} section(s) pending triage`);
-        console.log(parts.join("; "));
-        if (out.triage > 0 && out.partial === 0 && out.failed === 0) {
-          console.error(
-            statusMessage(
-              "info",
-              `Some rows were dropped from otherwise-successful sections. Inspect: sec extractor dead-letters ${form}`
-            )
-          );
-        }
-        if (out.partial > 0 || out.failed > 0) {
-          console.error(
-            statusMessage(
-              "warn",
-              `Some sections did not extract. Inspect them with: sec extractor dead-letters ${form}`
-            )
-          );
-        }
-      });
-    });
-
-  fetch
-    .command("doc <accession> [filename]")
-    .description("Process a specific accession document")
-    .action(async (accession: string, filename?: string) => {
-      await runCommand(async () => {
-        await runWorkflowCli([
-          new ProcessAccessionDocFormTask({
-            defaults: { accessionNumber: accession, fileName: filename },
           }),
         ]);
       });

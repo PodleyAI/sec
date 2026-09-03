@@ -6,81 +6,7 @@
 
 import { globalServiceRegistry, Sqlite } from "workglow";
 import { isDryRun } from "../cli/isDryRun";
-import { ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN } from "../storage/address/AddressHistorySchema";
-import { migrateAddressRegionNullable } from "../storage/address/AddressRegionNullableMigration";
-import {
-  ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-  ADDRESS_REPOSITORY_TOKEN,
-} from "../storage/address/AddressSchema";
-import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
-import { CHANGE_LOG_REPOSITORY_TOKEN } from "../storage/change-tracking/ChangeLogSchema";
-import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1ClassificationSchema";
-import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/ExtractionDeadLetterSchema";
-import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../storage/document/FilingDocumentSchema";
-import { FILING_SECTION_REPOSITORY_TOKEN } from "../storage/document/FilingSectionSchema";
-import { CIK_NAME_REPOSITORY_TOKEN } from "../storage/entity/CikNameSchema";
-import { ENTITY_HISTORY_REPOSITORY_TOKEN } from "../storage/entity/EntityHistorySchema";
-import { ENTITY_REPOSITORY_TOKEN } from "../storage/entity/EntitySchema";
-import { ENTITY_TICKER_REPOSITORY_TOKEN } from "../storage/entity/EntityTickerSchema";
-import { SIC_CODE_REPOSITORY_TOKEN } from "../storage/entity/SicCodeSchema";
-import { EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN } from "../storage/executive-compensation/ExecutiveCompensationSchema";
-import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../storage/facts/CompanyFactsSchema";
-import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
-import { migrateLegacyForm8KEventsTable } from "../storage/form-8k-event/Form8KEventLegacyMigration";
-import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
-import {
-  FORM144_ACQUISITION_REPOSITORY_TOKEN,
-  FORM144_FILING_REPOSITORY_TOKEN,
-  FORM144_RECENT_SALE_REPOSITORY_TOKEN,
-} from "../storage/form144/Form144Schema";
-import { INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingHistorySchema";
-import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingSchema";
-import { ISSUER_REPOSITORY_TOKEN } from "../storage/investment-offering/IssuerSchema";
-import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
-import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
-import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
-import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTickerSchema";
-import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
-import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
-import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
-import {
-  PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-  PHONE_REPOSITORY_TOKEN,
-} from "../storage/phone/PhoneSchema";
-import { CROWDFUNDING_HISTORY_REPOSITORY_TOKEN } from "../storage/portal/CrowdfundingHistorySchema";
-import {
-  CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN,
-  CROWDFUNDING_REPORTS_REPOSITORY_TOKEN,
-  CROWDFUNDING_REPOSITORY_TOKEN,
-} from "../storage/portal/CrowdfundingSchema";
-import { PORTAL_REPOSITORY_TOKEN } from "../storage/portal/PortalSchema";
-import { PORTAL_SUCCESSION_REPOSITORY_TOKEN } from "../storage/portal/PortalSuccessionSchema";
-import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../storage/processing/CikLastUpdateSchema";
-import { DAILY_INDEX_CURSOR_REPOSITORY_TOKEN } from "../storage/processing/DailyIndexCursorSchema";
-import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFactsSchema";
-import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedSubmissionsSchema";
-import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
-import { REGA_CURRENT_REPORT_REPOSITORY_TOKEN } from "../storage/reg-a/RegACurrentReportSchema";
-import { REGA_EQUITY_CLASS_REPOSITORY_TOKEN } from "../storage/reg-a/RegAEquityClassSchema";
-import { REGA_FINANCIAL_DATA_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinancialDataSchema";
-import { REGA_OFFERING_EVENT_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingEventSchema";
-import { REGA_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingHistorySchema";
-import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
-import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegAServiceProviderSchema";
-import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
-import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/roster/RoleRosterCompletenessSchema";
-import {
-  SECTION16_FILING_REPOSITORY_TOKEN,
-  SECTION16_HOLDING_REPOSITORY_TOKEN,
-  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
-} from "../storage/section16/Section16Schema";
-import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
-import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
-import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 import { setupSecFetchRateLimiter } from "../task/fetch/SecJobQueue";
-import { listBackfillableExtractorIds } from "../task/forms/backfillDescriptors";
 import { getDb } from "../util/db";
 import {
   addMissingColumnsPostgres,
@@ -89,16 +15,16 @@ import {
 } from "./addMissingColumns";
 import { alignPostgresColumnTypes } from "./alignPostgresColumnTypes";
 import { dropStaleCheckConstraints } from "./dropStaleCheckConstraints";
-import { registerSecFormExtractors } from "./registerFormExtractors";
+import { SEC_STORAGE_REGISTRY } from "./storageRegistry";
 import { SEC_DB_FOLDER, SEC_DB_TYPE } from "./tokens";
 
 /**
- * Calls setupDatabase() on all registered repository instances,
- * creating tables and indexes from their TypeBox schemas.
+ * Creates every table and index this package owns, from the TypeBox schemas in
+ * {@link SEC_STORAGE_REGISTRY}.
  *
- * NOTE: When adding a table to the storage registry, you must also add its
- * setupDatabase() call here or the table will not be created —
- * `setupAllDatabases.test.ts` fails on the gap.
+ * Adding a table is one `defineStorage` entry there and nothing here: this
+ * walks the registry in declaration order, which is also the order
+ * `resetAllDatabases` drops in.
  */
 export async function setupAllDatabases(): Promise<void> {
   // Load the SQLite native binding before any repo opens a database. Guarded
@@ -106,139 +32,37 @@ export async function setupAllDatabases(): Promise<void> {
   if (typeof Sqlite.init === "function") {
     await Sqlite.init();
   }
-  // Relax `addresses.state_or_country` to nullable on a database created before
-  // US-with-unknown-state addresses were kept rather than dropped. Row-preserving
-  // (junction tables reference address_hash_id) and a no-op on a fresh DB.
-  await migrateAddressRegionNullable();
-  await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PHONE_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(INVESTMENT_OFFERING_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(ISSUER_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(ENTITY_HISTORY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(ENTITY_TICKER_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SIC_CODE_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(FILING_SECTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CROWDFUNDING_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CROWDFUNDING_REPORTS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CROWDFUNDING_HISTORY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SECTION16_FILING_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SECTION16_TRANSACTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SECTION16_HOLDING_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(FORM144_FILING_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(FORM144_ACQUISITION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(FORM144_RECENT_SALE_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CHANGE_LOG_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PORTAL_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PORTAL_SUCCESSION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(REGA_OFFERING_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(REGA_OFFERING_HISTORY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(REGA_FINANCIAL_DATA_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(REGA_EQUITY_CLASS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(REGA_CURRENT_REPORT_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(REGA_OFFERING_EVENT_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(S1_CLASSIFICATION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(OFFERING_TERMS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(ISSUER_TICKER_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).setupDatabase();
-  // Drop the legacy form_8k_events shape (no event_id / extractor_id /
-  // extractor_version) before creating the current one; the natural-key PK
-  // of the legacy table cannot be ALTERed away on either backend.
-  await migrateLegacyForm8KEventsTable();
-  await globalServiceRegistry.get(FORM_8K_EVENT_REPOSITORY_TOKEN).setupDatabase();
+
+  for (const definition of SEC_STORAGE_REGISTRY) {
+    await globalServiceRegistry.get(definition.token).setupDatabase();
+  }
+
   // Add any column an existing database is missing outright, widen / relax any
   // it still has at a narrower or stricter shape than the schema declares, then
   // drop any CHECK bound the schema has since removed.
+  //
   // Order matters: a column added by the first pass is then eligible for the
-  // second in the same `db setup`, rather than waiting for the next one. Both
-  // are no-ops on a fresh database, whose DDL already uses the current shape.
-  if (shouldAddMissingColumns("postgres")) {
-    await addMissingColumnsPostgres();
-  }
-  await alignPostgresColumnTypes();
-  // Third: drop a `CHECK (col >= 0)` the schema has since relaxed. Last of the
-  // three because it removes a guarantee rather than adding one, and because a
-  // column the first pass just added is already unbounded — there is nothing
-  // for this to find on it.
-  await dropStaleCheckConstraints();
-  // View DDL is created here only on the SQLite path; the Postgres backend
-  // owns its own view bootstrap (and getDb() now throws when SEC_DB_TYPE
-  // isn't sqlite). Tests use the in-memory backend where views don't apply.
+  // second in the same `db setup`, rather than waiting for the next one.
   const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
     ? globalServiceRegistry.get(SEC_DB_TYPE)
     : "sqlite";
-  // Skipped under --dry-run: this block issues DDL through raw SQL, which the
-  // repositories' ReadOnlyTabularStorage wrapper cannot intercept.
-  if (dbType === "sqlite" && globalServiceRegistry.has(SEC_DB_FOLDER) && !isDryRun()) {
-    const db = getDb();
-    backfillExtractorRunsOutcome(db);
-    // Generic over the live table registry, which is why it replaced the
-    // hand-written per-column passes that used to sit here.
-    // `backfillExtractorRunsOutcome` stays hand-rolled: it seeds `outcome` from
-    // the existing `success` flag, which no generic add-column pass can express.
-    addMissingColumnsSqlite(db);
-  }
-  // Ensure the form extractors are registered before we seed component-version
-  // rows: the ids seeded below are enumerated from that registry, and this path
-  // also runs from `init` (which skips the preAction hook that otherwise calls
-  // it). Idempotent — safe to call again when the hook already did.
-  registerSecFormExtractors();
-  // Which extractors need a version slot is the same question as which
-  // extractors can be RUN, so it is answered from the same place: every id in
-  // the open form-extractor registry (a downstream package's registrations
-  // included), every id a package contributed a backfill descriptor for, and
-  // the ids this package still holds rows under whether or not it ships the
-  // reading that wrote them.
-  await bootstrapComponentVersions(listBackfillableExtractorIds());
 
-  // Create the shared SEC-fetch rate-limiter tables once here (Postgres only,
-  // no-op otherwise), so a multi-shard sweep can enforce EDGAR's 10 req/sec
-  // budget across processes without each process racing to create the DDL.
+  // Skipped under --dry-run: these passes issue DDL through raw SQL, which the
+  // repositories' ReadOnlyTabularStorage wrapper cannot intercept.
+  if (
+    dbType === "sqlite" &&
+    globalServiceRegistry.has(SEC_DB_FOLDER) &&
+    shouldAddMissingColumns("sqlite")
+  ) {
+    addMissingColumnsSqlite(getDb());
+  }
   if (dbType === "postgres" && !isDryRun()) {
+    if (shouldAddMissingColumns("postgres")) await addMissingColumnsPostgres();
+    await alignPostgresColumnTypes();
+    await dropStaleCheckConstraints();
+    // Create the shared SEC-fetch rate-limiter tables once here, so a
+    // multi-shard sweep can enforce EDGAR's budget across processes without
+    // each process racing to create the DDL.
     await setupSecFetchRateLimiter();
   }
-}
-
-/**
- * One-shot migration: pre-`outcome` extractor_runs rows on a previously-set-up
- * SQLite database lack the new column. CREATE TABLE IF NOT EXISTS is a no-op
- * once the table exists, so add the column if missing and seed it from the
- * existing `success` boolean (partial is unknowable for legacy rows).
- */
-function backfillExtractorRunsOutcome(db: Sqlite.Database): void {
-  const cols = db.prepare<[], { name: string }>(`PRAGMA table_info(\`extractor_runs\`)`).all();
-  if (cols.length === 0) return; // table not created yet (clean DB)
-  if (cols.some((c) => c.name === "outcome")) return; // already migrated
-  db.exec(`ALTER TABLE \`extractor_runs\` ADD COLUMN outcome TEXT NOT NULL DEFAULT 'failure'`);
-  db.exec(
-    `UPDATE \`extractor_runs\` SET outcome = CASE WHEN success = 1 OR success = 'true' THEN 'success' ELSE 'failure' END`
-  );
 }

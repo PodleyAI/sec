@@ -5,12 +5,10 @@
  */
 
 import { Form } from "../Form";
-import { parseMetadataOnlyForm } from "../parseMetadataOnly";
 
 export class Form_20F extends Form {
   static readonly name = "Annual/Transition Report for Foreign Private Issuers";
   static readonly description =
     "Annual and transition report of foreign private issuers filed pursuant to sections 13 or 15(d) of the Securities Exchange Act.";
   static readonly forms = ["20-F", "20-F/A"] as const;
-  static parse = parseMetadataOnlyForm;
 }

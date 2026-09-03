@@ -16,13 +16,13 @@ import {
   type FilingSection,
 } from "../../storage/document/FilingSectionSchema";
 import { cachedAccessionDocPath, resolvePrimaryDocName } from "../../util/accessionDocPath";
-import { SecFetchAccessionDocTask } from "../forms/SecFetchAccessionDocTask";
-import { fullSubmissionFileName, submissionFetchKind } from "../forms/submissionFetchPolicy";
 import {
   convertFilingSubmission,
   FILING_CONVERTER_VERSION,
   type ConvertedFilingDocument,
 } from "./convertFilingDocument";
+import { fullSubmissionFileName, submissionFetchKind } from "./submissionFetchPolicy";
+import { SecFetchAccessionDocTask } from "../fetch/SecFetchAccessionDocTask";
 
 export type ConvertFilingDocumentTaskInput = {
   readonly cik: number;

@@ -6,13 +6,11 @@
 
 import { Type } from "typebox";
 import { describe, expect, it } from "vitest";
-import { AddressPrimaryKeyNames, AddressSchema } from "../storage/address/AddressSchema";
 import {
   CompanyFactsPrimaryKeyNames,
   CompanyFactsSchema,
 } from "../storage/facts/CompanyFactsSchema";
 import { FilingPrimaryKeyNames, FilingSchema } from "../storage/filing/FilingSchema";
-import { PhonePrimaryKeyNames, PhoneSchema } from "../storage/phone/PhoneSchema";
 import { XbrlFactPrimaryKeyNames, XbrlFactRowSchema } from "../storage/xbrl/XbrlFactSchema";
 import { TypeNullable } from "../util/TypeBoxUtil";
 import { planColumnAlignment, type LiveColumn } from "./alignPostgresColumnTypes";
@@ -173,20 +171,8 @@ describe("planColumnAlignment", () => {
     expect(planColumnAlignment(declared, [varchar("t", "id", 10)], SCHEMA)).toEqual([]);
   });
 
-  it("returns no width for a nullable enum column (TEXT, only the NOT NULL matters)", () => {
-    const declared = [
-      table("addresses", AddressSchema, AddressPrimaryKeyNames as ReadonlyArray<string>),
-    ];
-    const plan = planColumnAlignment(declared, [text("addresses", "state_or_country")], SCHEMA);
-    expect(plan).toHaveLength(1);
-    expect(plan[0]!.kind).toBe("drop-not-null");
-    expect(plan[0]!.width).toBeUndefined();
-  });
-
   it("emits exactly the widening/relaxing DDL a pre-widening database needs", () => {
     const declared: RegisteredTable[] = [
-      table("addresses", AddressSchema, AddressPrimaryKeyNames as ReadonlyArray<string>),
-      table("phones", PhoneSchema, PhonePrimaryKeyNames as ReadonlyArray<string>),
       table("filings", FilingSchema, FilingPrimaryKeyNames as ReadonlyArray<string>),
       table(
         "company_facts",
@@ -198,8 +184,6 @@ describe("planColumnAlignment", () => {
 
     // The live shape a database created before the widening still has.
     const live: LiveColumn[] = [
-      text("addresses", "state_or_country"),
-      varchar("phones", "international_number", 20),
       varchar("filings", "form", 8, true),
       varchar("filings", "file_number", 10, true),
       varchar("filings", "film_number", 10, true),
@@ -213,8 +197,6 @@ describe("planColumnAlignment", () => {
     ];
 
     expect(planColumnAlignment(declared, live, SCHEMA).map((s) => `${s.sql};`)).toEqual([
-      'ALTER TABLE "public"."addresses" ALTER COLUMN "state_or_country" DROP NOT NULL;',
-      'ALTER TABLE "public"."phones" ALTER COLUMN "international_number" TYPE varchar(64);',
       'ALTER TABLE "public"."filings" ALTER COLUMN "form" TYPE varchar(32);',
       'ALTER TABLE "public"."filings" ALTER COLUMN "file_number" TYPE text;',
       'ALTER TABLE "public"."filings" ALTER COLUMN "film_number" TYPE text;',
@@ -247,13 +229,12 @@ describe("planColumnAlignment", () => {
   });
 
   it("is idempotent — re-planning against the aligned shape yields nothing", () => {
-    const declared = [
-      table("phones", PhoneSchema, PhonePrimaryKeyNames as ReadonlyArray<string>),
-      table("addresses", AddressSchema, AddressPrimaryKeyNames as ReadonlyArray<string>),
+    const declared: RegisteredTable[] = [
+      table("filings", FilingSchema, FilingPrimaryKeyNames as ReadonlyArray<string>),
     ];
     const aligned: LiveColumn[] = [
-      varchar("phones", "international_number", 64),
-      text("addresses", "state_or_country", true),
+      varchar("filings", "form", 32, true),
+      varchar("filings", "primary_doc", 128, true),
     ];
     expect(planColumnAlignment(declared, aligned, SCHEMA)).toEqual([]);
   });

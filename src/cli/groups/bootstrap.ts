@@ -10,11 +10,6 @@ import { BootstrapAccessionDocsTask } from "../../task/bootstrap/BootstrapAccess
 import { BootstrapDownloadTask } from "../../task/bootstrap/BootstrapDownloadTask";
 import { FetchAllCikNamesTask } from "../../task/ciknames/FetchAllCikNamesTask";
 import { BootstrapCompanyFactsTask } from "../../task/facts/BootstrapCompanyFactsTask";
-import {
-  formsSweepLoop,
-  newFormsWorklistTask,
-  parseShardOption,
-} from "../../task/forms/formsSweep";
 import { FetchQuarterlyIndexRangeTask } from "../../task/index/FetchQuarterlyIndexRangeTask";
 import { StoreCikLastUpdatedTask } from "../../task/index/StoreCikLastUpdatedTask";
 import { BackfillNameHistoryTask } from "../../task/submissions/BackfillNameHistoryTask";
@@ -36,30 +31,20 @@ const BULK_DOWNLOADS = {
 export function addBootstrapCommands(program: Command): void {
   const bootstrap = program
     .command("bootstrap")
-    .description("Full bootstrap pipeline — download, ingest, and process SEC data");
+    .description("Full bootstrap pipeline — download and ingest bulk SEC data");
 
   bootstrap
     .option("--skip-download", "Skip the bulk download step", false)
     .option("--skip-ingest", "Skip the ingest step", false)
-    .option("--skip-forms", "Skip the forms processing step", false)
     .option(
       "--download-docs",
-      "Download accession documents for the ingested submissions via daily Feed tarballs (populates the on-disk doc cache before the forms step)",
+      "Download accession documents for the ingested submissions via daily Feed tarballs (populates the on-disk doc cache the documents sweep reads)",
       false
     )
     .option("--docs-from <date>", "With --download-docs: earliest filing day to fetch (YYYY-MM-DD)")
     .option("--docs-to <date>", "With --download-docs: latest filing day to fetch (YYYY-MM-DD)")
-    .option(
-      "--shard <i/N>",
-      "Forms step: process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"
-    )
     .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (options) => {
-      if (options.force) {
-        console.warn(
-          "Note: --force no longer affects form processing. Forms re-run only via version bumps (see 'sec version')."
-        );
-      }
       await runCommand(
         async () => {
           const force = options.force ?? false;
@@ -84,9 +69,9 @@ export function addBootstrapCommands(program: Command): void {
             );
           }
 
-          // Accession-document download runs after ingest (so the filings it
-          // scans exist) and before forms (so the forms step reads documents
-          // from the on-disk cache instead of fetching each one over the wire).
+          // Accession-document download runs after ingest, so the filings it
+          // scans exist — and it populates the cache `sync documents` reads
+          // instead of fetching each one over the wire.
           if (options.downloadDocs) {
             tasks.push(
               new BootstrapAccessionDocsTask({
@@ -96,19 +81,8 @@ export function addBootstrapCommands(program: Command): void {
             );
           }
 
-          // The forms producer is NOT a member of the flat task list: it is
-          // piped by formsSweepLoop into the outer workflow (compute worklist,
-          // then forEach), so the CLI renders live per-iteration progress.
-          const producer = options.skipForms
-            ? undefined
-            : newFormsWorklistTask(undefined, parseShardOption(options.shard));
-
-          if (tasks.length > 0 || producer !== undefined) {
-            await runWorkflowCli(
-              tasks,
-              undefined,
-              producer === undefined ? undefined : formsSweepLoop(producer)
-            );
+          if (tasks.length > 0) {
+            await runWorkflowCli(tasks);
           }
         },
         { force: options.force }

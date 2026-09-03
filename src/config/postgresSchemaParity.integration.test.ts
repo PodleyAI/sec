@@ -7,8 +7,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
-import { PHONE_REPOSITORY_TOKEN } from "../storage/phone/PhoneSchema";
-import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
 import { getPgPool } from "../util/pg";
 import { planColumnAlignment, type LiveColumn } from "./alignPostgresColumnTypes";
 import { DefaultDI } from "./DefaultDI";
@@ -183,16 +181,6 @@ describe.skipIf(!PG_URL)("postgres schema parity", () => {
   });
 
   it("round-trips the same values the sqlite suite asserts", async () => {
-    await globalServiceRegistry.get(PHONE_REPOSITORY_TOKEN).put({
-      country_code: "US",
-      international_number: LONG_PHONE_INTERNATIONAL,
-      raw_phone: "5164821200 EXT. 108",
-    });
-    const phone = await globalServiceRegistry
-      .get(PHONE_REPOSITORY_TOKEN)
-      .get({ international_number: LONG_PHONE_INTERNATIONAL });
-    expect(phone?.international_number).toBe(LONG_PHONE_INTERNATIONAL);
-
     await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put({
       cik: 320193,
       accession_number: "0001193125-24-000001",
@@ -214,24 +202,6 @@ describe.skipIf(!PG_URL)("postgres schema parity", () => {
       .get(FILING_REPOSITORY_TOKEN)
       .get({ cik: 320193, accession_number: "0001193125-24-000001" });
     expect(filing?.file_number).toBe(LONG_FILE_NUMBER);
-
-    await globalServiceRegistry.get(REGA_OFFERING_REPOSITORY_TOKEN).put({
-      cik: 1750,
-      file_number: "024-11111",
-      issuer_name: "Multi Select Inc",
-      jurisdiction: "DE",
-      sic_code: 7372,
-      tier: "Tier2",
-      financial_statement_audit_status: "Audited",
-      securities_offered_type: ALL_SECURITIES_OFFERED_TYPES,
-      industry_group: "Other",
-      status: "pending",
-      as_of: "2024-02-02",
-    });
-    const offering = await globalServiceRegistry
-      .get(REGA_OFFERING_REPOSITORY_TOKEN)
-      .get({ cik: 1750, file_number: "024-11111" });
-    expect(offering?.securities_offered_type).toEqual(ALL_SECURITIES_OFFERED_TYPES);
   });
 
   it("leaves tables sec does not own in place", async () => {

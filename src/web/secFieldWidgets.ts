@@ -8,11 +8,7 @@ import { registerWebFieldWidget, type WebFieldWidgetItem } from "@workglow/cli";
 import { queryCiks } from "../cli/queries/CikQuery";
 import { queryEntities } from "../cli/queries/EntityQuery";
 import { queryFilings } from "../cli/queries/FilingQuery";
-import { getVersionStatus } from "../cli/queries/VersionStatus";
-import { listResolverIds } from "../resolver/resolverExtensions";
-import { allRegisteredForms } from "../sec/forms/formExtractors";
-import { listBackfillableExtractorIds } from "../task/forms/backfillDescriptors";
-import { readPendingDeadLetterCounts } from "./secWebReads";
+import { ALL_FORMS_MAP } from "../sec/forms/all-forms";
 
 /**
  * The pickers behind sec's field annotations.
@@ -142,93 +138,17 @@ async function searchForms(
       }));
     if (items.length > 0) return items;
   }
-  // The fallback offers FORM SYMBOLS, which is what the command takes. The
-  // extractor ids are a different vocabulary that merely overlaps it: `S-1` is
-  // both, but `merger-proxy`, `redemption`, `loi` and `25-15` name extractors
-  // and no form, so offering them produces a pick the CLI can never match.
-  return allRegisteredForms()
+  // The fallback offers every form symbol the dictionary knows, which is what
+  // `--types` takes.
+  return [...ALL_FORMS_MAP.keys()]
     .filter((form) => !needle || form.toLowerCase().includes(needle))
     .sort((a, b) => a.localeCompare(b))
     .slice(0, MAX_ITEMS)
     .map((form) => ({ value: form, label: form, detail: "parsed form type" }));
 }
 
-/**
- * Extractor ids, carrying the two numbers that decide whether you want this one:
- * the version a retry would run under, and how much is waiting on the worklist.
- *
- * Read from {@link listBackfillableExtractorIds} — the same open vocabulary
- * `extractor backfill` and `spac process --force` accept — rather than from the
- * closed `EXTRACTOR_IDS` list. A downstream package registers extractors of its
- * own through the form-extractor registry, and a picker built on the closed list
- * cannot offer one: the CLI accepts a value the box refuses to suggest, which is
- * exactly the drift a picker exists to remove.
- */
-async function searchExtractors(query: string): Promise<WebFieldWidgetItem[]> {
-  const needle = query.trim().toLowerCase();
-  const [versions, pendingById] = await Promise.all([
-    getVersionStatus().catch(() => []),
-    readPendingDeadLetterCounts(),
-  ]);
-  const versionById = new Map(
-    versions
-      .filter((row) => row.component_kind === "extractor")
-      .map((row) => [row.component_id, row])
-  );
-  return listBackfillableExtractorIds()
-    .filter((id) => !needle || id.toLowerCase().includes(needle))
-    .slice(0, MAX_ITEMS)
-    .map((id) => {
-      const version = versionById.get(id);
-      const waiting = pendingById.get(id) ?? 0;
-      return {
-        value: id,
-        label: id,
-        detail: [
-          version ? `v${version.current}` : "unversioned",
-          waiting > 0 ? `${waiting} pending` : undefined,
-        ]
-          .filter(Boolean)
-          .join(" · "),
-      };
-    });
-}
-
-/**
- * A version ceremony's component id, which is two vocabularies wearing one
- * name: `version promote extractor S-1` and `version coverage resolver person`
- * take the same positional and accept disjoint sets of values.
- *
- * The kind sits beside it on the form, so the picker reads it rather than
- * offering both sets and letting the ceremony reject the wrong half.
- */
-async function searchComponentIds(
-  query: string,
-  context: {
-    readonly args: readonly string[];
-    readonly values: Readonly<Record<string, string>>;
-  }
-): Promise<WebFieldWidgetItem[]> {
-  const kind = (context.values.kind ?? context.args[0] ?? "").trim();
-  if (kind === "resolver") return searchResolverKinds(query);
-  if (kind === "extractor") return searchExtractors(query);
-  const needle = query.trim().toLowerCase();
-  return [...listBackfillableExtractorIds(), ...listResolverIds()]
-    .filter((id) => !needle || id.toLowerCase().includes(needle))
-    .slice(0, MAX_ITEMS)
-    .map((id) => ({ value: id, label: id, detail: "choose a kind to narrow this" }));
-}
-
-/** Resolver kinds, read off the registry rather than restated here. */
-async function searchResolverKinds(query: string): Promise<WebFieldWidgetItem[]> {
-  const needle = query.trim().toLowerCase();
-  return listResolverIds()
-    .filter((id) => !needle || id.toLowerCase().includes(needle))
-    .map((id) => ({ value: id, label: id, detail: undefined }));
-}
-
 export function registerSecFieldWidgets(): void {
-  const source = "@workglow/sec";
+  const source = "sec";
   registerWebFieldWidget({ format: "sec:cik", source, search: searchCiks });
   // `TypeSecCik` stamps `format: "cik"` on every CIK port in every sec task
   // schema, so registering the same picker there gives `task run` — and the
@@ -236,7 +156,4 @@ export function registerSecFieldWidgets(): void {
   registerWebFieldWidget({ format: "cik", source, search: searchCiks });
   registerWebFieldWidget({ format: "sec:accession", source, search: searchAccessions });
   registerWebFieldWidget({ format: "sec:form", source, search: searchForms });
-  registerWebFieldWidget({ format: "sec:extractor", source, search: searchExtractors });
-  registerWebFieldWidget({ format: "sec:resolver-kind", source, search: searchResolverKinds });
-  registerWebFieldWidget({ format: "sec:component-id", source, search: searchComponentIds });
 }

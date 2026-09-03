@@ -6,7 +6,7 @@
 
 import { Type } from "typebox";
 import { describe, expect, it } from "vitest";
-import { RelatedPartyTransactionSchema } from "../storage/related-party/RelatedPartyTransactionSchema";
+import { FilingSchema } from "../storage/filing/FilingSchema";
 import { assertWithinDeclaredBounds, DeclaredBoundsError } from "./declaredBounds";
 import { TypeNullable } from "./TypeBoxUtil";
 
@@ -50,26 +50,18 @@ describe("assertWithinDeclaredBounds", () => {
     ).toThrow(/widget 1: id is 20 chars, over the declared maximum of 8/);
   });
 
-  it("rejects the real over-long related-party value before anything is written", () => {
-    // `counterparty` is the remaining bounded free-text column on this table
-    // (`period` was unbounded after an over-long clause threw mid-persist and
-    // left five rows behind on a live filing).
+  it("rejects an over-long value against a real declared schema", () => {
+    // Against a schema the repo actually ships rather than the local fixture:
+    // the guard has to read `maxLength` off a TypeBox schema written for
+    // storage, not only off one written for this test.
     expect(() =>
-      assertWithinDeclaredBounds(
-        [{ counterparty: "x".repeat(257) }],
-        RelatedPartyTransactionSchema,
-        "related-party transaction"
-      )
+      assertWithinDeclaredBounds([{ form: "x".repeat(33) }], FilingSchema, "filing")
     ).toThrow(DeclaredBoundsError);
   });
 
-  it("no longer bounds `period`, which holds filer prose", () => {
+  it("accepts an unbounded column on that same schema", () => {
     expect(() =>
-      assertWithinDeclaredBounds(
-        [{ period: "In connection with an intended initial business combination".repeat(20) }],
-        RelatedPartyTransactionSchema,
-        "related-party transaction"
-      )
+      assertWithinDeclaredBounds([{ file_number: "1".repeat(500) }], FilingSchema, "filing")
     ).not.toThrow();
   });
 });

@@ -10,10 +10,13 @@ import { globalServiceRegistry, type IExecuteContext } from "workglow";
 import { SEC_RAW_DATA_FOLDER } from "../config/tokens";
 import { EntityRepo } from "../storage/entity/EntityRepo";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
-import { SecFetchAccessionDocTask } from "../task/forms/SecFetchAccessionDocTask";
-import { fullSubmissionFileName, submissionFetchKind } from "../task/forms/submissionFetchPolicy";
 import { cachedAccessionDocPath, resolvePrimaryDocName } from "../util/accessionDocPath";
 import { resolveAsset } from "../util/resolveAsset";
+import {
+  fullSubmissionFileName,
+  submissionFetchKind,
+} from "../task/document/submissionFetchPolicy";
+import { SecFetchAccessionDocTask } from "../task/fetch/SecFetchAccessionDocTask";
 
 /** Where a filing's HTML came from, so a trace says what it is a trace of. */
 export interface FilingSource {

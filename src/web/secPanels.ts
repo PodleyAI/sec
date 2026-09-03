@@ -157,7 +157,7 @@ function dbStatsPanel(output: unknown): PanelData {
     ["company facts", field(output, "factsCount")],
     ["processed submissions", field(output, "processedSubmissions")],
     ["processed facts", field(output, "processedFacts")],
-    ["extractor runs", field(output, "extractorRuns")],
+    ["documents", field(output, "documentCount")],
   ] as const;
   if (counts.every(([, value]) => value === undefined)) {
     return { kind: "empty", message: "No counts reported." };

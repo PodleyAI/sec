@@ -3,8 +3,8 @@ import { globalServiceRegistry, type ServiceToken } from "workglow";
 import { SEC_STORAGE_REGISTRY } from "../../config/storageRegistry";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
-import { PORTAL_REPOSITORY_TOKEN } from "../../storage/portal/PortalSchema";
 import { getDbStats, getDbStatus, type CountableRepository } from "./DbStatus";
+import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 
 describe("getDbStatus", () => {
   beforeEach(() => {
@@ -18,7 +18,7 @@ describe("getDbStatus", () => {
     expect(result.factsCount).toBe(0);
     expect(result.processedSubmissions).toBe(0);
     expect(result.processedFacts).toBe(0);
-    expect(result.extractorRuns).toBe(0);
+    expect(result.documentCount).toBe(0);
   });
 
   it("counts entities after insertion", async () => {
@@ -90,31 +90,31 @@ describe("getDbStats", () => {
   it("reports n/a instead of throwing when a registered extension table is missing", async () => {
     // The report runs against a database set up before this table existed.
     // Losing every other row count to one uncreated relation is the bug.
-    bindFailingTable(PORTAL_REPOSITORY_TOKEN, new Error("SQLITE_ERROR: no such table: portals"));
+    bindFailingTable(FILING_REPOSITORY_TOKEN, new Error("SQLITE_ERROR: no such table: filings"));
 
     const stats = await getDbStats();
-    const missing = stats.find((stat) => stat.table === "portals");
+    const missing = stats.find((stat) => stat.table === "filings");
 
-    expect(missing).toEqual({ table: "portals", rows: null, estimated: false });
-    const others = stats.filter((stat) => stat.table !== "portals");
+    expect(missing).toEqual({ table: "filings", rows: null, estimated: false });
+    const others = stats.filter((stat) => stat.table !== "filings");
     expect(others.length).toBeGreaterThan(0);
     expect(others.every((stat) => typeof stat.rows === "number")).toBe(true);
   });
 
   it("reports n/a for the Postgres form of a missing relation", async () => {
-    const error = Object.assign(new Error(`relation "portals" does not exist`), {
+    const error = Object.assign(new Error(`relation "filings" does not exist`), {
       code: "42P01",
     });
-    bindFailingTable(PORTAL_REPOSITORY_TOKEN, error);
+    bindFailingTable(FILING_REPOSITORY_TOKEN, error);
 
     const stats = await getDbStats();
-    expect(stats.find((stat) => stat.table === "portals")?.rows).toBeNull();
+    expect(stats.find((stat) => stat.table === "filings")?.rows).toBeNull();
   });
 
   it("rethrows a failure that is not a missing relation", async () => {
     // The guard must stay narrow: a database that is down is not a table that
     // has not been created, and reporting it as `n/a` would hide an outage.
-    bindFailingTable(PORTAL_REPOSITORY_TOKEN, new Error("connect ECONNREFUSED 127.0.0.1:5432"));
+    bindFailingTable(FILING_REPOSITORY_TOKEN, new Error("connect ECONNREFUSED 127.0.0.1:5432"));
 
     await expect(getDbStats()).rejects.toThrow(/ECONNREFUSED/);
   });
@@ -126,7 +126,11 @@ describe("getDbStats", () => {
     });
 
     expect(progress.length).toBeGreaterThan(0);
-    expect(progress[0]).toEqual([0, expect.stringContaining("counting cik_names")]);
-    expect(progress.at(-1)).toEqual([100, expect.stringContaining("counted form144_recent_sales")]);
+    // First and last are the registry's first and last entries, so the pair
+    // also asserts the report walks the whole list rather than a prefix.
+    const [first] = SEC_STORAGE_REGISTRY;
+    const last = SEC_STORAGE_REGISTRY.at(-1);
+    expect(progress[0]).toEqual([0, expect.stringContaining(`counting ${first!.table}`)]);
+    expect(progress.at(-1)).toEqual([100, expect.stringContaining(`counted ${last!.table}`)]);
   });
 });

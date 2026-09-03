@@ -41,42 +41,28 @@ describe("CLI command graph", () => {
       "query",
       "db",
       "init",
-      "version",
       // Registered by registerIssuerCommands, and the only top-level evidence
       // it ran. `spac`, `underwriter`, `resolve` and `canonical` are gone from
       // here with the tiers that were the whole of those groups; the package
       // owning them registers them now.
-      "issuer",
-      "extractor",
     ]) {
       expect(names).toContain(expected);
     }
   });
 
-  it("registers sync subcommands without update or adv", () => {
+  it("registers every sync leaf as its own subcommand", () => {
     const program = new Command();
     AddCommands(program);
 
     const names = program.commands.map((c) => c.name());
     expect(names).toContain("sync");
-    expect(names).not.toContain("update");
 
     const syncCmd = program.commands.find((c) => c.name() === "sync");
     expect(syncCmd).toBeDefined();
     const subNames = syncCmd!.commands.map((c) => c.name());
-    for (const expected of [
-      "all",
-      "submissions",
-      "facts",
-      "portals",
-      "crowdfunding",
-      "reg-a",
-      "forms",
-    ]) {
-      expect(subNames).toContain(expected);
-    }
-    // Both belong to leaves a downstream package registers.
-    expect(subNames).not.toContain("adv");
-    expect(subNames).not.toContain("spacs");
+    // The whole registry, in run order — a leaf dropped from
+    // `registerSecSyncLeaves` is otherwise invisible, since the group still
+    // builds and every other leaf still registers.
+    expect(subNames).toEqual(["index", "submissions", "facts", "documents"]);
   });
 });

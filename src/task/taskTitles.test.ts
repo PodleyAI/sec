@@ -83,7 +83,7 @@ describe("task titles", () => {
   const classes = collectTaskClasses();
 
   it("finds the task classes to check", () => {
-    expect(classes.length).toBeGreaterThan(50);
+    expect(classes.length).toBeGreaterThan(30);
   });
 
   it("every task class declares a non-empty static title", () => {

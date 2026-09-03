@@ -34,9 +34,7 @@ describe("CLI v2 integration", () => {
   it("should show help with all command groups", async () => {
     // Every top-level name AddCommands registers, not a sample of them. A group
     // whose registrar throws or is dropped is otherwise invisible here: the
-    // remaining ones still print, and the assertions still pass. `issuer` in
-    // particular went unasserted, and it is the only top-level evidence that
-    // registerIssuerCommands ran at all.
+    // remaining ones still print, and the assertions still pass.
     const output = await runCli("--help");
     for (const group of [
       "bootstrap",
@@ -45,9 +43,6 @@ describe("CLI v2 integration", () => {
       "query",
       "db",
       "init",
-      "version",
-      "issuer",
-      "extractor",
       // Inherited from @workglow/cli, and the only evidence it registered.
       "web",
     ]) {
@@ -71,57 +66,47 @@ describe("CLI v2 integration", () => {
     expect(output).toContain("ingest");
     expect(output).toContain("--skip-download");
     expect(output).toContain("--skip-ingest");
-    expect(output).toContain("--skip-forms");
   });
 
   it("should show query subcommands", async () => {
     const output = await runCli("query", "--help");
+    expect(output).toContain("cik");
     expect(output).toContain("entities");
     expect(output).toContain("filings");
-    expect(output).toContain("offerings");
-    expect(output).toContain("crowdfunding");
     expect(output).toContain("facts");
-    expect(output).toContain("persons");
+    expect(output).toContain("xbrl");
   });
 
   it("should show fetch subcommands", async () => {
     const output = await runCli("fetch", "--help");
     expect(output).toContain("submissions");
     expect(output).toContain("facts");
-    expect(output).toContain("form");
-    expect(output).toContain("doc");
   });
 
   it("should show sync subcommands", async () => {
     const output = await runCli("sync", "--help");
-    for (const sub of [
-      "all",
-      "submissions",
-      "facts",
-      "portals",
-      "crowdfunding",
-      "reg-a",
-      "forms",
-    ]) {
+    for (const sub of ["index", "submissions", "facts", "documents"]) {
       expect(output, sub).toContain(sub);
     }
-    // A leaf a downstream package registers, like `adv` below.
-    expect(output).not.toContain("spacs");
   });
 
-  it("should reject unknown sync adv subcommand", async () => {
+  it("should reject an unknown sync subcommand", async () => {
     const { stdout, stderr, exitCode } = await runCliProcess(
-      ["bun", "run", SEC_TS, "sync", "adv"],
+      ["bun", "run", SEC_TS, "sync", "nope"],
       ENV
     );
     const output = stdout + stderr;
-    expect(exitCode, `sec sync adv exited ${exitCode}:\n${output}`).not.toBe(0);
-    expect(output).toMatch(/unknown command/i);
+    expect(exitCode, `sec sync nope exited ${exitCode}:\n${output}`).not.toBe(0);
+    // `sync` takes no positional, so commander rejects the stray word rather
+    // than resolving it to a leaf. Either wording is a refusal, which is what
+    // matters: a typo'd leaf must not silently run the whole group.
+    expect(output).toMatch(/unknown command|too many arguments/i);
   });
 
-  it("should show sync forms shard option", async () => {
-    const output = await runCli("sync", "forms", "--help");
-    expect(output).toContain("--shard");
+  it("should show a sync leaf's own options", async () => {
+    const output = await runCli("sync", "documents", "--help");
+    expect(output).toContain("--limit");
+    expect(output).toContain("--cik");
   });
 
   it("should show db subcommands", async () => {

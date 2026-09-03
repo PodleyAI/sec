@@ -8,15 +8,12 @@ import { getTaskQueueRegistry, Sqlite } from "workglow";
 import { getSecJobQueue } from "../task/fetch/SecJobQueue";
 import { DefaultDI } from "./DefaultDI";
 import { EnvToDI } from "./EnvToDI";
-import { getExtractionTemperature } from "./extractionTemperature";
-import { registerSecFormExtractors } from "./registerFormExtractors";
 import { registerSecModels } from "./registerModels";
 import { registerSecProviders } from "./registerProviders";
 
 /**
  * Brings up everything a sec task needs before it runs: the SQLite binding, the
- * DI container, resolvers, form extractors, models, providers, and the started
- * fetch queue.
+ * DI container, models, providers, and the started fetch queue.
  *
  * The `sec` CLI reaches this through its `preAction` hook; a second entrypoint
  * that boots sec's runtime some other way would drift from it silently — the
@@ -31,18 +28,7 @@ export async function bootstrapSecRuntime(): Promise<void> {
   }
 
   EnvToDI();
-  // Validate the extraction sampling knob at startup. Its only other caller is
-  // inside the per-section handler that turns any throw into a version-gated
-  // dead letter, so a malformed SEC_EXTRACTION_TEMPERATURE would otherwise be
-  // recorded once per section per filing as an extraction failure no version
-  // bump can fix, instead of aborting here naming the variable.
-  getExtractionTemperature();
   DefaultDI();
-  // Reads nothing and touches no DI, so where it sits among the register* calls
-  // does not matter, and it is a no-op once the dispatch task's own module has
-  // run. This is what puts the extractors in front of a caller that only wants
-  // to ask what handles a form, without importing the task that dispatches them.
-  registerSecFormExtractors();
   await registerSecModels();
   await registerSecProviders();
 

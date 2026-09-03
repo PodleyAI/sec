@@ -10,17 +10,14 @@ import { globalServiceRegistry } from "workglow";
 import { parseGlobalOptions } from "../cli/GlobalOptions";
 import { addBootstrapCommands } from "../cli/groups/bootstrap";
 import { addDbCommands } from "../cli/groups/db";
-import { addExtractorCommands } from "../cli/groups/extractor";
 import { addFetchCommands } from "../cli/groups/fetch";
 import { addInitCommand } from "../cli/groups/init";
 import { addQueryCommands } from "../cli/groups/query";
 import { addSyncCommand } from "../cli/groups/sync";
 import { addVerifyCommands } from "../cli/groups/verify";
-import { addVersionCommands } from "../cli/groups/version";
 import { bootstrapSecRuntime } from "../config/bootstrapSecRuntime";
 import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../config/tokens";
 import { registerSecWebUi } from "../web/registerSecWebUi";
-import { registerIssuerCommands } from "./issuerTickers";
 
 /**
  * Commands that touch neither the database nor the job queue, so requiring a
@@ -112,12 +109,9 @@ export const AddCommands = (program: Command): void => {
   addQueryCommands(program);
   addDbCommands(program);
   addInitCommand(program);
-  addVersionCommands(program);
-  registerIssuerCommands(program);
-  addExtractorCommands(program);
   addVerifyCommands(program);
   // What the console shows for those commands: pickers for the identifiers
-  // (CIK, accession, extractor id), panels over their output, the operator
+  // (CIK, accession, form), panels over their output, the operator
   // rail, and the cost/safety badges. Registration is inert — it reads nothing
   // — so it is safe here, ahead of any runtime.
   registerSecWebUi(program);
