@@ -5,7 +5,10 @@ import {
   shouldInstallCliSignalTeardown,
 } from "./cli/installCliSignalTeardown";
 import { shutdownCliResources } from "./cli/shutdownCliResources";
-import { AddCommands, applyGlobalOptions, SecCliConfigurationError, statusMessage } from "./index";
+import { applyGlobalOptions } from "./cli/GlobalOptions";
+import { statusMessage } from "./cli/output/Progress";
+import { AddCommands } from "./commands";
+import { SecCliConfigurationError } from "./config/EnvToDI";
 
 program
   // Set explicitly rather than left to commander's argv[1] inference: the web

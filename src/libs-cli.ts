@@ -19,14 +19,14 @@
  * that package.
  */
 import { runWorkglowCli } from "@workglow/cli";
-// Through the barrel, like `sec.ts`: it is what pins every consumer to one
-// `workglow` instance, so the DI container this boots is the one the tasks read.
 import {
   installCliSignalTeardown,
   shouldInstallCliSignalTeardown,
 } from "./cli/installCliSignalTeardown";
 import { shutdownCliResources } from "./cli/shutdownCliResources";
-import { bootstrapSecRuntime, registerSecTasks, registerSecWebUi } from "./index";
+import { bootstrapSecRuntime } from "./config/bootstrapSecRuntime";
+import { registerSecTasks } from "./config/registerTasks";
+import { registerSecWebUi } from "./web/registerSecWebUi";
 
 // The command's own failure, kept across the shutdown below. `sec.ts` does the
 // same, and for the same two reasons: a `process.exit(0)` in the success path
@@ -38,7 +38,7 @@ let primaryError: unknown;
 try {
   await runWorkglowCli({
     name: "sec-base",
-    description: "Workglow CLI carrying @workglow/sec's tasks",
+    description: "Workglow CLI carrying sec's tasks",
     // sec's tasks read the database and fetch through the rate-limited queue, so
     // the runtime comes up before any of them can be listed or run.
     registerTasks: async () => {
