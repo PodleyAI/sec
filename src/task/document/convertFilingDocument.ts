@@ -23,7 +23,7 @@ import { parseEdgarHtml } from "../../sec/html/parseEdgarHtml";
  * truncate — and a half-finished re-run leaves the old rows readable instead of
  * leaving a hole.
  */
-export const FILING_CONVERTER_VERSION = "4";
+export const FILING_CONVERTER_VERSION = "5";
 
 /** What converting one member of a submission produced, before it is stored. */
 export interface ConvertedFilingDocument {
@@ -35,6 +35,12 @@ export interface ConvertedFilingDocument {
   readonly title: string;
   readonly sections: readonly FilingSectionSlice[];
   readonly charCount: number;
+  /**
+   * The document's raw HTML, carried so a second reading of the same bytes —
+   * the inline-XBRL pass — does not have to re-split the submission to find
+   * them. Not stored; `filing_section` holds the rendered markdown.
+   */
+  readonly html: string;
 }
 
 /**
@@ -100,6 +106,7 @@ export function convertFilingSubmission(
       title,
       sections,
       charCount: sections.reduce((sum, section) => sum + section.markdown.length, 0),
+      html: doc.html,
     });
   }
   return out;

@@ -39,6 +39,8 @@ export type ConvertFilingDocumentsTaskOutput = {
   /** Members of the converted submissions: primary documents plus exhibits. */
   readonly documents: number;
   readonly sections: number;
+  /** As-filed inline-XBRL facts stored across the run. */
+  readonly xbrlFacts: number;
   /** Filings whose document was fetched from EDGAR on this run. */
   readonly downloaded: number;
   /** Filings whose document was already on disk, so no request was made. */
@@ -88,6 +90,7 @@ export class ConvertFilingDocumentsTask extends Task<
       skipped: Type.Integer(),
       documents: Type.Integer(),
       sections: Type.Integer(),
+      xbrlFacts: Type.Integer(),
       downloaded: Type.Integer(),
       cached: Type.Integer(),
     });
@@ -110,6 +113,7 @@ export class ConvertFilingDocumentsTask extends Task<
     let skipped = 0;
     let documents = 0;
     let sections = 0;
+    let xbrlFacts = 0;
     let downloaded = 0;
     let cached = 0;
 
@@ -144,6 +148,7 @@ export class ConvertFilingDocumentsTask extends Task<
             converted += 1;
             documents += result.documents;
             sections += result.sections;
+            xbrlFacts += result.xbrlFacts;
           }
         } else {
           skipped += 1;
@@ -169,6 +174,7 @@ export class ConvertFilingDocumentsTask extends Task<
       skipped,
       documents,
       sections,
+      xbrlFacts,
       downloaded,
       cached,
     };

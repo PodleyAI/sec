@@ -23,6 +23,8 @@ import {
 } from "./convertFilingDocument";
 import { fullSubmissionFileName, submissionFetchKind } from "./submissionFetchPolicy";
 import { SecFetchAccessionDocTask } from "../fetch/SecFetchAccessionDocTask";
+import { extractInlineXbrlRows } from "./extractInlineXbrl";
+import { XBRL_FACT_REPOSITORY_TOKEN } from "../../storage/xbrl/XbrlFactSchema";
 
 export type ConvertFilingDocumentTaskInput = {
   readonly cik: number;
@@ -52,6 +54,8 @@ export type ConvertFilingDocumentTaskOutput = {
   /** Sections across every converted member. */
   readonly sections: number;
   readonly chars: number;
+  /** As-filed inline-XBRL facts stored across every converted member. */
+  readonly xbrlFacts: number;
   /** The PRIMARY document's filename, or empty when nothing was converted. */
   readonly docFile: string;
   /**
@@ -171,6 +175,7 @@ export class ConvertFilingDocumentTask extends Task<
       documents: Type.Integer(),
       sections: Type.Integer(),
       chars: Type.Integer(),
+      xbrlFacts: Type.Integer(),
       docFile: Type.String(),
       fromCache: Type.Boolean(),
     });
@@ -245,6 +250,7 @@ export class ConvertFilingDocumentTask extends Task<
       documents: 0,
       sections: 0,
       chars: 0,
+      xbrlFacts: 0,
       docFile: "",
       fromCache: false,
     } as const;
@@ -265,6 +271,7 @@ export class ConvertFilingDocumentTask extends Task<
         documents: 0,
         sections: 0,
         chars: 0,
+        xbrlFacts: 0,
         docFile: source.docFile,
         fromCache: source.fromCache,
       };
@@ -296,6 +303,9 @@ export class ConvertFilingDocumentTask extends Task<
         documents: converted.length,
         sections,
         chars: converted.reduce((sum, doc) => sum + doc.charCount, 0),
+        // Not counted under --dry-run: parsing every document's inline XBRL to
+        // report a number nothing will store is the expensive half of the work.
+        xbrlFacts: 0,
         docFile: primaryDocFile(converted, source.docFile),
         fromCache: source.fromCache,
       };
@@ -303,6 +313,7 @@ export class ConvertFilingDocumentTask extends Task<
 
     const sectionRepo = globalServiceRegistry.get(FILING_SECTION_REPOSITORY_TOKEN);
     const documentRepo = globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN);
+    const xbrlRepo = globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN);
 
     // Both tables are replaced wholesale for this accession, not merged. A
     // re-conversion can produce FEWER documents or fewer sections than the last
@@ -312,12 +323,18 @@ export class ConvertFilingDocumentTask extends Task<
     const key = { cik: input.cik, accession_number: input.accessionNumber };
     await sectionRepo.deleteSearch(key as never);
     await documentRepo.deleteSearch(key as never);
+    // Same reasoning, and the same key: a re-conversion re-derives every fact
+    // in this submission, so the previous pass's rows are replaced rather than
+    // merged. Scoped to the rows this pass writes — `company_facts` is the API's
+    // series and is not touched here.
+    await xbrlRepo.deleteSearch({ accession_number: input.accessionNumber, source: "inline" });
 
     const convertedAt = new Date().toISOString();
     const headers: FilingDocument[] = [];
     let written = 0;
     let sectionTotal = 0;
     let charTotal = 0;
+    let factTotal = 0;
     for (const doc of converted) {
       const rows: FilingSection[] = doc.sections.map((section) => ({
         cik: input.cik,
@@ -333,6 +350,21 @@ export class ConvertFilingDocumentTask extends Task<
       for (let i = 0; i < rows.length; i += WRITE_BATCH) {
         await sectionRepo.putBulk(rows.slice(i, i + WRITE_BATCH));
       }
+      // As-filed XBRL, read from the same bytes the markdown came from. Facts
+      // are numbered across the whole submission because `fact_index` is half
+      // the primary key and a document's numbering restarts at zero.
+      const facts = extractInlineXbrlRows({
+        html: doc.html,
+        accession_number: input.accessionNumber,
+        cik: input.cik,
+        indexOffset: factTotal,
+        created_at: convertedAt,
+      });
+      for (let i = 0; i < facts.length; i += WRITE_BATCH) {
+        await xbrlRepo.putBulk(facts.slice(i, i + WRITE_BATCH));
+      }
+      factTotal += facts.length;
+
       written += 1;
       sectionTotal += rows.length;
       charTotal += doc.charCount;
@@ -371,6 +403,7 @@ export class ConvertFilingDocumentTask extends Task<
       documents: written,
       sections: sectionTotal,
       chars: charTotal,
+      xbrlFacts: factTotal,
       docFile: primaryDocFile(converted, source.docFile),
       fromCache: source.fromCache,
     };
