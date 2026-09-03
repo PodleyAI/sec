@@ -35,7 +35,7 @@ import { findSourceStubs } from "./sourceStubs";
 // not when src sneaks back in.
 const MAX_UNPACKED_BYTES = 8_000_000; // 8 MB
 const FORBIDDEN_SUFFIXES = [".test.ts", ".map"] as const;
-const FORBIDDEN_PREFIXES = ["src/sec/html/mock_data/", "src/eval/mock_data/"] as const;
+const FORBIDDEN_PREFIXES = ["src/sec/html/mock_data/"] as const;
 const FORBIDDEN_SUBSTRINGS = ["/mock_data/"] as const;
 
 interface PackReport {

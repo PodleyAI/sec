@@ -10,13 +10,12 @@ import { Task, type IExecuteContext } from "workglow";
 import { DocumentTreeSegmenter } from "../../sec/forms/registration-statements/s1/DocumentTreeSegmenter";
 import { parseEdgarHtmlWithTrace } from "../../sec/html/parseEdgarHtml";
 import { S1_SECTIONS } from "../../sec/html/sectionVocabulary";
-import { buildChunkTrace } from "../../verify/chunkTrace";
 import { loadFilingHtml } from "../../verify/loadFilingHtml";
 import { buildParseTrace } from "../../verify/parseTrace";
 import { buildSectionTrace, isExpectedContainment } from "../../verify/sectionTrace";
 import type { TaskPorts } from "../taskPorts";
 
-export const VERIFY_STAGES = ["parse", "sections", "chunks"] as const;
+export const VERIFY_STAGES = ["parse", "sections"] as const;
 export type VerifyStage = (typeof VERIFY_STAGES)[number];
 
 export interface VerifyFilingInput {
@@ -73,17 +72,8 @@ export interface SectionSummary {
     /** Bounding span in the filing HTML, absent when a text fallback found it. */
     readonly source: { readonly start: number; readonly end: number } | undefined;
   }[];
-  /** Sections resolved by a path with no mapping back to the source. */
+  /** Resolved sections the segmenter found no source span for. */
   readonly withoutSource: readonly string[];
-}
-
-export interface ChunkSummary {
-  readonly sectionChars: number;
-  readonly chunks: number;
-  readonly oversized: boolean;
-  readonly reassembles: boolean;
-  readonly splitTables: number;
-  readonly carriedHeadingsNotVerbatim: number;
 }
 
 export interface VerifyFilingResult {
@@ -92,7 +82,6 @@ export interface VerifyFilingResult {
   readonly stages: readonly string[];
   readonly parse: ParseSummary | undefined;
   readonly sections: SectionSummary | undefined;
-  readonly chunks: ChunkSummary | undefined;
   readonly artifacts: readonly { readonly stage: string; readonly path: string }[];
   readonly error: string | undefined;
 }
@@ -100,9 +89,8 @@ export interface VerifyFilingResult {
 const MAX_SUMMARY_LOSSES = 10;
 
 /**
- * Produce the deterministic half of a verification trace for one filing: what
- * the HTML parser did with the document, what the segmenter cut out of it, and
- * how the risk section would be chunked.
+ * Produce a verification trace for one filing: what the HTML parser did with
+ * the document, and what the segmenter cut out of it.
  *
  * The task's OUTPUT is summaries only. The full traces — every block with its
  * source span, every dropped run — are written to `out` when asked, because a
@@ -139,7 +127,6 @@ export class VerifyFilingTask extends Task<
       stages: Type.Array(Type.String()),
       parse: Type.Optional(Type.Unknown()),
       sections: Type.Optional(Type.Unknown()),
-      chunks: Type.Optional(Type.Unknown()),
       artifacts: Type.Array(Type.Unknown()),
       error: Type.Optional(Type.String()),
     });
@@ -182,7 +169,6 @@ export class VerifyFilingTask extends Task<
         stages,
         parse: undefined,
         sections: undefined,
-        chunks: undefined,
         artifacts: [],
         error: err instanceof Error ? err.message : String(err),
       };
@@ -196,7 +182,7 @@ export class VerifyFilingTask extends Task<
       // coverage measurement, which loads the filing into cheerio a SECOND time
       // (`visibleTextRuns`) and sweeps every visible run against every block —
       // seconds of work on a multi-megabyte filing, and none of it is what
-      // `verify sections` or `verify chunks` were asked for.
+      // `verify sections` was asked for.
       const parseTrace = buildParseTrace(source.html, source.label, parsed);
       write("parse", parseTrace);
       const drops = new Map<string, { blocks: number; chars: number }>();
@@ -230,8 +216,7 @@ export class VerifyFilingTask extends Task<
     }
 
     let sections: SectionSummary | undefined;
-    let chunks: ChunkSummary | undefined;
-    if (stages.includes("sections") || stages.includes("chunks")) {
+    if (stages.includes("sections")) {
       await context.updateProgress(50, "Segmenting");
       const segmentation = new DocumentTreeSegmenter().segmentDocument(
         parsed.doc,
@@ -241,8 +226,7 @@ export class VerifyFilingTask extends Task<
         // Built only for the stage that reads it, for the same reason the parse
         // trace above is: it walks the whole tree and normalizes every resolved
         // section's text to answer the containment question, which on a
-        // multi-megabyte prospectus is seconds of work `verify chunks` never
-        // looks at.
+        // multi-megabyte prospectus is seconds of work.
         const sectionTrace = buildSectionTrace(parsed.doc, segmentation);
         write("sections", sectionTrace);
         const resolved = sectionTrace.sections.filter((s) => s.resolved);
@@ -261,23 +245,6 @@ export class VerifyFilingTask extends Task<
           withoutSource: resolved.filter((s) => s.source === undefined).map((s) => s.name),
         };
       }
-      if (stages.includes("chunks")) {
-        await context.updateProgress(80, "Chunking");
-        const risk = segmentation.sections.find((s) => s.name === S1_SECTIONS.RISK_FACTORS);
-        if (risk !== undefined) {
-          const chunkTrace = buildChunkTrace(risk.text);
-          write("chunks", chunkTrace);
-          chunks = {
-            sectionChars: chunkTrace.sectionChars,
-            chunks: chunkTrace.chunks.length,
-            oversized: chunkTrace.oversized,
-            reassembles: chunkTrace.reassembles,
-            splitTables: chunkTrace.splitTables,
-            carriedHeadingsNotVerbatim: chunkTrace.chunks.filter((c) => !c.carriedHeadingVerbatim)
-              .length,
-          };
-        }
-      }
     }
 
     return {
@@ -286,7 +253,6 @@ export class VerifyFilingTask extends Task<
       stages,
       parse,
       sections,
-      chunks,
       artifacts,
       error: undefined,
     };
