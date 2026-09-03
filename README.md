@@ -1,162 +1,130 @@
-# SEC Guide
+# sec
 
-## Table of Contents
+A worked example of the [Workglow](https://github.com/workglow-dev/libs) libraries:
+pull SEC EDGAR and Form ADV data into a local database, turn filings into readable
+markdown, and ask questions about what they say.
 
-- [Table of Contents](#table-of-contents)
-- [Setup](#setup)
-- [CIKs](#ciks)
-- [Indexes: Quarterly, and Daily](#indexes-quarterly-and-daily)
-  - [Code](#code)
-  - [Usage](#usage)
-- [Company Submissions](#company-submissions)
-  - [Data Retrieved](#data-retrieved)
-  - [Code](#code-1)
-  - [Usage](#usage-1)
-- [Filing Submissions and Forms](#filing-submissions-and-forms)
-  - [Common Forms](#common-forms)
-- [Company Facts](#company-facts)
-  - [Code](#code-2)
-  - [Usage](#usage-2)
-- [SPACs](#spacs)
-- [Portals](#portals)
-- [Reg-A and Reg-A+](#reg-a-and-reg-a)
-- [Reg-CF](#reg-cf)
+It is an example, not a product. If you are looking for a private-markets data
+pipeline, this is the layer underneath one.
 
----
+## Ten minutes
 
-## Setup
-
-To install dependencies, run:
-
-```bash
+```sh
 bun install
+bun run build
+
+sec setup                     # writes .env.local, creates the tables
+sec load download ciks        # the company list — 8 MB, about 30 seconds
+sec get AAPL                  # one company: submissions, facts, documents
 ```
 
-Create a `.env.local` file in the root of the project and add the following:
+`sec get` takes a CIK, a ticker, or a name. If several companies match it shows
+you which, rather than picking one.
 
-```bash
-SEC_RAW_DATA_FOLDER=<path-to-raw-data>
-SEC_DB_FOLDER=<path-to-db-folder>
-SEC_DB_NAME=edgar
+Then read what it fetched:
+
+```sh
+sec status                                     # what is loaded, and what to run next
+sec read 0000320193-24-000123 --list           # the documents in one filing
+sec read 0000320193-24-000123 --section "risk" # one section, as markdown
+sec show xbrl --cik 320193                     # the numbers the filer tagged
+sec ask "how does Apple describe its supply chain risk?"
 ```
 
-## CIKs
+Bare `sec` runs `status`. Every command ends by suggesting the next one.
 
-The **CIK (Central Index Key)** is a unique identifier assigned to companies and individuals by the SEC.
+### Two things to know before you use `ask`
 
-To facilitate data retrieval, maintaining a full list of CIK numbers and their associated names is beneficial. Even if only a subset of filings is required, having a reference list is useful. The SEC provides an official [CIK lookup file](https://www.sec.gov/Archives/edgar/cik-lookup-data.txt).
+**It answers from filing prose, and cites what it read.** For a *number* — revenue,
+assets, share count — use `sec show xbrl` (what the filer tagged in the document) or
+`sec show facts` (the SEC's normalized series). A retrieval model quoting a sentence
+about revenue is not a source for revenue.
 
-You can retrieve and process this file using the following:
+**It works with no API key.** Embeddings run locally on CPU, and if no
+`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` is set the answer comes from
+a small local model too. It is visibly worse than a cloud model, which is why every
+answer says which one wrote it.
 
-- **Task:** [FetchAllCikNamesTask.ts](./src/task/base/FetchAllCikNamesTask.ts)
-- **Command:** [BootstrapAllCikNames.ts](./src/commands/base/BootstrapAllCikNames.ts)
+## The commands
 
-```bash
-./src/sec.ts bootstrap-all-cik-names
+| Command | What it does |
+| --- | --- |
+| `sec setup` | Configuration, then the tables |
+| `sec status` | What is loaded, how stale, what to run next |
+| `sec get <company>` | One company end to end |
+| `sec update [stage]` | Bring what you have current — `index`, `submissions`, `facts`, `documents`, `adv` |
+| `sec load download <what>` | Bulk backfill from the SEC's archives — states its size and time first |
+| `sec show <what>` | `companies`, `filings`, `facts`, `xbrl`, `advisers` |
+| `sec read <accession\|file>` | A filing as markdown; `--trace` measures what the parser did |
+| `sec index` / `sec ask` | Embed filing sections, then answer from them |
+| `sec db setup\|stats\|reset` | The escape hatches |
+| `sec web` | A local console over all of the above |
+
+The old names still work: `sync`, `bootstrap`, `query`, `init` are aliases.
+
+There is a second binary, `sec-base`, which is the generic Workglow CLI — `task`,
+`model`, `mcp`, `workflow`, `agent`, `web` — with this repo's tasks registered:
+
+```sh
+sec-base task list
+sec-base task run QueryFilings --input-json '{"cik":320193}'
 ```
 
-Once the CIK name list is ingested, you can look up a company's CIK by (partial) name:
+## What does the work
 
-```bash
-./src/sec.ts query cik "apple"
-./src/sec.ts query cik "APPLE INC." --exact
+Each step is one Workglow package doing its job, and the point of the example is
+that you can go read the seam.
+
+| Step | Package | Where |
+| --- | --- | --- |
+| Every EDGAR request, rate-limited across processes | `@workglow/job-queue` | `src/task/fetch/` |
+| Filings, facts, documents into SQLite or Postgres | `@workglow/storage`, `@workglow/sqlite`, `@workglow/postgres` | `src/config/storageRegistry.ts` |
+| Each stage as a task, composed into runs | `@workglow/task-graph` | `src/task/` |
+| Filing HTML into a document tree | `@workglow/knowledge-base` | `src/sec/html/`, `src/sec/document/` |
+| Chunking, embedding, retrieval | `@workglow/ai` | `src/kb/`, `src/task/kb/` |
+| Local and cloud model providers | `@workglow/huggingface-transformers`, `@workglow/anthropic`, … | `src/config/registerProviders.ts` |
+| The CLI, its progress UI and web console | `@workglow/cli` | `src/cli/`, `src/web/` |
+
+They arrive through the `workglow` meta package — `import { Task, KnowledgeBase } from "workglow"` — which is the "install one thing and go" path.
+
+**The rate limiter is the piece most worth reading.** EDGAR meters by IP, so the
+budget is shared across every process you run, and there are two separate limits
+that both matter: how many requests may *start* per second, and how many may be *in
+flight*. `docs/fetch-and-storage.md` explains why one without the other exhausts the
+process's file descriptors.
+
+## The data
+
+Sixteen tables. `sec db stats` counts them all.
+
+- **Companies** — `cik_names` (every filer's name), `entities` + `entities_history`,
+  `entity_tickers`, `sic_code`
+- **Filings** — `filings`, and `filing_document` / `filing_section` for the ones
+  converted to markdown
+- **Numbers** — `company_facts` (the companyfacts API's normalized series) and
+  `xbrl_fact` (what the filer tagged in the document itself, with the same concept
+  often in both)
+- **Advisers** — `adv_adviser` for the columns people filter on, `adv_row` for every
+  other Form ADV column as JSON
+- **Bookkeeping** — `cik_last_update`, `daily_index_cursor`, `processed_submissions`,
+  `processed_facts`, `change_log`
+- **Search** — `kb_document`, `kb_chunk`
+
+Every table is one `defineStorage` entry in `src/config/storageRegistry.ts`, and
+`db setup` / `db reset` / `db stats` all loop that list. Adding a table is that entry
+and nothing else.
+
+## Working on it
+
+```sh
+bun run test          # vitest
+bun run typecheck     # tsc --noEmit over src, scripts and tests
+bun run lint          # oxlint + type-aware rules
+bun run format        # oxfmt
 ```
 
-Results are ranked exact-match first, then prefix, then substring, with shorter names ahead of longer ones.
+Node 24 and Bun 1.4+. `node:sqlite` is what backs the SQLite storage, and it is
+neither stable nor unflagged below those.
 
-## Indexes: Quarterly, and Daily
-
-The SEC publishes `txt` index files listing all submitted filings. Each entry includes:
-
-- Company Name
-- CIK Number
-- Filing Form Type
-- Submission Date & Time
-
-### Code
-
-- **Task:** [FetchQuarterlyIndexRangeTask.ts](./src/task/index/FetchQuarterlyIndexRangeTask.ts)
-- **Command:** [BootstrapCikLastUpdate.ts](./src/commands/BootstrapCikLastUpdate.ts)
-
-### Usage
-
-We utilize these indexes to generate a **"dirty" CIK list**, indicating which filings need to be downloaded. While an optimized approach would selectively fetch only required filings, our method ensures data integrity by marking CIKs for processing. This helps recover missing files due to: process failures, skipped days, and other errors.
-
-```bash
-./src/sec.ts bootstrap-quarterly-index <year to start>
-```
-
-## Company Submissions
-
-The SEC provides an API to fetch company submission data, including metadata about a company's filings. However, it does not include the actual filing contents.
-
-### Data Retrieved
-
-- **Accession Number** – Unique filing identifier
-- **Filing Date** – Submission date
-- **Form** – Filing type
-- **Filename** – Associated document
-- **Description** – Filing summary
-- **Document Type** – Type of content submitted
-- **Size** – File size (bytes)
-- **Items** – Number of included items
-
-### Code
-
-- **Task:** [FetchSubmissionsTask.ts](./src/task/submissions/FetchSubmissionsTask.ts)
-- **Command:** [CompanySubmissions.ts](./src/commands/submissions/CompanySubmissions.ts)
-
-### Usage
-
-```bash
-./src/sec.ts company-submissions 1018724
-```
-
-## Filing Submissions and Forms
-
-The SEC API allows retrieval of individual filing submissions, containing the actual filing data. Each form type has unique processing requirements.
-
-### Common Forms
-
-- **Form D** – Private capital fundraising
-- **Form 10** – Public capital fundraising
-- **Form 10-K** – Annual financial report
-- **Form 10-Q** – Quarterly financial report
-- **Form 8-K** – Material event disclosures
-- **Form 6-K** – Foreign company disclosures
-- **Form 4** – Insider trading disclosures
-
-## Company Facts
-
-The SEC API provides **Company Facts**, delivering structured and normalized financial and operational data for a specific company.
-
-### Code
-
-- **Task:** [FetchCompanyFactsTask.ts](./src/task/facts/FetchCompanyFactsTask.ts)
-- **Command:** [CompanyFacts.ts](./src/commands/CompanyFacts.ts)
-
-### Usage
-
-```bash
-./src/sec.ts company-facts 1018724
-```
-
-## SPACs
-
-**Special Purpose Acquisition Companies (SPACs)** are formed to raise capital from public investors with the intent to acquire a private company and take it public.
-
-## Portals
-
-**Reg-A and Reg-CF Portals** facilitate investment in private companies by public investors through SEC-regulated platforms.
-
-### Accredited Investor Portals
-
-**Accredited-investor portals** (AngelList, Forge Global, EquityZen, ...) offer private-market deals to accredited investors only. They do not register with the SEC as portals, so the table is curated: bootstrap it with `sec accredited-portal import` (seeded from `src/data/accreditedPortalsSeed.ts`), then curate known portal fingerprints — entity names, phone numbers, and addresses — with `sec accredited-portal signal add`. Form D filings from the SPVs/funds these portals administer are matched against those fingerprints, at ingest time and via `sec accredited-portal attribute --all`; see `sec accredited-portal filings <portal-id>`.
-
-## Reg-A and Reg-A+
-
-**Regulation A (Reg-A) and Regulation A+ (Reg-A+)** filings enable private companies to raise funds from public investors via SEC-registered portals.
-
-## Reg-CF
-
-**Regulation Crowdfunding (Reg-CF)** allows private companies to raise smaller amounts of capital from public investors compared to Reg-A or Reg-A+.
+See `ARCHITECTURE.md` for the pipeline end to end, and `docs/fetch-and-storage.md`
+for the fetch layer.

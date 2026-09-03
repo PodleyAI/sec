@@ -274,30 +274,9 @@ and peak off-heap memory ran ~4x the document.
 
 ## 5. `db setup` and `db reset`
 
-### Extension seams
-
-- **`registerDatabaseExtension`** (`src/config/databaseExtensions.ts`) — repo tokens
-  registered here are created/dropped by `setupAllDatabases` / `resetAllDatabases` after the
-  built-in SEC tables, so a superset's tables are managed by the same commands. `db setup`
-  also calls `registerSecResolvers()` so resolver component-version rows seed even on the
-  `init` path that skips the CLI preAction hook.
-- **`registerDatabaseSetupHook`** (same module) is the other half of that seam: hooks run at
-  the top of `setupAllDatabases` / `resetAllDatabases`, so a superset can bind its repos in
-  time even on the `init` path that never reaches the CLI preAction hook.
-- **Both registries are module-level**, so they outlive the DI container they were registered
-  against. `resetDependencyInjectionsForTesting()` clears them for that reason. Under a
-  runner that shares one process across test files, a hook installed by an earlier file would
-  otherwise run inside every later `setupAllDatabases()` — rebuilding its repositories through
-  `createStorage`, which reads the `SEC_DB_TYPE` binding that same reset had just stripped.
-  A test that wants the persistent wiring registers its hook _after_ the reset, not before.
-- **`registerDbStatsTables`** (`src/cli/queries/DbStatus.ts`) is the reporting half: a
-  superset's tables are counted by `db stats` alongside sec's own. A registered table the
-  database has not created reports `n/a` (with a "run `db setup`?" hint) rather than failing
-  the whole report; only a missing relation degrades, every other error still throws.
-
 ### Row counts on Postgres are estimates by default
 
-`db status` / `db stats` read `pg_stat_user_tables.n_live_tup` rather than scanning, and
+`sec status` / `db stats` read `pg_stat_user_tables.n_live_tup` rather than scanning, and
 that statistic is refreshed by ANALYZE/autovacuum, so it lags recent writes. The report says
 so (`Rows (est.)`, a per-row `(est.)` marker, a footer pointing at `--exact`, and an
 `estimated` field in `--format json`). Two things the query gets right:
@@ -318,13 +297,11 @@ executor per backend). `CREATE TABLE IF NOT EXISTS` is a no-op on an existing ta
 `createStorage` declares no `tabularMigrations`, so a column added to a schema after a
 database was created never appears in it. Every write goes through `putBulk` with the full
 row, so the first write after the schema change fails outright — the column that named this
-pass into existence, `spac_candidate.signal_filed_sic_6770`, broke a whole sync leaf on every
-pre-existing database that way. (Both that table and the leaf now live downstream, which is
-where the reproduction of that failure lives; the pass reaches them because `createStorage`
-is what fills the table registry it walks.) It runs before the alignment pass so a
-freshly-added column is eligible for widening in the same `db setup`, and it subsumes the
-hand-written per-column migrations that used to sit beside it. `backfillExtractorRunsOutcome` stays hand-rolled — it
-seeds `outcome` from `success`, which no generic pass can express.
+pass into existence broke a whole sweep on every pre-existing database that way. It runs
+before the alignment pass so a freshly-added column is eligible for widening in the same
+`db setup`, and it subsumes the hand-written per-column migrations that used to sit beside
+it. It walks the table registry `createStorage` fills, so it reaches every table this
+package creates.
 
 Two rails: only **nullable** columns are planned (SQLite rejects `ADD COLUMN NOT NULL`
 without a default, and there is no honest default for a signal nobody has computed), and an
@@ -333,16 +310,14 @@ fails loudly on the next write, whereas a column created at the wrong type is ac
 mismatches silently. Non-goals, all deliberate: NOT NULL columns, type changes, drops,
 renames, backfills. `schemaTypeMirror.sqlite.test.ts` creates every registered table on real
 SQLite and requires the JSON-Schema → DDL mirror to have predicted each emitted type; a
-column the mirror declines must be in a short explicit allowlist there (today:
-`investment_offerings.exemptions`, `rega_offerings.securities_offered_type`,
-`underwriter_link.role_detail`).
+column the mirror declines must be in a short explicit allowlist there.
 
 **2. Align column types** (`alignPostgresColumnTypes`). The declarative migration op set has
 no `alterColumn`, so a database created before a column was widened or relaxed would keep the
 old shape forever and keep rejecting real EDGAR values. The pass reads `information_schema`
 and issues only one-directional `ALTER TABLE`s — widen a `varchar` (up to unbounded `text`),
 drop a `NOT NULL` — which makes it idempotent. Postgres only; SQLite emits TEXT, and its one
-NOT NULL relaxation needs the rename/recreate rebuild in `AddressRegionNullableMigration`.
+NOT NULL relaxation needs the rename/recreate rebuild in a per-table rebuild migration.
 A relaxation with no such migration — `filings.primary_doc` — therefore reaches Postgres on
 the next `db setup` and a pre-existing SQLite database not at all. That is a widening, so an
 old SQLite file keeps exactly today's behavior rather than breaking; only new databases gain
@@ -379,9 +354,9 @@ adding one.
 
 Postgres-only, for the same reason as the alignment pass: SQLite's CHECKs are inline in the
 `CREATE TABLE` and removing one needs the rename/recreate/copy rebuild
-(`AddressRegionNullableMigration` is the pattern).
+(a per-table rebuild migration is the pattern).
 
-`AddressRegionNullableMigration` is the pattern for relaxing a NOT NULL on SQLite, where no
+a per-table rebuild migration is the pattern for relaxing a NOT NULL on SQLite, where no
 `ALTER` can do it: rename aside, recreate at the current schema, copy back, all inside one
 `BEGIN IMMEDIATE`. It covers **two** columns (`NULLABLE_COLUMNS`) rather than the one its
 name records, and keeps its `addresses__legacy_region` scratch-table name so a database

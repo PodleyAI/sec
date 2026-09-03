@@ -10,7 +10,7 @@
     "url": "https://github.com/workglow-dev/sec/issues"
   },
   "homepage": "https://workglow.dev",
-  "description": "Workglow SEC is an example of using the Workglow AI library to build a tool for retrieving SEC data.",
+  "description": "A worked example of the Workglow libraries: SEC EDGAR and Form ADV ingestion, filing-to-markdown conversion, and retrieval-grounded question answering over what filings say.",
   "scripts": {
     "bunset": "bunset --patch --push --commit --tag",
     "release": "bun run format && bun run lint && bun run typecheck && bun run build && bun run prepack-check && bun run bunset",
@@ -29,6 +29,7 @@
     "use-dist": "bun ./scripts/bunsrc.ts dist",
     "link": "bun link",
     "link-workglow": "bun ./scripts/link-workglow-packages.ts",
+    "check-fixtures": "bun ./scripts/checkFixtures.ts",
     "test": "vitest run",
     "format": "oxfmt \"src/**/*.{js,ts,tsx,json}\"",
     "format-check": "oxfmt --check \"src/**/*.{js,ts,tsx,json}\"",

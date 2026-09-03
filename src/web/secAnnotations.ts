@@ -104,12 +104,6 @@ const COMMAND_ANNOTATIONS: readonly WebCommandAnnotation[] = [
     badges: ["network", "writes"],
     note: "Fetches from EDGAR under the shared rate limit and stores what it gets.",
   },
-  {
-    path: ["fetch", "golden-fixtures"],
-    source,
-    badges: ["network"],
-    note: "Re-fetches the committed corpus from EDGAR. `--verify` writes nothing.",
-  },
 
   {
     path: ["load", "**"],

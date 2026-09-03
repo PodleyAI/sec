@@ -185,31 +185,4 @@ export function addFetchCommands(program: Command): void {
         );
       });
     });
-
-  fetch
-    .command("golden-fixtures")
-    .description(
-      `Reproduce or verify the ${GOLDEN_FIXTURES.length} committed EDGAR golden fixtures against their pinned manifest`
-    )
-    .option(
-      "--verify",
-      "Compare the committed fixtures against EDGAR without writing anything (exits non-zero on any mismatch)"
-    )
-    .option("--force", "Re-download fixtures that already match the manifest")
-    .action(async (options: { verify?: boolean; force?: boolean }) => {
-      await runCommand(async () => {
-        const result = await runWorkflowCli<GoldenFixturesTaskOutput>([
-          new GoldenFixturesTask({
-            defaults: { mode: options.verify ? "verify" : "download", force: options.force },
-          }),
-        ]);
-        for (const problem of result.problems) console.error(problem);
-        console.log(`Done. ok=${result.ok} written=${result.written} failed=${result.failed}`);
-        // A silent pass is the whole point of --verify, so a mismatch has to
-        // move the exit code or CI would happily ignore it.
-        if (result.failed > 0) {
-          throw new Error(`${result.failed} golden fixture(s) did not match the manifest`);
-        }
-      });
-    });
 }

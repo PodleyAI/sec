@@ -4,368 +4,187 @@ Guidance for Claude Code (claude.ai/code) working in this repository.
 
 ## Project overview
 
-`@workglow/sec` is a CLI built on the Workglow AI library that retrieves SEC (EDGAR)
-filing data into SQLite or Postgres: CIK names, quarterly/daily indexes, company
-submissions, company facts, and individual filing forms (Form D, Form C, Form 1-A, S-1,
-424, 8-K, proxies, …). On top of raw ingest it runs AI extraction and an entity
-resolution tier. The SPAC lifecycle model built on those filings is a consumer
-package's — this one ships the tables, forms and seams it is built out of.
+`sec` is the worked example of the Workglow libraries: a CLI that pulls SEC EDGAR
+and Form ADV data into SQLite or Postgres, converts filings to markdown, reads the
+inline XBRL out of them, and answers questions about the prose with citations.
 
-Companion docs in this repo:
+**It used to be the base layer a private product extended.** That product —
+`embarc-data` — absorbed the source and no longer depends on this package, so
+everything that existed to serve it is gone: the AI extraction tier, the
+identity/canonical tier, extractor versioning and dead letters, the SPAC model, the
+Form D/C/1-A storage tiers, and the ten registration seams a superset contributed
+through. If a comment or a doc says something "ships in a consumer package" or
+arrives "through a registration seam", it is stale — check before believing it.
 
-| Doc                         | Covers                                                              |
-| --------------------------- | ------------------------------------------------------------------- |
-| `ARCHITECTURE.md`           | End-to-end pipeline; how to add a form type                         |
-| `SPEC.md`                   | Full CLI reference and data-flow diagrams                           |
-| `docs/fetch-and-storage.md` | Fetch layer, EDGAR rate limits, bulk downloads, `db setup`/`reset`  |
-| `docs/extraction.md`        | AI extraction, dead letters, per-extractor sections, segmentation   |
-| `docs/identity.md`          | Observations, normalizers, roster completeness, versioning, the re-key half |
-| `docs/eval.md`              | Model comparison harnesses and golden truth                         |
-| `docs/verification.md`      | `sec verify`, block source spans, the coverage measure              |
+The only external boundary is `@workglow/*`, developed in a sibling `libs` checkout
+and consumed through the `workglow` meta package.
+
+| Doc | Covers |
+| --- | --- |
+| `README.md` | The ten-minute path, the command table, and which package does what |
+| `ARCHITECTURE.md` | The pipeline end to end; adding a table, a stage, or a form |
+| `docs/fetch-and-storage.md` | The fetch layer, EDGAR's rate limits, bulk downloads |
 
 Workglow-wide design specs and plans live in the sibling **PRD repo**
-(`prd/docs/superpowers/specs/` and `.../plans/`). Do not reference them from source
-comments — they change independently.
+(`prd/docs/superpowers/specs/` and `.../plans/`). **Never reference a plan, spec,
+PRD, PR number or review finding from a source comment** — they change
+independently, and a comment must explain the code in front of it.
 
 ## Commands
 
 ```bash
 bun install
-bun run build                # clean + JS + types
-bun run dev                  # watch (JS + types)
-bun test                     # all tests
-bun test src/path/to/file.test.ts
-bun run format               # oxfmt write — run before pushing
-bun run format-check         # CI runs this
+bun run build                # bundles the two binaries
+bun run typecheck            # tsc --noEmit over src, scripts AND tests
+bun run test                 # vitest run
+bunx vitest run <file>       # what you normally want — the full suite is slow
 bun run lint                 # oxlint + tsgolint type-aware rules; CI runs this
-bun run lint-fix             # oxlint --fix
-bun run typecheck-tests      # typecheck test files
+bun run format               # oxfmt write — run before pushing
 ```
 
-CI runs `format-check` → `lint` → `build` → `typecheck-tests` → `test`, cheapest first.
+CI runs `format-check` → `lint` → `typecheck` → `build` → `test`, cheapest first.
 
-`typecheck-tests` is a separate script because test files are **excluded from the base
-`tsconfig.json`** and vitest transpiles without typechecking — `build` and `test` both
-pass over a test file whose types are wrong. It reports **0 errors** and is in CI, so keep
-it there: the two long-standing `TS2719`s left with the files that carried them, and the
-gap they justified is closed. Run it locally on files you touch rather than discovering a
-red pipeline.
+**Tests are vitest with `pool: "forks"` and `isolate: true`.** Run them with
+`bunx vitest run`, never `bun test`: the Bun shim does not give each file a fresh
+module registry, so `globalServiceRegistry` leaks between files.
 
-The CLI entrypoint is `src/sec.ts` (Commander).
+**Node 24, Bun 1.4+.** `node:sqlite` backs the SQLite storage and is neither stable
+nor unflagged below those. A subprocess CLI test on an older Bun fails with what
+reads like a storage bug.
 
-### Command shape
+There is one tsconfig covering src, scripts and tests. It emits nothing — the
+binaries bundle — so there is no declaration build to keep tests out of.
 
-A sync leaf with more than one step is a command **group**, not a command with a
-`--step` flag: `sec sync submissions` lists `all | index | submissions`,
-`sec sync submissions all` is the whole leaf, `sec sync submissions index` is one step.
-`sec sync all` runs every `inAll` leaf. A single-step leaf stays a plain command. The group itself has no action, so asking
-what it contains needs no configured database. A leaf declaring `runAll` (see `SyncLeaf`)
-runs its steps as ONE task graph, which is what keeps a multi-step leaf a single run in
-the progress UI.
+## The CLI
 
-### Packaging and local links
+Ten commands, named for intent and registered in the order a first reader should
+meet them: `setup`, `status`, `get`, `update`, `load`, `show`, `read`, `index`/`ask`,
+`fetch`, `db`, plus `web` from `@workglow/cli`. The old names are aliases: `init`,
+`sync`, `bootstrap`, `query`.
 
-**Source is not shipped in the tarball. Do not add `src` back to `files` in
-`package.json`** — `prepack-check` guards this and CI fails.
+Three verbs for getting data, separated by **scope**: `get` one company, `update`
+what you already have, `load` everything.
 
-`use-source` is a workspace-local `bun link` flow reading the linked working copy on
-disk. It does **not** edit `package.json`: `exports` keeps pointing at `./dist/*` and the
-script writes re-export stubs into the gitignored `dist` folder (including a `dist/sec.js`
-bin stub), so switching modes leaves `git status` clean. `bun run use-dist` removes the
-stubs — identified by a `@workglow-source-stub` sentinel, so real build output is never
-deleted — and rebuilds (`--no-build` skips it). Finding no stubs is reported but does
-**not** skip the rebuild: `dist/` is gitignored, so "no stubs" usually means it was
-deleted. `prepack-check` fails if any stub is still present.
+**Guidance is one mechanism.** `suggest({ command, why })` collects steps;
+`runCommand` drains and renders them under the output, suppressed by `--quiet` and
+left as data under `--json`. A failed command suggests nothing. When you add a
+command, end it with the obvious next move — and use the same command strings
+`sec status` prints, so the map and the suggestions stay one vocabulary.
 
-Local Workglow deps: from a libs checkout run `bun run link-all` (usually with
-`bun run use-source`), then `bun run link-workglow` here. Register this package for
-consumers with `bun run link`. Full chain: `bun ./dev-link.ts` from the parent
-`workglow/` folder. **Re-run `link-workglow` after any `bun install`.**
+**A command holds no business logic.** Parse args, construct tasks (inputs through
+the constructor's `defaults`, never the graph run-input — an array there can
+trigger fan-out), run them through `runWorkflowCli`, render the result.
 
-### The `sec-base` binary
+**Every task class declares `static readonly title`.** `taskTitles.test.ts` fails
+the build without one, because that is what the progress UI labels the row with.
 
-The package ships two binaries. `sec` is the data pipeline. `sec-base`
-(`src/libs-cli.ts`) is the generic Workglow surface — `task`, `model`, `mcp`, `workflow`,
-`agent`, `credential`, `web` — with sec's tasks registered into the global `TaskRegistry`.
-
-```bash
-sec-base task list
-sec-base task detail QueryFilings
-sec-base task run QueryFilings --input-json '{"cik":1018724}'
-sec-base web
-```
-
-Its body is `runWorkglowCli` from `@workglow/cli`, not a copy. Two things this depends on:
-
-- **`bootstrapSecRuntime`** (`src/config/bootstrapSecRuntime.ts`) is the ONE path that
-  brings up sec's runtime — SQLite binding, DI, resolvers, models, providers, started
-  fetch queue. Both the `sec` `preAction` hook and `sec-base` call it. A second entrypoint
-  booting another way drifts silently, with late and misleading failures (a task resolving
-  no model, a fetch with no rate limiter).
-- **`registerSecTasks`** (`src/config/registerTasks.ts`) is a **curated** list, not every
-  class under `src/task/`. Most of those are pipeline steps that mean nothing invoked
-  alone. Add a task here only when it answers a question on its own.
+`commandsBoot.test.ts` pins the top-level tree and the sync leaves. A leaf dropped
+from `registerSecSyncLeaves` is otherwise invisible — the group still builds.
 
 ## Architecture
 
-### Layers
-
-- **`src/commands/`, `src/cli/groups/`** — Commander definitions. Every subcommand has the
-  same shape: parse args, construct tasks (inputs via the constructor's `defaults`), run
-  them through `runWorkflowCli` (`src/cli/runWorkflow.ts`), render the structured output.
-  `runWorkflowCli` pipes the tasks plus an `OutputTask` sink into a `Workflow` and executes it
-  via `@workglow/cli`'s `withCli` — on a TTY that renders the live `renderWorkflowRun`
-  progress UI, when piped it runs plainly — and returns the sink's collected output.
-  **Commands hold no business logic** — work lives in tasks, presentation in the command.
-  Pass task inputs via `defaults`, never the graph run-input (arrays there can trigger
-  fan-out semantics).
-- **`src/task/`** — task-graph tasks by domain: `bootstrap/`, `ciknames/`, `db/`,
-  `document/`, `editorial/`, `facts/`, `fetch/`, `fixtures/`, `forms/`, `index/`, `init/`,
-  `offering/`, `query/`, `submissions/`, `verify/`, `versioning/` (plus `canonical/`, which
-  holds only the shared alias TSV format). `taskPorts.ts` exports `TaskPorts<T>`, the bridge
-  letting an `interface`-typed result satisfy `DataPorts`.
-- **`src/sec/`** — parsing and schemas, `forms/` split per form category. Each form type
-  has a parser (`.ts`), a TypeBox schema (`.schema.ts`), and optional `.storage.ts`.
-- **`src/storage/`** — repository-pattern persistence: `entity/`, `filing/`, `address/`,
-  `investment-offering/`, `portal/` (core EDGAR-linked, by CIK); `observation/`, `roster/`,
-  `versioning/` (the observation tier and its version slots — see `docs/identity.md`).
-  **The canonical tier is not here.** Resolving observations into canonical people,
-  companies and underwriting houses is judgement about human text and belongs to the
-  consumer package; this one ships the observations, the reap and its
-  `registerObservationReapHook` seam, the normalizers, and the roster-completeness
-  verdict.
-- **`src/config/`** — DI. `tokens.ts` defines tokens, `EnvToDI.ts` reads env,
-  `storageRegistry.ts` declares every tabular storage as one
-  `{ token, table, schema, primaryKeyNames, indexes, uniqueIndexes }` list.
-- **`src/types/edgar/`** — TypeScript types for raw EDGAR API responses.
-- **`src/util/`** — `db.ts` (SQLite connection + prepared statement cache),
-  `sqlBackend.ts`, data cleaning helpers.
-
-**Every task class declares `static readonly title`** — the CLI progress UI labels rows
-with it. `taskTitles.test.ts` fails the build without one. When a graph runs several
-instances of one class, or the parameters are what distinguish them, pass a per-instance
-`title` in the task config (`Download submissions`, not two identical
-`BootstrapDownloadTask` rows). Name an owned graph through the second argument:
-`context.own(new Workflow(), { title })`.
+- **`src/cli/`** — the runtime around the commands: `runCommand`, `runWorkflow`,
+  `nextSteps`, `resolveCompany`, `loadCosts`, `groups/`, `queries/`, `sync/`.
+- **`src/task/`** — tasks by domain: `fetch/`, `bootstrap/`, `index/`,
+  `submissions/`, `facts/`, `document/`, `adv/`, `kb/`, `query/`, `db/`, `verify/`.
+- **`src/sec/`** — parsing. `html/` is the filing parser and segmenter, `xbrl/` the
+  inline-XBRL reader, `forms/` the form dictionary (metadata classes only — the
+  parsers that wrote to storage went with the extractors), `adv/` the CSV reader.
+- **`src/storage/`** — one directory per domain, TypeBox schemas plus repos.
+- **`src/kb/`** — the SQLite-backed knowledge base `ask` reads.
+- **`src/config/`** — DI. `tokens.ts`, `EnvToDI.ts`, `storageRegistry.ts`,
+  `models.ts`.
+- **`src/web/`** — what the console shows for these commands.
 
 ### Adding a table
 
-Add one `defineStorage({...})` entry to `storageRegistry.ts`, plus its `setupDatabase()` /
-`deleteAll()` call in `setupAllDatabases.ts` / `resetAllDatabases.ts` — coverage tests
-enforce both against the registry. `DefaultDI.ts` builds each entry through
-`createStorage` (SQLite/Postgres → `SqliteTabularRepository` and friends);
-`src/config/TestingDI.ts` builds each as `InMemoryTabularRepository`. DI is the `workglow`
-package's `globalServiceRegistry` with typed tokens; call
+One `defineStorage` entry in `src/config/storageRegistry.ts`. Nothing else:
+`setupAllDatabases`, `resetAllDatabases`, `db stats` and the schema passes all loop
+that list. `TestingDI` binds every entry as in-memory; call
 `resetDependencyInjectionsForTesting()` in test setup.
-
-### Schema pattern
-
-Schemas use TypeBox (v1, imported as `typebox`). Each storage module exports a schema
-(`AddressSchema`), primary key name constants (`AddressPrimaryKeyNames`), a DI token
-(`ADDRESS_REPOSITORY_TOKEN`), and a repo class with domain-specific methods.
-
-### Temporal design: history + current state
-
-The dataset's value is showing how filings change data **over time** alongside a queryable
-**current state**:
-
-- **Per-filing / append-only tables** (offering histories, observations, XBRL facts,
-  `spac_event`, `spac_deal`) are keyed by accession or filing date and are never
-  overwritten by a later filing. They are the time series.
-- **Mutable "current" rows** (`Crowdfunding`, `Portal`, `RegAOffering`, `spac`) must
-  reflect the latest filing **by filing date, not processing order**. Every write guards
-  against out-of-order processing (skip when the incoming `filing_date` is older than the
-  row's as-of date; unknown dates apply as-is) and **merges** fields the newer filing does
-  not carry rather than clobbering them with nulls.
-- **History tables** (`CrowdfundingHistory`, `spac_history`, `ChangeLog`) version the
-  mutable rows so point-in-time state stays reconstructable.
-- These guards are what make replays idempotent and order-safe. When an extractor bug
-  corrupts data midway through a CIK, the recovery is to re-process the whole CIK
-  (version bump → re-extract).
 
 ## Cross-cutting rules
 
-These apply everywhere and are the ones worth carrying into every change.
+**`bootstrapSecRuntime` is the one path that brings up the runtime** — the SQLite
+binding, DI, models, providers, the started fetch queue. Both binaries call it. A
+second entrypoint booting another way drifts silently, with late and misleading
+failures (a task resolving no model, a fetch with no rate limiter).
 
-**Enforce invariants in code, never in the prompt.** A model instruction is a request; a
-guard is a fact. Where a model could return something downstream must not persist — an
-ownership-table subtotal row, a category heading returned as a risk, a proxy that merely
-_recites_ a combination — the check lives in the persist path or a deterministic scan, not
-only in the prompt. False positives here corrupt the primary answer with no trace.
+**`registerSecTasks` is a curated list**, not every class under `src/task/`. A task
+earns its place there by answering a question on its own.
 
-**One bad filing never aborts a sweep.** Extraction failures are recorded as dead letters
-and the run returns `{ success: false }`; cooperative cancellation (Ctrl-C) is re-thrown
-rather than dead-lettered, so an interrupted sweep does not stamp version-gated failures on
-filings it merely stopped mid-flight. See `docs/extraction.md`.
+**`getDb()` is SQLite-only** and throws when `SEC_DB_TYPE` is not sqlite. Before
+that guard it would open a stray SQLite file under Postgres, and rows written
+through it never reached the configured backend.
 
-**One rule decides which FILE a filing is fetched as, and it is not the same rule as
-what an extractor reads.** `submissionFetchKind` (`src/task/forms/submissionFetchPolicy.ts`)
-is the single definition: the registration/prospectus family, Reg A annual reports, and
-**every 8-K** are fetched as the full-submission `.txt`; everything else as its primary
-document. Four sites used to answer this and gave three answers, so what was on disk for a
-given 8-K was a function of ingest history rather than of the form.
+**Raw SQL goes through `resolveSqlBackend(access, repo)`.** Both arguments are
+required so each call site states its intent. Two guards force the repository path:
+a **dry run** with `access: "write"` (raw SQL goes around the `ReadOnlyTabularStorage`
+wrapper and would commit for real), and a **non-durable repo** (an in-memory store
+is invisible to `getDb()`, so a fast path would target a different store). Raw DDL
+in `setupAllDatabases` / `resetAllDatabases` keeps its own `isDryRun()` guard.
 
-8-K is unconditional on purpose. Its primary document is routinely four sentences pointing
-at the EX-99.1 press release that carries the news, so the exhibits are not an extra — for
-this form they are the filing — and only the `.txt` carries them, or the
-`<TYPE>`/`<DESCRIPTION>`/`<FILENAME>` manifest saying what each one is. It costs one
-request either way.
-
-What an extractor SEES stays separate, and is asked per extractor rather than per form:
-`readsFullSubmission` is never unioned, so the 8-K's two readings answer independently. The
-item-code half (`8-K-items`, here) declares none and is handed metadata and the shared parse
-only; the known-SPAC-plus-trigger-item predicate survives unchanged on the de-SPAC milestone
-and narrative readings, which a consumer package registers. Those were one flag once, which
-is what made "fetch more" and "feed the model more" impossible to do separately — widening a
-model's input is an evaluable behavior change with its own golden truth.
-`extractor_runs.read_full_submission` records, per run, which answer each extractor got.
-
-**A recorded successful run is what stops a filing being re-selected.** Handlers that
-no-op behind a gate (a known-SPAC check, say) still record success, so recovering them
-needs a descriptor that widens or replaces the anti-join — never a bare re-run. Those
-handlers and their descriptors are a consumer package's; what stays here is the seam they
-arrive through (`registerBackfillDescriptor`) and the run ledger they are re-selected
-against. An id nothing contributed a descriptor for is refused by name rather than swept
-over zero filings and reported done.
-
-**`getDb()` is SQLite-only** and throws `SecCliConfigurationError` when
-`SEC_DB_TYPE !== "sqlite"`. Before that guard it would silently open a stray SQLite file
-under Postgres, and rows written through it never reached the configured backend.
-
-**Raw SQL goes through `resolveSqlBackend(access, repo)`** (`src/util/sqlBackend.ts`):
-SQLite → `getDb()`, Postgres → `getPgPool()`, otherwise the repository. Both parameters
-are required so each call site states its intent. Two guards force the repository path:
-
-- **Dry run, `access: "write"` only.** `--dry-run` is enforced by `createStorage` wrapping
-  storages in `ReadOnlyTabularStorage`; a raw-SQL write goes around that wrapper and would
-  commit for real. A raw-SQL **read** commits nothing, and demoting it would be a silent
-  pessimisation, so reads keep the fast path.
-- **A non-durable repo — pass the repo whenever you have one.** An in-memory store is
-  invisible to `getDb()`/`getPgPool()`, so a fast path would target a different store. This
-  is reachable in one process, not just across test files: `EnvToDI` defaults `SEC_DB_TYPE`
-  to `"sqlite"` and `.env.test` supplies the folder/name, so anything holding an in-memory
-  repo can still satisfy every token check. (Across test _files_ the registry is already
-  clean — `resetDependencyInjectionsForTesting` strips these `ENV_DERIVED_TOKENS` and vitest
-  isolates with `pool: "forks"`.)
-
-  Call sites: `cikNameBulkWriter.ts`, `Form8KEventReplace.ts` (writes); `feedFilings.ts`,
-  `factsEligibleCiks.ts`, `selectFilingsToConvert.ts`, `DbStatus.ts` (reads). The raw **DDL**
-  in `setupAllDatabases.ts` / `resetAllDatabases.ts` is not a fast path and keeps its own
-  `isDryRun()` guard.
-
-**A bulk read is not a reason to reach for raw SQL.** `ITabularStorage` expresses set
-membership directly — `query({ col: { value: [...], operator: "in" } })` — so "rows for
-these N ids" is one query on every backend (`PersonObservationTitleRepo.listForObservations`
-is the worked example). Chunk only because SQLite binds one parameter per value.
+**A bulk read is not a reason to reach for raw SQL.** `ITabularStorage` expresses
+set membership directly — `query({ col: { value: [...], operator: "in" } })`. Chunk
+only because SQLite binds one parameter per value.
 
 **Every Postgres identifier is schema-qualified to `current_schema()`** (`quote` /
-`currentSchemaName` in `src/util/pgIdentifiers.ts`). Unqualified names resolve through
-`search_path` and would reach a same-named table in another schema — the hazard applies to
-DDL, drops, catalog probes and row-count estimates alike.
+`currentSchemaName`). An unqualified name resolves through `search_path` and can
+reach a same-named table in another schema.
 
-**Extraction samples greedily.** Every model call sends `temperature: 0`
-(`SEC_EXTRACTION_TEMPERATURE`). Extraction is transcription — the answer is already in the
-filing — and unpinned sampling made re-processing one filing yield 138/138/109 risk factors
-whose contents differed all three times.
+**One rule decides which FILE a filing is fetched as**: `submissionFetchKind`
+(`src/task/document/submissionFetchPolicy.ts`). Registration and prospectus forms,
+Reg A annual reports, and **every 8-K** are fetched as the full-submission `.txt`;
+everything else as its primary document. 8-K is unconditional because its primary
+document is routinely four sentences pointing at the EX-99.1 that carries the news
+— for that form the exhibits *are* the filing, and only the `.txt` has them.
 
-**That is also what makes the extraction cache sound**, and the cache turns itself off
-whenever it stops being true. `runGuardedExtraction` is fronted by `extraction_cache`, keyed
-on a hash of every input to the call — label, model, instructions, output schema, and the
-section text VERBATIM — so nothing in it can go stale and a prompt edit misses rather than
-serving an old answer. It is a cache and not storage: results are still written per
-accession, so the temporal model is untouched and truncating the table costs money, not
-information. It stands down under `SEC_EXTRACTION_CACHE=0`, under a dry run, and
-automatically whenever the temperature is not 0 — above 0 the second call would legitimately
-differ, and serving the first would re-impose the determinism the operator just lifted. A
-stateful test double suspends it with `suspendExtractionCache()` for the same reason.
-Measured worth: ~21% of section-granularity calls across 25 real amendment families
-(`scripts/measureSectionReuse.ts`).
+**`FILING_CONVERTER_VERSION` is the only version knob left.** Bump it by hand after
+a parser change to re-select already-converted filings; never truncate, since a
+half-finished re-run then leaves the old rows readable.
 
 ## Environment variables
 
-Set in `.env.local` (see `.env.test` for test defaults).
+Set in `.env.local`; `.env.test` carries the test defaults. `sec setup` writes the
+first few.
 
-| Var                                                                               | Meaning                                                                             |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `SEC_RAW_DATA_FOLDER`                                                             | Path to raw downloaded data                                                         |
-| `SEC_DB_FOLDER` / `SEC_DB_NAME`                                                   | SQLite directory / database name (default `edgar`)                                  |
-| `SEC_DB_TYPE`                                                                     | `"sqlite"` (default) or `"postgres"`                                                |
-| `SEC_PG_URL`                                                                      | Postgres connection string (takes precedence over the individual vars)              |
-| `SEC_PG_HOST`, `SEC_PG_PORT`, `SEC_PG_USER`, `SEC_PG_PASSWORD`, `SEC_PG_DATABASE` | Individual Postgres settings (defaults `localhost`, `5432`, `edgar`)                |
-| `SEC_FETCH_MAX_PER_SEC`                                                           | EDGAR fetch **rate**, req/s, shared cluster-wide (default 4, clamped 1–8)           |
-| `SEC_FETCH_MAX_CONCURRENT`                                                        | EDGAR fetches **in flight**, per process (default 4, clamped 1–64)                  |
-| `SEC_FIXTURES_DIR`                                                                | Root for the gitignored fixture cache (default cwd)                                 |
-| `SEC_S1_MOCK_DIR`                                                                 | Override the committed S-1 fixtures directory                                       |
-| `SEC_UNIT_TERMS_REF`                                                              | Override the embarc unit-terms reference CSV                                        |
-| `SEC_EXTRACTION_TEMPERATURE`                                                      | Sampling temperature for every extraction call (default `0`)                        |
-| `SEC_EXTRACTION_CACHE`                                                            | `0` disables the extraction cache (default on; auto-off when temperature is not 0)  |
-| `SEC_MODEL_DEFAULT` + per-extractor overrides                                     | Extraction models (built-in default `DEFAULT_SEC_MODEL`) — see `docs/extraction.md` |
+| Var | Meaning |
+| --- | --- |
+| `SEC_RAW_DATA_FOLDER` | Downloaded archives, the document cache, the ONNX weight cache |
+| `SEC_DB_FOLDER` / `SEC_DB_NAME` | SQLite directory / database name (default `edgar`) |
+| `SEC_DB_TYPE` | `"sqlite"` (default) or `"postgres"` |
+| `SEC_PG_URL` or `SEC_PG_HOST`/`PORT`/`USER`/`PASSWORD`/`DATABASE` | Postgres settings |
+| `SEC_SQLITE_CACHE_MB` | Page-cache ceiling for the one shared connection (2–4096) |
+| `SEC_USER_AGENT` | EDGAR requires a descriptive one; a compiled-in default applies |
+| `SEC_FETCH_MAX_PER_SEC` | EDGAR request **rate**, shared cluster-wide (default 4, 1–8) |
+| `SEC_FETCH_MAX_CONCURRENT` | Requests **in flight**, per process (default 4, 1–64) |
+| `SEC_FETCH_TIMEOUT_MS` | Per-attempt timeout — time *without progress*, not elapsed |
+| `SEC_MODEL` | Generation model for `ask`; unset resolves by which API key is present |
+| `SEC_EMBEDDING_MODEL` | Embedding model — changing it invalidates the index |
+| `SEC_ONNX_DEVICE` | `cpu` (default) or `webgpu` where there is an adapter |
+| `SEC_FIXTURES_DIR`, `SEC_S1_MOCK_DIR` | Fixture roots |
 
-The two fetch limits are **independent and both needed**: the rate limiter meters starts
-over a one-second window and its reservations age out rather than being held to completion,
-so on its own it admits `rate × latency` requests — a slow EDGAR serving multi-MB documents
-at 30s each puts fetches in flight in the hundreds, and at roughly two descriptors apiece
-that exhausts the process's descriptor table (macOS's default `ulimit -n` of 256 goes
-first). The concurrency limiter holds its slot until the job is terminal, which is what
-bounds the peak. The default 4 matches the rate cap, so a process cannot hold more in flight
-than it may start in a second, and the cap binds once a fetch averages over one second — a
-healthy sweep is unaffected. Retries re-enter through the queue rather than re-issuing
-in-job, so they cannot bypass either cap; see `docs/fetch-and-storage.md`.
+The two fetch limits are **independent and both needed** — see
+`docs/fetch-and-storage.md`.
 
 ## TypeScript conventions
 
-From `.cursor/rules/`:
-
-- Use **Bun** (`bun test`, `bun run`)
-- **No default exports**; **no enums** — `as const` objects instead
+- **No default exports**; **no enums** — `as const` objects, derive with `keyof typeof`
 - **`import type`** for type-only imports; merge when mixed with value imports
 - **`interface extends`** over `&` intersections
-- **`readonly`** properties by default
-- **Explicit return types** on top-level module functions (except JSX components)
-- **`string | undefined`** over `?: string` — force explicit passing
+- **`readonly`** by default; **`T | undefined`** over `T?`
+- **Explicit return types** on top-level module functions
 - **Discriminated unions** for variant data
 - `as any` only inside generic function bodies where TS cannot narrow
-- Concise JSDoc only when behavior is non-obvious; `@link` for cross-references
+- Concise JSDoc only where behavior is non-obvious; comments explain **why**
 
-## Linting
+## Formatting and linting
 
-`oxlint` with `oxlint-tsgolint` for the type-aware rules, configured in
-`.oxlintrc.json` and scoped to `src` and `scripts`. It replaces an
-`eslint.config.js` that had been dead for a while: no `eslint` dependency was
-installed, no script invoked it, and CI never ran it — so none of the rules it
-named had ever fired. Several of the findings fixed on the way in were the
-backlog that had built up behind that.
+`oxfmt`: 100 cols, 2-space, double quotes, es5 trailing commas. `oxlint` with
+`oxlint-tsgolint` for the type-aware rules, scoped to `src` and `scripts`.
 
-Type-aware rules need no build here: they resolve `@workglow/*` through the
-published `dist/*.d.ts` that `bun install` already puts in `node_modules`.
-
-Most type-aware rules are staged **off**, each with the count it reports today
-written beside it in the config. They are real findings, not false positives,
-and each is a cleanup of its own — `no-floating-promises` (22) is the one worth
-doing first. `no-duplicate-type-constituents` is off permanently: it reports
-`string | undefined` on optional parameters, which is the house style.
-
-Gone with ESLint: `eslint-plugin-regexp`, which oxlint has no equivalent for.
-`no-super-linear-backtracking` — the ReDoS guard — is the one with no
-substitute; `no-control-regex`, `no-invalid-regexp`,
-`no-misleading-character-class` and `no-useless-backreference` all survive in
-oxlint's `correctness` set.
-
-## Formatting
-
-Oxfmt: 100 char width, 2-space indent, double quotes, trailing commas (es5), semicolons.
-Enforced by `bun run format-check` in CI, so run `bun run format` before pushing. The
-version is **pinned exactly** (not a range): a floating range reformats on a minor release
-and turns CI red on a day nobody touched the code.
-
-Two `.oxfmtrc.json` `ignorePatterns` are load-bearing — do not tidy them out:
-
-- **Every `mock_data/` directory.** These are captured EDGAR bytes, not source.
-  `goldenFixtures.test.ts` re-hashes the `src/sec/html/mock_data/{s1,424}` corpus against
-  SHA-256 digests in `goldenFixtureManifest.ts`, so reformatting a fixture turns that test
-  red and destroys the capture provenance (a bare `oxfmt` over `.` rewrites 28 of them).
-  Other `mock_data/` trees back whitespace-sensitive prose segmentation and source-span
-  verification, where re-indenting changes what the tests measure. The entry names the
-  directories, not the files that fail today.
-- **`src/eval/goldenS1Labels.ts`** — one label per line so each can be checked against the
-  filing it came from. A formatter that collapses them would rewrite most of this file.
+**Every `mock_data/` entry in `.oxfmtrc.json` is load-bearing.** These are captured
+EDGAR bytes, not source: `goldenFixtures.test.ts` re-hashes the
+`src/sec/html/mock_data` corpus against SHA-256 digests, so reformatting a fixture
+turns that test red and destroys the capture provenance. Other trees back
+whitespace-sensitive segmentation and source-span checks.
