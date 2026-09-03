@@ -85,7 +85,7 @@ describe("CLI v2 integration", () => {
 
   it("should show sync subcommands", async () => {
     const output = await runCli("sync", "--help");
-    for (const sub of ["index", "submissions", "facts", "documents"]) {
+    for (const sub of ["index", "submissions", "facts", "documents", "adv"]) {
       expect(output, sub).toContain(sub);
     }
   });

@@ -11,6 +11,9 @@ import {
 import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
 import { CatchUpDailyIndexTask } from "../../task/index/CatchUpDailyIndexTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
+import { advArchiveUrlForPeriod, latestAvailableAdvPeriod } from "../../task/adv/advArchive";
+import { IngestAdvSnapshotTask } from "../../task/adv/IngestAdvSnapshotTask";
+import { BootstrapDownloadTask } from "../../task/bootstrap/BootstrapDownloadTask";
 import { parseIntOption } from "../GlobalOptions";
 import { runWorkflowCli } from "../runWorkflow";
 import { getSyncLeaf, registerSyncLeaf, type SyncLeafOptionValues } from "./syncLeaves";
@@ -163,6 +166,41 @@ export function registerSecSyncLeaves(): void {
             downloadOnly: bool(values, "downloadOnly"),
             limit: num(values, "limit") ?? DEFAULT_CONVERT_LIMIT,
           },
+        }),
+      ]);
+    },
+  });
+
+  registerSyncLeaf({
+    id: "adv",
+    description: "Download and ingest the latest Form ADV archive",
+    order: 50,
+    inAll: true,
+    options: [
+      {
+        flags: "--period <YYYY-MM>",
+        description: "Which monthly archive to take (default: the newest that is published yet)",
+      },
+      {
+        flags: "--force",
+        description: "Re-download the archive even when it is unchanged since the last run",
+        defaultValue: false,
+      },
+    ],
+    run: async (values) => {
+      const period = str(values, "period") ?? latestAvailableAdvPeriod();
+      await runWorkflowCli([
+        new BootstrapDownloadTask({
+          title: `Download ADV ${period}`,
+          defaults: {
+            url: advArchiveUrlForPeriod(period),
+            targetFolder: "adv",
+            force: bool(values, "force"),
+          },
+        }),
+        new IngestAdvSnapshotTask({
+          title: `Ingest ADV ${period}`,
+          defaults: { snapshot: period },
         }),
       ]);
     },

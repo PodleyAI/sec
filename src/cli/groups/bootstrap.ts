@@ -16,6 +16,7 @@ import { BackfillNameHistoryTask } from "../../task/submissions/BackfillNameHist
 import { BootstrapSubmissionsTask } from "../../task/submissions/BootstrapSubmissionsTask";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
+import { ADV_BOOTSTRAP_ARCHIVE_URLS } from "../../task/adv/advArchive";
 
 const BULK_DOWNLOADS = {
   submissions: {
@@ -91,7 +92,7 @@ export function addBootstrapCommands(program: Command): void {
 
   bootstrap
     .command("download <type>")
-    .description("Download bulk SEC data (submissions, facts, ciks, or all)")
+    .description("Download bulk SEC data (submissions, facts, ciks, adv, or all)")
     .option(
       "--force",
       "Re-download and fully overwrite even when the archive is unchanged since the last run",
@@ -104,8 +105,23 @@ export function addBootstrapCommands(program: Command): void {
           return;
         }
 
+        if (type === "adv") {
+          // Both halves, because the SEC split the cumulative archive by size
+          // rather than by content: neither on its own has the whole table set.
+          await runWorkflowCli(
+            ADV_BOOTSTRAP_ARCHIVE_URLS.map(
+              (url, index) =>
+                new BootstrapDownloadTask({
+                  title: `Download adv part ${index + 1}`,
+                  defaults: { url, targetFolder: "adv", force: options.force ?? false },
+                })
+            )
+          );
+          return;
+        }
+
         if (type !== "submissions" && type !== "facts" && type !== "all") {
-          throw new Error(`Invalid type "${type}". Must be submissions, facts, ciks, or all.`);
+          throw new Error(`Invalid type "${type}". Must be submissions, facts, ciks, adv, or all.`);
         }
 
         const types: (keyof typeof BULK_DOWNLOADS)[] =

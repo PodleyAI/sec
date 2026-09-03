@@ -13,6 +13,7 @@ import type { QueryResult } from "../queries/EntityQuery";
 import { formatXbrlDimensions, formatXbrlPeriod } from "../queries/XbrlQuery";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
+import { QueryAdvisersTask } from "../../task/query/QueryAdvisersTask";
 
 const FORMAT_CHOICES = ["table", "json", "csv"] as const;
 type OutputFormat = (typeof FORMAT_CHOICES)[number];
@@ -214,6 +215,46 @@ export function addQueryCommands(program: Command): void {
           { key: "fy", header: "FY", width: 6 },
           { key: "fp", header: "FP", width: 4 },
           { key: "filed_date", header: "Filed", width: 12 },
+        ];
+        renderQueryResult(result, columns, format, offset, limit);
+      })
+    );
+
+  query
+    .command("advisers [search]")
+    .description("Investment advisers from Form ADV")
+    .option("--crd <crd>", "Filter by CRD number")
+    .option("--state <state>", "Filter by main-office state")
+    .option("--snapshot <YYYY-MM>", "Filter to one archive period")
+    .option("--min-aum <dollars>", "Only advisers reporting at least this much AUM", parseIntOption)
+    .option("--limit <n>", "Limit results", parseIntOption, 25)
+    .option("--offset <n>", "Offset results", parseIntOption, 0)
+    .option("--format <format>", "Output format (table, json, csv)", "table")
+    .action(
+      wrapAction(async (search: string | undefined, options: Record<string, unknown>) => {
+        const limit = options.limit as number;
+        const offset = options.offset as number;
+        const format = validateFormat(options.format as string);
+        const result = await runWorkflowCli<QueryResult<unknown>>([
+          new QueryAdvisersTask({
+            defaults: {
+              search,
+              crd: options.crd as string | undefined,
+              state: options.state as string | undefined,
+              snapshot: options.snapshot as string | undefined,
+              minAum: options.minAum as number | undefined,
+              limit,
+              offset,
+            },
+          }),
+        ]);
+
+        const columns = [
+          { key: "crd_number", header: "CRD", width: 10 },
+          { key: "legal_name", header: "Legal name", width: 40 },
+          { key: "main_office_state", header: "State", width: 6 },
+          { key: "regulatory_aum", header: "AUM", width: 16 },
+          { key: "snapshot", header: "Snapshot", width: 9 },
         ];
         renderQueryResult(result, columns, format, offset, limit);
       })

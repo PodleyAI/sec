@@ -8,6 +8,8 @@ import { TaskRegistry } from "workglow";
 import { ListFormTypesTask } from "../task/query/ListFormTypesTask";
 import { QueryCiksTask } from "../task/query/QueryCiksTask";
 import { QueryEntitiesTask } from "../task/query/QueryEntitiesTask";
+import { IngestAdvSnapshotTask } from "../task/adv/IngestAdvSnapshotTask";
+import { QueryAdvisersTask } from "../task/query/QueryAdvisersTask";
 import { QueryFactsTask } from "../task/query/QueryFactsTask";
 import { QueryFilingsTask } from "../task/query/QueryFilingsTask";
 import { QueryXbrlTask } from "../task/query/QueryXbrlTask";
@@ -31,6 +33,8 @@ export const SEC_CLI_TASKS = [
   ListFormTypesTask,
   QueryCiksTask,
   QueryEntitiesTask,
+  IngestAdvSnapshotTask,
+  QueryAdvisersTask,
   QueryFactsTask,
   QueryFilingsTask,
   QueryXbrlTask,

@@ -63,6 +63,6 @@ describe("CLI command graph", () => {
     // The whole registry, in run order — a leaf dropped from
     // `registerSecSyncLeaves` is otherwise invisible, since the group still
     // builds and every other leaf still registers.
-    expect(subNames).toEqual(["index", "submissions", "facts", "documents"]);
+    expect(subNames).toEqual(["index", "submissions", "facts", "documents", "adv"]);
   });
 });

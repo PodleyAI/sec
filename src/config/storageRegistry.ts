@@ -14,6 +14,16 @@ import type {
 } from "workglow";
 import { globalServiceRegistry } from "workglow";
 import {
+  ADV_ADVISER_REPOSITORY_TOKEN,
+  AdvAdviserPrimaryKeyNames,
+  AdvAdviserSchema,
+} from "../storage/adv/AdvAdviserSchema";
+import {
+  ADV_ROW_REPOSITORY_TOKEN,
+  AdvRowPrimaryKeyNames,
+  AdvRowSchema,
+} from "../storage/adv/AdvRowSchema";
+import {
   CHANGE_LOG_REPOSITORY_TOKEN,
   ChangeLogPrimaryKeyNames,
   ChangeLogSchema,
@@ -289,5 +299,20 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     schema: ChangeLogSchema,
     primaryKeyNames: ChangeLogPrimaryKeyNames,
     indexes: [["entity_type", "entity_id"]],
+  }),
+  // ------------------------------ Form ADV ----------------------------------
+  defineStorage({
+    token: ADV_ADVISER_REPOSITORY_TOKEN,
+    table: "adv_adviser",
+    schema: AdvAdviserSchema,
+    primaryKeyNames: AdvAdviserPrimaryKeyNames,
+    indexes: ["crd_number", "legal_name", "main_office_state"],
+  }),
+  defineStorage({
+    token: ADV_ROW_REPOSITORY_TOKEN,
+    table: "adv_row",
+    schema: AdvRowSchema,
+    primaryKeyNames: AdvRowPrimaryKeyNames,
+    indexes: ["table_name"],
   }),
 ];
