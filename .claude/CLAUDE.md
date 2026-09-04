@@ -336,6 +336,12 @@ installed, no script invoked it, and CI never ran it — so none of the rules it
 named had ever fired. Several of the findings fixed on the way in were the
 backlog that had built up behind that.
 
+Both versions are **pinned exactly** (not ranges), as oxfmt's is: `lint` runs
+with `--deny-warnings` and CI runs `lint`, so a floating range picks up a rule
+added to `correctness` on a minor release and turns CI red on a day nobody
+touched the code. They move together — oxlint declares `oxlint-tsgolint` as a
+peer — so bump both in one deliberate change.
+
 Type-aware rules need no build here: they resolve `@workglow/*` through the
 published `dist/*.d.ts` that `bun install` already puts in `node_modules`.
 
