@@ -269,7 +269,7 @@ describe("queryEntities", () => {
   });
 
   it("throws for invalid sort field", async () => {
-    expect(queryEntities({ sort: "nonexistent_field" })).rejects.toThrow(
+    await expect(queryEntities({ sort: "nonexistent_field" })).rejects.toThrow(
       'Invalid sort field "nonexistent_field"'
     );
   });

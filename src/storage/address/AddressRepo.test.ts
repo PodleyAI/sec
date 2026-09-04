@@ -241,7 +241,7 @@ describe("AddressRepo", () => {
         zipCode: "invalid",
       };
 
-      expect(addressRepo.saveAddress(malformedImport)).rejects.toThrow(
+      await expect(addressRepo.saveAddress(malformedImport)).rejects.toThrow(
         "Unable to clean and normalize the provided address"
       );
 
