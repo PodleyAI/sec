@@ -18,7 +18,6 @@ import {
   SqliteVectorStorage,
 } from "workglow";
 import { SecCliConfigurationError } from "../config/EnvToDI";
-import { withWorkingSimilaritySearch } from "./SecChunkVectorStorage";
 import { secEmbeddingModel, SEC_EMBEDDING_DIMENSIONS } from "../config/models";
 import { SEC_DB_TYPE } from "../config/tokens";
 import { getDb } from "../util/db";
@@ -74,15 +73,13 @@ export async function getSecKnowledgeBase(): Promise<KnowledgeBase> {
     DocumentStorageSchema,
     DocumentStorageKey
   );
-  const chunks = withWorkingSimilaritySearch(
-    new SqliteVectorStorage(
-      db,
-      CHUNK_TABLE,
-      ChunkVectorStorageSchema,
-      ChunkVectorPrimaryKey,
-      [],
-      SEC_EMBEDDING_DIMENSIONS
-    )
+  const chunks = new SqliteVectorStorage(
+    db,
+    CHUNK_TABLE,
+    ChunkVectorStorageSchema,
+    ChunkVectorPrimaryKey,
+    [],
+    SEC_EMBEDDING_DIMENSIONS
   );
   await documents.setupDatabase();
   await chunks.setupDatabase();
