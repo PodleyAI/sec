@@ -30,11 +30,11 @@ import {
   type ExemptOfferingFormCode,
 } from "../../sec/forms/exempt-offerings/form-slugs";
 import { accessionFromFileName, accessionWithoutDashes } from "../../util/accession";
-import { SecFetchAccessionDocTask } from "../forms/SecFetchAccessionDocTask";
 import {
   FetchQuarterlyFormIdxTask,
   type QuarterlyFormIdxRow,
 } from "../index/FetchQuarterlyFormIdxTask";
+import { SecFetchAccessionDocTask } from "../fetch/SecFetchAccessionDocTask";
 
 export const DEFAULT_FIXTURES_PER_FORM = 50;
 

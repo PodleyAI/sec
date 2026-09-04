@@ -18,7 +18,6 @@ import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../../storage/processing/CikLa
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
 import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
-import { StoreSubmissionContactInfoTask } from "./StoreSubmissionContactInfoTask";
 import { StoreSubmissionEntityTask } from "./StoreSubmissionEntityTask";
 import { StoreSubmissionFilingsTask } from "./StoreSubmissionFilingsTask";
 import { StoreSubmissionNameHistoryTask } from "./StoreSubmissionNameHistoryTask";
@@ -67,7 +66,6 @@ export class StoreSubmissionsTask extends Task<
         new StoreSubmissionSicTask({ defaults: input }),
         new StoreSubmissionEntityTask({ defaults: input }),
         new StoreSubmissionNameHistoryTask({ defaults: input }),
-        new StoreSubmissionContactInfoTask({ defaults: input }),
         new StoreSubmissionTickersTask({ defaults: input }),
         new StoreSubmissionFilingsTask({ defaults: input }),
       ]),

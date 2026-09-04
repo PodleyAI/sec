@@ -35,49 +35,37 @@ describe("CLI command graph", () => {
 
     const names = program.commands.map((c) => c.name());
     for (const expected of [
-      "bootstrap",
-      "sync",
+      "setup",
+      "status",
+      "get",
+      "update",
+      "load",
+      "show",
+      "read",
+      "index",
+      "ask",
       "fetch",
-      "query",
       "db",
-      "init",
-      "version",
-      // Registered by registerIssuerCommands, and the only top-level evidence
-      // it ran. `spac`, `underwriter`, `resolve` and `canonical` are gone from
-      // here with the tiers that were the whole of those groups; the package
-      // owning them registers them now.
-      "issuer",
-      "editorial",
-      "extractor",
+      // Inherited from @workglow/cli, and the only evidence it registered.
+      "web",
     ]) {
       expect(names).toContain(expected);
     }
   });
 
-  it("registers sync subcommands without update or adv", () => {
+  it("registers every sync leaf as its own subcommand", () => {
     const program = new Command();
     AddCommands(program);
 
     const names = program.commands.map((c) => c.name());
-    expect(names).toContain("sync");
-    expect(names).not.toContain("update");
+    expect(names).toContain("update");
 
-    const syncCmd = program.commands.find((c) => c.name() === "sync");
+    const syncCmd = program.commands.find((c) => c.name() === "update");
     expect(syncCmd).toBeDefined();
     const subNames = syncCmd!.commands.map((c) => c.name());
-    for (const expected of [
-      "all",
-      "submissions",
-      "facts",
-      "portals",
-      "crowdfunding",
-      "reg-a",
-      "forms",
-    ]) {
-      expect(subNames).toContain(expected);
-    }
-    // Both belong to leaves a downstream package registers.
-    expect(subNames).not.toContain("adv");
-    expect(subNames).not.toContain("spacs");
+    // The whole registry, in run order — a leaf dropped from
+    // `registerSecSyncLeaves` is otherwise invisible, since the group still
+    // builds and every other leaf still registers.
+    expect(subNames).toEqual(["index", "submissions", "facts", "documents", "adv"]);
   });
 });

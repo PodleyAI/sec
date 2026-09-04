@@ -3,6 +3,7 @@ import { InvalidArgumentError, type Command } from "commander";
 export interface GlobalOptions {
   readonly dryRun: boolean;
   readonly json: boolean;
+  readonly quiet: boolean;
 }
 
 // `--dry-run` gates writes via SEC_DRY_RUN; `--json` routes status/error output
@@ -12,7 +13,8 @@ export interface GlobalOptions {
 export function applyGlobalOptions(program: Command): Command {
   return program
     .option("--dry-run", "Show what would happen without changes", false)
-    .option("--json", "Emit status and error output as machine-parseable JSON", false);
+    .option("--json", "Emit status and error output as machine-parseable JSON", false)
+    .option("--quiet", "Suppress the suggested next commands", false);
 }
 
 export function parseGlobalOptions(cmd: Command): GlobalOptions {
@@ -20,6 +22,7 @@ export function parseGlobalOptions(cmd: Command): GlobalOptions {
   return {
     dryRun: opts.dryRun ?? false,
     json: opts.json ?? false,
+    quiet: opts.quiet ?? false,
   };
 }
 

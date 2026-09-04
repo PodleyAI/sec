@@ -1,23 +1,22 @@
 import { Value } from "typebox/value";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createServiceToken, globalServiceRegistry } from "workglow";
-import {
-  registerDbStatsTables,
-  resetDbStatsTablesForTesting,
-  type CountableRepository,
-} from "../../cli/queries/DbStatus";
+import { beforeEach, describe, expect, it } from "vitest";
+import { globalServiceRegistry } from "workglow";
+import type { CountableRepository } from "../../cli/queries/DbStatus";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { DbStatsTask } from "./DbStatsTask";
+import {
+  FILING_REPOSITORY_TOKEN,
+  type FilingRepositoryStorage,
+} from "../../storage/filing/FilingSchema";
 
 describe("DbStatsTask", () => {
   beforeEach(() => resetDependencyInjectionsForTesting());
-  afterEach(() => resetDbStatsTablesForTesting());
 
   // The declared port schema is what downstream graph wiring reads, so the
   // degraded (`rows: null`) count has to be part of the contract, not just a
   // value the execute() happens to return.
   it("declares the null row count and the estimate flag in its output schema", () => {
-    const degraded = { tables: [{ table: "ext_missing", rows: null, estimated: false }] };
+    const degraded = { tables: [{ table: "filings", rows: null, estimated: false }] };
     expect(Value.Check(DbStatsTask.outputSchema(), degraded)).toBe(true);
     expect(
       Value.Check(DbStatsTask.outputSchema(), {
@@ -32,17 +31,19 @@ describe("DbStatsTask", () => {
   });
 
   it("reports a null row count for a table the database has not created", async () => {
-    const token = createServiceToken<CountableRepository>("test.dbstatstask.missing");
-    globalServiceRegistry.registerInstance(token, {
+    const failing: CountableRepository = {
       size: async (): Promise<number> => {
-        throw new Error("SQLITE_ERROR: no such table: ext_missing");
+        throw new Error("SQLITE_ERROR: no such table: filings");
       },
-    });
-    registerDbStatsTables([{ table: "ext_missing", token }]);
+    };
+    globalServiceRegistry.registerInstance(
+      FILING_REPOSITORY_TOKEN,
+      failing as unknown as FilingRepositoryStorage
+    );
 
     const output = await new DbStatsTask().run();
 
-    expect(output.tables.find((stat) => stat.table === "ext_missing")?.rows).toBeNull();
+    expect(output.tables.find((stat) => stat.table === "filings")?.rows).toBeNull();
     expect(Value.Check(DbStatsTask.outputSchema(), output)).toBe(true);
   });
 });

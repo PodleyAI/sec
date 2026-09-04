@@ -14,7 +14,6 @@
     "node_modules",
     "coverage",
     ".claude",
-    "**/mock_data/",
-    "src/eval/goldenS1Labels.ts"
+    "**/mock_data/"
   ]
 }

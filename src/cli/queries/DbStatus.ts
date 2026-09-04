@@ -1,31 +1,13 @@
 import type { ServiceToken } from "workglow";
 import { globalServiceRegistry } from "workglow";
 import { SEC_STORAGE_REGISTRY } from "../../config/storageRegistry";
-import { ADDRESS_REPOSITORY_TOKEN } from "../../storage/address/AddressSchema";
 import { CIK_NAME_REPOSITORY_TOKEN } from "../../storage/entity/CikNameSchema";
 import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
+import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../../storage/document/FilingDocumentSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import {
-  FORM144_ACQUISITION_REPOSITORY_TOKEN,
-  FORM144_FILING_REPOSITORY_TOKEN,
-  FORM144_RECENT_SALE_REPOSITORY_TOKEN,
-} from "../../storage/form144/Form144Schema";
-import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../../storage/investment-offering/InvestmentOfferingSchema";
-import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/CompanyObservationSchema";
-import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationSchema";
-import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationTitleSchema";
-import { PHONE_REPOSITORY_TOKEN } from "../../storage/phone/PhoneSchema";
-import { CROWDFUNDING_REPOSITORY_TOKEN } from "../../storage/portal/CrowdfundingSchema";
-import { PORTAL_REPOSITORY_TOKEN } from "../../storage/portal/PortalSchema";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
-import {
-  SECTION16_FILING_REPOSITORY_TOKEN,
-  SECTION16_HOLDING_REPOSITORY_TOKEN,
-  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
-} from "../../storage/section16/Section16Schema";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { getPgPool } from "../../util/pg";
 import { resolveSqlBackend } from "../../util/sqlBackend";
 
@@ -36,7 +18,7 @@ export interface DbStatusCounts {
   readonly factsCount: number;
   readonly processedSubmissions: number;
   readonly processedFacts: number;
-  readonly extractorRuns: number;
+  readonly documentCount: number;
 }
 
 export interface DbStatusResult extends DbStatusCounts {
@@ -94,32 +76,6 @@ export interface DbCountOptions {
   readonly exact?: boolean;
 }
 
-/**
- * Physical table name per repository token, read from the same registry
- * `createStorage` builds the tables from. The estimate query needs the real
- * relation name — `to_regclass` returns NULL for a name no relation has, the
- * row filter then matches nothing, and the count silently falls back to the
- * exact scan the estimate exists to avoid. Deriving the name instead of
- * repeating it here is what stops a hand-written label (`entity` for
- * `entities`, `filing` for `filings`) from reintroducing that.
- */
-const TABLE_NAME_BY_TOKEN_ID: ReadonlyMap<string, string> = new Map(
-  SEC_STORAGE_REGISTRY.map((storage) => [storage.token.id, storage.table])
-);
-
-/**
- * Physical table name for a repository sec owns. Throws rather than guessing:
- * a token missing from the registry is a wiring mistake, and falling back to
- * the token id would silently reinstate the exact-count path.
- */
-function secTableName(token: ServiceToken<CountableRepository>): string {
-  const table = TABLE_NAME_BY_TOKEN_ID.get(token.id);
-  if (table === undefined) {
-    throw new Error(`db stats token is not in the storage registry: ${token.id}`);
-  }
-  return table;
-}
-
 /** Postgres SQLSTATE for `undefined_table`. */
 const POSTGRES_UNDEFINED_TABLE = "42P01";
 /** `SQLITE_ERROR: no such table: adv_landing_replacement` */
@@ -129,9 +85,8 @@ const POSTGRES_MISSING_RELATION = /relation\s+"[^"]*"\s+does not exist/i;
 
 /**
  * True only for "this relation has not been created", the one failure `db
- * stats` degrades on — a table registered through {@link registerDbStatsTables}
- * (or a sec built-in) in a database that has not been `db setup` since it was
- * added. Deliberately narrow: a connection failure, a permissions error or a
+ * stats` degrades on — a table in a database that has not been `db setup`
+ * since it was added. Deliberately narrow: a connection failure, a permissions error or a
  * corrupt file must still surface loudly rather than be reported as `n/a`.
  */
 export function isMissingRelationError(err: unknown): boolean {
@@ -167,7 +122,7 @@ async function countRows(token: ServiceToken<CountableRepository>): Promise<numb
  *   `resetAllDatabases` qualifies its drops. `quote_ident` keeps it
  *   parameterized — the table name stays a bind value, never interpolated SQL.
  * - **A zero estimate is almost never a real zero.** `n_live_tup` is 0 until
- *   the first ANALYZE, so right after `sec bootstrap` bulk-loads ~1M
+ *   the first ANALYZE, so right after `sec load` bulk-loads ~1M
  *   `cik_names` and before autovacuum catches up, the estimate reports 0 for a
  *   table with a million rows. Zero therefore means "no statistics yet" and
  *   falls back to the exact count; a genuinely empty table pays one cheap
@@ -220,21 +175,26 @@ async function countTableRowsOrNull(
 
 const STATUS_TABLES: readonly {
   readonly key: keyof DbStatusCounts;
+  readonly table: string;
   readonly token: ServiceToken<CountableRepository>;
 }[] = [
-  { key: "entityCount", token: ENTITY_REPOSITORY_TOKEN },
-  { key: "filingCount", token: FILING_REPOSITORY_TOKEN },
-  { key: "factsCount", token: COMPANY_FACTS_REPOSITORY_TOKEN },
-  { key: "processedSubmissions", token: PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN },
-  { key: "processedFacts", token: PROCESSED_FACTS_REPOSITORY_TOKEN },
-  { key: "extractorRuns", token: EXTRACTOR_RUN_REPOSITORY_TOKEN },
+  { key: "entityCount", table: "entities", token: ENTITY_REPOSITORY_TOKEN },
+  { key: "filingCount", table: "filings", token: FILING_REPOSITORY_TOKEN },
+  { key: "factsCount", table: "company_facts", token: COMPANY_FACTS_REPOSITORY_TOKEN },
+  {
+    key: "processedSubmissions",
+    table: "processed_submissions",
+    token: PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
+  },
+  { key: "processedFacts", table: "processed_facts", token: PROCESSED_FACTS_REPOSITORY_TOKEN },
+  { key: "documentCount", table: "filing_document", token: FILING_DOCUMENT_REPOSITORY_TOKEN },
 ];
 
 export async function getDbStatus(options: DbCountOptions = {}): Promise<DbStatusResult> {
   const counts = {} as Record<keyof DbStatusCounts, number>;
   let estimated = false;
-  for (const { key, token } of STATUS_TABLES) {
-    const counted = await countTableRows(secTableName(token), token, options.exact === true);
+  for (const { key, table, token } of STATUS_TABLES) {
+    const counted = await countTableRows(table, token, options.exact === true);
     counts[key] = counted.rows;
     estimated ||= counted.estimated;
   }
@@ -242,61 +202,17 @@ export async function getDbStatus(options: DbCountOptions = {}): Promise<DbStatu
 }
 
 /**
- * Repositories counted by `db stats`, in report order. Each table name is
- * derived from the storage registry via {@link secTableName}, so the report
- * names the relation a `psql \dt` would show and the estimate query can find it.
+ * Every table `db stats` counts, in the storage registry's declaration order.
+ *
+ * Derived rather than listed: the report has to name the PHYSICAL relation
+ * (`entities`, not `entity`), because the Postgres estimate path filters on
+ * `relid = to_regclass($1)` and a display label matches nothing — the count
+ * then silently falls back to the exact scan the estimate exists to avoid.
  */
-const BUILT_IN_TABLE_TOKENS: readonly ServiceToken<CountableRepository>[] = [
-  CIK_NAME_REPOSITORY_TOKEN,
-  ENTITY_REPOSITORY_TOKEN,
-  FILING_REPOSITORY_TOKEN,
-  COMPANY_FACTS_REPOSITORY_TOKEN,
-  INVESTMENT_OFFERING_REPOSITORY_TOKEN,
-  CROWDFUNDING_REPOSITORY_TOKEN,
-  ADDRESS_REPOSITORY_TOKEN,
-  PHONE_REPOSITORY_TOKEN,
-  PORTAL_REPOSITORY_TOKEN,
-  EXTRACTOR_RUN_REPOSITORY_TOKEN,
-  PERSON_OBSERVATION_REPOSITORY_TOKEN,
-  PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
-  COMPANY_OBSERVATION_REPOSITORY_TOKEN,
-  SECTION16_FILING_REPOSITORY_TOKEN,
-  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
-  SECTION16_HOLDING_REPOSITORY_TOKEN,
-  FORM144_FILING_REPOSITORY_TOKEN,
-  FORM144_ACQUISITION_REPOSITORY_TOKEN,
-  FORM144_RECENT_SALE_REPOSITORY_TOKEN,
-];
-
-const TABLE_TOKENS: readonly DbStatsTable[] = BUILT_IN_TABLE_TOKENS.map((token) => ({
-  table: secTableName(token),
-  token,
+const TABLE_TOKENS: readonly DbStatsTable[] = SEC_STORAGE_REGISTRY.map((storage) => ({
+  table: storage.table,
+  token: storage.token as unknown as ServiceToken<CountableRepository>,
 }));
-
-const extensionTableTokens = new Map<string, DbStatsTable>();
-
-/**
- * Adds a downstream package's tables to the standard `db stats` report.
- * Tables are keyed by name so repeated CLI construction remains idempotent.
- */
-export function registerDbStatsTables(tables: readonly DbStatsTable[]): void {
-  for (const table of tables) {
-    if (TABLE_TOKENS.some((builtIn) => builtIn.table === table.table)) {
-      throw new Error(`db stats table is already owned by sec: ${table.table}`);
-    }
-    extensionTableTokens.set(table.table, table);
-  }
-}
-
-/**
- * Clears the extension tables {@link registerDbStatsTables} collected.
- * Registration is process-global, so a test that registers a table would
- * otherwise change what every later `db stats` assertion in the same process
- * sees (the report order, its length, and which table is counted last).
- */
-export function resetDbStatsTablesForTesting(): void {
-  extensionTableTokens.clear();
-}
 
 /**
  * Counts each table in order so the task runner can render useful progress
@@ -308,7 +224,7 @@ export async function getDbStats(
   onProgress?: (progress: number, message: string) => void | Promise<void>,
   options: DbCountOptions = {}
 ): Promise<TableStat[]> {
-  const tables = [...TABLE_TOKENS, ...extensionTableTokens.values()];
+  const tables = TABLE_TOKENS;
   const results: TableStat[] = [];
   for (const [index, { table, token }] of tables.entries()) {
     const current = index + 1;

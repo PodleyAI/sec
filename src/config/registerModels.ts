@@ -7,15 +7,8 @@
 import { isAbsolute, join } from "node:path";
 import type { ModelRecord, ServiceRegistry } from "workglow";
 import { getGlobalModelRepository, globalServiceRegistry } from "workglow";
-import {
-  DEFAULT_SEC_MODEL,
-  defaultModelIds,
-  DETERMINISTIC_MODEL_ID,
-  parseModelIdList,
-  SecHftModelDefault,
-} from "./Constants";
 import { SecCliConfigurationError } from "./EnvToDI";
-import { listPricingForModelId } from "./listPricing";
+import { SEC_EMBEDDING_DIMENSIONS, secModelIds } from "./models";
 
 /**
  * Provider discriminators. Mirror the constants the provider packages register
@@ -218,7 +211,6 @@ export function anthropicModelRecord(modelId: string): ModelRecord {
     capabilities: [...ANTHROPIC_CAPABILITIES],
     provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
     metadata: {},
-    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -283,7 +275,6 @@ export function openAiModelRecord(modelId: string): ModelRecord {
       ...(effort === undefined ? {} : { reasoning: { effort } }),
     },
     metadata: {},
-    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -322,7 +313,6 @@ export function geminiModelRecord(modelId: string): ModelRecord {
     capabilities: [...CLOUD_CHAT_CAPABILITIES],
     provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
     metadata: {},
-    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -336,7 +326,6 @@ export function xaiModelRecord(modelId: string): ModelRecord {
     capabilities: [...CLOUD_CHAT_CAPABILITIES],
     provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
     metadata: {},
-    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -355,7 +344,6 @@ export function deepSeekModelRecord(modelId: string): ModelRecord {
     capabilities: CLOUD_CHAT_CAPABILITIES.filter((c) => c !== "vision-input"),
     provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
     metadata: {},
-    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -387,20 +375,38 @@ export function hftModelRecord(modelId: string): ModelRecord {
   const modelPath = modelId.startsWith(ONNX_ID_PREFIX)
     ? modelId.slice(ONNX_ID_PREFIX.length)
     : modelId;
+  // An ONNX repo is one pipeline or the other, and which it is decides both the
+  // capability set and the pipeline name. Guessing "text-generation" for an
+  // embedding model produces a record that resolves and then fails the
+  // capability gate — which is the error, one frame later and about the wrong
+  // thing. The suffix `:q8` and the rest of the dtype tail are stripped first,
+  // since they name the quantization, not the model.
+  const bare = modelPath.replace(/:(?:q\d+f?\d*|fp\d+|int\d+)$/i, "");
+  const dtype = modelPath.slice(bare.length + 1);
+  const embedding = /(?:^|[/-])(?:bge|gte|e5|minilm|nomic-embed|all-mpnet)/i.test(bare);
   return {
     model_id: modelId,
     provider: HFT_PROVIDER,
     title: modelId,
-    description: `HuggingFace Transformers ONNX ${modelPath}`,
-    capabilities: [...HFT_CAPABILITIES],
+    description: `HuggingFace Transformers ONNX ${bare}`,
+    capabilities: embedding ? ["text.embedding"] : [...HFT_CAPABILITIES],
     provider_config: {
-      model_path: modelPath,
-      pipeline: "text-generation",
-      device: "webgpu",
-      dtype: "q4f16",
+      model_path: bare,
+      pipeline: embedding ? "feature-extraction" : "text-generation",
+      // CPU by default. This is a CLI, and the machines it runs on — CI, a
+      // container, a server — mostly have no GPU; onnxruntime does not fall
+      // back on its own, it fails to acquire an adapter and the whole load
+      // throws. Override with SEC_ONNX_DEVICE=webgpu where there is one.
+      device: process.env.SEC_ONNX_DEVICE?.trim() || "cpu",
+      dtype: dtype === "" ? "q4f16" : dtype,
+      // The provider checks the tensor it produced against this, so an
+      // embedding record without it fails AFTER running the model, with the
+      // declared width reported as `undefined`.
+      ...(embedding
+        ? { native_dimensions: SEC_EMBEDDING_DIMENSIONS, pooling: "mean", normalize: true }
+        : {}),
     },
     metadata: {},
-    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -519,7 +525,6 @@ export function llamaCppModelRecord(modelId: string): ModelRecord {
       flash_attention: true,
     },
     metadata: {},
-    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -545,7 +550,6 @@ export function hfInferenceModelRecord(modelId: string): ModelRecord {
       ...(inferenceProvider ? { provider: inferenceProvider } : {}),
     },
     metadata: {},
-    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -574,34 +578,6 @@ export function openRouterModelRecord(modelId: string): ModelRecord {
         : {}),
     },
     metadata: {},
-    pricing: listPricingForModelId(modelId),
-  };
-}
-
-/**
- * Provider prefixes recognized by {@link secModelRecord}, in the message shown
- * when an id matches none of them. Kept next to the dispatch below so the two
- * can't drift.
- */
-export const KNOWN_MODEL_ID_SHAPES =
-  "claude-* (Anthropic), gpt-*/chatgpt-*/o1-*/o3-*/o4-* (OpenAI), " +
-  "gemini-* (Google), grok-* (xAI), deepseek-* (DeepSeek), " +
-  "onnx:org/name (local HuggingFace ONNX), " +
-  "llama:… / node-llama:… / gguf:… (local node-llama-cpp), " +
-  "hfi:[provider:]org/name (HuggingFace Inference), " +
-  "open-router:[provider:]vendor/model (OpenRouter), " +
-  "deterministic (sync parser, no provider)";
-
-export function deterministicModelRecord(): ModelRecord {
-  return {
-    model_id: DETERMINISTIC_MODEL_ID,
-    provider: "",
-    title: "Deterministic parser",
-    description: "Sync table/prose walk; no provider",
-    capabilities: [],
-    provider_config: {},
-    metadata: {},
-    pricing: listPricingForModelId(DETERMINISTIC_MODEL_ID),
   };
 }
 
@@ -614,7 +590,6 @@ export function deterministicModelRecord(): ModelRecord {
  * simply isn't ours to route, so those callers must not treat it as a failure.
  */
 export function trySecModelRecord(modelId: string): ModelRecord | undefined {
-  if (modelId === DETERMINISTIC_MODEL_ID) return deterministicModelRecord();
   if (isLlamaCppModelId(modelId)) return llamaCppModelRecord(modelId);
   if (isHftModelId(modelId)) return hftModelRecord(modelId);
   if (isHfInferenceModelId(modelId)) return hfInferenceModelRecord(modelId);
@@ -668,6 +643,19 @@ export function modelApiKeyEnvVar(modelId: string): string | undefined {
  * Only for the mint-a-record path. Callers inspecting an id they did not mint
  * want {@link trySecModelRecord}, which returns `undefined` instead.
  */
+/**
+ * Provider prefixes recognized by {@link secModelRecord}, in the message shown
+ * when an id matches none of them. Kept next to the dispatch below so the two
+ * can't drift.
+ */
+export const KNOWN_MODEL_ID_SHAPES =
+  "claude-* (Anthropic), gpt-*/chatgpt-*/o1-*/o3-*/o4-* (OpenAI), " +
+  "gemini-* (Google), grok-* (xAI), deepseek-* (DeepSeek), " +
+  "onnx:org/name (local HuggingFace ONNX), " +
+  "llama:… / node-llama:… / gguf:… (local node-llama-cpp), " +
+  "hfi:[provider:]org/name (HuggingFace Inference), " +
+  "open-router:[provider:]vendor/model (OpenRouter)";
+
 export function secModelRecord(modelId: string): ModelRecord {
   const record = trySecModelRecord(modelId);
   if (record) return record;
@@ -682,30 +670,6 @@ export function secModelRecord(modelId: string): ModelRecord {
   throw new SecCliConfigurationError(
     `Unknown model id "${modelId}" — no provider matches its shape. Expected one of: ${KNOWN_MODEL_ID_SHAPES}.${hint}`
   );
-}
-
-/**
- * The distinct model ids the SEC pipeline registers: the shared cloud default
- * ({@link defaultModelIds}), any per-extractor env override, and the local HFT
- * default ({@link SecHftModelDefault}, available for `sec eval` comparisons).
- * Reading the env directly (rather than importing the extractor getters) keeps
- * this config module decoupled from `src/sec/`.
- */
-function secModelIds(): string[] {
-  const ids = new Set<string>([...defaultModelIds(), SecHftModelDefault, DETERMINISTIC_MODEL_ID]);
-  for (const key of [
-    "SEC_S1_MODEL",
-    "SEC_S1_CLASSIFIER_MODEL",
-    "SEC_S1_RISK_FACTORS_MODEL",
-    "SEC_MERGER_PROXY_MODEL",
-    "SEC_REDEMPTION_MODEL",
-    "SEC_LOI_MODEL",
-  ]) {
-    const raw = process.env[key]?.trim();
-    if (!raw) continue;
-    for (const id of parseModelIdList(raw, DEFAULT_SEC_MODEL)) ids.add(id);
-  }
-  return [...ids];
 }
 
 /**
@@ -726,8 +690,8 @@ export async function registerModelIds(
 }
 
 /**
- * Registers the SEC AI models (cloud default + overrides + local HFT default) —
- * see {@link secModelIds}. Idempotent.
+ * Registers the two models this CLI has roles for — see
+ * {@link secModelIds}. Idempotent.
  */
 export async function registerSecModels(
   registry: ServiceRegistry = globalServiceRegistry

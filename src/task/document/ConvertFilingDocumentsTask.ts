@@ -19,11 +19,6 @@ export type ConvertFilingDocumentsTaskInput = {
   /** Re-convert filings already stored at the current converter version. */
   readonly force?: boolean | undefined;
   /**
-   * Convert {@link SPAC_GATED_FORMS} for every filer, not just for CIKs in
-   * `spac`. Off by default — see that constant.
-   */
-  readonly all8k?: boolean | undefined;
-  /**
    * Fill the accession-doc cache and stop: no parse, no rows.
    *
    * Selection is unchanged, so this downloads exactly the filings a normal
@@ -44,6 +39,8 @@ export type ConvertFilingDocumentsTaskOutput = {
   /** Members of the converted submissions: primary documents plus exhibits. */
   readonly documents: number;
   readonly sections: number;
+  /** As-filed inline-XBRL facts stored across the run. */
+  readonly xbrlFacts: number;
   /** Filings whose document was fetched from EDGAR on this run. */
   readonly downloaded: number;
   /** Filings whose document was already on disk, so no request was made. */
@@ -81,7 +78,6 @@ export class ConvertFilingDocumentsTask extends Task<
       cik: Type.Optional(Type.Integer()),
       limit: Type.Optional(Type.Integer({ minimum: 1 })),
       force: Type.Optional(Type.Boolean()),
-      all8k: Type.Optional(Type.Boolean()),
       downloadOnly: Type.Optional(Type.Boolean()),
     });
   }
@@ -94,6 +90,7 @@ export class ConvertFilingDocumentsTask extends Task<
       skipped: Type.Integer(),
       documents: Type.Integer(),
       sections: Type.Integer(),
+      xbrlFacts: Type.Integer(),
       downloaded: Type.Integer(),
       cached: Type.Integer(),
     });
@@ -109,7 +106,6 @@ export class ConvertFilingDocumentsTask extends Task<
       cik: input.cik,
       limit: input.limit ?? DEFAULT_CONVERT_LIMIT,
       force: input.force === true,
-      all8k: input.all8k === true,
       converterVersion: FILING_CONVERTER_VERSION,
     });
 
@@ -117,6 +113,7 @@ export class ConvertFilingDocumentsTask extends Task<
     let skipped = 0;
     let documents = 0;
     let sections = 0;
+    let xbrlFacts = 0;
     let downloaded = 0;
     let cached = 0;
 
@@ -151,6 +148,7 @@ export class ConvertFilingDocumentsTask extends Task<
             converted += 1;
             documents += result.documents;
             sections += result.sections;
+            xbrlFacts += result.xbrlFacts;
           }
         } else {
           skipped += 1;
@@ -176,6 +174,7 @@ export class ConvertFilingDocumentsTask extends Task<
       skipped,
       documents,
       sections,
+      xbrlFacts,
       downloaded,
       cached,
     };

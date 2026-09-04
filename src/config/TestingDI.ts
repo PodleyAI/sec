@@ -5,7 +5,6 @@
  */
 
 import { globalServiceRegistry, InMemoryTabularStorage } from "workglow";
-import { clearDatabaseExtensionsForTesting } from "./databaseExtensions";
 import { registerStorages, SEC_STORAGE_REGISTRY } from "./storageRegistry";
 import { clearRegisteredTablesForTesting } from "./tableRegistry";
 import { ENV_DERIVED_TOKENS } from "./tokens";
@@ -53,7 +52,6 @@ export function resetDependencyInjectionsForTesting(): void {
   // repositories through `createStorage` — which reads the SEC_DB_TYPE binding
   // this reset has just stripped — while its tokens still resolve to storages
   // bound to a database this file never opened.
-  clearDatabaseExtensionsForTesting();
   registerStorages(
     SEC_STORAGE_REGISTRY,
     (definition) =>

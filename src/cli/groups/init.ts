@@ -9,6 +9,7 @@ import { buildEnvConfig, InitApplyTask, type InitConfig } from "../../task/init/
 import { parseGlobalOptions } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
+import { suggest } from "../nextSteps";
 
 export { buildEnvConfig };
 export type { InitConfig };
@@ -23,8 +24,9 @@ function prompt(rl: ReturnType<typeof createInterface>, question: string): Promi
 
 export function addInitCommand(parent: Command): void {
   parent
-    .command("init")
-    .description("Interactive first-run setup wizard")
+    .command("setup")
+    .alias("init")
+    .description("First-run setup: configuration, then the database tables")
     .action(async () => {
       const globalOpts = parseGlobalOptions(parent);
       const dryRun = globalOpts.dryRun;
@@ -93,10 +95,15 @@ export function addInitCommand(parent: Command): void {
 
           await runWorkflowCli([new InitApplyTask({ defaults: { ...config, envPath } })]);
 
-          console.log("\nSetup complete! Next steps:");
-          console.log("  sec db status                    — verify database connection");
-          console.log("  sec bootstrap download ciks      — download the CIK name lookup");
-          console.log("  sec bootstrap ingest cik-names   — load CIK names into the database");
+          console.log("\n  Setup complete.");
+          suggest(
+            {
+              command: "sec load download ciks",
+              why: "the company list, so a name or ticker resolves (8 MB, ~30s)",
+            },
+            { command: "sec get AAPL", why: "one company end to end" },
+            { command: "sec status", why: "what is loaded, any time" }
+          );
         } finally {
           rl.close();
         }

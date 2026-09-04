@@ -42,16 +42,29 @@
  * it never aborts the CLI or the other providers. Registration is idempotent
  * enough for repeat bootstraps — the provider registry keeps the last registrant.
  */
+/**
+ * Where the worker entry actually is, which differs between the two ways this
+ * module runs. From source `import.meta.url` is this file under `src/config/`
+ * and the sibling is `hftWorker.ts`; inside the bundle it is `dist/sec.js` and
+ * the sibling is the separately built `dist/hftWorker.js`. Only `dist` is
+ * published, so a hard-coded `./hftWorker.ts` resolves to a path that ships
+ * nowhere and the provider fails at spawn — with the CLI still exiting 0,
+ * because a provider that will not register is only warned about.
+ */
+function workerEntryUrl(): URL {
+  const entry = import.meta.url.endsWith(".ts") ? "./hftWorker.ts" : "./hftWorker.js";
+  return new URL(entry, import.meta.url);
+}
+
 export async function registerSecProviders(): Promise<void> {
-  await registerAnthropic();
-  await registerOpenAi();
-  await registerGemini();
-  await registerXai();
-  await registerDeepSeek();
-  await registerHfInference();
-  await registerOpenRouter();
+  // Local always: it is what makes `sec ask` work on a machine with no keys.
   await registerHft();
-  await registerLlamaCpp();
+  // Cloud only where a key is present. A provider registered without one
+  // advertises models that cannot run, and the failure surfaces later inside a
+  // task as an authentication error rather than here as configuration.
+  if (process.env.ANTHROPIC_API_KEY?.trim()) await registerAnthropic();
+  if (process.env.OPENAI_API_KEY?.trim()) await registerOpenAi();
+  if (process.env.GEMINI_API_KEY?.trim()) await registerGemini();
 }
 
 async function registerAnthropic(): Promise<void> {
@@ -81,42 +94,6 @@ async function registerGemini(): Promise<void> {
   }
 }
 
-async function registerXai(): Promise<void> {
-  try {
-    const { registerXaiInline } = await import("workglow/xai/runtime");
-    await registerXaiInline();
-  } catch (err) {
-    warn("xAI", err);
-  }
-}
-
-async function registerDeepSeek(): Promise<void> {
-  try {
-    const { registerDeepSeekInline } = await import("workglow/deepseek/runtime");
-    await registerDeepSeekInline();
-  } catch (err) {
-    warn("DeepSeek", err);
-  }
-}
-
-async function registerHfInference(): Promise<void> {
-  try {
-    const { registerHfInferenceInline } = await import("workglow/hf-inference/runtime");
-    await registerHfInferenceInline();
-  } catch (err) {
-    warn("HuggingFace Inference", err);
-  }
-}
-
-async function registerOpenRouter(): Promise<void> {
-  try {
-    const { registerOpenRouterInline } = await import("workglow/openrouter/runtime");
-    await registerOpenRouterInline();
-  } catch (err) {
-    warn("OpenRouter", err);
-  }
-}
-
 async function registerHft(): Promise<void> {
   try {
     // Give the worker a stable on-disk model cache when a raw-data folder is
@@ -126,21 +103,10 @@ async function registerHft(): Promise<void> {
     }
     const { registerHuggingFaceTransformers } = await import("workglow/hf-transformers");
     await registerHuggingFaceTransformers({
-      worker: () => new Worker(new URL("./hftWorker.ts", import.meta.url), { type: "module" }),
+      worker: () => new Worker(workerEntryUrl(), { type: "module" }),
     });
   } catch (err) {
     warn("HuggingFace Transformers", err);
-  }
-}
-
-async function registerLlamaCpp(): Promise<void> {
-  try {
-    const { registerLlamaCpp: register } = await import("workglow/node-llama");
-    await register({
-      worker: () => new Worker(new URL("./llamaCppWorker.ts", import.meta.url), { type: "module" }),
-    });
-  } catch (err) {
-    warn("node-llama-cpp", err);
   }
 }
 

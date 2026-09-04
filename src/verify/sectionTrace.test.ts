@@ -11,7 +11,6 @@ import { DocumentTreeSegmenter } from "../sec/forms/registration-statements/s1/D
 import { parseEdgarHtmlWithTrace } from "../sec/html/parseEdgarHtml";
 import { S1_SECTIONS } from "../sec/html/sectionVocabulary";
 import { subtreeSourceSpan } from "../sec/html/sourceSpanIndex";
-import { buildChunkTrace } from "./chunkTrace";
 import { buildSectionTrace, isExpectedContainment } from "./sectionTrace";
 
 const fixtureRoot = join(import.meta.dirname, "../sec/html/mock_data/s1");
@@ -110,37 +109,5 @@ describe("buildSectionTrace", () => {
       expect(section.source.end).toBeGreaterThan(0);
     }
     expect(t.sections.filter((s) => !s.resolved).every((s) => s.source === undefined)).toBe(true);
-  });
-});
-
-describe("buildChunkTrace", () => {
-  it("splits a real risk section into reassembling chunks", () => {
-    const { doc } = trace("s1_1849470_000110465921035696.htm");
-    const risk = new DocumentTreeSegmenter()
-      .segment(doc)
-      .find((s) => s.name === S1_SECTIONS.RISK_FACTORS);
-    expect(risk).toBeDefined();
-    const chunks = buildChunkTrace(risk!.text);
-    expect(chunks.chunks.length).toBeGreaterThan(1);
-    expect(chunks.reassembles).toBe(true);
-    expect(chunks.oversized).toBe(false);
-    expect(chunks.chunks.every((c) => c.carriedHeadingVerbatim)).toBe(true);
-  });
-
-  it("carries a heading into every chunk after the first", () => {
-    const heading = "Risks Related to Our Business";
-    const body = Array.from({ length: 12 }, (_, i) => `Caption ${i}. ${"x".repeat(200)}`);
-    const trace = buildChunkTrace([heading, ...body].join("\n\n"), 600);
-    expect(trace.chunks.length).toBeGreaterThan(2);
-    expect(trace.chunks[0]?.carriedHeading).toBeNull();
-    expect(trace.chunks.slice(1).every((c) => c.carriedHeading === heading)).toBe(true);
-    expect(trace.reassembles).toBe(true);
-  });
-
-  it("flags a chunk boundary that cut a rendered table", () => {
-    const rows = Array.from({ length: 8 }, (_, i) => `| Row ${i} | ${"v".repeat(120)} |`);
-    const trace = buildChunkTrace(rows.join("\n\n"), 300);
-    expect(trace.chunks.length).toBeGreaterThan(1);
-    expect(trace.splitTables).toBeGreaterThan(0);
   });
 });

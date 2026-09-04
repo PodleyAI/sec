@@ -16,16 +16,16 @@ import { describeFailureReason } from "../../util/describeFailure";
 import { parseDate } from "../../util/parseDate";
 import { getHttpErrorStatus } from "../fetch/SecFetchJob";
 import { SecFetchTask } from "../fetch/SecFetchTask";
-import {
-  REGA_FULL_SUBMISSION_FORMS,
-  REGISTRATION_PROSPECTUS_FORMS,
-} from "../forms/ProcessAccessionDocFormTask";
 import { filingsForDate, listFilingDates, type FeedFiling } from "./feedFilings";
 import { extractPrimaryDocFromSubmission } from "./feedTarball";
 import {
   FeedTarballExtractTask,
   type FeedTarballExtractTaskOutput,
 } from "./FeedTarballExtractTask";
+import {
+  REGA_FULL_SUBMISSION_FORMS,
+  REGISTRATION_PROSPECTUS_FORMS,
+} from "../document/submissionFetchPolicy";
 
 export type BootstrapAccessionDocsTaskInput = {
   /** Inclusive lower bound (YYYY-MM-DD). Omit to start at the earliest filing. */

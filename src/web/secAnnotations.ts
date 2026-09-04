@@ -62,17 +62,17 @@ const FIELD_ANNOTATIONS: readonly CommandFieldAnnotations[] = [
   },
 
   {
-    path: ["query", "**"],
+    path: ["show", "**"],
     source,
     fields: { search: { placeholder: "substring match" } },
   },
   {
-    path: ["query", "facts"],
+    path: ["show", "facts"],
     source,
     fields: { cik: CIK_FIELD, year: { placeholder: "e.g. 2025" } },
   },
   {
-    path: ["query", "xbrl"],
+    path: ["show", "xbrl"],
     source,
     fields: {
       // Scoped: the accessions worth offering are this filer's, and the picker
@@ -81,67 +81,12 @@ const FIELD_ANNOTATIONS: readonly CommandFieldAnnotations[] = [
       concept: { placeholder: "e.g. AssetsHeldInTrust" },
     },
   },
-  {
-    path: ["query", "reg-a"],
-    source,
-    fields: {
-      tier: { choices: ["Tier1", "Tier2"] },
-      status: { choices: ["pending", "qualified", "reporting", "exit"] },
-    },
-  },
 
-  // Fetch: a form is picked from what this filer actually filed.
+  // Fetch: one company's submissions or facts.
   {
     path: ["fetch", "**"],
     source,
     fields: { cik: CIK_FIELD, form: { format: "sec:form", placeholder: "e.g. S-1, 424B4" } },
-  },
-  {
-    path: ["fetch", "form"],
-    source,
-    fields: { accession: { format: "sec:accession", placeholder: "optional — latest if omitted" } },
-  },
-  {
-    path: ["fetch", "doc"],
-    source,
-    fields: { accession: { format: "sec:accession" } },
-  },
-
-  // Extractor ceremonies. The id carries its own version and worklist depth in
-  // the picker, which is the pair that decides whether you want to run it.
-  {
-    path: ["extractor", "**"],
-    source,
-    fields: {
-      // A picker rather than a plain dropdown: the id alone is not the
-      // decision, the version it would run under and the depth of its worklist
-      // are, and only the picker can show those beside it.
-      extractorId: { format: "sec:extractor", placeholder: "e.g. S-1" },
-      cik: CIK_FIELD,
-    },
-  },
-
-  // Version ceremonies take a kind and then an id whose meaning depends on it.
-  {
-    path: ["version", "**"],
-    source,
-    fields: {
-      kind: { choices: ["extractor", "resolver"], description: "Component kind" },
-      id: {
-        format: "sec:component-id",
-        placeholder: "extractor id, or resolver kind",
-        description: "Component id — the vocabulary depends on the kind chosen above",
-      },
-      semver: { placeholder: "e.g. 1.5.0" },
-    },
-  },
-
-  // Canonical alias ceremonies name two canonical rows, both of which exist.
-
-  {
-    path: ["sync", "**"],
-    source,
-    fields: { shard: { placeholder: "i/n, e.g. 0/4" } },
   },
 ];
 
@@ -159,51 +104,21 @@ const COMMAND_ANNOTATIONS: readonly WebCommandAnnotation[] = [
     badges: ["network", "writes"],
     note: "Fetches from EDGAR under the shared rate limit and stores what it gets.",
   },
-  {
-    path: ["fetch", "form"],
-    source,
-    badges: ["network", "writes", "ai"],
-    note: "Fetches the filing and runs its extractor — the AI sections included, which spend model quota.",
-  },
-  {
-    path: ["fetch", "golden-fixtures"],
-    source,
-    badges: ["network"],
-    note: "Re-fetches the committed corpus from EDGAR. `--verify` writes nothing.",
-  },
 
   {
-    path: ["bootstrap", "**"],
+    path: ["load", "**"],
     source,
     badges: ["network", "slow", "writes"],
     note: "A full-history pull is tens of TB decompressed and runs for hours. Bound it with --from/--to.",
   },
 
   {
-    path: ["sync", "**"],
+    path: ["update", "**"],
     source,
     badges: ["network", "slow", "writes"],
   },
-  {
-    path: ["sync", "forms"],
-    source,
-    badges: ["network", "slow", "writes", "ai"],
-  },
 
-  {
-    path: ["extractor", "backfill"],
-    source,
-    badges: ["writes", "ai", "slow"],
-    note: "Re-runs the whole form pipeline over every selected filing. `--dry-run` reports the worklist without spending anything.",
-  },
-  {
-    path: ["extractor", "retry-dead-letters"],
-    source,
-    badges: ["writes", "ai"],
-    note: "Re-runs the entries eligible under the current extractor version.",
-  },
-
-  // The ceremonies that destroy something. Each confirmation says what is lost
+  // The one command that destroys something. Its confirmation says what is lost
   // and what it would take to get it back — a dialog that only says "are you
   // sure" is a dialog that gets clicked through.
   {
@@ -219,31 +134,6 @@ const COMMAND_ANNOTATIONS: readonly WebCommandAnnotation[] = [
     source,
     badges: ["writes"],
     note: "Creates missing tables and columns, and widens Postgres columns in place. On a large deployment, run it in a maintenance window.",
-  },
-  {
-    path: ["version", "drop-previous"],
-    source,
-    badges: ["destructive"],
-    confirm:
-      "This purges the previous slot's data. For person/company it is rebuildable by re-resolving; for the family kinds it is not, which is why they refuse.",
-  },
-  {
-    path: ["version", "drop-next"],
-    source,
-    badges: ["destructive"],
-    confirm: "This discards the in-flight dev cycle and everything extracted under it.",
-  },
-  {
-    path: ["version", "rollback"],
-    source,
-    badges: ["writes"],
-    note: "Swaps the previous and current slots.",
-  },
-  {
-    path: ["version", "promote"],
-    source,
-    badges: ["writes"],
-    note: "Rotates next into current. A major bump is refused unless coverage is complete.",
   },
 ];
 

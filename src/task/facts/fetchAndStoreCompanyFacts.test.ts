@@ -4,14 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry, TaskAbortedError, type IExecuteContext } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
-import {
-  clearCurrentTrustRefreshForTesting,
-  registerCurrentTrustRefresh,
-} from "./currentTrustRefresh";
 import { fetchAndStoreCompanyFactsWithDeps } from "./fetchAndStoreCompanyFacts";
 import type { FetchCompanyFactsTaskOutput } from "./FetchCompanyFactsTask";
 import { NoXbrlFactsError } from "./NoXbrlFactsError";
@@ -27,12 +23,7 @@ function httpError(status: number): Error {
 describe("fetchAndStoreCompanyFactsWithDeps", () => {
   beforeEach(() => {
     resetDependencyInjectionsForTesting();
-    clearCurrentTrustRefreshForTesting();
   });
-  afterEach(() => {
-    clearCurrentTrustRefreshForTesting();
-  });
-
   const getRow = async (cik: number) =>
     await globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN).get({ cik });
 
@@ -127,53 +118,5 @@ describe("fetchAndStoreCompanyFactsWithDeps", () => {
       })
     ).rejects.toBeInstanceOf(TaskAbortedError);
     expect(await getRow(5)).toBeUndefined();
-  });
-
-  it("hands a freshly stored CIK to a contributed trust refresh", async () => {
-    const refreshed: number[] = [];
-    registerCurrentTrustRefresh({
-      wouldRefresh: async () => false,
-      refresh: async (cik) => {
-        refreshed.push(cik);
-        return true;
-      },
-    });
-    await fetchAndStoreCompanyFactsWithDeps({ cik: 71, date: "2026-06-10" }, ctx, {
-      fetchFacts: async () => ({ cik: 71, facts: [], date: "2026-06-10" }),
-      storeFacts: async () => {},
-    });
-    expect(refreshed).toEqual([71]);
-  });
-
-  it("reaches for no trust refresh at all when none is contributed", async () => {
-    // The sweep runs once per issuer. A reading that lives in a package this
-    // deployment does not have must cost nothing here — not a call that throws
-    // and is swallowed, and above all not a warning per CIK.
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const result = await fetchAndStoreCompanyFactsWithDeps({ cik: 72, date: "2026-06-10" }, ctx, {
-      fetchFacts: async () => ({ cik: 72, facts: [], date: "2026-06-10" }),
-      storeFacts: async () => {},
-    });
-    expect(result).toEqual({ success: true });
-    expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
-  });
-
-  it("swallows a contributed refresh's failure, keeping the facts outcome successful", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    registerCurrentTrustRefresh({
-      wouldRefresh: async () => false,
-      refresh: async () => {
-        throw new Error("trust storage is unreachable");
-      },
-    });
-    const result = await fetchAndStoreCompanyFactsWithDeps({ cik: 73, date: "2026-06-10" }, ctx, {
-      fetchFacts: async () => ({ cik: 73, facts: [], date: "2026-06-10" }),
-      storeFacts: async () => {},
-    });
-    expect(result).toEqual({ success: true });
-    expect((await getRow(73))?.success).toBe(true);
-    expect(warn).toHaveBeenCalledTimes(1);
-    warn.mockRestore();
   });
 });

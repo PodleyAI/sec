@@ -10,17 +10,14 @@ import { BootstrapAccessionDocsTask } from "../../task/bootstrap/BootstrapAccess
 import { BootstrapDownloadTask } from "../../task/bootstrap/BootstrapDownloadTask";
 import { FetchAllCikNamesTask } from "../../task/ciknames/FetchAllCikNamesTask";
 import { BootstrapCompanyFactsTask } from "../../task/facts/BootstrapCompanyFactsTask";
-import {
-  formsSweepLoop,
-  newFormsWorklistTask,
-  parseShardOption,
-} from "../../task/forms/formsSweep";
 import { FetchQuarterlyIndexRangeTask } from "../../task/index/FetchQuarterlyIndexRangeTask";
 import { StoreCikLastUpdatedTask } from "../../task/index/StoreCikLastUpdatedTask";
 import { BackfillNameHistoryTask } from "../../task/submissions/BackfillNameHistoryTask";
 import { BootstrapSubmissionsTask } from "../../task/submissions/BootstrapSubmissionsTask";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
+import { ADV_BOOTSTRAP_ARCHIVE_URLS } from "../../task/adv/advArchive";
+import { confirmLoad, costsFor } from "../loadCosts";
 
 const BULK_DOWNLOADS = {
   submissions: {
@@ -35,31 +32,22 @@ const BULK_DOWNLOADS = {
 
 export function addBootstrapCommands(program: Command): void {
   const bootstrap = program
-    .command("bootstrap")
-    .description("Full bootstrap pipeline — download, ingest, and process SEC data");
+    .command("load")
+    .alias("bootstrap")
+    .description("Bulk backfill from the SEC's published archives — the slow, one-time pull");
 
   bootstrap
     .option("--skip-download", "Skip the bulk download step", false)
     .option("--skip-ingest", "Skip the ingest step", false)
-    .option("--skip-forms", "Skip the forms processing step", false)
     .option(
       "--download-docs",
-      "Download accession documents for the ingested submissions via daily Feed tarballs (populates the on-disk doc cache before the forms step)",
+      "Download accession documents for the ingested submissions via daily Feed tarballs (populates the on-disk doc cache the documents sweep reads)",
       false
     )
     .option("--docs-from <date>", "With --download-docs: earliest filing day to fetch (YYYY-MM-DD)")
     .option("--docs-to <date>", "With --download-docs: latest filing day to fetch (YYYY-MM-DD)")
-    .option(
-      "--shard <i/N>",
-      "Forms step: process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"
-    )
     .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (options) => {
-      if (options.force) {
-        console.warn(
-          "Note: --force no longer affects form processing. Forms re-run only via version bumps (see 'sec version')."
-        );
-      }
       await runCommand(
         async () => {
           const force = options.force ?? false;
@@ -84,9 +72,9 @@ export function addBootstrapCommands(program: Command): void {
             );
           }
 
-          // Accession-document download runs after ingest (so the filings it
-          // scans exist) and before forms (so the forms step reads documents
-          // from the on-disk cache instead of fetching each one over the wire).
+          // Accession-document download runs after ingest, so the filings it
+          // scans exist — and it populates the cache `sync documents` reads
+          // instead of fetching each one over the wire.
           if (options.downloadDocs) {
             tasks.push(
               new BootstrapAccessionDocsTask({
@@ -96,19 +84,8 @@ export function addBootstrapCommands(program: Command): void {
             );
           }
 
-          // The forms producer is NOT a member of the flat task list: it is
-          // piped by formsSweepLoop into the outer workflow (compute worklist,
-          // then forEach), so the CLI renders live per-iteration progress.
-          const producer = options.skipForms
-            ? undefined
-            : newFormsWorklistTask(undefined, parseShardOption(options.shard));
-
-          if (tasks.length > 0 || producer !== undefined) {
-            await runWorkflowCli(
-              tasks,
-              undefined,
-              producer === undefined ? undefined : formsSweepLoop(producer)
-            );
+          if (tasks.length > 0) {
+            await runWorkflowCli(tasks);
           }
         },
         { force: options.force }
@@ -117,21 +94,44 @@ export function addBootstrapCommands(program: Command): void {
 
   bootstrap
     .command("download <type>")
-    .description("Download bulk SEC data (submissions, facts, ciks, or all)")
+    .description("Download bulk SEC data (submissions, facts, ciks, adv, or all)")
     .option(
       "--force",
       "Re-download and fully overwrite even when the archive is unchanged since the last run",
       false
     )
-    .action(async (type: string, options: { force?: boolean }) => {
+    .option("--yes", "Skip the size-and-time confirmation", false)
+    .action(async (type: string, options: { force?: boolean; yes?: boolean }) => {
       await runCommand(async () => {
+        // The price before it is spent. `submissions` alone is ~14 GB and runs
+        // for hours, and a reader who finds that out from `df` has already
+        // spent it.
+        if (!(await confirmLoad(costsFor(type), { yes: options.yes }))) {
+          console.log("  Nothing downloaded.");
+          return;
+        }
         if (type === "ciks") {
           await runWorkflowCli([new FetchAllCikNamesTask()]);
           return;
         }
 
+        if (type === "adv") {
+          // Both halves, because the SEC split the cumulative archive by size
+          // rather than by content: neither on its own has the whole table set.
+          await runWorkflowCli(
+            ADV_BOOTSTRAP_ARCHIVE_URLS.map(
+              (url, index) =>
+                new BootstrapDownloadTask({
+                  title: `Download adv part ${index + 1}`,
+                  defaults: { url, targetFolder: "adv", force: options.force ?? false },
+                })
+            )
+          );
+          return;
+        }
+
         if (type !== "submissions" && type !== "facts" && type !== "all") {
-          throw new Error(`Invalid type "${type}". Must be submissions, facts, ciks, or all.`);
+          throw new Error(`Invalid type "${type}". Must be submissions, facts, ciks, adv, or all.`);
         }
 
         const types: (keyof typeof BULK_DOWNLOADS)[] =

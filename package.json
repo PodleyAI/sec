@@ -10,28 +10,29 @@
     "url": "https://github.com/workglow-dev/sec/issues"
   },
   "homepage": "https://workglow.dev",
-  "description": "Workglow SEC is an example of using the Workglow AI library to build a tool for retrieving SEC data.",
+  "description": "A worked example of the Workglow libraries: SEC EDGAR and Form ADV ingestion, filing-to-markdown conversion, and retrieval-grounded question answering over what filings say.",
   "scripts": {
     "bunset": "bunset --patch --push --commit --tag",
-    "release": "bun run format && bun run lint && bun run build && bun run prepack-check && bun run bunset",
+    "release": "bun run format && bun run lint && bun run typecheck && bun run build && bun run prepack-check && bun run bunset",
     "prepack-check": "bun ./scripts/checkPackedContents.ts",
     "dev": "concurrently -c 'auto' -n 'sec:' 'bun:dev-*'",
-    "dev-js": "bun build --watch --target=bun --sourcemap=external --packages=external --outdir ./dist ./src/index.ts",
-    "dev-sec": "bun build --watch --target=bun --no-bundle --outfile ./dist/sec.js ./src/sec.ts",
-    "dev-sec-base": "bun build --watch --target=bun --no-bundle --outfile ./dist/libs-cli.js ./src/libs-cli.ts",
-    "dev-types": "tsc --watch --preserveWatchOutput",
-    "build": "bun run build-clean && bun run build-js && bun run build-types",
+    "dev-sec": "bun build --watch --target=bun --sourcemap=external --packages=external --outfile ./dist/sec.js ./src/sec.ts",
+    "dev-sec-base": "bun build --watch --target=bun --sourcemap=external --packages=external --outfile ./dist/libs-cli.js ./src/libs-cli.ts",
+    "dev-hft-worker": "bun build --watch --target=bun --sourcemap=external --packages=external --outfile ./dist/hftWorker.js ./src/config/hftWorker.ts",
+    "dev-types": "tsc --noEmit --watch --preserveWatchOutput",
+    "build": "bun run build-clean && bun run build-js",
     "build-clean": "rm -fr dist/*",
-    "build-js": "bun build --target=bun --packages=external --outdir ./dist ./src/index.ts && bun run build-sec",
-    "build-sec": "bun build --target=bun --no-bundle --outfile ./dist/sec.js ./src/sec.ts && bun ./scripts/shebang-bin.ts ./dist/sec.js && bun run build-sec-base",
-    "build-sec-base": "bun build --target=bun --no-bundle --outfile ./dist/libs-cli.js ./src/libs-cli.ts && bun ./scripts/shebang-bin.ts ./dist/libs-cli.js",
-    "build-types": "rm -f tsconfig.tsbuildinfo && tsc",
+    "build-js": "bun run build-sec",
+    "build-sec": "bun build --target=bun --packages=external --outfile ./dist/sec.js ./src/sec.ts && bun ./scripts/shebang-bin.ts ./dist/sec.js && bun run build-sec-base",
+    "build-sec-base": "bun build --target=bun --packages=external --outfile ./dist/libs-cli.js ./src/libs-cli.ts && bun ./scripts/shebang-bin.ts ./dist/libs-cli.js && bun run build-hft-worker",
+    "build-hft-worker": "bun build --target=bun --packages=external --outfile ./dist/hftWorker.js ./src/config/hftWorker.ts",
+    "typecheck": "tsc --noEmit",
     "use-source": "bun ./scripts/bunsrc.ts source",
     "use-dist": "bun ./scripts/bunsrc.ts dist",
     "link": "bun link",
     "link-workglow": "bun ./scripts/link-workglow-packages.ts",
+    "check-fixtures": "bun ./scripts/checkFixtures.ts",
     "test": "vitest run",
-    "typecheck-tests": "tsc -p tsconfig.test.json",
     "format": "oxfmt \"src/**/*.{js,ts,tsx,json}\"",
     "format-check": "oxfmt --check \"src/**/*.{js,ts,tsx,json}\"",
     "lint": "oxlint --type-aware --report-unused-disable-directives --deny-warnings src scripts",
@@ -41,12 +42,6 @@
     "sec": "./dist/sec.js",
     "sec-base": "./dist/libs-cli.js"
   },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
   "files": [
     "dist",
     "!**/*.map"
@@ -54,10 +49,7 @@
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@sroussey/parse-address": "^3.2.0",
-    "@sroussey/parse-full-name": "^3.0.2",
     "@workglow/cli": "0.4.8",
-    "@sroussey/parse-phonenumber": "^1.0.0",
     "cheerio": "^1.2.0",
     "cheerio-json-mapper": "^1.0.4",
     "commander": "^15.0.0",

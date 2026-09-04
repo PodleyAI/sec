@@ -129,7 +129,7 @@ export class CatchUpDailyIndexTask extends Task<
     } catch (err) {
       if (isMissingRelationError(err)) {
         throw new Error(
-          "daily_index_cursor table is missing. Run `sec db setup` before the first `sec sync`."
+          "daily_index_cursor table is missing. Run `sec db setup` before the first `sec update`."
         );
       }
       throw err;

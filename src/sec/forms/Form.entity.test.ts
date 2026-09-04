@@ -4,10 +4,42 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Type } from "typebox";
 import { describe, expect, it } from "vitest";
-import { Form_D } from "./exempt-offerings/Form_D";
-import { decodePredefinedEntities, stripDoctype } from "./Form";
-import { Form_8_K } from "./miscellaneous-filings/Form_8_K";
+import { decodePredefinedEntities, Form, stripDoctype } from "./Form";
+
+/**
+ * A minimal `Form` whose only job is to run a document through
+ * {@link Form.getParser}. The hardening under test — the DOCTYPE strip and the
+ * bounded predefined-entity pass — is the base class's, not any one form's, so
+ * the fixture is declared here rather than borrowed from a form whose schema
+ * could change for unrelated reasons.
+ */
+class TestForm extends Form {
+  static override readonly name = "Entity hardening fixture";
+  static override readonly description = "Test-only";
+  static override readonly forms = ["TEST"] as const;
+
+  static override async parse(_form: string, xml: string): Promise<unknown> {
+    return TestForm.getParser(
+      Type.Object({
+        edgarSubmission: Type.Object({
+          schemaVersion: Type.Optional(Type.String()),
+          primaryIssuer: Type.Optional(Type.Object({ entityName: Type.Optional(Type.String()) })),
+          primaryDocumentDescription: Type.Optional(Type.String()),
+        }),
+      })
+    ).parse(xml);
+  }
+}
+
+/** The `edgarSubmission` body, which is where every assertion below reads. */
+async function parseBody(xml: string): Promise<any> {
+  const parsed = (await TestForm.parse("TEST", xml)) as {
+    edgarSubmission: Record<string, unknown>;
+  };
+  return parsed.edgarSubmission;
+}
 
 describe("Form XML parser entity expansion hardening", () => {
   /**
@@ -36,7 +68,7 @@ describe("Form XML parser entity expansion hardening", () => {
 
   it("parses a billion-laughs payload quickly without expanding entities", async () => {
     const start = performance.now();
-    const result = await Form_8_K.parse("8-K", BILLION_LAUGHS);
+    const result = await parseBody(BILLION_LAUGHS);
     const elapsed = performance.now() - start;
 
     // The parse stays bounded by input size (well under a second; the assertion
@@ -48,7 +80,7 @@ describe("Form XML parser entity expansion hardening", () => {
     expect(result).toBeDefined();
   });
 
-  it("round-trips a predefined ampersand entity in a Form D entityName", async () => {
+  it("round-trips a predefined ampersand entity in an entityName", async () => {
     const xml = `<?xml version="1.0"?>
 <edgarSubmission>
   <schemaVersion>X0708</schemaVersion>
@@ -66,7 +98,7 @@ describe("Form XML parser entity expansion hardening", () => {
     <issuerPhoneNumber>5555555555</issuerPhoneNumber>
   </primaryIssuer>
 </edgarSubmission>`;
-    const result: any = await Form_D.parse("D", xml);
+    const result = await parseBody(xml);
     // The filer double-encoded an `&` so the body reads `&amp;amp;`. One decode
     // step (the parser's predefined-entity pass) yields `&amp;`, which is the
     // intended literal display form for "Mac Accounting Group & CPAs, LLP".
@@ -94,7 +126,7 @@ describe("Form XML parser entity expansion hardening", () => {
     <issuerPhoneNumber>5555555555</issuerPhoneNumber>
   </primaryIssuer>
 </edgarSubmission>`;
-    const result: any = await Form_D.parse("D", xml);
+    const result = await parseBody(xml);
     // With DOCTYPE stripped, the parser has no definition for `xxe` — the byte
     // sequence remains literal rather than expanding to "PWNED".
     expect(result.primaryIssuer.entityName).not.toBe("PWNED");
@@ -102,7 +134,7 @@ describe("Form XML parser entity expansion hardening", () => {
   });
 
   it("decodes the five predefined XML entities in element text", async () => {
-    // `&apos;` is not legal in a Form D entityName regex, so use the
+    // `&apos;` is not legal in an entityName regex, so use the
     // schemaVersion text channel for full coverage and entityName for the
     // ampersand/lt/gt subset.
     const xml = `<?xml version="1.0"?>
@@ -122,7 +154,7 @@ describe("Form XML parser entity expansion hardening", () => {
     <issuerPhoneNumber>5555555555</issuerPhoneNumber>
   </primaryIssuer>
 </edgarSubmission>`;
-    const result: any = await Form_D.parse("D", xml);
+    const result = await parseBody(xml);
     expect(result.schemaVersion).toBe(`A & B < C > D "E" F 'G'`);
     expect(result.primaryIssuer.entityName).toBe("A & B");
   });
@@ -181,7 +213,7 @@ describe("Form XML parser entity expansion hardening — stripDoctype bypass clo
     <issuerPhoneNumber>5555555555</issuerPhoneNumber>
   </primaryIssuer>
 </edgarSubmission>`;
-    const result: any = await Form_D.parse("D", xml);
+    const result = await parseBody(xml);
     expect(result.primaryIssuer.entityName).not.toBe("PWNED");
     expect(result.primaryIssuer.entityName).toBe("&xxe;");
   });
@@ -208,7 +240,7 @@ describe("Form XML parser entity expansion hardening — stripDoctype bypass clo
     <issuerPhoneNumber>5555555555</issuerPhoneNumber>
   </primaryIssuer>
 </edgarSubmission>`;
-    const result: any = await Form_D.parse("D", xml);
+    const result = await parseBody(xml);
     expect(result.primaryIssuer.entityName).not.toBe("PWNED");
     expect(result.primaryIssuer.entityName).toBe("&xxe;");
   });
@@ -242,7 +274,7 @@ describe("Form XML parser entity expansion hardening — stripDoctype bypass clo
     <issuerPhoneNumber>5555555555</issuerPhoneNumber>
   </primaryIssuer>
 </edgarSubmission>`;
-    const result = await Form_D.parse("D", xml);
+    const result = await TestForm.parse("TEST", xml);
     expect(JSON.stringify(result ?? null)).not.toContain("PWNED");
   });
 
@@ -267,7 +299,7 @@ describe("Form XML parser entity expansion hardening — stripDoctype bypass clo
     <issuerPhoneNumber>5555555555</issuerPhoneNumber>
   </primaryIssuer>
 </edgarSubmission>`;
-    const result = await Form_D.parse("D", xml);
+    const result = await TestForm.parse("TEST", xml);
     expect(JSON.stringify(result ?? null)).not.toContain("PWNED");
   });
 
@@ -289,7 +321,7 @@ describe("Form XML parser entity expansion hardening — stripDoctype bypass clo
     <issuerPhoneNumber>5555555555</issuerPhoneNumber>
   </primaryIssuer>
 </edgarSubmission>`;
-    const result: any = await Form_D.parse("D", xml);
+    const result = await parseBody(xml);
     expect(result.schemaVersion).toBe(`A & B < C > D "E" F 'G'`);
     // Single-pass: `&amp;lt;` -> `&lt;` (NOT `<`). The post-walker matches
     // `&amp;` first and consumes it; the literal `lt;` that follows does

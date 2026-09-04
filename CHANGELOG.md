@@ -1,5 +1,73 @@
 # Changelog
 
+## Unreleased — BREAKING: re-founded as the Workglow example project
+
+`@workglow/sec`'s source now lives in `embarc-data`, which no longer depends on
+this package. Everything that existed to serve it as a superset is gone, and
+what remains is the worked example of the Workglow libraries.
+
+**Upgrading is `sec db reset` and a re-run.** Forty-four tables are dropped;
+there is no migration, and there is nothing to migrate to. Anyone with data
+they care about is running `embarc-data`, which is unaffected.
+
+### Removed
+
+- **The library surface.** No `exports`, no barrel — both binaries bundle.
+  `import ... from "@workglow/sec"` no longer resolves.
+- **Nine downstream-contribution seams**, none of which had an implementer:
+  `registerFilingConversionGate`, `registerDatabaseExtension` /
+  `registerDatabaseSetupHook` / `registerDatabaseViews`,
+  `registerCurrentTrustRefresh`, the editorial importers, `registerDbStatsTables`.
+- **The identity tier** — observations, canonical resolution, the address, phone
+  and company-name normalizers, roster completeness. Submission addresses and
+  phone numbers are no longer stored.
+- **Extractor versioning** — `component_versions`, `extractor_runs`,
+  `version_events`, dead letters, backfill descriptors, and the `version` and
+  `extractor` command groups.
+- **Form extractors** — Form D, C, 1-A, 1-K, 1-Z, QUALIF, CFPORTAL and the
+  ownership forms no longer parse into storage. The form classes remain as a
+  dictionary of names and descriptions.
+- **The eval harness** and the model-call trace reader.
+- Query leaves for the tables that went: `offerings`, `crowdfunding`, `reg-a`,
+  `persons`.
+
+### Added
+
+- **`sec ask`** — retrieval-grounded question answering over filing prose, with
+  citations naming the filing and linking the document. Works with no API key:
+  local ONNX embeddings, and a local generation model where no cloud key is set.
+  `sec index` builds the index ahead of time.
+- **`xbrl_fact` has a writer.** The documents sweep now reads each converted
+  document's inline XBRL, so the table this package created and could query is
+  finally one it can fill.
+- **Form ADV** — `sec load download adv` and `sec update adv`, landing into
+  `adv_adviser` and a generic `adv_row`, with `sec show advisers`.
+- **`sec status`** — one screen showing what is loaded, how stale, and what to
+  run next. Bare `sec` runs it.
+- **`sec read`** — a filing as markdown, from the database or straight off a
+  local HTML file. `--trace` replaces the `verify` group.
+
+### Changed
+
+- **The command tree is named for intent**: `setup`, `status`, `get`, `update`,
+  `load`, `show`, `read`, `index`/`ask`, `fetch`, `db`. `init`, `sync`,
+  `bootstrap` and `query` remain as aliases.
+- **Every command suggests the next one**, suppressed by `--quiet` and emitted
+  as data under `--json`.
+- **`sec load download` states its size and time** and asks before spending it.
+- **8-K is an ordinary convertible form.** The gate that converted none by
+  default, and the `--all-8k` flag that escaped it, are both gone.
+- **`db setup` / `db reset` / `db stats` loop the storage registry** instead of
+  naming every token by hand. Adding a table is one entry and nothing else.
+- **ONNX models default to CPU** (`SEC_ONNX_DEVICE=webgpu` to override), and an
+  embedding repo id now resolves to the embedding pipeline rather than to text
+  generation.
+- Providers register only where their key is present; the pricing table and the
+  per-extractor model override matrix are gone.
+- `typecheck` covers src, scripts and tests in one pass; `typecheck-tests` and
+  `tsconfig.test.json` are gone. CI runs it before the build.
+- `sec fetch golden-fixtures` is now `bun run check-fixtures`.
+
 ## 0.1.5
 
 ### Features

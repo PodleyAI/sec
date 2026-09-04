@@ -61,8 +61,8 @@ describe("annotation paths name real commands", () => {
 describe("annotated fields reach the form", () => {
   it("gives every CIK positional the search picker", async () => {
     for (const path of [
-      ["query", "facts"],
-      ["query", "entities"],
+      ["show", "facts"],
+      ["show", "entities"],
     ]) {
       const node = findCommandNode(tree, path);
       expect(node, path.join(" ")).toBeDefined();
@@ -75,16 +75,16 @@ describe("annotated fields reach the form", () => {
   it("gives each command the format vocabulary its own help text states", async () => {
     const cases: readonly [readonly string[], readonly string[]][] = [
       [
-        ["query", "entities"],
+        ["show", "entities"],
         ["table", "json", "csv"],
       ],
       [
-        ["query", "filings"],
+        ["show", "filings"],
         ["table", "json", "csv"],
       ],
       [
-        ["version", "status"],
-        ["table", "json"],
+        ["show", "facts"],
+        ["table", "json", "csv"],
       ],
     ];
     for (const [path, choices] of cases) {
@@ -119,31 +119,22 @@ describe("annotated fields reach the form", () => {
 });
 
 describe("cost and safety badges", () => {
-  it("gates the ceremonies whose damage outlives the run", () => {
-    for (const path of [
-      ["db", "reset"],
-      ["version", "drop-previous"],
-      ["version", "drop-next"],
-    ]) {
-      const annotation = resolveCommandAnnotation(path);
-      expect(annotation.badges, path.join(" ")).toContain("destructive");
-      expect(annotation.confirm, path.join(" ")).toBeTruthy();
-    }
+  it("gates the one command whose damage outlives the run", () => {
+    const annotation = resolveCommandAnnotation(["db", "reset"]);
+    expect(annotation.badges).toContain("destructive");
+    expect(annotation.confirm).toBeTruthy();
   });
 
   it("does not gate a command that only reads", () => {
     expect(resolveCommandAnnotation(["db", "status"]).confirm).toBeUndefined();
-    expect(resolveCommandAnnotation(["query", "entities"]).badges).toEqual([]);
+    expect(resolveCommandAnnotation(["show", "entities"]).badges).toEqual([]);
   });
 
-  it("marks what spends model quota, inheriting the group's other costs", () => {
-    const backfill = resolveCommandAnnotation(["extractor", "backfill"]);
-    expect(backfill.badges).toContain("ai");
-
-    const forms = resolveCommandAnnotation(["sync", "forms"]);
-    expect(forms.badges).toContain("ai");
-    // From `sync **`, which the narrower pattern must not shadow.
-    expect(forms.badges).toContain("network");
-    expect(forms.badges).toContain("slow");
+  it("marks what costs EDGAR budget and time", () => {
+    const documents = resolveCommandAnnotation(["update", "documents"]);
+    // From `sync **`: every leaf fetches under the shared rate limit and writes.
+    expect(documents.badges).toContain("network");
+    expect(documents.badges).toContain("slow");
+    expect(documents.badges).toContain("writes");
   });
 });

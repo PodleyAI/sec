@@ -1,91 +1,17 @@
 /**
  * @license
- * Copyright 2026 Steven Roussey <sroussey@gmail.com>
+ * Copyright 2025 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { globalServiceRegistry, MIGRATIONS_TABLE } from "workglow";
 import { isDryRun } from "../cli/isDryRun";
-import { ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN } from "../storage/address/AddressHistorySchema";
-import {
-  ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-  ADDRESS_REPOSITORY_TOKEN,
-} from "../storage/address/AddressSchema";
-import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
-import { CHANGE_LOG_REPOSITORY_TOKEN } from "../storage/change-tracking/ChangeLogSchema";
-import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1ClassificationSchema";
-import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/ExtractionDeadLetterSchema";
-import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../storage/document/FilingDocumentSchema";
-import { FILING_SECTION_REPOSITORY_TOKEN } from "../storage/document/FilingSectionSchema";
-import { CIK_NAME_REPOSITORY_TOKEN } from "../storage/entity/CikNameSchema";
-import { ENTITY_HISTORY_REPOSITORY_TOKEN } from "../storage/entity/EntityHistorySchema";
-import { ENTITY_REPOSITORY_TOKEN } from "../storage/entity/EntitySchema";
-import { ENTITY_TICKER_REPOSITORY_TOKEN } from "../storage/entity/EntityTickerSchema";
-import { SIC_CODE_REPOSITORY_TOKEN } from "../storage/entity/SicCodeSchema";
-import { EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN } from "../storage/executive-compensation/ExecutiveCompensationSchema";
-import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../storage/facts/CompanyFactsSchema";
-import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
-import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
-import {
-  FORM144_ACQUISITION_REPOSITORY_TOKEN,
-  FORM144_FILING_REPOSITORY_TOKEN,
-  FORM144_RECENT_SALE_REPOSITORY_TOKEN,
-} from "../storage/form144/Form144Schema";
-import { INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingHistorySchema";
-import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingSchema";
-import { ISSUER_REPOSITORY_TOKEN } from "../storage/investment-offering/IssuerSchema";
-import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
-import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
-import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
-import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTickerSchema";
-import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
-import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
-import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
-import {
-  PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-  PHONE_REPOSITORY_TOKEN,
-} from "../storage/phone/PhoneSchema";
-import { CROWDFUNDING_HISTORY_REPOSITORY_TOKEN } from "../storage/portal/CrowdfundingHistorySchema";
-import {
-  CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN,
-  CROWDFUNDING_REPORTS_REPOSITORY_TOKEN,
-  CROWDFUNDING_REPOSITORY_TOKEN,
-} from "../storage/portal/CrowdfundingSchema";
-import { PORTAL_REPOSITORY_TOKEN } from "../storage/portal/PortalSchema";
-import { PORTAL_SUCCESSION_REPOSITORY_TOKEN } from "../storage/portal/PortalSuccessionSchema";
-import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../storage/processing/CikLastUpdateSchema";
-import { DAILY_INDEX_CURSOR_REPOSITORY_TOKEN } from "../storage/processing/DailyIndexCursorSchema";
-import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFactsSchema";
-import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedSubmissionsSchema";
-import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
-import { REGA_CURRENT_REPORT_REPOSITORY_TOKEN } from "../storage/reg-a/RegACurrentReportSchema";
-import { REGA_EQUITY_CLASS_REPOSITORY_TOKEN } from "../storage/reg-a/RegAEquityClassSchema";
-import { REGA_FINANCIAL_DATA_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinancialDataSchema";
-import { REGA_OFFERING_EVENT_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingEventSchema";
-import { REGA_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingHistorySchema";
-import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
-import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegAServiceProviderSchema";
-import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
-import { ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN } from "../storage/roster/RoleRosterCompletenessSchema";
-import {
-  SECTION16_FILING_REPOSITORY_TOKEN,
-  SECTION16_HOLDING_REPOSITORY_TOKEN,
-  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
-} from "../storage/section16/Section16Schema";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
-import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
-import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 import { secFetchRateLimiterTableNames } from "../task/fetch/secFetchRateLimiterConfig";
 import { secFetchRateLimiterLedgerComponents } from "../task/fetch/SecJobQueue";
 import { getDb } from "../util/db";
 import { getPgPool } from "../util/pg";
 import { currentSchemaName, quote } from "../util/pgIdentifiers";
-import {
-  listDatabaseExtensionTokens,
-  listDatabaseViewNames,
-  runDatabaseSetupHooks,
-} from "./databaseExtensions";
+import { SEC_STORAGE_REGISTRY } from "./storageRegistry";
 import { listRegisteredTables } from "./tableRegistry";
 import { SEC_DB_TYPE } from "./tokens";
 
@@ -111,8 +37,8 @@ export interface ResetAllDatabasesOptions {
  * never alters an existing table.
  *
  * What it drops is scoped to the {@link listRegisteredTables} ownership list
- * (every table built through `createStorage`, sec's and any superset's) plus
- * the few tables and views created outside it. A reset must not be a
+ * (every table built through `createStorage`) plus the few tables and views
+ * created outside it. A reset must not be a
  * whole-database wipe: sec is routinely one schema among several, and
  * destroying an unrelated table or a colleague's reporting view is not
  * something a "reset sec's tables" command may do. Tables that are present but
@@ -131,23 +57,6 @@ export async function resetAllDatabases(options: ResetAllDatabasesOptions = {}):
   const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
     ? globalServiceRegistry.get(SEC_DB_TYPE)
     : null;
-
-  if (dbType === "postgres" || dbType === "sqlite") {
-    // Let downstream packages register their DI repos before we read the
-    // ownership registry: a superset's tables only land in it once its repo
-    // family has been built through `createStorage`, and the documented seam
-    // (`registerDatabaseExtension`) promises those tables are dropped by
-    // `db reset` as well as created by `db setup`. Without this, a superset that
-    // registers only through the setup hook has every one of its tables reported
-    // as unowned and silently left in place. Idempotent — a superset whose CLI
-    // preAction already registered is a no-op.
-    //
-    // Only on a real backend: a hook builds its repos through `createStorage`,
-    // which reads SEC_DB_TYPE unguarded and opens the SQLite/Postgres handle.
-    // The in-memory fallback below has neither, and truncates by DI token
-    // rather than by the registry, so running hooks there would only throw.
-    runDatabaseSetupHooks();
-  }
 
   if (dbType === "postgres") {
     await resetPostgres(options);
@@ -220,14 +129,6 @@ async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {
     // worse than not running it.
     await client.query("BEGIN");
     try {
-      // Views first: they depend on the tables, so dropping them up front keeps
-      // the table drops from needing CASCADE. Every view is contributed now —
-      // the tier that owns the tables under them registers its own.
-      for (const view of listDatabaseViewNames()) {
-        await client.query(
-          `DROP VIEW IF EXISTS ${qualify(view)}${options.cascade ? " CASCADE" : ""}`
-        );
-      }
       for (const table of owned) {
         const sql = `DROP TABLE IF EXISTS ${qualify(table)}${options.cascade ? " CASCADE" : ""}`;
         try {
@@ -307,9 +208,6 @@ function resetSqlite(options: ResetAllDatabasesOptions): void {
   // table still referenced by one not yet dropped.
   db.exec("PRAGMA foreign_keys = OFF");
   try {
-    for (const view of listDatabaseViewNames()) {
-      db.exec(`DROP VIEW IF EXISTS "${quote(view)}"`);
-    }
     // SQLite has a single schema per attached database, so an unqualified name
     // cannot resolve outside it the way Postgres's search_path allows.
     for (const table of owned) {
@@ -361,78 +259,11 @@ function dependentObjectError(err: unknown, table: string, sql: string): unknown
 }
 
 /**
- * Row-level fallback for backends without a droppable schema.
- *
- * NOTE: When adding a table to the storage registry, add its deleteAll() call
- * here so reset doesn't leave orphan rows behind — `resetAllDatabases.test.ts`
- * fails on the gap.
+ * In-memory / other backends have no schema to drop, so every registered
+ * repository is truncated instead.
  */
 async function truncateAllRepositories(): Promise<void> {
-  await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ADDRESS_JUNCTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PHONE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(INVESTMENT_OFFERING_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ISSUER_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ENTITY_HISTORY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ENTITY_TICKER_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SIC_CODE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FILING_DOCUMENT_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FILING_SECTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CROWDFUNDING_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CROWDFUNDING_REPORTS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CROWDFUNDING_HISTORY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CHANGE_LOG_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PORTAL_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PORTAL_SUCCESSION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_OFFERING_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_OFFERING_HISTORY_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_FINANCIAL_DATA_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_EQUITY_CLASS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_CURRENT_REPORT_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(REGA_OFFERING_EVENT_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ROLE_ROSTER_COMPLETENESS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FORM_8K_EVENT_REPOSITORY_TOKEN).deleteAll();
-  // Observation provenance + AI-extracted offering / ownership / related-party tiers.
-  await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(S1_CLASSIFICATION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(ISSUER_TICKER_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(OFFERING_TERMS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).deleteAll();
-  // Section 16 (Forms 3/4/5) and Form 144 detail tables.
-  await globalServiceRegistry.get(SECTION16_FILING_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SECTION16_TRANSACTION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(SECTION16_HOLDING_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FORM144_FILING_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FORM144_ACQUISITION_REPOSITORY_TOKEN).deleteAll();
-  await globalServiceRegistry.get(FORM144_RECENT_SALE_REPOSITORY_TOKEN).deleteAll();
-  // Family-tier canonical / alias / membership / link tables (sponsor + underwriter).
-  // Truncate any downstream-registered extension repos after the built-in ones.
-  for (const token of listDatabaseExtensionTokens()) {
-    await globalServiceRegistry.get(token).deleteAll();
+  for (const definition of SEC_STORAGE_REGISTRY) {
+    await globalServiceRegistry.get(definition.token).deleteAll();
   }
 }

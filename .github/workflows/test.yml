@@ -34,6 +34,6 @@ jobs:
       # resolve `@workglow/*` through the published `dist/*.d.ts` that `bun i`
       # already put in node_modules.
       - run: bun run lint
+      - run: bun run typecheck
       - run: bun run build
-      - run: bun run typecheck-tests
       - run: bun run test

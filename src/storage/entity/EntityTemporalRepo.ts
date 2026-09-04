@@ -8,8 +8,8 @@
 import { globalServiceRegistry } from "workglow";
 import {
   CHANGE_LOG_REPOSITORY_TOKEN,
-  ChangeLog,
-  ChangeLogRepositoryStorage,
+  type ChangeLog,
+  type ChangeLogRepositoryStorage,
 } from "../change-tracking/ChangeLogSchema";
 import {
   ENTITY_HISTORY_REPOSITORY_TOKEN,

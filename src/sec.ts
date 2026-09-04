@@ -5,7 +5,10 @@ import {
   shouldInstallCliSignalTeardown,
 } from "./cli/installCliSignalTeardown";
 import { shutdownCliResources } from "./cli/shutdownCliResources";
-import { AddCommands, applyGlobalOptions, SecCliConfigurationError, statusMessage } from "./index";
+import { applyGlobalOptions } from "./cli/GlobalOptions";
+import { statusMessage } from "./cli/output/Progress";
+import { AddCommands } from "./commands";
+import { SecCliConfigurationError } from "./config/EnvToDI";
 
 program
   // Set explicitly rather than left to commander's argv[1] inference: the web
@@ -17,6 +20,13 @@ program
 
 applyGlobalOptions(program);
 AddCommands(program);
+
+// Bare `sec` runs `status` rather than printing commander's help. A first
+// reader's question is "what have I got and what do I do", and a wall of
+// subcommand names answers neither; `sec --help` still prints the wall.
+if (process.argv.length === 2) {
+  process.argv.push("status");
+}
 
 let signalsInstalled = false;
 program.hook("preAction", (_thisCommand, actionCommand) => {

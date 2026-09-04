@@ -4,9 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ExtractionDeadLetterRepo } from "../storage/dead-letter/ExtractionDeadLetterRepo";
-import { EXTRACTOR_IDS } from "../storage/versioning/extractorIds";
-
 /**
  * Reads the console makes on its own account, rather than as part of a run.
  *
@@ -45,26 +42,4 @@ export function cachedRead<T>(key: string, read: () => Promise<T>): Promise<T> {
 
 export function resetSecWebReadsForTesting(): void {
   cache.clear();
-}
-
-/**
- * Pending dead-letter entries per extractor id, zero-counts omitted.
- *
- * The repo lists per extractor, so this is one query per id — worth caching and
- * not worth doing per keystroke. A failing id contributes nothing rather than
- * failing the whole reading: the rail is a rail, and it is better missing one
- * line than blank.
- */
-export function readPendingDeadLetterCounts(): Promise<ReadonlyMap<string, number>> {
-  return cachedRead("dead-letters", async () => {
-    const repo = new ExtractionDeadLetterRepo();
-    const counts = new Map<string, number>();
-    await Promise.all(
-      EXTRACTOR_IDS.map(async (id) => {
-        const pending = await repo.listPending(id).catch(() => []);
-        if (pending.length > 0) counts.set(id, pending.length);
-      })
-    );
-    return counts;
-  });
 }
