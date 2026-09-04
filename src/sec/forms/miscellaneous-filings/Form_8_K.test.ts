@@ -219,7 +219,7 @@ describe("Form_8_K", () => {
     });
 
     it("should reject invalid form types", async () => {
-      expect(Form_8_K.parse("10-K" as any, "<html/>")).rejects.toThrow("Invalid form");
+      await expect(Form_8_K.parse("10-K" as any, "<html/>")).rejects.toThrow("Invalid form");
     });
 
     it("should accept both 8-K and 8-K/A form types", async () => {
