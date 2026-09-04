@@ -38,6 +38,16 @@ const FORBIDDEN_SUFFIXES = [".test.ts", ".map"] as const;
 const FORBIDDEN_PREFIXES = ["src/sec/html/mock_data/"] as const;
 const FORBIDDEN_SUBSTRINGS = ["/mock_data/"] as const;
 
+/**
+ * Files the package cannot run without. The two `bin` entries are obvious; the
+ * worker is not, and is the reason this list exists — it is spawned by URL at
+ * runtime rather than imported, so nothing in the build or the type system
+ * notices when it stops being emitted, and the provider that needs it only
+ * warns. `sec index` then fails on a published install while every check here
+ * stays green.
+ */
+const REQUIRED_PATHS = ["dist/sec.js", "dist/libs-cli.js", "dist/hftWorker.js"] as const;
+
 interface PackReport {
   readonly source: string;
   readonly files: readonly string[];
@@ -205,6 +215,16 @@ async function main(): Promise<void> {
     violations.push(
       `${forbidden.length} forbidden file(s) would be published ` +
         `(tests / mock_data are not part of the shipped package):\n  ${sample}${extra}`
+    );
+  }
+
+  const missing = REQUIRED_PATHS.filter(
+    (required) => !report.files.some((f) => f === required || f.endsWith(`/${required}`))
+  );
+  if (missing.length > 0) {
+    violations.push(
+      `${missing.length} required file(s) would be missing from the package:\n  ` +
+        missing.join("\n  ")
     );
   }
 

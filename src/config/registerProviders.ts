@@ -42,6 +42,20 @@
  * it never aborts the CLI or the other providers. Registration is idempotent
  * enough for repeat bootstraps — the provider registry keeps the last registrant.
  */
+/**
+ * Where the worker entry actually is, which differs between the two ways this
+ * module runs. From source `import.meta.url` is this file under `src/config/`
+ * and the sibling is `hftWorker.ts`; inside the bundle it is `dist/sec.js` and
+ * the sibling is the separately built `dist/hftWorker.js`. Only `dist` is
+ * published, so a hard-coded `./hftWorker.ts` resolves to a path that ships
+ * nowhere and the provider fails at spawn — with the CLI still exiting 0,
+ * because a provider that will not register is only warned about.
+ */
+function workerEntryUrl(): URL {
+  const entry = import.meta.url.endsWith(".ts") ? "./hftWorker.ts" : "./hftWorker.js";
+  return new URL(entry, import.meta.url);
+}
+
 export async function registerSecProviders(): Promise<void> {
   // Local always: it is what makes `sec ask` work on a machine with no keys.
   await registerHft();
@@ -89,7 +103,7 @@ async function registerHft(): Promise<void> {
     }
     const { registerHuggingFaceTransformers } = await import("workglow/hf-transformers");
     await registerHuggingFaceTransformers({
-      worker: () => new Worker(new URL("./hftWorker.ts", import.meta.url), { type: "module" }),
+      worker: () => new Worker(workerEntryUrl(), { type: "module" }),
     });
   } catch (err) {
     warn("HuggingFace Transformers", err);
