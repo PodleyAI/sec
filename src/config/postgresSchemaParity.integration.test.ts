@@ -12,11 +12,7 @@ import { planColumnAlignment, type LiveColumn } from "./alignPostgresColumnTypes
 import { DefaultDI } from "./DefaultDI";
 import { planStaleCheckDrops, type LiveCheckConstraint } from "./dropStaleCheckConstraints";
 import { resetAllDatabases } from "./resetAllDatabases";
-import {
-  ALL_SECURITIES_OFFERED_TYPES,
-  LONG_FILE_NUMBER,
-  LONG_PHONE_INTERNATIONAL,
-} from "./schemaRoundTripFixtures";
+import { LONG_FILE_NUMBER } from "./schemaRoundTripFixtures";
 import { setupAllDatabases } from "./setupAllDatabases";
 import { listRegisteredTables } from "./tableRegistry";
 import { resetDependencyInjectionsForTesting } from "./TestingDI";
@@ -75,12 +71,14 @@ describe.skipIf(!PG_URL)("postgres schema parity", () => {
     // Degrade to the pre-widening shape: narrow the widened columns and
     // re-tighten the relaxed one. `db setup` alone (CREATE TABLE IF NOT
     // EXISTS) cannot undo either — the alignment pass is what does.
-    await pool.query(`ALTER TABLE "phones" ALTER COLUMN "international_number" TYPE varchar(20)`);
+    // `crd_number` is part of a primary key, which is the case the widening
+    // pass has to get right: Postgres rebuilds the index behind it.
+    await pool.query(`ALTER TABLE "adv_adviser" ALTER COLUMN "crd_number" TYPE varchar(8)`);
     await pool.query(`ALTER TABLE "filings" ALTER COLUMN "file_number" TYPE varchar(10)`);
     await pool.query(`ALTER TABLE "filings" ALTER COLUMN "form" TYPE varchar(8)`);
-    await pool.query(`UPDATE "addresses" SET "state_or_country" = 'CA'
-                       WHERE "state_or_country" IS NULL`);
-    await pool.query(`ALTER TABLE "addresses" ALTER COLUMN "state_or_country" SET NOT NULL`);
+    await pool.query(`UPDATE "adv_adviser" SET "legal_name" = 'unnamed'
+                       WHERE "legal_name" IS NULL`);
+    await pool.query(`ALTER TABLE "adv_adviser" ALTER COLUMN "legal_name" SET NOT NULL`);
 
     await setupAllDatabases();
 
@@ -96,7 +94,7 @@ describe.skipIf(!PG_URL)("postgres schema parity", () => {
       []
     );
     expect(
-      live.find((c) => c.table === "addresses" && c.column === "state_or_country")?.isNullable
+      live.find((c) => c.table === "adv_adviser" && c.column === "legal_name")?.isNullable
     ).toBe(true);
   });
 
@@ -106,7 +104,7 @@ describe.skipIf(!PG_URL)("postgres schema parity", () => {
               con.conname AS constraint_name,
               pg_get_constraintdef(con.oid) AS definition,
               coalesce(
-                (SELECT array_agg(a.attname ORDER BY a.attnum)
+                (SELECT array_agg(a.attname::text ORDER BY a.attnum)
                    FROM unnest(con.conkey) AS k(attnum)
                    JOIN pg_attribute a
                      ON a.attrelid = con.conrelid AND a.attnum = k.attnum),
@@ -133,40 +131,42 @@ describe.skipIf(!PG_URL)("postgres schema parity", () => {
   }
 
   /**
-   * The bound that shipped as `minimum: 0` on `crowdfunding_reports`, and the
-   * reason the drop pass exists. Recreated here exactly as the storage layer
-   * emitted it, because the pass matches on that shape and nothing else.
+   * A bound the storage layer emits from a `minimum: 0` the schema no longer
+   * declares — the reason the drop pass exists. Recreated exactly as it was
+   * emitted, because the pass matches on that shape and nothing else.
    */
   it("drops a CHECK the schema no longer declares, and keeps the ones it does", async () => {
     const pool = getPgPool();
     await pool.query(
-      `ALTER TABLE "crowdfunding_reports"
-         ADD CONSTRAINT "crowdfunding_reports_disclosure_value_check"
-         CHECK ("disclosure_value" >= 0)`
+      `ALTER TABLE "company_facts"
+         ADD CONSTRAINT "company_facts_val_check"
+         CHECK ("val" >= 0)`
     );
     // An operator's own bound on the same relaxed column. `db setup` must not
     // touch it: this pass removes what the storage layer stopped declaring, and
     // has no claim on anything else in the database.
     await pool.query(
-      `ALTER TABLE "crowdfunding_reports"
-         ADD CONSTRAINT "operator_disclosure_sanity"
-         CHECK ("disclosure_value" >= -1000000 AND "disclosure_value" <= 1000000)`
+      `ALTER TABLE "company_facts"
+         ADD CONSTRAINT "operator_val_sanity"
+         CHECK ("val" >= -1000000 AND "val" <= 1000000)`
     );
 
     await setupAllDatabases();
 
     const names = new Set((await liveChecks()).map((c) => c.name));
-    expect(names.has("crowdfunding_reports_disclosure_value_check")).toBe(false);
-    expect(names.has("operator_disclosure_sanity")).toBe(true);
+    expect(names.has("company_facts_val_check")).toBe(false);
+    expect(names.has("operator_val_sanity")).toBe(true);
     // `cik` is still declared unsigned, so its emitted bound is current.
-    expect(names.has("crowdfunding_reports_cik_check")).toBe(true);
+    expect(names.has("company_facts_cik_check")).toBe(true);
 
     // And the negative value the stale bound rejected now stores, which is the
-    // whole point — a Reg CF issuer reporting a loss.
+    // whole point — a filer reporting a net loss.
     await pool.query(
-      `INSERT INTO "crowdfunding_reports"
-         ("cik", "file_number", "filing_date", "disclosure_name", "disclosure_value")
-       VALUES (1792525, '020-26773', '2020-08-17', 'netIncomeMostRecentFiscalYear', -89617)`
+      `INSERT INTO "company_facts"
+         ("cik", "grouping", "name", "filed_date", "form", "val_unit",
+          "accession_number", "val", "fy", "fp")
+       VALUES (1792525, 'us-gaap', 'NetIncomeLoss', '2020-08-17', '10-K', 'USD',
+               '0001193125-20-000001', -89617, 2020, 'FY')`
     );
 
     // Asserted through the planner, like the alignment case above: an empty
@@ -175,9 +175,7 @@ describe.skipIf(!PG_URL)("postgres schema parity", () => {
       planStaleCheckDrops(listRegisteredTables(), await liveChecks(), "public").map((s) => s.sql)
     ).toEqual([]);
 
-    await pool.query(
-      `ALTER TABLE "crowdfunding_reports" DROP CONSTRAINT "operator_disclosure_sanity"`
-    );
+    await pool.query(`ALTER TABLE "company_facts" DROP CONSTRAINT "operator_val_sanity"`);
   });
 
   it("round-trips the same values the sqlite suite asserts", async () => {

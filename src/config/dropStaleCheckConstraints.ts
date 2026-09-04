@@ -154,12 +154,18 @@ export async function dropStaleCheckConstraints(): Promise<void> {
     // constraint text: the text is for MATCHING the emitter's shape, and using
     // it to decide which column is involved would make a quoted or
     // funny-cased identifier read as a different column than it is.
+    //
+    // `attname::text` is load-bearing. `attname` is `name`, so aggregating it
+    // yields `name[]`, an OID the driver has no parser for — it hands back the
+    // literal `"{cik}"` instead of an array. Nothing errors: `columns` is typed
+    // `string[]`, a string has a `.length`, and every constraint then fails the
+    // single-column test and is silently skipped.
     const catalog = await client.query(
       `SELECT c.relname AS table_name,
               con.conname AS constraint_name,
               pg_get_constraintdef(con.oid) AS definition,
               coalesce(
-                (SELECT array_agg(a.attname ORDER BY a.attnum)
+                (SELECT array_agg(a.attname::text ORDER BY a.attnum)
                    FROM unnest(con.conkey) AS k(attnum)
                    JOIN pg_attribute a
                      ON a.attrelid = con.conrelid AND a.attnum = k.attnum),

@@ -7,18 +7,14 @@
 import { describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
-import {
-  ALL_SECURITIES_OFFERED_TYPES,
-  LONG_FILE_NUMBER,
-  LONG_PHONE_INTERNATIONAL,
-} from "./schemaRoundTripFixtures";
+import { LONG_FILE_NUMBER } from "./schemaRoundTripFixtures";
 import { withSqliteDb } from "./testing/withSqliteDb";
 
 /**
- * Round-trips the two values that overflowed their original column widths.
- * The Postgres arm of this lives in `postgresSchemaParity.integration.test.ts`
- * and uses the same fixtures, so the two backends are asserted against
- * identical input.
+ * Round-trips the value that overflowed its original column width. The
+ * Postgres arm of this lives in `postgresSchemaParity.integration.test.ts` and
+ * uses the same fixture, so the two backends are asserted against identical
+ * input.
  */
 describe("schema round-trip (sqlite)", () => {
   // "all": these two writes go through repos whose DDL the full setup emits,
