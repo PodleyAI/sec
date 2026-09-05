@@ -6,6 +6,9 @@ import type {
   FromSchema,
   InsertEntity,
   ITabularStorage,
+  JoinedRow,
+  JoinSpec,
+  JoinType,
   Page,
   PageRequest,
   QueryOptions,
@@ -119,6 +122,17 @@ export class ReadOnlyTabularStorage<
     options: CoveringIndexQueryOptions<Entity, K>
   ): Promise<Pick<Entity, K>[]> {
     return this.inner.queryIndex(criteria, options);
+  }
+
+  /**
+   * A join is a read, so it forwards like every other read here. The write
+   * guard this wrapper exists for is unaffected: nothing in a join mutates.
+   */
+  join<R, T extends JoinType>(
+    spec: JoinSpec<Entity, R, T>,
+    right: ITabularStorage<any, any, R, any, any>
+  ): Promise<JoinedRow<Entity, R, T>[]> {
+    return this.inner.join(spec, right);
   }
 
   // ── transactions (no-op wrapper) ───────────────────────────────────
