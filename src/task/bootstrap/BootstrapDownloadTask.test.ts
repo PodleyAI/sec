@@ -18,7 +18,11 @@ import {
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import type { TaskPorts } from "../taskPorts";
-import { BootstrapDownloadTask } from "./BootstrapDownloadTask";
+import {
+  BootstrapDownloadTask,
+  readBulkArchiveMarker,
+  writeBulkArchiveMarker,
+} from "./BootstrapDownloadTask";
 
 /**
  * Stands in for `SecFetchTask` with `response_type: "stream"`: same `body`
@@ -453,6 +457,34 @@ describe("BootstrapDownloadTask conditional download", () => {
       expect(existsSync(zipPath)).toBe(false); // staged zip binned
     } finally {
       bun.restore();
+      rmSync(folder, { recursive: true, force: true });
+    }
+  });
+});
+
+/**
+ * The marker path mirrors the target folder, and a period-scoped ADV download
+ * targets a nested one (`adv/2026-07`). Creating only `.bulk-done` left the
+ * write with nowhere to land, so a download that had already spent its bytes
+ * failed at the last step and re-downloaded on every run.
+ */
+describe("bulk archive markers for a nested target folder", () => {
+  it("round-trips a marker whose target folder has a path segment", () => {
+    const folder = mkdtempSync(path.join(tmpdir(), "sec-marker-test-"));
+    try {
+      const marker = {
+        url: "https://example/adv-2026-07.zip",
+        etag: '"abc"',
+        contentLength: 4,
+        extractedAt: "2026-08-01T00:00:00.000Z",
+      };
+      writeBulkArchiveMarker(folder, "adv/2026-07", marker);
+
+      expect(readBulkArchiveMarker(folder, "adv/2026-07")).toEqual(marker);
+      // Each period keeps its own marker, so one month's validators can never
+      // certify another month's extraction as current.
+      expect(readBulkArchiveMarker(folder, "adv/2026-06")).toBeUndefined();
+    } finally {
       rmSync(folder, { recursive: true, force: true });
     }
   });

@@ -10,6 +10,7 @@ import { Type } from "typebox";
 import type { IExecuteContext } from "workglow";
 import { globalServiceRegistry, Task, TaskAbortedError } from "workglow";
 import { advField, parseAdvCsv } from "../../sec/adv/parseAdvCsv";
+import { advArchiveFolder, ADV_CUMULATIVE_SNAPSHOT } from "./advArchive";
 import { ADV_ADVISER_REPOSITORY_TOKEN, type AdvAdviser } from "../../storage/adv/AdvAdviserSchema";
 import { ADV_ROW_REPOSITORY_TOKEN, type AdvRow } from "../../storage/adv/AdvRowSchema";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
@@ -19,7 +20,11 @@ import type { TaskPorts } from "../taskPorts";
 export interface IngestAdvSnapshotTaskInput {
   /** The period these CSVs describe, e.g. `2026-06`, stamped on every row. */
   readonly snapshot: string;
-  /** Folder under `SEC_RAW_DATA_FOLDER` the archive was extracted into. */
+  /**
+   * Folder under `SEC_RAW_DATA_FOLDER` the archive was extracted into.
+   * Defaults to the snapshot's own folder, which is the only one holding its
+   * members.
+   */
   readonly folder?: string | undefined;
 }
 
@@ -48,6 +53,29 @@ const WRITE_BATCH = 500;
  */
 function isBaseFilingMember(table: string): boolean {
   return /adv_base|base_filing/i.test(table);
+}
+
+/** The archive's CSV members, or an empty list when nothing was extracted there. */
+async function readMembers(dir: string): Promise<string[]> {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    // A folder that was never created reads the same as one holding no members
+    // — both mean "nothing downloaded" — and the caller says so by name.
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  return entries
+    .filter((entry) => entry.isFile() && extname(entry.name).toLowerCase() === ".csv")
+    .map((entry) => entry.name);
+}
+
+/** The command that puts this snapshot's archive on disk. */
+function downloadCommandFor(snapshot: string): string {
+  return snapshot === ADV_CUMULATIVE_SNAPSHOT
+    ? "`sec load download adv`"
+    : `\`sec update adv --period ${snapshot}\``;
 }
 
 /** Whether the member's name says it holds Exempt Reporting Advisers. */
@@ -79,6 +107,12 @@ function toIsoDate(value: string | undefined): string | null {
  * Nothing here knows the SEC's column set. The two headline tables people
  * filter on get columns; everything else stays queryable as JSON. A member the
  * SEC adds or renames lands with no code change.
+ *
+ * Re-running one snapshot replaces it: the snapshot's rows are dropped before
+ * the archive is read again. `row_index` is a position within a member and a
+ * member's row count changes between archives, so a second pass that only
+ * overwrote what it wrote would leave the tail of the longer earlier run
+ * standing as duplicates under the same `(snapshot, table_name)`.
  */
 export class IngestAdvSnapshotTask extends Task<
   TaskPorts<IngestAdvSnapshotTaskInput>,
@@ -111,15 +145,14 @@ export class IngestAdvSnapshotTask extends Task<
     context: IExecuteContext
   ): Promise<TaskPorts<IngestAdvSnapshotTaskOutput>> {
     const root = globalServiceRegistry.get(SEC_RAW_DATA_FOLDER);
-    const dir = join(root, input.folder ?? "adv");
-    const members = (await readdir(dir, { withFileTypes: true }))
-      .filter((entry) => entry.isFile() && extname(entry.name).toLowerCase() === ".csv")
-      .map((entry) => entry.name)
-      .sort();
+    const folder = input.folder ?? advArchiveFolder(input.snapshot);
+    const dir = join(root, folder);
+    const members = (await readMembers(dir)).sort();
 
     if (members.length === 0) {
       throw new Error(
-        `No CSV members under ${dir}. Download the archive first: \`sec load download adv\`.`
+        `No CSV members under ${dir}. Download ${input.snapshot} first: ` +
+          `${downloadCommandFor(input.snapshot)}.`
       );
     }
 
@@ -127,12 +160,15 @@ export class IngestAdvSnapshotTask extends Task<
     const adviserRepo = globalServiceRegistry.get(ADV_ADVISER_REPOSITORY_TOKEN);
     const dryRun = isDryRun();
 
+    // Clear the snapshot before landing it, so a re-ingest replaces the period
+    // rather than merging into whatever the last pass left.
+    if (!dryRun) {
+      await rowRepo.deleteSearch({ snapshot: input.snapshot });
+      await adviserRepo.deleteSearch({ snapshot: input.snapshot });
+    }
+
     let rowTotal = 0;
     let adviserTotal = 0;
-    // Continues across members: `row_index` is part of the primary key, and a
-    // per-member counter would have two members of one snapshot overwrite each
-    // other's rows.
-    let rowIndex = 0;
 
     for (const [position, member] of members.entries()) {
       if (context.signal?.aborted) throw new TaskAbortedError();
@@ -143,10 +179,13 @@ export class IngestAdvSnapshotTask extends Task<
       );
 
       const { rows } = parseAdvCsv(await readFile(join(dir, member), "utf-8"));
-      const landed: AdvRow[] = rows.map((row) => ({
+      // Numbered within the member, which `table_name` already separates in the
+      // primary key. A counter running across members would renumber every
+      // later member whenever an earlier one changed length.
+      const landed: AdvRow[] = rows.map((row, index) => ({
         snapshot: input.snapshot,
         table_name: table,
-        row_index: rowIndex++,
+        row_index: index,
         data: JSON.stringify(row),
       }));
       if (!dryRun) {

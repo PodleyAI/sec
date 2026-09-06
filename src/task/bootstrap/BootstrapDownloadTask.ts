@@ -5,7 +5,7 @@
  */
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { Type } from "typebox";
 import type { FetchUrlTaskConfig, FetchUrlTaskOutput, ITask } from "workglow";
 import { Dataflow, globalServiceRegistry, IExecuteContext, Task, TaskGraph } from "workglow";
@@ -63,9 +63,11 @@ export function writeBulkArchiveMarker(
   targetFolder: string,
   marker: BulkArchiveMarker
 ): void {
-  const doneDir = join(rawDataFolder, BULK_DONE_DIR);
-  mkdirSync(doneDir, { recursive: true });
-  writeFileSync(join(doneDir, `${targetFolder}.json`), JSON.stringify(marker, null, 2));
+  const markerPath = join(rawDataFolder, BULK_DONE_DIR, `${targetFolder}.json`);
+  // `dirname`, not the marker root: a nested target folder (`adv/2026-07`)
+  // puts the marker a level down, and only the root would exist.
+  mkdirSync(dirname(markerPath), { recursive: true });
+  writeFileSync(markerPath, JSON.stringify(marker, null, 2));
 }
 
 /**
