@@ -7,6 +7,7 @@
 import type { Command } from "commander";
 import { AskTask, type AskTaskOutput } from "../../task/kb/AskTask";
 import {
+  DEFAULT_ASK_INDEX_LIMIT,
   IndexFilingSectionsTask,
   type IndexFilingSectionsTaskOutput,
 } from "../../task/kb/IndexFilingSectionsTask";
@@ -67,7 +68,8 @@ export function addAskCommands(program: Command): void {
         ]);
         console.log(
           `indexed ${out.indexed} filing(s) · ${out.sections} sections` +
-            (out.skipped > 0 ? ` · ${out.skipped} already indexed` : "")
+            (out.skipped > 0 ? ` · ${out.skipped} already indexed` : "") +
+            (out.truncated ? " · stopped at --limit, run again for more" : "")
         );
         if (out.indexed > 0 || out.skipped > 0) {
           suggest({ command: 'sec ask "..."', why: "ask a question about what is indexed" });
@@ -86,24 +88,47 @@ export function addAskCommands(program: Command): void {
       .description("Answer a question from indexed filing prose, with citations")
   )
     .option("--top-k <n>", "Excerpts retrieved before answering", parseIntOption)
+    .option(
+      "--index-limit <n>",
+      `Filings to index before answering (default ${DEFAULT_ASK_INDEX_LIMIT})`,
+      parseIntOption
+    )
     .option("--no-index", "Answer from what is already indexed, indexing nothing first")
     .action(
-      async (question: string, options: ScopeOptions & { topK?: number; index?: boolean }) => {
+      async (
+        question: string,
+        options: ScopeOptions & { topK?: number; index?: boolean; indexLimit?: number }
+      ) => {
         await runCommand(async () => {
           const scope = await resolveScope(options);
 
           // Index what the scope needs first, and say so while doing it. The
           // alternative is an empty answer that looks like the filings say
           // nothing, when in fact nothing was searched.
+          //
+          // Bounded, because embedding is the expensive half: an unbounded
+          // pre-index on a full corpus runs for days on CPU ONNX before the
+          // question is so much as read.
           if (options.index !== false) {
+            const limit = options.indexLimit ?? DEFAULT_ASK_INDEX_LIMIT;
             const indexed = await runWorkflowCli<IndexFilingSectionsTaskOutput>([
-              new IndexFilingSectionsTask({ defaults: scope }),
+              new IndexFilingSectionsTask({ defaults: { ...scope, limit } }),
             ]);
             if (indexed.indexed > 0) {
               console.log(
                 statusMessage(
                   "info",
                   `indexed ${indexed.indexed} filing(s) · ${indexed.sections} sections`
+                )
+              );
+            }
+            if (indexed.truncated) {
+              console.log(
+                statusMessage(
+                  "warn",
+                  `stopped at ${limit} filing(s); this answer sees only what is indexed. ` +
+                    "Run `sec index` for the full build (`--limit` bounds one run), raise " +
+                    "`--index-limit`, or pass `--no-index` to answer from the index as it stands."
                 )
               );
             }
