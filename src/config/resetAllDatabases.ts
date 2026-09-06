@@ -6,6 +6,7 @@
 
 import { globalServiceRegistry, MIGRATIONS_TABLE } from "workglow";
 import { isDryRun } from "../cli/isDryRun";
+import { SEC_KB_TABLE_NAMES } from "../kb/secKbTables";
 import { secFetchRateLimiterTableNames } from "../task/fetch/secFetchRateLimiterConfig";
 import { secFetchRateLimiterLedgerComponents } from "../task/fetch/SecJobQueue";
 import { getDb } from "../util/db";
@@ -76,6 +77,12 @@ export async function resetAllDatabases(options: ResetAllDatabasesOptions = {}):
 /**
  * Every table name this reset owns: the registry plus the few created outside it.
  *
+ * The knowledge base's tables are among those few — they are built lazily,
+ * against `getDb()` directly, so `createStorage` never sees them. Leaving them
+ * out made a reset destructive in the worst direction: `kb_document` survived,
+ * every filing then anti-joined as "already indexed", and `ask` answered from
+ * vectors of documents the database no longer held.
+ *
  * The rate-limiter tables are derived from the configuration
  * `setupSecFetchRateLimiter()` builds its storage with, not named literally:
  * `PostgresRateLimiterStorage` renames them when it is given prefix columns,
@@ -84,7 +91,11 @@ export async function resetAllDatabases(options: ResetAllDatabasesOptions = {}):
  * inherit a rate-limit budget from before the reset.
  */
 export function ownedTableNames(): ReadonlyArray<string> {
-  return [...listRegisteredTables().map((t) => t.table), ...secFetchRateLimiterTableNames()];
+  return [
+    ...listRegisteredTables().map((t) => t.table),
+    ...SEC_KB_TABLE_NAMES,
+    ...secFetchRateLimiterTableNames(),
+  ];
 }
 
 async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {

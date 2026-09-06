@@ -29,8 +29,9 @@ const DEFAULT_EMBEDDING_MODEL = "onnx:Xenova/bge-base-en-v1.5:q8";
  *
  * A schema fact, not a preference: the vector column is created at this width
  * and every stored vector has it. Changing the model without re-indexing
- * produces a store whose vectors mean nothing to the query — which is why
- * `sec index` records what it used and refuses a mismatch rather than
+ * produces a store whose vectors mean nothing to the query, so the index
+ * records the model and width it was built with (`kb_index`) and
+ * `getSecKnowledgeBase()` refuses to open it under a different one rather than
  * returning plausible nonsense.
  */
 export const SEC_EMBEDDING_DIMENSIONS = 768;

@@ -109,6 +109,14 @@ describe("CLI v2 integration", () => {
     expect(output).toContain("--cik");
   });
 
+  it("should show how `ask` bounds the indexing it does first", async () => {
+    // `ask` indexes before it answers, and on a full corpus that is days of
+    // CPU embedding. Both bounds have to be discoverable from the help.
+    const output = await runCli("ask", "--help");
+    expect(output).toContain("--index-limit");
+    expect(output).toContain("--no-index");
+  });
+
   it("should show db subcommands", async () => {
     const output = await runCli("db", "--help");
     expect(output).toContain("setup");

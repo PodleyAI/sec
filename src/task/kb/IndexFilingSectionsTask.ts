@@ -5,7 +5,7 @@
  */
 
 import { Type } from "typebox";
-import type { DocumentNode, IExecuteContext } from "workglow";
+import type { DocumentNode, IExecuteContext, PageCursor } from "workglow";
 import {
   Document,
   globalServiceRegistry,
@@ -18,6 +18,7 @@ import { getSecKnowledgeBase } from "../../kb/secKnowledgeBase";
 import {
   FILING_DOCUMENT_REPOSITORY_TOKEN,
   type FilingDocument,
+  type FilingDocumentRepositoryStorage,
 } from "../../storage/document/FilingDocumentSchema";
 import {
   FILING_SECTION_REPOSITORY_TOKEN,
@@ -49,7 +50,21 @@ export interface IndexFilingSectionsTaskOutput {
   readonly sections: number;
   /** Filings already in the index, skipped. */
   readonly skipped: number;
+  /** True when the run hit its limit with filings still unexamined. */
+  readonly truncated: boolean;
 }
+
+/**
+ * How many converted filings `sec ask` embeds before answering.
+ *
+ * Small on purpose. Embedding runs on CPU ONNX by default, and a corpus of any
+ * size takes hours to days — which is a build to start deliberately with `sec
+ * index`, not something a question should trigger on its way to an answer.
+ */
+export const DEFAULT_ASK_INDEX_LIMIT = 25;
+
+/** Rows per read while walking the converted filings. */
+const HEADER_PAGE_SIZE = 500;
 
 /** The EDGAR URL a citation points at. */
 function filingUrl(cik: number, accession: string, docFile: string): string {
@@ -103,6 +118,32 @@ function toDocument(header: FilingDocument, sections: readonly FilingSection[]):
 }
 
 /**
+ * The converted filings matching `criteria`, a page at a time.
+ *
+ * Streamed rather than collected: the unscoped case is every converted filing
+ * in the database, and materializing that array to take the first few of it
+ * costs the whole corpus in memory before any work starts.
+ */
+async function* streamHeaders(
+  repo: FilingDocumentRepositoryStorage,
+  criteria: Record<string, unknown>
+): AsyncGenerator<FilingDocument> {
+  if (Object.keys(criteria).length === 0) {
+    yield* repo.records(HEADER_PAGE_SIZE);
+    return;
+  }
+  let cursor: PageCursor | undefined;
+  for (;;) {
+    const page = await repo.queryPage(criteria as never, { limit: HEADER_PAGE_SIZE, cursor });
+    yield* page.items;
+    // Both conditions: a cursor can be handed back for a page that concurrent
+    // deletes have since emptied, and looping on it alone would not terminate.
+    if (page.nextCursor === undefined || page.items.length === 0) return;
+    cursor = page.nextCursor;
+  }
+}
+
+/**
  * Embeds converted filing sections into the knowledge base `sec ask` reads.
  *
  * Resumable by anti-join, like every other sweep here: a filing whose document
@@ -137,6 +178,7 @@ export class IndexFilingSectionsTask extends Task<
       indexed: Type.Integer(),
       sections: Type.Integer(),
       skipped: Type.Integer(),
+      truncated: Type.Boolean(),
     });
   }
 
@@ -153,23 +195,27 @@ export class IndexFilingSectionsTask extends Task<
     if (input.form !== undefined) criteria.form = input.form;
     if (input.accession !== undefined) criteria.accession_number = input.accession;
 
-    // `query({})` is refused rather than treated as "everything", so an
-    // unscoped index has to say so by asking for all of them.
-    const all =
-      Object.keys(criteria).length === 0
-        ? ((await documentRepo.getAll()) ?? [])
-        : ((await documentRepo.query(criteria as never)) ?? []);
-    const headers = all.filter(
-      (header) => input.since === undefined || (header.filing_date ?? "") >= input.since
+    // Only a denominator for the progress line, so an over-count from the
+    // `since` filter (which no backend expresses as a criterion) is harmless.
+    const candidates = await documentRepo.count(
+      Object.keys(criteria).length === 0 ? undefined : (criteria as never)
     );
-    const limit = input.limit ?? headers.length;
+    const limit = input.limit;
+    const denominator = Math.max(1, limit === undefined ? candidates : Math.min(limit, candidates));
 
     let indexed = 0;
     let sectionTotal = 0;
     let skipped = 0;
-    for (const header of headers) {
+    let truncated = false;
+    for await (const header of streamHeaders(documentRepo, criteria)) {
       if (context.signal?.aborted) throw new TaskAbortedError();
-      if (indexed >= limit) break;
+      // Scope first, then the limit, so a run that stops has genuinely left
+      // candidates behind rather than rows the scope excludes.
+      if (input.since !== undefined && (header.filing_date ?? "") < input.since) continue;
+      if (limit !== undefined && indexed >= limit) {
+        truncated = true;
+        break;
+      }
 
       // The document id is derived from the filing, so "already indexed" is a
       // lookup rather than a second table to keep in step with this one.
@@ -195,11 +241,11 @@ export class IndexFilingSectionsTask extends Task<
       indexed += 1;
       sectionTotal += sections.length;
       await context.updateProgress(
-        Math.floor((indexed / Math.min(limit, headers.length)) * 100),
+        Math.min(100, Math.floor((indexed / denominator) * 100)),
         `${indexed} filings indexed`
       );
     }
 
-    return { success: true, indexed, sections: sectionTotal, skipped };
+    return { success: true, indexed, sections: sectionTotal, skipped, truncated };
   }
 }
