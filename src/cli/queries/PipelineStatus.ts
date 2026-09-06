@@ -5,7 +5,7 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import { ADV_ADVISER_REPOSITORY_TOKEN, type AdvAdviser } from "../../storage/adv/AdvAdviserSchema";
+import { ADV_ADVISER_REPOSITORY_TOKEN } from "../../storage/adv/AdvAdviserSchema";
 import { FILING_DOCUMENT_REPOSITORY_TOKEN } from "../../storage/document/FilingDocumentSchema";
 import { FILING_SECTION_REPOSITORY_TOKEN } from "../../storage/document/FilingSectionSchema";
 import { CIK_NAME_REPOSITORY_TOKEN } from "../../storage/entity/CikNameSchema";
@@ -88,14 +88,22 @@ function daysBetween(from: string, to: string): number {
   return Math.max(0, Math.round(ms / 86_400_000));
 }
 
+/**
+ * The newest ADV period on file, for one line of the map.
+ *
+ * One row, ordered on `snapshot` — the primary key's leading column, so the
+ * backend answers from the index. Streaming every adviser to keep a running
+ * string maximum deserialised ~10^6 rows, and `sec` with no arguments runs
+ * `status`, so that was the cost of every bare invocation after an ADV load.
+ */
 async function latestAdvSnapshot(): Promise<string | undefined> {
   try {
     const repo = globalServiceRegistry.get(ADV_ADVISER_REPOSITORY_TOKEN);
-    let newest: string | undefined;
-    for await (const row of repo.records(1000) as AsyncIterable<AdvAdviser>) {
-      if (newest === undefined || row.snapshot > newest) newest = row.snapshot;
-    }
-    return newest;
+    const page = await repo.getPage({
+      orderBy: [{ column: "snapshot", direction: "DESC" }],
+      limit: 1,
+    });
+    return page.items[0]?.snapshot;
   } catch (error) {
     if (isMissingRelationError(error)) return undefined;
     throw error;
