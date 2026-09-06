@@ -15,6 +15,7 @@ import {
 } from "../../storage/filing/FilingSchema";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
+import { currentSchemaName, quote } from "../../util/pgIdentifiers";
 import { resolveSqlBackend } from "../../util/sqlBackend";
 
 /**
@@ -81,11 +82,18 @@ export async function listFactsEligibleCiks(): Promise<Set<number>> {
 
   if (backend === "postgres") {
     const pool = getPgPool();
+    // Both relations are qualified to `current_schema()`. An unqualified name
+    // resolves through the search_path, so a deployment carrying an older
+    // `public.filings` behind sec's own schema would compute this set from the
+    // wrong table — and the CIKs the facts lane then skips or fetches are
+    // whatever that other table happens to say.
+    const schema = await currentSchemaName(pool, "update facts");
+    const qualify = (object: string): string => `"${quote(schema)}"."${quote(object)}"`;
     const res = await pool.query<{ cik: string | number }>(
-      `SELECT DISTINCT "cik" FROM "filings"
+      `SELECT DISTINCT "cik" FROM ${qualify("filings")}
          WHERE "is_xbrl" OR "is_inline_xbrl" OR "is_xbrl_numeric"
        UNION
-       SELECT "cik" FROM "entities" WHERE "sic" IS NOT NULL`
+       SELECT "cik" FROM ${qualify("entities")} WHERE "sic" IS NOT NULL`
     );
     for (const row of res.rows) eligible.add(Number(row.cik));
     return eligible;
