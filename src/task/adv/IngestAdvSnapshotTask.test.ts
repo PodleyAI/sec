@@ -13,6 +13,7 @@ import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { ADV_ADVISER_REPOSITORY_TOKEN } from "../../storage/adv/AdvAdviserSchema";
 import { ADV_ROW_REPOSITORY_TOKEN } from "../../storage/adv/AdvRowSchema";
+import { advArchiveFolder } from "./advArchive";
 import { IngestAdvSnapshotTask } from "./IngestAdvSnapshotTask";
 
 const BASE_CSV = [
@@ -29,13 +30,19 @@ const SCHEDULE_CSV = [
 describe("IngestAdvSnapshotTask", () => {
   let dir: string;
 
+  /** Extracts one archive's members into the folder that snapshot owns. */
+  const extract = (snapshot: string, members: Record<string, string>): void => {
+    const folder = join(dir, advArchiveFolder(snapshot));
+    mkdirSync(folder, { recursive: true });
+    for (const [name, body] of Object.entries(members)) {
+      writeFileSync(join(folder, name), body);
+    }
+  };
+
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     dir = mkdtempSync(join(tmpdir(), "sec-adv-"));
-    const folder = join(dir, "adv");
-    mkdirSync(folder, { recursive: true });
-    writeFileSync(join(folder, "IA_ADV_Base_A.csv"), BASE_CSV);
-    writeFileSync(join(folder, "IA_Schedule_D_7B1.csv"), SCHEDULE_CSV);
+    extract("2026-06", { "IA_ADV_Base_A.csv": BASE_CSV, "IA_Schedule_D_7B1.csv": SCHEDULE_CSV });
     globalServiceRegistry.registerInstance(SEC_RAW_DATA_FOLDER, dir);
     await globalServiceRegistry.get(ADV_ADVISER_REPOSITORY_TOKEN).setupDatabase();
     await globalServiceRegistry.get(ADV_ROW_REPOSITORY_TOKEN).setupDatabase();
@@ -80,17 +87,69 @@ describe("IngestAdvSnapshotTask", () => {
     });
   });
 
-  it("numbers rows across members, so two members cannot overwrite each other", async () => {
+  it("numbers rows within their own member, as the primary key describes", async () => {
     await new IngestAdvSnapshotTask().run({ snapshot: "2026-06" });
 
     const rows = globalServiceRegistry.get(ADV_ROW_REPOSITORY_TOKEN);
-    const all = (await rows.getAll()) ?? [];
-    expect(all).toHaveLength(3);
-    expect(new Set(all.map((row) => row.row_index)).size).toBe(3);
+    const base = (await rows.query({ snapshot: "2026-06", table_name: "IA_ADV_Base_A" })) ?? [];
+    const schedule =
+      (await rows.query({ snapshot: "2026-06", table_name: "IA_Schedule_D_7B1" })) ?? [];
+
+    // Each member restarts at 0 — `table_name` is already in the primary key,
+    // so a counter running across members buys no uniqueness and instead makes
+    // every later member's keys a function of the earlier members' lengths.
+    expect(base.map((row) => row.row_index).sort()).toEqual([0, 1]);
+    expect(schedule.map((row) => row.row_index)).toEqual([0]);
+  });
+
+  it("reads only the snapshot's own folder, so one period cannot be stamped with another's rows", async () => {
+    // The cumulative archive on disk beside a monthly one is the shape that
+    // mislabelled thirteen years of filings: both used to extract into `adv/`.
+    extract("2011-2024", { "IA_ADV_Base_A.csv": BASE_CSV, "IA_Old_Schedule.csv": SCHEDULE_CSV });
+
+    const out = await new IngestAdvSnapshotTask().run({ snapshot: "2026-06" });
+    expect(out.tables).toBe(2);
+
+    const rows = globalServiceRegistry.get(ADV_ROW_REPOSITORY_TOKEN);
+    const stamped = (await rows.query({ snapshot: "2026-06" })) ?? [];
+    expect(stamped.map((row) => row.table_name)).not.toContain("IA_Old_Schedule");
+  });
+
+  it("replaces a snapshot on re-ingest instead of leaving the longer run's tail behind", async () => {
+    await new IngestAdvSnapshotTask().run({ snapshot: "2026-06" });
+
+    // The re-published archive is shorter — the case a plain upsert cannot
+    // handle, since the rows it does not write are the ones that must go.
+    extract("2026-06", {
+      "IA_ADV_Base_A.csv": BASE_CSV.split("\n").slice(0, 2).join("\n"),
+      "IA_Schedule_D_7B1.csv": SCHEDULE_CSV,
+    });
+    const second = await new IngestAdvSnapshotTask().run({ snapshot: "2026-06" });
+    expect(second).toMatchObject({ rows: 2, advisers: 1 });
+
+    const rows = globalServiceRegistry.get(ADV_ROW_REPOSITORY_TOKEN);
+    expect((await rows.getAll()) ?? []).toHaveLength(2);
+    const advisers = globalServiceRegistry.get(ADV_ADVISER_REPOSITORY_TOKEN);
+    expect(await advisers.get({ snapshot: "2026-06", crd_number: "110002" })).toBeUndefined();
+  });
+
+  it("leaves the other snapshots alone when one is re-ingested", async () => {
+    extract("2011-2024", { "IA_ADV_Base_A.csv": BASE_CSV });
+    await new IngestAdvSnapshotTask().run({ snapshot: "2011-2024" });
+    await new IngestAdvSnapshotTask().run({ snapshot: "2026-06" });
+    await new IngestAdvSnapshotTask().run({ snapshot: "2026-06" });
+
+    const rows = globalServiceRegistry.get(ADV_ROW_REPOSITORY_TOKEN);
+    expect((await rows.query({ snapshot: "2011-2024" })) ?? []).toHaveLength(2);
+    expect((await rows.query({ snapshot: "2026-06" })) ?? []).toHaveLength(3);
   });
 
   it("says what to run when the archive was never downloaded", async () => {
-    rmSync(join(dir, "adv"), { recursive: true, force: true });
-    await expect(new IngestAdvSnapshotTask().run({ snapshot: "2026-06" })).rejects.toThrow();
+    await expect(new IngestAdvSnapshotTask().run({ snapshot: "2026-07" })).rejects.toThrow(
+      /sec update adv --period 2026-07/
+    );
+    await expect(new IngestAdvSnapshotTask().run({ snapshot: "2011-2024" })).rejects.toThrow(
+      /sec load download adv/
+    );
   });
 });

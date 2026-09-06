@@ -16,8 +16,14 @@ import { BackfillNameHistoryTask } from "../../task/submissions/BackfillNameHist
 import { BootstrapSubmissionsTask } from "../../task/submissions/BootstrapSubmissionsTask";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
-import { ADV_BOOTSTRAP_ARCHIVE_URLS } from "../../task/adv/advArchive";
+import {
+  ADV_BOOTSTRAP_ARCHIVE_URLS,
+  ADV_CUMULATIVE_SNAPSHOT,
+  advArchiveFolder,
+} from "../../task/adv/advArchive";
+import { IngestAdvSnapshotTask } from "../../task/adv/IngestAdvSnapshotTask";
 import { confirmLoad, costsFor } from "../loadCosts";
+import { suggest } from "../nextSteps";
 
 const BULK_DOWNLOADS = {
   submissions: {
@@ -118,15 +124,22 @@ export function addBootstrapCommands(program: Command): void {
         if (type === "adv") {
           // Both halves, because the SEC split the cumulative archive by size
           // rather than by content: neither on its own has the whole table set.
+          // They share one folder for that reason, and it is not the folder any
+          // monthly archive extracts into.
+          const folder = advArchiveFolder(ADV_CUMULATIVE_SNAPSHOT);
           await runWorkflowCli(
             ADV_BOOTSTRAP_ARCHIVE_URLS.map(
               (url, index) =>
                 new BootstrapDownloadTask({
                   title: `Download adv part ${index + 1}`,
-                  defaults: { url, targetFolder: "adv", force: options.force ?? false },
+                  defaults: { url, targetFolder: folder, force: options.force ?? false },
                 })
             )
           );
+          suggest({
+            command: "sec load ingest adv",
+            why: "the archive is on disk but nothing has read it into adv_adviser yet",
+          });
           return;
         }
 
@@ -236,7 +249,7 @@ export function addBootstrapCommands(program: Command): void {
 
   bootstrap
     .command("ingest [domain]")
-    .description("Ingest pre-downloaded SEC data (submissions, facts, cik-names, or all)")
+    .description("Ingest pre-downloaded SEC data (submissions, facts, cik-names, adv, or all)")
     .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (domain: string | undefined, _options, command) => {
       // Merge ancestor options, for the same reason `download-docs` does: the
@@ -258,14 +271,27 @@ export function addBootstrapCommands(program: Command): void {
             target !== "all" &&
             target !== "submissions" &&
             target !== "facts" &&
-            target !== "cik-names"
+            target !== "cik-names" &&
+            target !== "adv"
           ) {
             throw new Error(
-              `Invalid domain "${target}". Must be submissions, facts, cik-names, or all.`
+              `Invalid domain "${target}". Must be submissions, facts, cik-names, adv, or all.`
             );
           }
 
           const tasks: ITask[] = [];
+
+          // Named only, never under `all`: the cumulative ADV archive is a
+          // separate ~180 MB download most databases have never taken, and an
+          // `all` that fails on its absence would stop the domains that did.
+          if (target === "adv") {
+            tasks.push(
+              new IngestAdvSnapshotTask({
+                title: `Ingest ADV ${ADV_CUMULATIVE_SNAPSHOT}`,
+                defaults: { snapshot: ADV_CUMULATIVE_SNAPSHOT },
+              })
+            );
+          }
 
           if (target === "cik-names" || target === "all") {
             tasks.push(new FetchAllCikNamesTask());

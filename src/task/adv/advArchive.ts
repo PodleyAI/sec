@@ -16,6 +16,19 @@ export const ADV_BOOTSTRAP_ARCHIVE_URLS: readonly string[] = [
   "https://www.sec.gov/files/adv-filing-data-20111105-20241231-part2.zip",
 ];
 
+/** Root folder under `SEC_RAW_DATA_FOLDER` holding every extracted ADV archive. */
+export const ADV_FOLDER = "adv";
+
+/**
+ * The `snapshot` every cumulative-archive row is stamped with.
+ *
+ * The two zips are one body of filings covering 2011-11-05 to 2024-12-31, so
+ * they share a label rather than borrowing whichever month happened to be
+ * ingested alongside them. It sorts below every monthly period, which is what
+ * keeps "the newest snapshot" a plain string comparison.
+ */
+export const ADV_CUMULATIVE_SNAPSHOT = "2011-2024";
+
 const ADV_MONTHLY_BASE_URL = "https://reports.adviserinfo.sec.gov/reports/foia/advFilingData";
 
 /**
@@ -55,6 +68,25 @@ export function advArchiveUrlForPeriod(period: string): string {
   const start = `${yearStr}${monthStr}01`;
   const end = `${yearStr}${monthStr}${pad(lastDay)}`;
   return `${ADV_MONTHLY_BASE_URL}/${yearStr}/ADV_Filing_Data_${start}_${end}.zip`;
+}
+
+/**
+ * The folder one snapshot's archive extracts into, and the only folder its
+ * ingest reads.
+ *
+ * Per snapshot, not one shared `adv/`: `unzip` merges members into whatever is
+ * already there, so a single folder holds the cumulative archive and every
+ * month at once — and an ingest reading it stamps thirteen years of filings
+ * with the period it was asked for.
+ */
+export function advArchiveFolder(snapshot: string): string {
+  if (snapshot === ADV_CUMULATIVE_SNAPSHOT) return `${ADV_FOLDER}/cumulative`;
+  if (!isAdvPeriod(snapshot)) {
+    throw new Error(
+      `Expected a "YYYY-MM" period or "${ADV_CUMULATIVE_SNAPSHOT}", got "${snapshot}"`
+    );
+  }
+  return `${ADV_FOLDER}/${snapshot}`;
 }
 
 /**

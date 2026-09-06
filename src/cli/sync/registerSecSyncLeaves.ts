@@ -11,7 +11,11 @@ import {
 import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
 import { CatchUpDailyIndexTask } from "../../task/index/CatchUpDailyIndexTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
-import { advArchiveUrlForPeriod, latestAvailableAdvPeriod } from "../../task/adv/advArchive";
+import {
+  advArchiveFolder,
+  advArchiveUrlForPeriod,
+  latestAvailableAdvPeriod,
+} from "../../task/adv/advArchive";
 import { IngestAdvSnapshotTask } from "../../task/adv/IngestAdvSnapshotTask";
 import { BootstrapDownloadTask } from "../../task/bootstrap/BootstrapDownloadTask";
 import { parseIntOption } from "../GlobalOptions";
@@ -189,18 +193,22 @@ export function registerSecSyncLeaves(): void {
     ],
     run: async (values) => {
       const period = str(values, "period") ?? latestAvailableAdvPeriod();
+      // One folder per period, and the ingest reads only that one. A shared
+      // folder would hand this month's ingest every member every other archive
+      // had left there, and stamp all of them with this period.
+      const folder = advArchiveFolder(period);
       await runWorkflowCli([
         new BootstrapDownloadTask({
           title: `Download ADV ${period}`,
           defaults: {
             url: advArchiveUrlForPeriod(period),
-            targetFolder: "adv",
+            targetFolder: folder,
             force: bool(values, "force"),
           },
         }),
         new IngestAdvSnapshotTask({
           title: `Ingest ADV ${period}`,
-          defaults: { snapshot: period },
+          defaults: { snapshot: period, folder },
         }),
       ]);
     },

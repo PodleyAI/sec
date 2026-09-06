@@ -5,7 +5,12 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { advArchiveUrlForPeriod, latestAvailableAdvPeriod } from "./advArchive";
+import {
+  ADV_CUMULATIVE_SNAPSHOT,
+  advArchiveFolder,
+  advArchiveUrlForPeriod,
+  latestAvailableAdvPeriod,
+} from "./advArchive";
 
 describe("advArchiveUrlForPeriod", () => {
   it("names the month's first and last day", () => {
@@ -26,6 +31,27 @@ describe("advArchiveUrlForPeriod", () => {
   it("refuses anything that is not a YYYY-MM month", () => {
     for (const bad of ["2026", "2026-13", "2026-00", "june", ""]) {
       expect(() => advArchiveUrlForPeriod(bad), bad).toThrow(/YYYY-MM/);
+    }
+  });
+});
+
+describe("advArchiveFolder", () => {
+  it("gives every period a folder of its own", () => {
+    expect(advArchiveFolder("2026-06")).toBe("adv/2026-06");
+    expect(advArchiveFolder("2026-07")).toBe("adv/2026-07");
+  });
+
+  it("keeps the cumulative archive out of every monthly folder", () => {
+    const cumulative = advArchiveFolder(ADV_CUMULATIVE_SNAPSHOT);
+    expect(cumulative).toBe("adv/cumulative");
+    // The whole point: no month can resolve to the folder holding 2011-2024,
+    // which is what let one ingest read both and stamp them with one period.
+    expect(advArchiveFolder("2025-01")).not.toBe(cumulative);
+  });
+
+  it("refuses a snapshot that names neither a month nor the cumulative archive", () => {
+    for (const bad of ["2026", "2026-13", "adv", "", "../etc"]) {
+      expect(() => advArchiveFolder(bad), bad).toThrow(/YYYY-MM/);
     }
   });
 });
